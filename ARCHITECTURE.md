@@ -24,6 +24,8 @@ The Google Services MCP Server is designed with a modular architecture that sepa
 - Implements manual token entry
 - Handles token exchange and refresh
 - Cross-platform browser support
+- Asynchronous initialization with promise tracking
+- Safe client access with initialization checks
 
 ### 2. Token Manager (`src/utils/token.ts`)
 - Manages OAuth token lifecycle
@@ -43,6 +45,8 @@ The Google Services MCP Server is designed with a modular architecture that sepa
 - Handles automatic token refresh
 - Manages API error handling
 - Provides retry mechanisms
+- Service-specific initialization (Gmail v1)
+- Proper method context binding
 
 ## Data Flow
 

@@ -1,3 +1,9 @@
 {
-  "accounts": []
+  "accounts": [
+    {
+      "email": "aaronsb@gmail.com",
+      "category": "personal",
+      "description": "Personal Google Account"
+    }
+  ]
 }

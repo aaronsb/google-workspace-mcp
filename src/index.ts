@@ -13,17 +13,13 @@ import { GoogleApiRequestParams, GoogleApiResponse, GoogleApiError } from './typ
 
 class GSuiteServer {
   private server: Server;
-  private oauthClient: GoogleOAuthClient;
-  private tokenManager: TokenManager;
-  private accountManager: AccountManager;
-  private apiRequest: GoogleApiRequest;
+  private oauthClient!: GoogleOAuthClient;
+  private tokenManager!: TokenManager;
+  private accountManager!: AccountManager;
+  private apiRequest!: GoogleApiRequest;
+  
   constructor() {
-    // Initialize components
-    this.oauthClient = new GoogleOAuthClient();
-    this.tokenManager = new TokenManager();
-    this.accountManager = new AccountManager();
-    this.apiRequest = new GoogleApiRequest(this.oauthClient.getAuthClient());
-    // Initialize MCP server
+    // Initialize MCP server first since it doesn't depend on OAuth
     this.server = new Server(
       {
         name: "GSuite OAuth MCP Server",
@@ -189,9 +185,22 @@ class GSuiteServer {
   }
 
   async run(): Promise<void> {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    console.error('GSuite MCP server running');
+    try {
+      // Initialize components
+      this.oauthClient = new GoogleOAuthClient();
+      await new Promise<void>(resolve => setTimeout(resolve, 1000)); // Give OAuth client time to initialize
+      this.tokenManager = new TokenManager();
+      this.accountManager = new AccountManager();
+      const authClient = await this.oauthClient.getAuthClient();
+      this.apiRequest = new GoogleApiRequest(authClient);
+      
+      const transport = new StdioServerTransport();
+      await this.server.connect(transport);
+      console.error('GSuite MCP server running');
+    } catch (error) {
+      console.error('Failed to initialize server:', error);
+      throw error;
+    }
   }
 }
 

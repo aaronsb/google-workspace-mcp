@@ -30,13 +30,21 @@ export class GoogleApiRequest {
       }
 
       // Get the Google API service
-      const googleService = (google as any)[service]({
-        version: 'v3', // Default to v3, can be made configurable if needed
-        auth: this.authClient
-      });
+      let googleService;
+      switch (service) {
+        case 'gmail':
+          googleService = google.gmail({ version: 'v1', auth: this.authClient });
+          break;
+        default:
+          throw new GoogleApiError(
+            'Unsupported service',
+            'SERVICE_NOT_SUPPORTED',
+            `Service ${service} is not currently supported`
+          );
+      }
 
       // Navigate to the method in the service
-      const apiMethod = methodName.split('.').reduce((obj, part) => obj[part], googleService);
+      const apiMethod = methodName.split('.').reduce((obj: any, part) => obj?.[part], googleService);
 
       if (typeof apiMethod !== 'function') {
         throw new GoogleApiError(
@@ -46,8 +54,8 @@ export class GoogleApiRequest {
         );
       }
 
-      // Make the API request
-      const response = await apiMethod({
+      // Make the API request with proper context binding
+      const response = await apiMethod.call(googleService, {
         ...params,
         auth: this.authClient
       });

@@ -9,12 +9,18 @@ import { OAuthConfig, TokenData, GoogleApiError } from '../types.js';
 export class GoogleOAuthClient {
   private client!: OAuth2Client;
   private config!: OAuthConfig;
+  private initialized: Promise<void>;
+
   constructor() {
-    // Initialize immediately
-    this.loadConfig().catch(error => {
+    // Initialize immediately but store the promise
+    this.initialized = this.loadConfig().catch(error => {
       console.error('Failed to load OAuth config:', error);
-      process.exit(1);
+      throw error;
     });
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    await this.initialized;
   }
 
   private async openBrowser(url: string): Promise<void> {
@@ -166,14 +172,8 @@ export class GoogleOAuthClient {
     }
   }
 
-  getAuthClient(): OAuth2Client {
-    if (!this.client) {
-      throw new GoogleApiError(
-        'OAuth client not initialized',
-        'CLIENT_NOT_INITIALIZED',
-        'Please ensure the OAuth configuration is loaded'
-      );
-    }
+  async getAuthClient(): Promise<OAuth2Client> {
+    await this.ensureInitialized();
     return this.client;
   }
 }

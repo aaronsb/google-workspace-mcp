@@ -29,7 +29,7 @@ export interface OAuthConfig {
 }
 
 // API Request Types
-export interface GoogleApiRequest {
+export interface GoogleApiRequestParams {
   email: string;
   category?: string;
   description?: string;
@@ -37,13 +37,15 @@ export interface GoogleApiRequest {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   params?: Record<string, any>;
   required_scopes: string[];
+  auth_code?: string;
 }
 
 // API Response Types
 export type GoogleApiResponse = 
   | {
       status: 'success';
-      data: any;
+      data?: any;
+      message?: string;
     }
   | {
       status: 'auth_required';
