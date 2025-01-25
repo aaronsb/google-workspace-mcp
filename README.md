@@ -35,8 +35,8 @@ npm install
    a. Create a project in [Google Cloud Console](https://console.cloud.google.com)
    b. Enable desired APIs (Gmail, Drive, etc.)
    c. Create OAuth 2.0 credentials
-   d. Download credentials and save as `config/gauth.json`
-   e. Create `config/accounts.json` with your account configuration:
+   d. Download credentials and save as `config/gauth.json` (or specify location with GAUTH_FILE env var)
+   e. Create `config/accounts.json` (or specify location with ACCOUNTS_FILE env var) with your account configuration:
    ```json
    {
      "accounts": [
@@ -59,6 +59,14 @@ npm run setup
 npm run build
 npm start
 ```
+
+## Configuration
+
+The server can be configured using environment variables:
+
+- `GAUTH_FILE` - Path to Google OAuth credentials file (default: `config/gauth.json`)
+- `ACCOUNTS_FILE` - Path to accounts configuration file (default: `config/accounts.json`)
+- `CREDENTIALS_DIR` - Directory for storing OAuth tokens (default: `config/credentials`)
 
 ## Usage
 

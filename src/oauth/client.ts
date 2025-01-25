@@ -7,20 +7,19 @@ import { exec } from 'child_process';
 import { OAuthConfig, TokenData, GoogleApiError } from '../types.js';
 
 export class GoogleOAuthClient {
-  private client!: OAuth2Client;
-  private config!: OAuthConfig;
-  private initialized: Promise<void>;
+  private client?: OAuth2Client;
+  private config?: OAuthConfig;
+  private initializationPromise?: Promise<void>;
 
-  constructor() {
-    // Initialize immediately but store the promise
-    this.initialized = this.loadConfig().catch(error => {
-      console.error('Failed to load OAuth config:', error);
-      throw error;
-    });
-  }
-
-  private async ensureInitialized(): Promise<void> {
-    await this.initialized;
+  async ensureInitialized(): Promise<void> {
+    if (!this.initializationPromise) {
+      this.initializationPromise = this.loadConfig().catch(error => {
+        // Clear the promise so we can retry initialization
+        this.initializationPromise = undefined;
+        throw error;
+      });
+    }
+    await this.initializationPromise;
   }
 
   private async openBrowser(url: string): Promise<void> {
@@ -54,7 +53,7 @@ export class GoogleOAuthClient {
 
   private async loadConfig(): Promise<void> {
     try {
-      const configPath = path.resolve('config', 'gauth.json');
+      const configPath = process.env.GAUTH_FILE || path.resolve('config', 'gauth.json');
       const data = await fs.readFile(configPath, 'utf-8');
       this.config = JSON.parse(data) as OAuthConfig;
       
@@ -64,6 +63,13 @@ export class GoogleOAuthClient {
         this.config.redirect_uri
       );
     } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        throw new GoogleApiError(
+          'OAuth configuration file not found',
+          'CONFIG_NOT_FOUND',
+          'Please ensure config/gauth.json exists'
+        );
+      }
       throw new GoogleApiError(
         'Failed to load OAuth configuration',
         'OAUTH_CONFIG_ERROR',
@@ -73,6 +79,15 @@ export class GoogleOAuthClient {
   }
 
   async generateAuthUrl(scopes: string[]): Promise<string> {
+    await this.ensureInitialized();
+    if (!this.config || !this.client) {
+      throw new GoogleApiError(
+        'OAuth client not initialized',
+        'CLIENT_NOT_INITIALIZED',
+        'Please ensure the OAuth configuration is loaded'
+      );
+    }
+
     // Use Google's device code flow redirect
     const redirect_uri = 'urn:ietf:wg:oauth:2.0:oob';
     this.client = new google.auth.OAuth2(
@@ -102,6 +117,15 @@ export class GoogleOAuthClient {
   }
 
   async getTokenFromCode(code: string): Promise<TokenData> {
+    await this.ensureInitialized();
+    if (!this.client) {
+      throw new GoogleApiError(
+        'OAuth client not initialized',
+        'CLIENT_NOT_INITIALIZED',
+        'Please ensure the OAuth configuration is loaded'
+      );
+    }
+
     try {
       const { tokens } = await this.client.getToken(code);
       
@@ -134,6 +158,15 @@ export class GoogleOAuthClient {
   }
 
   async refreshToken(refreshToken: string): Promise<TokenData> {
+    await this.ensureInitialized();
+    if (!this.client) {
+      throw new GoogleApiError(
+        'OAuth client not initialized',
+        'CLIENT_NOT_INITIALIZED',
+        'Please ensure the OAuth configuration is loaded'
+      );
+    }
+
     try {
       this.client.setCredentials({
         refresh_token: refreshToken
@@ -159,6 +192,15 @@ export class GoogleOAuthClient {
   }
 
   async validateToken(token: TokenData): Promise<boolean> {
+    await this.ensureInitialized();
+    if (!this.client) {
+      throw new GoogleApiError(
+        'OAuth client not initialized',
+        'CLIENT_NOT_INITIALIZED',
+        'Please ensure the OAuth configuration is loaded'
+      );
+    }
+
     try {
       this.client.setCredentials({
         access_token: token.access_token,
@@ -174,6 +216,13 @@ export class GoogleOAuthClient {
 
   async getAuthClient(): Promise<OAuth2Client> {
     await this.ensureInitialized();
+    if (!this.client) {
+      throw new GoogleApiError(
+        'OAuth client not initialized',
+        'CLIENT_NOT_INITIALIZED',
+        'Please ensure the OAuth configuration is loaded'
+      );
+    }
     return this.client;
   }
 }

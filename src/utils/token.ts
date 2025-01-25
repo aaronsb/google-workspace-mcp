@@ -9,7 +9,7 @@ export class TokenManager {
   private readonly envTokens: Map<string, TokenData>;
 
   constructor() {
-    this.credentialsDir = path.resolve('config', 'credentials');
+    this.credentialsDir = process.env.CREDENTIALS_DIR || path.resolve('config', 'credentials');
     this.envTokens = new Map();
     this.loadEnvTokens();
   }
@@ -58,7 +58,7 @@ export class TokenManager {
       throw new GoogleApiError(
         'Failed to save token',
         'TOKEN_SAVE_ERROR',
-        'Please ensure the credentials directory is writable'
+        'Please ensure the directory specified by CREDENTIALS_DIR is writable'
       );
     }
   }
@@ -107,7 +107,7 @@ export class TokenManager {
         throw new GoogleApiError(
           'Failed to delete token',
           'TOKEN_DELETE_ERROR',
-          'Please ensure you have permission to delete the token file'
+          'Please ensure you have permission to delete the token file in CREDENTIALS_DIR'
         );
       }
     }

@@ -11,7 +11,7 @@
     "build"
   ],
   "scripts": {
-    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755'); require('fs').chmodSync('build/scripts/setup-google-env.js', '755')\"",
+    "build": "tsc && node --eval \"import('fs').then(fs => { fs.chmodSync('build/index.js', '755'); fs.chmodSync('build/scripts/setup-google-env.js', '755'); })\"",
     "prepare": "npm run build",
     "watch": "tsc --watch",
     "inspector": "npx @modelcontextprotocol/inspector build/index.js",

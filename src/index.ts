@@ -13,13 +13,12 @@ import { GoogleApiRequestParams, GoogleApiResponse, GoogleApiError } from './typ
 
 class GSuiteServer {
   private server: Server;
-  private oauthClient!: GoogleOAuthClient;
-  private tokenManager!: TokenManager;
-  private accountManager!: AccountManager;
-  private apiRequest!: GoogleApiRequest;
+  private oauthClient?: GoogleOAuthClient;
+  private tokenManager?: TokenManager;
+  private accountManager?: AccountManager;
+  private apiRequest?: GoogleApiRequest;
   
   constructor() {
-    // Initialize MCP server first since it doesn't depend on OAuth
     this.server = new Server(
       {
         name: "GSuite OAuth MCP Server",
@@ -32,7 +31,19 @@ class GSuiteServer {
       }
     );
 
+    // Initialize components immediately
+    this.oauthClient = new GoogleOAuthClient();
+    this.tokenManager = new TokenManager();
+    this.accountManager = new AccountManager();
+    
     this.setupRequestHandlers();
+  }
+
+  private async ensureApiRequest(): Promise<void> {
+    if (!this.apiRequest) {
+      const authClient = await this.oauthClient!.getAuthClient();
+      this.apiRequest = new GoogleApiRequest(authClient);
+    }
   }
 
   private setupRequestHandlers(): void {
@@ -88,6 +99,9 @@ class GSuiteServer {
         throw new Error(`Unknown tool: ${request.params.name}`);
       }
 
+      // Ensure API request is initialized
+      await this.ensureApiRequest();
+
       const args = request.params.arguments as unknown as GoogleApiRequestParams;
 
       const {
@@ -102,18 +116,18 @@ class GSuiteServer {
 
       try {
         // Validate/create account
-        await this.accountManager.loadAccounts();
-        await this.accountManager.validateAccount(email, category, description);
+        await this.accountManager!.loadAccounts();
+        await this.accountManager!.validateAccount(email, category, description);
 
         // Check token status
-        const tokenStatus = await this.tokenManager.validateToken(email, required_scopes);
+        const tokenStatus = await this.tokenManager!.validateToken(email, required_scopes);
 
         if (!tokenStatus.valid || !tokenStatus.token) {
           if (tokenStatus.token && tokenStatus.reason === 'Token expired') {
             try {
               // Attempt token refresh
-              const newToken = await this.oauthClient.refreshToken(tokenStatus.token.refresh_token);
-              await this.tokenManager.saveToken(email, newToken);
+              const newToken = await this.oauthClient!.refreshToken(tokenStatus.token.refresh_token);
+              await this.tokenManager!.saveToken(email, newToken);
               
               const response: GoogleApiResponse = {
                 status: 'refreshing',
@@ -127,14 +141,14 @@ class GSuiteServer {
           }
 
           // Generate auth URL for new authentication
-          const authUrl = await this.oauthClient.generateAuthUrl(required_scopes);
+          const authUrl = await this.oauthClient!.generateAuthUrl(required_scopes);
           const state = Buffer.from(email).toString('base64');
           const fullAuthUrl = `${authUrl}&state=${state}`;
 
           // Check if auth code was provided
           if (args.auth_code) {
-            const tokenData = await this.oauthClient.getTokenFromCode(args.auth_code);
-            await this.tokenManager.saveToken(email, tokenData);
+            const tokenData = await this.oauthClient!.getTokenFromCode(args.auth_code);
+            await this.tokenManager!.saveToken(email, tokenData);
             const response: GoogleApiResponse = {
               status: 'success',
               message: 'Authentication successful! Token saved. Please retry your request.'
@@ -157,7 +171,7 @@ class GSuiteServer {
         }
 
         // Make API request
-        const result = await this.apiRequest.makeRequest({
+        const result = await this.apiRequest!.makeRequest({
           endpoint: api_endpoint,
           method,
           params,
@@ -186,17 +200,35 @@ class GSuiteServer {
 
   async run(): Promise<void> {
     try {
-      // Initialize components
-      this.oauthClient = new GoogleOAuthClient();
-      await new Promise<void>(resolve => setTimeout(resolve, 1000)); // Give OAuth client time to initialize
-      this.tokenManager = new TokenManager();
-      this.accountManager = new AccountManager();
-      const authClient = await this.oauthClient.getAuthClient();
-      this.apiRequest = new GoogleApiRequest(authClient);
+      console.error('Initializing GSuite MCP server...');
       
+      // Initialize OAuth client and ensure it's ready
+      await this.oauthClient!.ensureInitialized();
+      
+      // Set up error handler for server
+      this.server.onerror = (error) => {
+        console.error('Server error:', error);
+        // Don't exit on error, let the server try to recover
+      };
+      
+      // Connect with retry logic
       const transport = new StdioServerTransport();
-      await this.server.connect(transport);
-      console.error('GSuite MCP server running');
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          await this.server.connect(transport);
+          console.error('GSuite MCP server running successfully');
+          return;
+        } catch (connectError) {
+          retries--;
+          if (retries === 0) {
+            throw connectError;
+          }
+          console.error(`Connection attempt failed, retrying... (${retries} attempts remaining)`);
+          // Wait a bit before retrying
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
     } catch (error) {
       console.error('Failed to initialize server:', error);
       throw error;
@@ -204,9 +236,22 @@ class GSuiteServer {
   }
 }
 
-// Start server
+// Start server with proper shutdown handling
 const server = new GSuiteServer();
+
+// Handle process signals
+process.on('SIGINT', () => {
+  console.error('Shutting down GSuite MCP server...');
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.error('Shutting down GSuite MCP server...');
+  process.exit(0);
+});
+
+// Start with error handling
 server.run().catch((error) => {
-  console.error('Server error:', error);
+  console.error('Fatal server error:', error);
   process.exit(1);
 });

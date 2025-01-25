@@ -107,7 +107,16 @@ config/
 
 ## Configuration
 
-1. OAuth Configuration (`config/gauth.json`):
+The server supports environment-based configuration for file paths:
+
+1. Environment Variables:
+```
+GAUTH_FILE      - Path to OAuth credentials file
+ACCOUNTS_FILE   - Path to accounts configuration file
+CREDENTIALS_DIR - Directory for token storage
+```
+
+2. OAuth Configuration (default: `config/gauth.json`):
 ```json
 {
   "client_id": "...",
@@ -116,7 +125,7 @@ config/
 }
 ```
 
-2. Account Configuration (`config/accounts.json`):
+3. Account Configuration (default: `config/accounts.json`):
 ```json
 {
   "accounts": [

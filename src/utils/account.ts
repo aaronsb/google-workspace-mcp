@@ -7,7 +7,7 @@ export class AccountManager {
   private accounts: Map<string, Account>;
 
   constructor() {
-    this.accountsPath = path.resolve('config', 'accounts.json');
+    this.accountsPath = process.env.ACCOUNTS_FILE || path.resolve('config', 'accounts.json');
     this.accounts = new Map();
   }
 
@@ -29,7 +29,7 @@ export class AccountManager {
       throw new GoogleApiError(
         'Failed to load accounts configuration',
         'ACCOUNTS_LOAD_ERROR',
-        'Please ensure accounts.json exists and is valid'
+        'Please ensure ACCOUNTS_FILE environment variable is set or accounts.json exists and is valid'
       );
     }
   }
@@ -47,7 +47,7 @@ export class AccountManager {
       throw new GoogleApiError(
         'Failed to save accounts configuration',
         'ACCOUNTS_SAVE_ERROR',
-        'Please ensure accounts.json is writable'
+        'Please ensure the accounts file specified by ACCOUNTS_FILE is writable'
       );
     }
   }
