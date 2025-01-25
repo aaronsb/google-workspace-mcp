@@ -1,14 +1,30 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { Account, AccountsConfig, GoogleApiError } from '../types.js';
+import { TokenManager } from './token.js';
 
 export class AccountManager {
   private readonly accountsPath: string;
   private accounts: Map<string, Account>;
 
+  private tokenManager: TokenManager;
+
   constructor() {
     this.accountsPath = process.env.ACCOUNTS_FILE || path.resolve('config', 'accounts.json');
     this.accounts = new Map();
+    this.tokenManager = new TokenManager();
+  }
+
+  async listAccounts(): Promise<Account[]> {
+    await this.loadAccounts();
+    const accounts = Array.from(this.accounts.values());
+    
+    // Add auth status to each account
+    for (const account of accounts) {
+      account.auth_status = await this.tokenManager.getTokenStatus(account.email);
+    }
+    
+    return accounts;
   }
 
   private validateEmail(email: string): boolean {

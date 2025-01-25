@@ -3,6 +3,11 @@ export interface Account {
   email: string;
   category: string;
   description: string;
+  auth_status?: {
+    has_token: boolean;
+    scopes?: string[];
+    expires?: number;
+  };
 }
 
 export interface AccountsConfig {
@@ -27,16 +32,20 @@ export interface OAuthConfig {
   token_uri: string;
 }
 
-// API Request Types
-export interface GoogleApiRequestParams {
+// Authentication Types
+export interface GoogleAuthParams {
   email: string;
   category?: string;
   description?: string;
+  required_scopes: string[];
+  auth_code?: string;
+}
+
+// API Request Types
+export interface GoogleApiRequestParams extends GoogleAuthParams {
   api_endpoint: string;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   params?: Record<string, any>;
-  required_scopes: string[];
-  auth_code?: string;
 }
 
 // API Response Types

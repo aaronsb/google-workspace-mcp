@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { TokenData, GoogleApiError } from '../types.js';
+import { TokenData, GoogleApiError, Account } from '../types.js';
 
 const ENV_PREFIX = 'GOOGLE_TOKEN_';
 
@@ -122,6 +122,19 @@ export class TokenManager {
   hasRequiredScopes(tokenData: TokenData, requiredScopes: string[]): boolean {
     const tokenScopes = new Set(tokenData.scope.split(' '));
     return requiredScopes.every(scope => tokenScopes.has(scope));
+  }
+
+  async getTokenStatus(email: string): Promise<Account['auth_status']> {
+    const token = await this.loadToken(email);
+    if (!token) {
+      return { has_token: false };
+    }
+
+    return {
+      has_token: true,
+      scopes: token.scope.split(' '),
+      expires: token.expiry_date
+    };
   }
 
   async validateToken(email: string, requiredScopes: string[]): Promise<{

@@ -1,67 +1,48 @@
-# Google API MCP Server Examples
+# GSuite OAuth MCP Server Examples
 
-## Basic Usage Examples
+## Account Management Examples
 
-### 1. List Gmail Messages
-
-```typescript
-// List recent emails
-const response = await use_mcp_tool({
-  server_name: "mcp-gsuite",
-  tool_name: "google_api_request",
-  arguments: {
-    email: "user@example.com",
-    api_endpoint: "gmail.users.messages.list",
-    method: "GET",
-    params: {
-      userId: "me",
-      maxResults: 10
-    },
-    required_scopes: [
-      "https://www.googleapis.com/auth/gmail.readonly"
-    ]
-  }
-});
-```
-
-### 2. Get Drive Files
+### 1. List Google Accounts
 
 ```typescript
-// List files in Google Drive
+// List all configured accounts and their status
 const response = await use_mcp_tool({
   server_name: "mcp-gsuite",
-  tool_name: "google_api_request",
-  arguments: {
-    email: "user@example.com",
-    api_endpoint: "drive.files.list",
-    method: "GET",
-    params: {
-      pageSize: 10,
-      fields: "files(id, name, mimeType, createdTime)"
-    },
-    required_scopes: [
-      "https://www.googleapis.com/auth/drive.readonly"
-    ]
-  }
+  tool_name: "list_google_accounts",
+  arguments: {}
 });
+
+// Example response:
+[
+  {
+    "email": "user@example.com",
+    "category": "work",
+    "description": "Work Google Account",
+    "auth_status": {
+      "has_token": true,
+      "scopes": [
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/drive.readonly"
+      ],
+      "expires": 1737845044927
+    }
+  }
+]
 ```
 
 ## Authentication Flow Examples
 
-### 1. First-time Authentication
+### 1. First-time Account Authentication
 
 ```typescript
-// Initial request will return auth URL
+// Initial authentication request
 const response = await use_mcp_tool({
   server_name: "mcp-gsuite",
-  tool_name: "google_api_request",
+  tool_name: "authenticate_google_account",
   arguments: {
     email: "user@example.com",
-    api_endpoint: "gmail.users.messages.list",
-    method: "GET",
-    params: {
-      userId: "me"
-    },
+    category: "work",
+    description: "Work Google Account",
     required_scopes: [
       "https://www.googleapis.com/auth/gmail.readonly"
     ]
@@ -73,20 +54,21 @@ const response = await use_mcp_tool({
   status: "auth_required",
   auth_url: "https://accounts.google.com/o/oauth2/...",
   message: "Please complete authentication:",
-  instructions: "1. Click the authorization URL..."
+  instructions: [
+    "1. Click the authorization URL below to open Google sign-in",
+    "2. Sign in with your Google account",
+    "3. Allow the requested permissions",
+    "4. Copy the authorization code shown",
+    "5. Run this request again with the auth_code parameter set to the code you copied"
+  ].join("\n")
 }
 
-// After getting auth code, retry with code
+// Complete authentication with auth code
 const authResponse = await use_mcp_tool({
   server_name: "mcp-gsuite",
-  tool_name: "google_api_request",
+  tool_name: "authenticate_google_account",
   arguments: {
     email: "user@example.com",
-    api_endpoint: "gmail.users.messages.list",
-    method: "GET",
-    params: {
-      userId: "me"
-    },
     required_scopes: [
       "https://www.googleapis.com/auth/gmail.readonly"
     ],
@@ -95,157 +77,103 @@ const authResponse = await use_mcp_tool({
 });
 ```
 
-### 2. Token Refresh Flow
+### 2. Adding New Scopes
 
 ```typescript
-// If token expires, server handles refresh automatically
+// Request additional scopes for existing account
 const response = await use_mcp_tool({
   server_name: "mcp-gsuite",
-  tool_name: "google_api_request",
+  tool_name: "authenticate_google_account",
   arguments: {
     email: "user@example.com",
-    api_endpoint: "gmail.users.messages.list",
-    method: "GET",
-    params: {
-      userId: "me"
-    },
     required_scopes: [
-      "https://www.googleapis.com/auth/gmail.readonly"
+      "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/drive.readonly" // New scope
     ]
   }
 });
 
-// If token needs refresh, you'll get:
+// If new scopes require re-authentication:
 {
-  status: "refreshing",
-  message: "Token refreshed successfully, please retry the request"
+  status: "auth_required",
+  auth_url: "https://accounts.google.com/o/oauth2/...",
+  message: "Additional permissions required. Please complete authentication:",
+  instructions: "..."
 }
-
-// Simply retry the original request
-```
-
-## Advanced Usage Examples
-
-### 1. Gmail: Send Email
-
-```typescript
-const response = await use_mcp_tool({
-  server_name: "mcp-gsuite",
-  tool_name: "google_api_request",
-  arguments: {
-    email: "user@example.com",
-    api_endpoint: "gmail.users.messages.send",
-    method: "POST",
-    params: {
-      userId: "me",
-      message: {
-        raw: Base64.encode(`
-          From: user@example.com
-          To: recipient@example.com
-          Subject: Test Email
-
-          This is a test email.
-        `)
-      }
-    },
-    required_scopes: [
-      "https://www.googleapis.com/auth/gmail.send"
-    ]
-  }
-});
-```
-
-### 2. Drive: Search Files
-
-```typescript
-const response = await use_mcp_tool({
-  server_name: "mcp-gsuite",
-  tool_name: "google_api_request",
-  arguments: {
-    email: "user@example.com",
-    api_endpoint: "drive.files.list",
-    method: "GET",
-    params: {
-      q: "mimeType='application/pdf' and modifiedTime > '2024-01-01'",
-      spaces: "drive",
-      fields: "files(id, name, mimeType, modifiedTime)",
-      pageSize: 100
-    },
-    required_scopes: [
-      "https://www.googleapis.com/auth/drive.readonly"
-    ]
-  }
-});
 ```
 
 ## Error Handling Examples
 
-### 1. Handle Missing Parameters
+### 1. Handle Invalid Email
 
 ```typescript
 try {
   const response = await use_mcp_tool({
     server_name: "mcp-gsuite",
-    tool_name: "google_api_request",
+    tool_name: "authenticate_google_account",
     arguments: {
-      email: "user@example.com",
-      api_endpoint: "gmail.users.messages.get",
-      method: "GET",
-      params: {
-        userId: "me"
-        // Missing required 'id' parameter
-      },
-      required_scopes: [
-        "https://www.googleapis.com/auth/gmail.readonly"
-      ]
-    }
-  });
-} catch (error) {
-  // Handle MISSING_REQUIRED_PARAMS error
-  console.error("Missing parameters:", error.resolution);
-}
-```
-
-### 2. Handle Invalid Service
-
-```typescript
-try {
-  const response = await use_mcp_tool({
-    server_name: "mcp-gsuite",
-    tool_name: "google_api_request",
-    arguments: {
-      email: "user@example.com",
-      api_endpoint: "invalid.service.method", // Invalid service
-      method: "GET",
-      params: {},
+      email: "invalid-email",
       required_scopes: []
     }
   });
 } catch (error) {
-  // Handle INVALID_SERVICE error
-  console.error("Invalid service:", error.resolution);
+  // Handle INVALID_EMAIL error
+  console.error("Invalid email format:", error.resolution);
+}
+```
+
+### 2. Handle Account Not Found
+
+```typescript
+try {
+  const response = await use_mcp_tool({
+    server_name: "mcp-gsuite",
+    tool_name: "authenticate_google_account",
+    arguments: {
+      email: "unknown@example.com",
+      required_scopes: []
+    }
+  });
+} catch (error) {
+  // Handle ACCOUNT_NOT_FOUND error
+  console.error("Account not found:", error.resolution);
 }
 ```
 
 ## Best Practices Examples
 
-### 1. Minimal Scopes
+### 1. Check Account Status Before Authentication
 
 ```typescript
-// Good: Request only needed scope
-const response = await use_mcp_tool({
+// First check existing accounts
+const listResponse = await use_mcp_tool({
   server_name: "mcp-gsuite",
-  tool_name: "google_api_request",
+  tool_name: "list_google_accounts",
+  arguments: {}
+});
+
+// Find account if it exists
+const account = listResponse.find(acc => acc.email === "user@example.com");
+
+if (account && account.auth_status.has_token) {
+  // Check if we have all required scopes
+  const hasAllScopes = requiredScopes.every(
+    scope => account.auth_status.scopes.includes(scope)
+  );
+  
+  if (hasAllScopes) {
+    console.log("Account already authenticated with required scopes");
+    return;
+  }
+}
+
+// Proceed with authentication if needed
+const authResponse = await use_mcp_tool({
+  server_name: "mcp-gsuite",
+  tool_name: "authenticate_google_account",
   arguments: {
     email: "user@example.com",
-    api_endpoint: "drive.files.list",
-    method: "GET",
-    params: {
-      fields: "files(id, name)"
-    },
-    required_scopes: [
-      "https://www.googleapis.com/auth/drive.readonly" // Read-only scope
-    ]
+    required_scopes: requiredScopes
   }
 });
 ```
@@ -253,30 +181,23 @@ const response = await use_mcp_tool({
 ### 2. Error Handling with Retry
 
 ```typescript
-const makeRequest = async (retries = 3) => {
+const authenticateWithRetry = async (email, scopes, retries = 3) => {
   try {
     const response = await use_mcp_tool({
       server_name: "mcp-gsuite",
-      tool_name: "google_api_request",
+      tool_name: "authenticate_google_account",
       arguments: {
-        email: "user@example.com",
-        api_endpoint: "gmail.users.messages.list",
-        method: "GET",
-        params: {
-          userId: "me"
-        },
-        required_scopes: [
-          "https://www.googleapis.com/auth/gmail.readonly"
-        ]
+        email,
+        required_scopes: scopes
       }
     });
     return response;
   } catch (error) {
     if (retries > 0 && error.status === "error") {
       // Retry on certain errors
-      if (["API_ERROR_429", "API_ERROR_500", "API_ERROR_503"].includes(error.code)) {
+      if (["TOKEN_SAVE_ERROR", "TOKEN_LOAD_ERROR"].includes(error.code)) {
         await new Promise(resolve => setTimeout(resolve, 1000));
-        return makeRequest(retries - 1);
+        return authenticateWithRetry(email, scopes, retries - 1);
       }
     }
     throw error;

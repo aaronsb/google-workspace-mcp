@@ -10,7 +10,7 @@ import { TokenManager } from './utils/token.js';
 import { AccountManager } from './utils/account.js';
 import { GoogleApiRequest } from './api/request.js';
 import { RequestHandler } from './api/handler.js';
-import { GoogleApiRequestParams, GoogleApiResponse, GoogleApiError } from './types.js';
+import { GoogleAuthParams, GoogleApiResponse, GoogleApiError } from './types.js';
 
 class GSuiteServer {
   private server: Server;
@@ -53,92 +53,114 @@ class GSuiteServer {
   private setupRequestHandlers(): void {
     // List available tools
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [
-        {
-          name: 'google_api_request',
-          description: 'Make authenticated requests to Google APIs',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              email: {
-                type: 'string',
-                description: 'Email address of the Google account'
+        tools: [
+          {
+            name: 'list_google_accounts',
+            description: 'List all configured Google accounts and their authentication status',
+            inputSchema: {
+              type: 'object',
+              properties: {}
+            }
+          },
+          {
+            name: 'authenticate_google_account',
+            description: 'Authenticate a Google account for API access. This tool handles both initial authentication and token refresh.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                email: {
+                  type: 'string',
+                  description: 'Email address of the Google account to authenticate'
+                },
+                category: {
+                  type: 'string',
+                  description: 'Account category (e.g., work, personal)'
+                },
+                description: {
+                  type: 'string',
+                  description: 'Account description'
+                },
+                required_scopes: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Required OAuth scopes for the account'
+                },
+                auth_code: {
+                  type: 'string',
+                  description: 'Authorization code from Google OAuth (only needed during initial authentication)'
+                }
               },
-              category: {
-                type: 'string',
-                description: 'Account category (e.g., work, personal)'
-              },
-              description: {
-                type: 'string',
-                description: 'Account description'
-              },
-              api_endpoint: {
-                type: 'string',
-                description: 'Google API endpoint (e.g., "drive.files.list")'
-              },
-              method: {
-                type: 'string',
-                enum: ['GET', 'POST', 'PUT', 'DELETE'],
-                description: 'HTTP method'
-              },
-              params: {
-                type: 'object',
-                description: 'API request parameters'
-              },
-              required_scopes: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Required OAuth scopes'
-              },
-              auth_code: {
-                type: 'string',
-                description: 'Authorization code from Google OAuth (only needed during authentication)'
-              }
-            },
-            required: ['email', 'api_endpoint', 'method', 'required_scopes']
+              required: ['email', 'required_scopes']
+            }
           }
-        }
-      ]
+        ]
     }));
 
     // Handle tool calls
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      if (request.params.name !== 'google_api_request') {
-        throw new Error(`Unknown tool: ${request.params.name}`);
-      }
-
-      // Ensure API request and handler are initialized
-      await this.ensureApiRequest();
-
-      const args = request.params.arguments as unknown as GoogleApiRequestParams;
-
-      try {
-        // Validate/create account
-        await this.accountManager!.loadAccounts();
-        await this.accountManager!.validateAccount(args.email, args.category, args.description);
-
-        // Check token status
-        const tokenStatus = await this.tokenManager!.validateToken(args.email, args.required_scopes);
-
-        if (!tokenStatus.valid || !tokenStatus.token) {
-          return await this.handleAuthenticationFlow(args, tokenStatus);
+      switch (request.params.name) {
+        case 'list_google_accounts': {
+          try {
+            const accounts = await this.accountManager!.listAccounts();
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify(accounts, null, 2)
+              }]
+            };
+          } catch (error) {
+            const response = this.formatErrorResponse(error);
+            return {
+              content: [{ type: 'text', text: JSON.stringify(response, null, 2) }],
+              isError: true
+            };
+          }
         }
 
-        // Process the request through the handler
-        const result = await this.requestHandler!.handleRequest(args, tokenStatus.token.access_token);
-        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
-      } catch (error: unknown) {
-        const response = this.formatErrorResponse(error);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(response, null, 2) }],
-          isError: true
-        };
+        case 'authenticate_google_account': {
+          // Ensure API request and handler are initialized
+          await this.ensureApiRequest();
+
+          const args = request.params.arguments as unknown as GoogleAuthParams;
+
+          try {
+            // Validate/create account
+            await this.accountManager!.loadAccounts();
+            await this.accountManager!.validateAccount(args.email, args.category, args.description);
+
+            // Check token status
+            const tokenStatus = await this.tokenManager!.validateToken(args.email, args.required_scopes);
+
+            if (!tokenStatus.valid || !tokenStatus.token) {
+              return await this.handleAuthenticationFlow(args, tokenStatus);
+            }
+
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify({
+                  status: 'success',
+                  message: 'Account is already authenticated with required scopes'
+                }, null, 2)
+              }]
+            };
+          } catch (error: unknown) {
+            const response = this.formatErrorResponse(error);
+            return {
+              content: [{ type: 'text', text: JSON.stringify(response, null, 2) }],
+              isError: true
+            };
+          }
+        }
+
+        default:
+          throw new Error(`Unknown tool: ${request.params.name}`);
       }
     });
   }
 
   private async handleAuthenticationFlow(
-    args: GoogleApiRequestParams,
+    args: GoogleAuthParams,
     tokenStatus: { valid: boolean; token?: any; reason?: string }
   ) {
     if (tokenStatus.token && tokenStatus.reason === 'Token expired') {

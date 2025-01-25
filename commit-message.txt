@@ -1,21 +1,27 @@
-feat: Implement core improvements to MCP-GSuite server
+refactor: split google_api_request into dedicated auth tools
 
-- Add request handler with validation pipeline
-  - Create RequestHandler class with standardized flow
-  - Implement EndpointValidator for service/method validation
-  - Add ParameterValidator for type checking
-  - Add validation registry for supported endpoints
+BREAKING CHANGE: The google_api_request tool has been removed and replaced with two new tools:
 
-- Enhance error handling
-  - Standardize error response format
-  - Add detailed error codes and messages
-  - Implement resolution suggestions
+1. list_google_accounts: New tool that lists all configured Google accounts and their authentication status
+   - Shows which accounts are available
+   - Displays current authentication status
+   - Lists authorized scopes and token expiration
 
-- Add comprehensive documentation
-  - API.md: Detailed endpoint reference
-  - ERRORS.md: Error handling guide
-  - EXAMPLES.md: Usage examples
-  - Update README.md with overview
+2. authenticate_google_account: Dedicated tool for handling Google account authentication
+   - Clearer purpose focused on authentication flow
+   - Handles both initial setup and token refresh
+   - Improved error messages and user guidance
 
-Changes maintain backward compatibility while adding validation
-and improved error handling capabilities.
+Changes:
+- Added auth_status to Account interface
+- Updated TokenManager with getTokenStatus method
+- Split GoogleApiRequestParams into GoogleAuthParams
+- Updated documentation with new tools and examples
+- Improved error handling and user feedback
+- Added account validation before authentication
+
+This change improves the authentication workflow by:
+- Making it explicit which accounts are available
+- Providing clear authentication status
+- Separating concerns between auth and API access
+- Improving error handling and user guidance
