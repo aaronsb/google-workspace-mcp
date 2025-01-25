@@ -4,12 +4,12 @@ A Model Context Protocol (MCP) server that provides tools and resources for inte
 
 ## Features
 
-- 🔐 Secure OAuth 2.0 authentication flow
+- 🔐 Secure OAuth 2.0 device code flow
 - 📦 Environment-based credential management
 - 🔄 Automatic token refresh handling
 - 👥 Multi-account support
 - 🛡️ Scope-based access control
-- 🌐 Cross-platform browser support
+- 🌐 Simple copy/paste authentication
 
 ## Prerequisites
 
@@ -70,11 +70,25 @@ The server provides MCP tools for:
 
 Example tool usage:
 ```typescript
-await mcp.useTool('google_api_request', {
+// Initial request
+const result = await mcp.useTool('google_api_request', {
   email: 'your.email@gmail.com',
   api_endpoint: 'gmail.users.messages.list',
   method: 'GET',
   required_scopes: ['https://www.googleapis.com/auth/gmail.readonly']
+});
+
+// If authentication is needed, you'll receive instructions:
+// 1. Open the provided auth URL in your browser
+// 2. Complete the Google sign-in process
+// 3. Copy the authorization code
+// 4. Retry the request with the auth code:
+const authenticatedResult = await mcp.useTool('google_api_request', {
+  email: 'your.email@gmail.com',
+  api_endpoint: 'gmail.users.messages.list',
+  method: 'GET',
+  required_scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+  auth_code: 'paste-your-auth-code-here'
 });
 ```
 

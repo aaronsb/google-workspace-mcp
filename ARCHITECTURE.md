@@ -19,9 +19,9 @@ The Google Services MCP Server is designed with a modular architecture that sepa
 ## Core Components
 
 ### 1. OAuth Client (`src/oauth/client.ts`)
-- Handles OAuth 2.0 authentication flow
+- Handles OAuth 2.0 device code flow
 - Manages browser-based authorization
-- Implements local callback server
+- Implements manual token entry
 - Handles token exchange and refresh
 - Cross-platform browser support
 
@@ -48,7 +48,7 @@ The Google Services MCP Server is designed with a modular architecture that sepa
 
 1. Authentication Flow:
 ```
-User ──▶ OAuth Client ──▶ Browser Auth ──▶ Callback Server
+User ──▶ OAuth Client ──▶ Browser Auth ──▶ Copy Auth Code
   ▲                                            │
   └────────────── Token Manager ◀──────────────┘
 ```
@@ -108,7 +108,7 @@ config/
 {
   "client_id": "...",
   "client_secret": "...",
-  "redirect_uri": "http://localhost:3333/oauth2callback"
+  "redirect_uri": "urn:ietf:wg:oauth:2.0:oob"
 }
 ```
 

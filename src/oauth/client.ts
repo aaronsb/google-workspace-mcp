@@ -6,14 +6,9 @@ import http from 'http';
 import { exec } from 'child_process';
 import { OAuthConfig, TokenData, GoogleApiError } from '../types.js';
 
-const CALLBACK_PORT = 3333;
-const CALLBACK_PATH = '/oauth2callback';
-
 export class GoogleOAuthClient {
   private client!: OAuth2Client;
   private config!: OAuthConfig;
-  private callbackServer?: http.Server;
-
   constructor() {
     // Initialize immediately
     this.loadConfig().catch(error => {
@@ -47,48 +42,8 @@ export class GoogleOAuthClient {
   }
 
   private async waitForCallback(): Promise<string> {
-    return new Promise((resolve, reject) => {
-      this.callbackServer = http.createServer(async (req, res) => {
-        try {
-          if (!req.url) throw new Error('No URL in request');
-
-          const url = new URL(req.url, `http://localhost:${CALLBACK_PORT}`);
-          if (url.pathname !== CALLBACK_PATH) return;
-
-          const code = url.searchParams.get('code');
-          if (!code) throw new Error('No authorization code received');
-
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end(`
-            <html>
-              <body>
-                <h1>Authentication successful!</h1>
-                <p>You can close this window and return to the terminal.</p>
-                <script>window.close()</script>
-              </body>
-            </html>
-          `);
-
-          this.callbackServer?.close();
-          resolve(code);
-        } catch (error) {
-          const err = error instanceof Error ? error : new Error(String(error));
-          console.error('Callback error:', err.message);
-          res.writeHead(400, { 'Content-Type': 'text/plain' });
-          res.end('Authentication failed');
-          reject(err);
-        }
-      });
-
-      this.callbackServer.listen(CALLBACK_PORT, () => {
-        console.log(`Callback server listening on port ${CALLBACK_PORT}`);
-      });
-
-      this.callbackServer.on('error', (error: Error) => {
-        console.error('Server error:', error.message);
-        reject(error);
-      });
-    });
+    // Return the code that will be provided manually
+    return process.env.AUTH_CODE || '';
   }
 
   private async loadConfig(): Promise<void> {
@@ -112,7 +67,8 @@ export class GoogleOAuthClient {
   }
 
   async generateAuthUrl(scopes: string[]): Promise<string> {
-    const redirect_uri = `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`;
+    // Use Google's device code flow redirect
+    const redirect_uri = 'urn:ietf:wg:oauth:2.0:oob';
     this.client = new google.auth.OAuth2(
       this.config.client_id,
       this.config.client_secret,
@@ -211,6 +167,13 @@ export class GoogleOAuthClient {
   }
 
   getAuthClient(): OAuth2Client {
+    if (!this.client) {
+      throw new GoogleApiError(
+        'OAuth client not initialized',
+        'CLIENT_NOT_INITIALIZED',
+        'Please ensure the OAuth configuration is loaded'
+      );
+    }
     return this.client;
   }
 }

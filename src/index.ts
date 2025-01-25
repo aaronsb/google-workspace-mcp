@@ -5,12 +5,11 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import express from 'express';
 import { GoogleOAuthClient } from './oauth/client.js';
 import { TokenManager } from './utils/token.js';
 import { AccountManager } from './utils/account.js';
 import { GoogleApiRequest } from './api/request.js';
-import { GoogleApiResponse, GoogleApiError } from './types.js';
+import { GoogleApiRequestParams, GoogleApiResponse, GoogleApiError } from './types.js';
 
 class GSuiteServer {
   private server: Server;
@@ -18,16 +17,12 @@ class GSuiteServer {
   private tokenManager: TokenManager;
   private accountManager: AccountManager;
   private apiRequest: GoogleApiRequest;
-  private expressApp: express.Application;
-
   constructor() {
     // Initialize components
     this.oauthClient = new GoogleOAuthClient();
     this.tokenManager = new TokenManager();
     this.accountManager = new AccountManager();
     this.apiRequest = new GoogleApiRequest(this.oauthClient.getAuthClient());
-    this.expressApp = express();
-
     // Initialize MCP server
     this.server = new Server(
       {
@@ -41,33 +36,7 @@ class GSuiteServer {
       }
     );
 
-    this.setupCallbackServer();
     this.setupRequestHandlers();
-  }
-
-  private setupCallbackServer(): void {
-    // Handle OAuth callback
-    this.expressApp.get('/oauth/callback', async (req, res) => {
-      const { code, state } = req.query;
-      if (!code || !state) {
-        res.status(400).send('Missing code or state parameter');
-        return;
-      }
-
-      try {
-        const tokenData = await this.oauthClient.getTokenFromCode(code as string);
-        const email = Buffer.from(state as string, 'base64').toString();
-        await this.tokenManager.saveToken(email, tokenData);
-        res.send('Authentication successful! You can close this window.');
-      } catch (error) {
-        res.status(500).send('Authentication failed. Please try again.');
-      }
-    });
-
-    // Start callback server
-    this.expressApp.listen(3333, () => {
-      console.error('OAuth callback server listening on port 3333');
-    });
   }
 
   private setupRequestHandlers(): void {
@@ -123,15 +92,7 @@ class GSuiteServer {
         throw new Error(`Unknown tool: ${request.params.name}`);
       }
 
-      const args = request.params.arguments as {
-        email: string;
-        category?: string;
-        description?: string;
-        api_endpoint: string;
-        method: 'GET' | 'POST' | 'PUT' | 'DELETE';
-        params?: Record<string, any>;
-        required_scopes: string[];
-      };
+      const args = request.params.arguments as unknown as GoogleApiRequestParams;
 
       const {
         email,
@@ -170,9 +131,20 @@ class GSuiteServer {
           }
 
           // Generate auth URL for new authentication
-          const authUrl = this.oauthClient.generateAuthUrl(required_scopes);
+          const authUrl = await this.oauthClient.generateAuthUrl(required_scopes);
           const state = Buffer.from(email).toString('base64');
           const fullAuthUrl = `${authUrl}&state=${state}`;
+
+          // Check if auth code was provided
+          if (args.auth_code) {
+            const tokenData = await this.oauthClient.getTokenFromCode(args.auth_code);
+            await this.tokenManager.saveToken(email, tokenData);
+            const response: GoogleApiResponse = {
+              status: 'success',
+              message: 'Authentication successful! Token saved. Please retry your request.'
+            };
+            return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] };
+          }
 
           const response: GoogleApiResponse = {
             status: 'auth_required',
@@ -181,7 +153,8 @@ class GSuiteServer {
               '1. Open this URL in your browser',
               '2. Sign in with your Google account',
               '3. Allow the requested permissions',
-              '4. Wait for the authentication to complete'
+              '4. Copy the authorization code shown on the page',
+              '5. Retry your request with the auth_code parameter'
             ].join('\n')
           };
           return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] };
