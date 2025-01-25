@@ -19,13 +19,12 @@ The Google Services MCP Server is designed with a modular architecture that sepa
 ## Core Components
 
 ### 1. OAuth Client (`src/oauth/client.ts`)
-- Handles OAuth 2.0 device code flow
-- Manages browser-based authorization
-- Implements manual token entry
+- Implements Google's device code flow for authentication
 - Handles token exchange and refresh
-- Cross-platform browser support
+- Provides clear authentication instructions
 - Asynchronous initialization with promise tracking
 - Safe client access with initialization checks
+- Consistent error handling with detailed messages
 
 ### 2. Token Manager (`src/utils/token.ts`)
 - Manages OAuth token lifecycle
@@ -52,9 +51,9 @@ The Google Services MCP Server is designed with a modular architecture that sepa
 
 1. Authentication Flow:
 ```
-User ──▶ OAuth Client ──▶ Browser Auth ──▶ Copy Auth Code
-  ▲                                            │
-  └────────────── Token Manager ◀──────────────┘
+MCP Tool ──▶ OAuth Client ──▶ Generate Auth URL ──▶ User Authorizes
+    ▲                                                    │
+    └────────────── Token Manager ◀─── Auth Code ────────┘
 ```
 
 2. API Request Flow:
@@ -121,7 +120,8 @@ CREDENTIALS_DIR - Directory for token storage
 {
   "client_id": "...",
   "client_secret": "...",
-  "redirect_uri": "urn:ietf:wg:oauth:2.0:oob"
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token"
 }
 ```
 
@@ -146,6 +146,26 @@ The system implements a hierarchical error handling strategy:
 2. Error resolution suggestions
 3. Automatic retry mechanisms
 4. Graceful degradation
+5. Clear user feedback for authentication errors
+
+## MCP Integration
+
+1. Tool Schema:
+   - Clear parameter descriptions
+   - Optional auth_code parameter for authentication
+   - Proper scope requirements
+
+2. Response Format:
+   - Structured JSON responses
+   - Clear authentication instructions
+   - Detailed error messages
+   - Progress indicators for multi-step operations
+
+3. Authentication Flow:
+   - Clear URL presentation
+   - Step-by-step instructions
+   - Proper error handling
+   - Token storage confirmation
 
 ## Future Considerations
 

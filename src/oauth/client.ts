@@ -2,8 +2,6 @@ import fs from 'fs/promises';
 import path from 'path';
 import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
-import http from 'http';
-import { exec } from 'child_process';
 import { OAuthConfig, TokenData, GoogleApiError } from '../types.js';
 
 export class GoogleOAuthClient {
@@ -22,35 +20,6 @@ export class GoogleOAuthClient {
     await this.initializationPromise;
   }
 
-  private async openBrowser(url: string): Promise<void> {
-    const commands = process.platform === 'win32'
-      ? [`start "" "${url}"`, `cmd /c start "" "${url}"`, `rundll32 url.dll,FileProtocolHandler "${url}"`, `explorer.exe "${url}"`]
-      : process.platform === 'darwin'
-        ? [`open "${url}"`]
-        : [`xdg-open "${url}"`, `sensible-browser "${url}"`, `x-www-browser "${url}"`];
-
-    for (const command of commands) {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          exec(command, (error) => {
-            if (error) reject(error);
-            else resolve();
-          });
-        });
-        return;
-      } catch (error) {
-        continue;
-      }
-    }
-    
-    console.log('\nPlease open this URL manually in your browser:', url);
-  }
-
-  private async waitForCallback(): Promise<string> {
-    // Return the code that will be provided manually
-    return process.env.AUTH_CODE || '';
-  }
-
   private async loadConfig(): Promise<void> {
     try {
       const configPath = process.env.GAUTH_FILE || path.resolve('config', 'gauth.json');
@@ -60,7 +29,7 @@ export class GoogleOAuthClient {
       this.client = new google.auth.OAuth2(
         this.config.client_id,
         this.config.client_secret,
-        this.config.redirect_uri
+        'urn:ietf:wg:oauth:2.0:oob'  // Use device code flow
       );
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
@@ -88,32 +57,11 @@ export class GoogleOAuthClient {
       );
     }
 
-    // Use Google's device code flow redirect
-    const redirect_uri = 'urn:ietf:wg:oauth:2.0:oob';
-    this.client = new google.auth.OAuth2(
-      this.config.client_id,
-      this.config.client_secret,
-      redirect_uri
-    );
-
-    const authUrl = this.client.generateAuthUrl({
+    return this.client.generateAuthUrl({
       access_type: 'offline',
       scope: scopes,
       prompt: 'consent'  // Force consent screen to ensure we get refresh token
     });
-
-    console.log('\n🔐 Starting Google Authentication');
-    console.log('1. Opening your browser to complete authentication...');
-    await this.openBrowser(authUrl);
-    console.log('2. Waiting for authentication...\n');
-
-    return authUrl;
-  }
-
-  async handleAuthFlow(scopes: string[]): Promise<TokenData> {
-    await this.generateAuthUrl(scopes);
-    const code = await this.waitForCallback();
-    return this.getTokenFromCode(code);
   }
 
   async getTokenFromCode(code: string): Promise<TokenData> {

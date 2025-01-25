@@ -23,7 +23,6 @@ export interface TokenData {
 export interface OAuthConfig {
   client_id: string;
   client_secret: string;
-  redirect_uri: string;
   auth_uri: string;
   token_uri: string;
 }
@@ -50,6 +49,7 @@ export type GoogleApiResponse =
   | {
       status: 'auth_required';
       auth_url: string;
+      message?: string;
       instructions: string;
     }
   | {
@@ -59,6 +59,7 @@ export type GoogleApiResponse =
   | {
       status: 'error';
       error: string;
+      message?: string;
       resolution?: string;
     };
 

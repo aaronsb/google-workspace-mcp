@@ -9,6 +9,7 @@ import { GoogleOAuthClient } from './oauth/client.js';
 import { TokenManager } from './utils/token.js';
 import { AccountManager } from './utils/account.js';
 import { GoogleApiRequest } from './api/request.js';
+import { RequestHandler } from './api/handler.js';
 import { GoogleApiRequestParams, GoogleApiResponse, GoogleApiError } from './types.js';
 
 class GSuiteServer {
@@ -39,10 +40,13 @@ class GSuiteServer {
     this.setupRequestHandlers();
   }
 
+  private requestHandler?: RequestHandler;
+
   private async ensureApiRequest(): Promise<void> {
     if (!this.apiRequest) {
       const authClient = await this.oauthClient!.getAuthClient();
       this.apiRequest = new GoogleApiRequest(authClient);
+      this.requestHandler = new RequestHandler(this.apiRequest);
     }
   }
 
@@ -85,6 +89,10 @@ class GSuiteServer {
                 type: 'array',
                 items: { type: 'string' },
                 description: 'Required OAuth scopes'
+              },
+              auth_code: {
+                type: 'string',
+                description: 'Authorization code from Google OAuth (only needed during authentication)'
               }
             },
             required: ['email', 'api_endpoint', 'method', 'required_scopes']
@@ -99,103 +107,122 @@ class GSuiteServer {
         throw new Error(`Unknown tool: ${request.params.name}`);
       }
 
-      // Ensure API request is initialized
+      // Ensure API request and handler are initialized
       await this.ensureApiRequest();
 
       const args = request.params.arguments as unknown as GoogleApiRequestParams;
 
-      const {
-        email,
-        category,
-        description,
-        api_endpoint,
-        method,
-        params,
-        required_scopes
-      } = args;
-
       try {
         // Validate/create account
         await this.accountManager!.loadAccounts();
-        await this.accountManager!.validateAccount(email, category, description);
+        await this.accountManager!.validateAccount(args.email, args.category, args.description);
 
         // Check token status
-        const tokenStatus = await this.tokenManager!.validateToken(email, required_scopes);
+        const tokenStatus = await this.tokenManager!.validateToken(args.email, args.required_scopes);
 
         if (!tokenStatus.valid || !tokenStatus.token) {
-          if (tokenStatus.token && tokenStatus.reason === 'Token expired') {
-            try {
-              // Attempt token refresh
-              const newToken = await this.oauthClient!.refreshToken(tokenStatus.token.refresh_token);
-              await this.tokenManager!.saveToken(email, newToken);
-              
-              const response: GoogleApiResponse = {
-                status: 'refreshing',
-                message: 'Token refreshed successfully, please retry the request'
-              };
-              return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] };
-            } catch (error) {
-              // If refresh fails, require re-authentication
-              tokenStatus.reason = 'Token refresh failed';
-            }
-          }
-
-          // Generate auth URL for new authentication
-          const authUrl = await this.oauthClient!.generateAuthUrl(required_scopes);
-          const state = Buffer.from(email).toString('base64');
-          const fullAuthUrl = `${authUrl}&state=${state}`;
-
-          // Check if auth code was provided
-          if (args.auth_code) {
-            const tokenData = await this.oauthClient!.getTokenFromCode(args.auth_code);
-            await this.tokenManager!.saveToken(email, tokenData);
-            const response: GoogleApiResponse = {
-              status: 'success',
-              message: 'Authentication successful! Token saved. Please retry your request.'
-            };
-            return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] };
-          }
-
-          const response: GoogleApiResponse = {
-            status: 'auth_required',
-            auth_url: fullAuthUrl,
-            instructions: [
-              '1. Open this URL in your browser',
-              '2. Sign in with your Google account',
-              '3. Allow the requested permissions',
-              '4. Copy the authorization code shown on the page',
-              '5. Retry your request with the auth_code parameter'
-            ].join('\n')
-          };
-          return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] };
+          return await this.handleAuthenticationFlow(args, tokenStatus);
         }
 
-        // Make API request
-        const result = await this.apiRequest!.makeRequest({
-          endpoint: api_endpoint,
-          method,
-          params,
-          token: tokenStatus.token.access_token
-        });
-
-        const response: GoogleApiResponse = {
-          status: 'success',
-          data: result
-        };
-        return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] };
+        // Process the request through the handler
+        const result = await this.requestHandler!.handleRequest(args, tokenStatus.token.access_token);
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
       } catch (error: unknown) {
-        const apiError = error instanceof Error ? error : new Error('Unknown error occurred');
-        const response: GoogleApiResponse = {
-          status: 'error',
-          error: apiError.message || 'Unknown error occurred',
-          resolution: error instanceof GoogleApiError ? error.resolution : undefined
-        };
+        const response = this.formatErrorResponse(error);
         return {
           content: [{ type: 'text', text: JSON.stringify(response, null, 2) }],
           isError: true
         };
       }
     });
+  }
+
+  private async handleAuthenticationFlow(
+    args: GoogleApiRequestParams,
+    tokenStatus: { valid: boolean; token?: any; reason?: string }
+  ) {
+    if (tokenStatus.token && tokenStatus.reason === 'Token expired') {
+      try {
+        const newToken = await this.oauthClient!.refreshToken(tokenStatus.token.refresh_token);
+        await this.tokenManager!.saveToken(args.email, newToken);
+        
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'refreshing',
+              message: 'Token refreshed successfully, please retry the request'
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        tokenStatus.reason = 'Token refresh failed';
+      }
+    }
+
+    const authUrl = await this.oauthClient!.generateAuthUrl(args.required_scopes);
+
+    if (args.auth_code) {
+      try {
+        const tokenData = await this.oauthClient!.getTokenFromCode(args.auth_code);
+        await this.tokenManager!.saveToken(args.email, tokenData);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'success',
+              message: 'Authentication successful! Token saved. Please retry your request.'
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'error',
+              error: error instanceof Error ? error.message : 'Failed to exchange auth code for token',
+              message: 'Please ensure you copied the authorization code correctly and try again.'
+            }, null, 2)
+          }],
+          isError: true
+        };
+      }
+    }
+
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          status: 'auth_required',
+          auth_url: authUrl,
+          message: 'Please complete authentication:',
+          instructions: [
+            '1. Click the authorization URL below to open Google sign-in',
+            '2. Sign in with your Google account',
+            '3. Allow the requested permissions',
+            '4. Copy the authorization code shown',
+            '5. Run this request again with the auth_code parameter set to the code you copied'
+          ].join('\n')
+        }, null, 2)
+      }]
+    };
+  }
+
+  private formatErrorResponse(error: unknown): GoogleApiResponse {
+    if (error instanceof GoogleApiError) {
+      return {
+        status: 'error',
+        error: error.message,
+        resolution: error.resolution
+      };
+    }
+
+    return {
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      resolution: 'Please try again or contact support if the issue persists'
+    };
   }
 
   async run(): Promise<void> {

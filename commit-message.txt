@@ -1,0 +1,21 @@
+feat: Implement core improvements to MCP-GSuite server
+
+- Add request handler with validation pipeline
+  - Create RequestHandler class with standardized flow
+  - Implement EndpointValidator for service/method validation
+  - Add ParameterValidator for type checking
+  - Add validation registry for supported endpoints
+
+- Enhance error handling
+  - Standardize error response format
+  - Add detailed error codes and messages
+  - Implement resolution suggestions
+
+- Add comprehensive documentation
+  - API.md: Detailed endpoint reference
+  - ERRORS.md: Error handling guide
+  - EXAMPLES.md: Usage examples
+  - Update README.md with overview
+
+Changes maintain backward compatibility while adding validation
+and improved error handling capabilities.
