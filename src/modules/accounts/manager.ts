@@ -163,9 +163,9 @@ export class AccountManager {
     }
 
     // Get all registered scopes and validate token
-    const requiredScopes = scopeRegistry.getAllScopes();
-    if (requiredScopes.length > 0) {
-      const tokenStatus = await this.tokenManager.validateToken(email, requiredScopes);
+    const allScopes = scopeRegistry.getAllScopes();
+    if (allScopes.length > 0) {
+      const tokenStatus = await this.tokenManager.validateToken(email, allScopes);
       account.auth_status = {
         valid: tokenStatus.valid,
         reason: tokenStatus.reason,
@@ -178,8 +178,9 @@ export class AccountManager {
   }
 
   // OAuth related methods
-  async generateAuthUrl(scopes: string[]): Promise<string> {
-    return this.oauthClient.generateAuthUrl(scopes);
+  async generateAuthUrl(): Promise<string> {
+    const allScopes = scopeRegistry.getAllScopes();
+    return this.oauthClient.generateAuthUrl(allScopes);
   }
 
   async getTokenFromCode(code: string): Promise<any> {
@@ -196,8 +197,9 @@ export class AccountManager {
   }
 
   // Token related methods
-  async validateToken(email: string, requiredScopes: string[]) {
-    return this.tokenManager.validateToken(email, requiredScopes);
+  async validateToken(email: string) {
+    const allScopes = scopeRegistry.getAllScopes();
+    return this.tokenManager.validateToken(email, allScopes);
   }
 
   async saveToken(email: string, tokenData: any) {

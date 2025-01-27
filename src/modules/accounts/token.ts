@@ -111,7 +111,7 @@ export class TokenManager {
     const token = await this.loadToken(email);
     
     if (!token) {
-      const authUrl = await this.getAuthUrl(requiredScopes);
+      const authUrl = await this.getAuthUrl();
       return {
         valid: false,
         reason: 'No token found. Authentication required.',
@@ -122,7 +122,7 @@ export class TokenManager {
 
     // Check if token is expired
     if (token.expiry_date && token.expiry_date < Date.now()) {
-      const authUrl = await this.getAuthUrl(requiredScopes);
+      const authUrl = await this.getAuthUrl();
       return {
         valid: false,
         token,
@@ -137,7 +137,7 @@ export class TokenManager {
     try {
       scopeRegistry.validateScopes(tokenScopes);
     } catch (error) {
-      const authUrl = await this.getAuthUrl(requiredScopes);
+      const authUrl = await this.getAuthUrl();
       return {
         valid: false,
         reason: error instanceof Error ? error.message : 'Additional permissions required.',
@@ -152,7 +152,7 @@ export class TokenManager {
     };
   }
 
-  private async getAuthUrl(scopes: string[]): Promise<string | undefined> {
+  private async getAuthUrl(): Promise<string | undefined> {
     if (!this.oauthClient) {
       throw new AccountError(
         'OAuth client not configured',
@@ -160,7 +160,9 @@ export class TokenManager {
         'Please ensure the OAuth client is properly initialized'
       );
     }
-    return this.oauthClient.generateAuthUrl(scopes);
+    // Always use all registered scopes when generating auth URL
+    const allScopes = scopeRegistry.getAllScopes();
+    return this.oauthClient.generateAuthUrl(allScopes);
   }
 
   /**
