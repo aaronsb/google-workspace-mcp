@@ -24,7 +24,7 @@ class GSuiteServer {
   constructor() {
     this.server = new Server(
       {
-        name: "GSuite OAuth MCP Server",
+        name: "Google Workspace MCP Server",
         version: "0.1.0"
       },
       {
@@ -63,15 +63,15 @@ class GSuiteServer {
         tools: [
           {
             name: 'list_google_accounts',
-            description: 'List all configured Google accounts and their authentication status',
+            description: 'List all configured Google accounts and their authentication status, including token expiry and available scopes',
             inputSchema: {
               type: 'object',
               properties: {}
             }
           },
           {
-            name: 'authenticate_google_account',
-            description: 'Authenticate a Google account for API access. This tool handles both initial authentication and token refresh.',
+            name: 'use_google_account',
+            description: 'Add and authenticate a Google account for API access. This tool handles initial authentication, token refresh, and account management.',
             inputSchema: {
               type: 'object',
               properties: {
@@ -98,6 +98,20 @@ class GSuiteServer {
                 }
               },
               required: ['email', 'required_scopes']
+            }
+          },
+          {
+            name: 'forget_google_account',
+            description: 'Remove a Google account and delete its associated authentication tokens',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                email: {
+                  type: 'string',
+                  description: 'Email address of the Google account to remove'
+                }
+              },
+              required: ['email']
             }
           },
           {
@@ -188,7 +202,7 @@ class GSuiteServer {
           }
         }
 
-        case 'authenticate_google_account': {
+        case 'use_google_account': {
           // Ensure API request and handler are initialized
           await this.ensureApiRequest();
 
@@ -216,6 +230,34 @@ class GSuiteServer {
               }]
             };
           } catch (error: unknown) {
+            const response = this.formatErrorResponse(error);
+            return {
+              content: [{ type: 'text', text: JSON.stringify(response, null, 2) }],
+              isError: true
+            };
+          }
+        }
+
+        case 'forget_google_account': {
+          const { email } = request.params.arguments as { email: string };
+          
+          try {
+            // Delete token first
+            await this.tokenManager!.deleteToken(email);
+            
+            // Then remove account
+            await this.accountManager!.removeAccount(email);
+            
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify({
+                  status: 'success',
+                  message: `Successfully removed account ${email} and deleted associated tokens`
+                }, null, 2)
+              }]
+            };
+          } catch (error) {
             const response = this.formatErrorResponse(error);
             return {
               content: [{ type: 'text', text: JSON.stringify(response, null, 2) }],
@@ -366,7 +408,7 @@ class GSuiteServer {
 
   async run(): Promise<void> {
     try {
-      console.error('Initializing GSuite MCP server...');
+      console.error('Initializing Google Workspace MCP server...');
       
       // Initialize OAuth client and ensure it's ready
       await this.oauthClient!.ensureInitialized();
@@ -383,7 +425,7 @@ class GSuiteServer {
       while (retries > 0) {
         try {
           await this.server.connect(transport);
-          console.error('GSuite MCP server running successfully');
+          console.error('Google Workspace MCP server running successfully');
           return;
         } catch (connectError) {
           retries--;
@@ -407,12 +449,12 @@ const server = new GSuiteServer();
 
 // Handle process signals
 process.on('SIGINT', () => {
-  console.error('Shutting down GSuite MCP server...');
+  console.error('Shutting down Google Workspace MCP server...');
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-  console.error('Shutting down GSuite MCP server...');
+  console.error('Shutting down Google Workspace MCP server...');
   process.exit(0);
 });
 
