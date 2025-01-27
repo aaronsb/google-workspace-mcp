@@ -4,31 +4,18 @@
 
 The Google Services MCP Server implements a modular architecture focused on Gmail functionality with planned expansion to other Google services. The system is built around core modules that handle authentication, account management, and service-specific operations.
 
-```
-┌─────────────────┐
-│   MCP Server    │
-└───────┬─────────┘
-        │
-        ▼
-┌───────────────────────────────┐
-│        Account Module         │
-│   ┌─────────┐    ┌────────┐  │
-│   │  OAuth  │    │ Token  │  │
-│   │ Client  │    │Manager │  │
-│   └─────────┘    └────────┘  │
-└───────────────┬───────────────┘
-                │
-                ▼
-┌───────────────────────────────┐
-│        Service Modules        │
-│   ┌─────────────────────┐    │
-│   │    Gmail Module     │    │
-│   └─────────────────────┘    │
-│   ┌─────────────────────┐    │
-│   │  Calendar Module    │    │
-│   │    (Planned)        │    │
-│   └─────────────────────┘    │
-└───────────────────────────────┘
+```mermaid
+graph TD
+    MCP[MCP Server] --> AM[Account Module]
+    subgraph AccountModule[Account Module]
+        OC[OAuth Client]
+        TM[Token Manager]
+    end
+    AM --> SM[Service Modules]
+    subgraph ServiceModules[Service Modules]
+        GM[Gmail Module]
+        CM[Calendar Module<br/>(Planned)]
+    end
 ```
 
 ## Core Components (Current Implementation)
@@ -65,18 +52,41 @@ The Google Services MCP Server implements a modular architecture focused on Gmai
 ## Data Flows
 
 ### Authentication Flow
-```
-1. Tool Request ──▶ Account Manager ──▶ Check Token
-2. If Invalid   ──▶ OAuth Client   ──▶ Generate Auth URL
-3. User Auth    ──▶ Exchange Code  ──▶ Save Token
-4. Retry Request
+```mermaid
+sequenceDiagram
+    participant TR as Tool Request
+    participant AM as Account Manager
+    participant OC as OAuth Client
+    participant T as Token
+
+    TR->>AM: Request
+    AM->>T: Check Token
+    alt Token Invalid
+        AM->>OC: Request Auth
+        OC-->>TR: Generate Auth URL
+        TR->>OC: User Authentication
+        OC->>T: Exchange & Save Token
+        T-->>TR: Retry Request
+    end
 ```
 
 ### Gmail Operation Flow
-```
-1. Tool Request ──▶ Gmail Service  ──▶ Validate Token
-2. If Valid     ──▶ Gmail API Call ──▶ Process Response
-3. If Invalid   ──▶ Refresh Token  ──▶ Retry Request
+```mermaid
+sequenceDiagram
+    participant TR as Tool Request
+    participant GS as Gmail Service
+    participant T as Token
+    participant GA as Gmail API
+
+    TR->>GS: Request
+    GS->>T: Validate Token
+    alt Token Valid
+        GS->>GA: API Call
+        GA-->>TR: Process Response
+    else Token Invalid
+        GS->>T: Refresh Token
+        T-->>TR: Retry Request
+    end
 ```
 
 ## Implementation Details
