@@ -64,14 +64,14 @@ All errors follow a standardized format:
 - **Possible Causes**:
   - Token revoked
   - Token malformed
-- **Resolution**: Re-authenticate using OAuth flow
+- **Resolution**: Please authenticate the account, which will grant all necessary permissions
 
 #### INSUFFICIENT_SCOPE
-- **Description**: Token lacks required scopes
+- **Description**: Account needs authentication
 - **Possible Causes**:
-  - New scopes needed
-  - Scopes not approved during auth
-- **Resolution**: Re-authenticate with all required scopes
+  - Account not authenticated
+  - New permissions needed
+- **Resolution**: Please authenticate the account, which will grant all necessary permissions
 
 ### 3. API Errors
 
@@ -94,7 +94,7 @@ All errors follow a standardized format:
 - **Possible Causes**:
   - Insufficient permissions
   - Account restrictions
-- **Resolution**: Verify account permissions and scopes
+- **Resolution**: Please authenticate the account, which will grant all necessary permissions
 
 #### API_ERROR_404
 - **Description**: Resource Not Found
@@ -162,8 +162,9 @@ All errors follow a standardized format:
    - Don't log sensitive information
 
 5. **User Communication**
-   - Provide clear error messages
-   - Include resolution steps
+   - Provide clear, user-friendly error messages
+   - Include simple resolution steps
+   - Avoid technical jargon in user-facing messages
    - Offer support contact if needed
 
 ## Example Error Handling
