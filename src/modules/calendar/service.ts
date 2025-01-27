@@ -11,6 +11,17 @@ import {
   CalendarModuleConfig
 } from './types.js';
 
+/**
+ * Google Calendar Service Implementation
+ * 
+ * This service provides core calendar functionality including:
+ * - Event retrieval with search and filtering
+ * - Single event lookup
+ * - Event creation with attendee management
+ * 
+ * The implementation follows the same pattern as GmailService for consistency,
+ * using the Google Calendar API v3 for all operations.
+ */
 export class CalendarService {
   private oauth2Client!: OAuth2Client;
   private requiredScopes: string[];
@@ -19,11 +30,23 @@ export class CalendarService {
     this.requiredScopes = config?.requiredScopes || DEFAULT_CALENDAR_SCOPES;
   }
 
+  /**
+   * Initialize the Calendar service
+   * Must be called before using any calendar operations
+   * Sets up OAuth client using the account manager
+   */
   async initialize(): Promise<void> {
     const accountManager = getAccountManager();
     this.oauth2Client = await accountManager.getAuthClient();
   }
 
+  /**
+   * Get an authenticated Google Calendar API client
+   * 
+   * @param email - Email address of the account to use
+   * @returns Authenticated Google Calendar API client
+   * @throws CalendarError if authentication fails or required scopes are not granted
+   */
   private async getCalendarClient(email: string) {
     const accountManager = getAccountManager();
     
@@ -43,6 +66,17 @@ export class CalendarService {
     return google.calendar({ version: 'v3', auth: this.oauth2Client });
   }
 
+  /**
+   * Retrieve calendar events with optional filtering
+   * 
+   * @param params.email - Email address of the calendar owner
+   * @param params.query - Optional text search within events
+   * @param params.maxResults - Maximum number of events to return (default: 10)
+   * @param params.timeMin - Start of time range to search
+   * @param params.timeMax - End of time range to search
+   * @returns Array of calendar events matching the criteria
+   * @throws CalendarError on API errors or authentication issues
+   */
   async getEvents({ email, query, maxResults = 10, timeMin, timeMax }: GetEventsParams): Promise<EventResponse[]> {
     try {
       const calendar = await this.getCalendarClient(email);
@@ -108,6 +142,14 @@ export class CalendarService {
     }
   }
 
+  /**
+   * Retrieve a single calendar event by ID
+   * 
+   * @param email - Email address of the calendar owner
+   * @param eventId - Unique identifier of the event to retrieve
+   * @returns Detailed event information
+   * @throws CalendarError if event not found or on API errors
+   */
   async getEvent(email: string, eventId: string): Promise<EventResponse> {
     try {
       const calendar = await this.getCalendarClient(email);
@@ -158,6 +200,20 @@ export class CalendarService {
     }
   }
 
+  /**
+   * Create a new calendar event
+   * 
+   * @param params.email - Email address of the calendar owner
+   * @param params.summary - Event title
+   * @param params.description - Optional event description
+   * @param params.start - Event start time and timezone
+   * @param params.end - Event end time and timezone
+   * @param params.attendees - Optional list of event attendees
+   * @returns Created event details including view link
+   * @throws CalendarError on creation failure or API errors
+   * 
+   * Note: This method automatically sends email notifications to attendees
+   */
   async createEvent({ email, summary, description, start, end, attendees }: CreateEventParams): Promise<CreateEventResponse> {
     try {
       const calendar = await this.getCalendarClient(email);
