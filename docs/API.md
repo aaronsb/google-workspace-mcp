@@ -1,7 +1,7 @@
 # Google Workspace MCP Server API Documentation
 
 ## Overview
-This MCP server provides tools for Gmail operations and Google account management. The server handles OAuth authentication, token management, and Gmail API interactions.
+This MCP server provides tools for Gmail and Calendar operations along with Google account management. The server handles OAuth authentication, token management, and API interactions with Google Workspace services.
 
 ## Available Tools
 
@@ -51,6 +51,45 @@ Remove a Google account and delete its associated authentication tokens.
 ```typescript
 {
   email: string;          // Email address of the account to remove
+}
+```
+
+### Calendar Operations
+
+#### 1. get_events
+Get events from a Google Calendar with optional filtering.
+
+**Request Format**
+```typescript
+{
+  email: string;           // Email address of the Calendar account
+  query?: string;         // Search query to filter events
+  maxResults?: number;    // Maximum number of events (default: 10)
+  timeMin?: string;      // Start of time range (ISO string)
+  timeMax?: string;      // End of time range (ISO string)
+}
+```
+
+#### 2. create_event
+Create a new calendar event.
+
+**Request Format**
+```typescript
+{
+  email: string;           // Email address of the Calendar account
+  summary: string;        // Event title
+  description?: string;   // Event description
+  start: {
+    dateTime: string;    // Start time (ISO string)
+    timeZone?: string;   // Optional timezone
+  };
+  end: {
+    dateTime: string;    // End time (ISO string)
+    timeZone?: string;   // Optional timezone
+  };
+  attendees?: {          // Optional list of attendees
+    email: string;
+  }[];
 }
 ```
 
@@ -143,6 +182,12 @@ Send an email from a Gmail account.
 ```
 
 ## Error Types
+
+### Calendar Errors
+- `FETCH_ERROR`: Failed to get calendar events
+- `CREATE_ERROR`: Failed to create calendar event
+- `AUTH_REQUIRED`: Calendar authentication needed
+- `MODULE_NOT_INITIALIZED`: Calendar module not ready
 
 ### Account Errors
 - `AUTH_CONFIG_ERROR`: OAuth configuration issues
@@ -259,9 +304,15 @@ Send an email from a Gmail account.
    });
    ```
 
-## Common Gmail Scopes
+## Common Scopes
 
+### Gmail Scopes
 - `https://www.googleapis.com/auth/gmail.readonly` - Read-only access
 - `https://www.googleapis.com/auth/gmail.send` - Send emails only
 - `https://www.googleapis.com/auth/gmail.modify` - All read/write operations
 - `https://www.googleapis.com/auth/gmail.compose` - Create/send emails
+
+### Calendar Scopes
+- `https://www.googleapis.com/auth/calendar.readonly` - Read-only access to calendars
+- `https://www.googleapis.com/auth/calendar.events` - Read/write access to events
+- `https://www.googleapis.com/auth/calendar` - Full access to calendars and events
