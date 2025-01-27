@@ -251,14 +251,28 @@ Send an email from a Gmail account.
 }
 ```
 
-### Token Refresh Response
+### Auth Error Response (401/403)
 ```typescript
 {
   content: [{
     type: 'text',
     text: JSON.stringify({
-      status: 'refreshing',
-      message: 'Token refreshed successfully'
+      status: 'auth_error',
+      error: 'Authentication failed',
+      message: 'Token refresh in progress...'
+    })
+  }]
+}
+```
+
+### Token Refresh Success
+```typescript
+{
+  content: [{
+    type: 'text',
+    text: JSON.stringify({
+      status: 'success',
+      message: 'Token refreshed and operation retried successfully'
     })
   }]
 }
@@ -356,12 +370,12 @@ Send an email from a Gmail account.
 
 1. Initial Setup:
    ```typescript
+   // Register account with necessary scopes
    await use_mcp_tool({
      server_name: "gsuite",
      tool_name: "authenticate_workspace_account",
      arguments: {
-       email: "user@example.com",
-       required_scopes: ["https://www.googleapis.com/auth/gmail.send"]
+       email: "user@example.com"
      }
    });
    // → Returns auth_url to complete OAuth
@@ -369,12 +383,12 @@ Send an email from a Gmail account.
 
 2. Complete Auth:
    ```typescript
+   // Complete OAuth flow with auth code
    await use_mcp_tool({
      server_name: "gsuite",
      tool_name: "authenticate_workspace_account",
      arguments: {
        email: "user@example.com",
-       required_scopes: ["https://www.googleapis.com/auth/gmail.send"],
        auth_code: "4/1AX4XfWh..."  // Code from OAuth
      }
    });
@@ -382,7 +396,7 @@ Send an email from a Gmail account.
 
 3. Use Services:
    ```typescript
-   // Token refresh handled automatically
+   // Auth errors handled automatically through 401/403 responses
    await use_mcp_tool({
      server_name: "gsuite",
      tool_name: "send_workspace_email",
@@ -393,6 +407,10 @@ Send an email from a Gmail account.
        body: "Hello"
      }
    });
+   // If auth fails:
+   // 1. Token refresh attempted automatically
+   // 2. Operation retried after refresh
+   // 3. If refresh fails, auth_url returned for re-auth
    ```
 
 ## Common Scopes

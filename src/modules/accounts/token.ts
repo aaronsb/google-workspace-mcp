@@ -5,22 +5,9 @@ import { scopeRegistry } from '../tools/scope-registry.js';
 import { GoogleOAuthClient } from './oauth.js';
 
 /**
- * Manages OAuth token operations with integrated scope validation.
- * 
- * The TokenManager works in conjunction with the ScopeRegistry to ensure
- * that tokens have the correct permissions for all operations. This is
- * particularly important for:
- * 
- * 1. Gmail Operations:
- *    - Prevents metadata-only scope issues
- *    - Ensures proper search and full content access
- * 
- * 2. Calendar Operations:
- *    - Validates event management permissions
- *    - Ensures proper access levels for calendar features
- * 
- * Token validation includes checking both expiration and scope coverage,
- * triggering re-authentication when necessary to obtain proper permissions.
+ * Manages OAuth token operations.
+ * Focuses on basic token storage, retrieval, and refresh.
+ * Auth issues are handled via 401 responses rather than pre-validation.
  */
 export class TokenManager {
   private readonly credentialsPath: string;
@@ -56,13 +43,27 @@ export class TokenManager {
 
   async loadToken(email: string): Promise<any> {
     try {
+      // First try loading from file
       const tokenPath = this.getTokenPath(email);
-      const data = await fs.readFile(tokenPath, 'utf-8');
-      return JSON.parse(data);
-    } catch (error) {
-      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-        return null;
+      try {
+        const data = await fs.readFile(tokenPath, 'utf-8');
+        return JSON.parse(data);
+      } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+          // File doesn't exist, try environment variable
+          const envKey = `GOOGLE_TOKEN_${email.replace(/[@.]/g, '_').toUpperCase()}`;
+          const envToken = process.env[envKey];
+          if (envToken) {
+            const tokenData = JSON.parse(Buffer.from(envToken, 'base64').toString());
+            // Save to file for future use
+            await this.saveToken(email, tokenData);
+            return tokenData;
+          }
+          return null;
+        }
+        throw error;
       }
+    } catch (error) {
       throw new AccountError(
         'Failed to load token',
         'TOKEN_LOAD_ERROR',
@@ -87,98 +88,10 @@ export class TokenManager {
   }
 
   /**
-   * Validates a token's expiration and scope coverage.
-   * 
-   * This method performs comprehensive token validation:
-   * 1. Checks if token exists
-   * 2. Verifies token expiration
-   * 3. Validates scope coverage using ScopeRegistry
-   * 
-   * For Gmail operations, this ensures the token has proper scopes to:
-   * - Perform searches with 'q' parameter
-   * - Access full email content
-   * - Manage email settings
-   * 
-   * For Calendar operations, it verifies:
-   * - Event viewing/management permissions
-   * - Settings access rights
-   * 
-   * @param email - The email address associated with the token
-   * @param requiredScopes - Array of required OAuth scopes
-   * @returns TokenStatus object indicating validity and any issues
+   * Basic token validation - just checks if token exists and isn't expired.
+   * No scope validation - auth issues handled via 401 responses.
    */
-  async validateToken(email: string, requiredScopes: string[]): Promise<TokenStatus> {
-    const token = await this.loadToken(email);
-    
-    if (!token) {
-      const authUrl = await this.getAuthUrl();
-      return {
-        valid: false,
-        reason: 'No token found. Authentication required.',
-        authUrl,
-        requiredScopes
-      };
-    }
-
-    // Check if token is expired
-    if (token.expiry_date && token.expiry_date < Date.now()) {
-      const authUrl = await this.getAuthUrl();
-      return {
-        valid: false,
-        token,
-        reason: 'Token expired. Re-authentication required.',
-        authUrl,
-        requiredScopes
-      };
-    }
-
-    // Check if token has required scopes
-    const tokenScopes = token.scope.split(' ');
-    try {
-      scopeRegistry.validateScopes(tokenScopes);
-    } catch (error) {
-      const authUrl = await this.getAuthUrl();
-      return {
-        valid: false,
-        reason: error instanceof Error ? error.message : 'Additional permissions required.',
-        authUrl,
-        requiredScopes
-      };
-    }
-
-    return {
-      valid: true,
-      token
-    };
-  }
-
-  private async getAuthUrl(): Promise<string | undefined> {
-    if (!this.oauthClient) {
-      throw new AccountError(
-        'OAuth client not configured',
-        'AUTH_CLIENT_ERROR',
-        'Please ensure the OAuth client is properly initialized'
-      );
-    }
-    // Always use all registered scopes when generating auth URL
-    const allScopes = scopeRegistry.getAllScopes();
-    return this.oauthClient.generateAuthUrl(allScopes);
-  }
-
-  /**
-   * Gets the current status of a token without full scope validation.
-   * 
-   * This is a lightweight check that:
-   * 1. Verifies token existence
-   * 2. Checks expiration
-   * 
-   * Unlike validateToken, this doesn't perform scope validation,
-   * making it suitable for quick token presence checks.
-   * 
-   * @param email - The email address associated with the token
-   * @returns TokenStatus object with basic validity information
-   */
-  async getTokenStatus(email: string): Promise<TokenStatus> {
+  async validateToken(email: string): Promise<TokenStatus> {
     const token = await this.loadToken(email);
     
     if (!token) {
@@ -189,9 +102,23 @@ export class TokenManager {
     }
 
     if (token.expiry_date && token.expiry_date < Date.now()) {
+      if (token.refresh_token && this.oauthClient) {
+        try {
+          const newToken = await this.oauthClient.refreshToken(token.refresh_token);
+          await this.saveToken(email, newToken);
+          return {
+            valid: true,
+            token: newToken
+          };
+        } catch (error) {
+          return {
+            valid: false,
+            reason: 'Token refresh failed'
+          };
+        }
+      }
       return {
         valid: false,
-        token,
         reason: 'Token expired'
       };
     }

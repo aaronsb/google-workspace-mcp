@@ -29,7 +29,7 @@ export class AccountManager {
     
     // Add auth status to each account
     for (const account of accounts) {
-      account.auth_status = await this.tokenManager.getTokenStatus(account.email);
+      account.auth_status = await this.tokenManager.validateToken(account.email);
     }
     
     return accounts;
@@ -162,17 +162,12 @@ export class AccountManager {
       );
     }
 
-    // Get all registered scopes and validate token
-    const allScopes = scopeRegistry.getAllScopes();
-    if (allScopes.length > 0) {
-      const tokenStatus = await this.tokenManager.validateToken(email, allScopes);
-      account.auth_status = {
-        valid: tokenStatus.valid,
-        reason: tokenStatus.reason,
-        authUrl: tokenStatus.authUrl,
-        requiredScopes: tokenStatus.requiredScopes
-      };
-    }
+    // Simple token validation - no scope checking
+    const tokenStatus = await this.tokenManager.validateToken(email);
+    account.auth_status = {
+      valid: tokenStatus.valid,
+      reason: tokenStatus.reason
+    };
 
     return account;
   }
@@ -198,8 +193,7 @@ export class AccountManager {
 
   // Token related methods
   async validateToken(email: string) {
-    const allScopes = scopeRegistry.getAllScopes();
-    return this.tokenManager.validateToken(email, allScopes);
+    return this.tokenManager.validateToken(email);
   }
 
   async saveToken(email: string, tokenData: any) {

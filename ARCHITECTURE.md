@@ -22,11 +22,10 @@ graph TD
 ## Core Components (Current Implementation)
 
 ### 1. Scope Registry (src/modules/tools/scope-registry.ts)
-- Centralized scope management system
-- Tracks and validates OAuth scopes per tool
-- Prevents metadata-only scope issues
-- Ensures proper permission levels for API operations
-- Validates token scopes against required permissions
+- Simple scope collection system
+- Gathers required scopes at startup
+- Used only for initial auth setup
+- No runtime validation - handled by API responses
 
 ### 2. MCP Server (src/index.ts)
 - Registers and manages available tools
@@ -59,60 +58,44 @@ graph TD
 
 ## Data Flows
 
-### Scope Validation Flow
+### Operation Flow
 ```mermaid
 sequenceDiagram
     participant TR as Tool Request
-    participant SR as Scope Registry
-    participant TM as Token Manager
-    participant GA as Gmail API
+    participant S as Service
+    participant API as Google API
 
-    TR->>SR: Get Required Scopes
-    SR->>TM: Validate Token Scopes
-    alt Valid Scopes
-        TM->>GA: Make API Call
-        GA-->>TR: Return Response
-    else Invalid Scopes
-        TM-->>TR: Request Re-auth
-        Note over TR,GA: Re-auth with correct scopes
+    TR->>S: Request
+    S->>API: API Call
+    alt Success
+        API-->>TR: Return Response
+    else Auth Error (401/403)
+        S->>S: Refresh Token
+        S->>API: Retry API Call
+        API-->>TR: Return Response
     end
 ```
 
-### Authentication Flow
+### Auth Flow
 ```mermaid
 sequenceDiagram
     participant TR as Tool Request
+    participant S as Service
     participant AM as Account Manager
-    participant OC as OAuth Client
-    participant T as Token
+    participant API as Google API
 
-    TR->>AM: Request
-    AM->>T: Check Token
-    alt Token Invalid
-        AM->>OC: Request Auth
-        OC-->>TR: Generate Auth URL
-        TR->>OC: User Authentication
-        OC->>T: Exchange & Save Token
-        T-->>TR: Retry Request
-    end
-```
-
-### Gmail Operation Flow
-```mermaid
-sequenceDiagram
-    participant TR as Tool Request
-    participant GS as Gmail Service
-    participant T as Token
-    participant GA as Gmail API
-
-    TR->>GS: Request
-    GS->>T: Validate Token
-    alt Token Valid
-        GS->>GA: API Call
-        GA-->>TR: Process Response
-    else Token Invalid
-        GS->>T: Refresh Token
-        T-->>TR: Retry Request
+    TR->>S: Request
+    S->>API: API Call
+    alt Success
+        API-->>TR: Return Response
+    else Auth Error
+        S->>AM: Refresh Token
+        alt Refresh Success
+            S->>API: Retry API Call
+            API-->>TR: Return Response
+        else Refresh Failed
+            AM-->>TR: Request Re-auth
+        end
     end
 ```
 
@@ -126,9 +109,9 @@ sequenceDiagram
 - Secure credential handling
 
 ### Error Handling
-- Detailed error messages with resolution steps
+- Simplified auth error handling through 401/403 responses
+- Automatic token refresh on auth failures
 - Service-specific error types
-- Automatic token refresh handling
 - Clear authentication error guidance
 
 ### Configuration

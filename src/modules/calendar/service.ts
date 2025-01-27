@@ -1,7 +1,6 @@
 import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import { getAccountManager } from '../accounts/index.js';
-import { scopeRegistry } from '../tools/scope-registry.js';
 import {
   GetEventsParams,
   CreateEventParams,
@@ -41,28 +40,51 @@ export class CalendarService {
 
   /**
    * Get an authenticated Google Calendar API client
-   * 
-   * @param email - Email address of the account to use
-   * @returns Authenticated Google Calendar API client
-   * @throws CalendarError if authentication fails or required scopes are not granted
    */
   private async getCalendarClient(email: string) {
     const accountManager = getAccountManager();
-    
-    // Get token for the email
-    const tokenStatus = await accountManager.validateToken(email, scopeRegistry.getToolScopes('calendar'));
+    try {
+      const tokenStatus = await accountManager.validateToken(email);
+      if (!tokenStatus.valid || !tokenStatus.token) {
+        throw new CalendarError(
+          'Calendar authentication required',
+          'AUTH_REQUIRED',
+          'Please authenticate to access calendar'
+        );
+      }
 
-    if (!tokenStatus.valid || !tokenStatus.token) {
+      this.oauth2Client.setCredentials(tokenStatus.token);
+      return google.calendar({ version: 'v3', auth: this.oauth2Client });
+    } catch (error) {
+      if (error instanceof CalendarError) {
+        throw error;
+      }
       throw new CalendarError(
-        'Calendar authentication required',
-        'AUTH_REQUIRED',
-        'Please authenticate the account, which will grant all necessary permissions'
+        'Failed to initialize Calendar client',
+        'AUTH_ERROR',
+        'Please try again or contact support if the issue persists'
       );
     }
+  }
 
-    // Set credentials on the OAuth client
-    this.oauth2Client.setCredentials(tokenStatus.token);
-    return google.calendar({ version: 'v3', auth: this.oauth2Client });
+  /**
+   * Handle Calendar operations with automatic token refresh on 401/403
+   */
+  private async handleCalendarOperation<T>(email: string, operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
+    } catch (error: any) {
+      // Handle 401/403 errors by attempting token refresh
+      if (error.code === 401 || error.code === 403) {
+        const accountManager = getAccountManager();
+        const tokenStatus = await accountManager.validateToken(email);
+        if (tokenStatus.valid && tokenStatus.token) {
+          this.oauth2Client.setCredentials(tokenStatus.token);
+          return await operation();
+        }
+      }
+      throw error;
+    }
   }
 
   /**
@@ -77,9 +99,9 @@ export class CalendarService {
    * @throws CalendarError on API errors or authentication issues
    */
   async getEvents({ email, query, maxResults = 10, timeMin, timeMax }: GetEventsParams): Promise<EventResponse[]> {
-    try {
-      const calendar = await this.getCalendarClient(email);
+    const calendar = await this.getCalendarClient(email);
 
+    return this.handleCalendarOperation(email, async () => {
       // Prepare search parameters
       const params: any = {
         calendarId: 'primary',
@@ -129,16 +151,7 @@ export class CalendarService {
           self: event.organizer.self || false
         } : undefined
       }));
-    } catch (error) {
-      if (error instanceof CalendarError) {
-        throw error;
-      }
-      throw new CalendarError(
-        'Failed to get events',
-        'FETCH_ERROR',
-        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -150,9 +163,9 @@ export class CalendarService {
    * @throws CalendarError if event not found or on API errors
    */
   async getEvent(email: string, eventId: string): Promise<EventResponse> {
-    try {
-      const calendar = await this.getCalendarClient(email);
+    const calendar = await this.getCalendarClient(email);
 
+    return this.handleCalendarOperation(email, async () => {
       const { data: event } = await calendar.events.get({
         calendarId: 'primary',
         eventId
@@ -187,16 +200,7 @@ export class CalendarService {
           self: event.organizer.self || false
         } : undefined
       };
-    } catch (error) {
-      if (error instanceof CalendarError) {
-        throw error;
-      }
-      throw new CalendarError(
-        'Failed to get event',
-        'FETCH_ERROR',
-        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   /**
@@ -214,9 +218,9 @@ export class CalendarService {
    * Note: This method automatically sends email notifications to attendees
    */
   async createEvent({ email, summary, description, start, end, attendees }: CreateEventParams): Promise<CreateEventResponse> {
-    try {
-      const calendar = await this.getCalendarClient(email);
+    const calendar = await this.getCalendarClient(email);
 
+    return this.handleCalendarOperation(email, async () => {
       const eventData = {
         summary,
         description,
@@ -244,15 +248,6 @@ export class CalendarService {
         summary: event.summary,
         htmlLink: event.htmlLink || ''
       };
-    } catch (error) {
-      if (error instanceof CalendarError) {
-        throw error;
-      }
-      throw new CalendarError(
-        'Failed to create event',
-        'CREATE_ERROR',
-        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 }

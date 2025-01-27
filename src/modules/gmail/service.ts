@@ -28,10 +28,10 @@ import { scopeRegistry } from '../tools/scope-registry.js';
  * - Proper scope validation before operations
  */
 export class GmailService {
-  private oauth2Client!: OAuth2Client;
-  constructor(config?: GmailModuleConfig) {
-    // No longer need to store scopes as they're managed by the registry
-  }
+  private gmailClient?: ReturnType<typeof google.gmail>;
+  private oauth2Client?: OAuth2Client;
+  
+  constructor(config?: GmailModuleConfig) {}
 
   async initialize(): Promise<void> {
     const accountManager = getAccountManager();
@@ -39,24 +39,26 @@ export class GmailService {
   }
 
   /**
-   * Gets an authenticated Gmail client with proper scopes.
-   * 
-   * This method ensures the client has all necessary permissions by:
-   * 1. Getting all required scopes from the registry
-   * 2. Validating the token has these scopes
-   * 3. Triggering re-auth if fuller access is needed
-   * 
-   * This prevents the previous metadata-only scope issues by ensuring
-   * proper read/write permissions are available before operations.
+   * Gets an authenticated Gmail client, creating and caching it if needed.
    * 
    * @param email - The email address to get a client for
    * @throws {GmailError} If authentication is required or token is invalid
    */
   private async getGmailClient(email: string) {
+    if (!this.oauth2Client) {
+      throw new GmailError(
+        'Gmail client not initialized',
+        'CLIENT_ERROR',
+        'Please ensure the service is initialized'
+      );
+    }
+
+    if (this.gmailClient) {
+      return this.gmailClient;
+    }
+
     const accountManager = getAccountManager();
-    
-    // Get token for the email
-    const tokenStatus = await accountManager.validateToken(email, scopeRegistry.getAllScopes());
+    const tokenStatus = await accountManager.validateToken(email);
 
     if (!tokenStatus.valid || !tokenStatus.token) {
       throw new GmailError(
@@ -66,9 +68,9 @@ export class GmailService {
       );
     }
 
-    // Set credentials on the OAuth client
     this.oauth2Client.setCredentials(tokenStatus.token);
-    return google.gmail({ version: 'v1', auth: this.oauth2Client });
+    this.gmailClient = google.gmail({ version: 'v1', auth: this.oauth2Client });
+    return this.gmailClient;
   }
 
   /**

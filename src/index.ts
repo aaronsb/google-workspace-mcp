@@ -319,7 +319,7 @@ class GSuiteServer {
             const requiredScopes = scopeRegistry.getAllScopes();
 
             // Check token status
-            const tokenStatus = await accountManager.validateToken(args.email, requiredScopes);
+            const tokenStatus = await accountManager.validateToken(args.email);
 
             if (!tokenStatus.valid || !tokenStatus.token) {
               if (tokenStatus.token && tokenStatus.reason === 'Token expired') {
@@ -351,7 +351,7 @@ class GSuiteServer {
                 };
               }
 
-              const authUrl = await accountManager.generateAuthUrl(requiredScopes);
+              const authUrl = await accountManager.generateAuthUrl();
               return {
                 content: [{
                   type: 'text',
