@@ -10,16 +10,27 @@ import {
   GetGmailSettingsParams,
   GetGmailSettingsResponse,
   GmailError,
-  DEFAULT_GMAIL_SCOPES,
   GmailModuleConfig
 } from './types.js';
+import { scopeRegistry } from '../tools/scope-registry.js';
 
+/**
+ * Gmail service implementation with proper scope handling.
+ * 
+ * This service addresses previous metadata scope issues by:
+ * 1. Using ScopeRegistry to ensure proper permissions
+ * 2. Validating tokens have required scopes before operations
+ * 3. Requesting re-authentication when fuller access is needed
+ * 
+ * Key improvements:
+ * - Search functionality now works ('q' parameter supported)
+ * - Full email content access available (format: 'full' supported)
+ * - Proper scope validation before operations
+ */
 export class GmailService {
   private oauth2Client!: OAuth2Client;
-  private requiredScopes: string[];
-
   constructor(config?: GmailModuleConfig) {
-    this.requiredScopes = config?.requiredScopes || DEFAULT_GMAIL_SCOPES;
+    // No longer need to store scopes as they're managed by the registry
   }
 
   async initialize(): Promise<void> {
@@ -27,11 +38,25 @@ export class GmailService {
     this.oauth2Client = await accountManager.getAuthClient();
   }
 
+  /**
+   * Gets an authenticated Gmail client with proper scopes.
+   * 
+   * This method ensures the client has all necessary permissions by:
+   * 1. Getting all required scopes from the registry
+   * 2. Validating the token has these scopes
+   * 3. Triggering re-auth if fuller access is needed
+   * 
+   * This prevents the previous metadata-only scope issues by ensuring
+   * proper read/write permissions are available before operations.
+   * 
+   * @param email - The email address to get a client for
+   * @throws {GmailError} If authentication is required or token is invalid
+   */
   private async getGmailClient(email: string) {
     const accountManager = getAccountManager();
     
     // Get token for the email
-    const tokenStatus = await accountManager.validateToken(email, this.requiredScopes);
+    const tokenStatus = await accountManager.validateToken(email, scopeRegistry.getAllScopes());
 
     if (!tokenStatus.valid || !tokenStatus.token) {
       throw new GmailError(
@@ -46,6 +71,18 @@ export class GmailService {
     return google.gmail({ version: 'v1', auth: this.oauth2Client });
   }
 
+  /**
+   * Gets emails with proper scope handling for search and content access.
+   * 
+   * This method now works correctly because:
+   * 1. Full access scopes are validated (not just metadata)
+   * 2. Search functionality ('q' parameter) is available
+   * 3. Complete email content can be retrieved (format: 'full')
+   * 
+   * @param params - Email retrieval parameters
+   * @returns Array of email responses with full content
+   * @throws {GmailError} If proper scopes are not available
+   */
   async getEmails({ email, query = '', maxResults = 10, labelIds = ['INBOX'], messageIds }: GetEmailsParams): Promise<EmailResponse[]> {
     try {
       const gmail = await this.getGmailClient(email);

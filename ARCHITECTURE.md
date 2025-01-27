@@ -21,13 +21,20 @@ graph TD
 
 ## Core Components (Current Implementation)
 
-### 1. MCP Server (src/index.ts)
+### 1. Scope Registry (src/modules/tools/scope-registry.ts)
+- Centralized scope management system
+- Tracks and validates OAuth scopes per tool
+- Prevents metadata-only scope issues
+- Ensures proper permission levels for API operations
+- Validates token scopes against required permissions
+
+### 2. MCP Server (src/index.ts)
 - Registers and manages available tools
 - Handles request routing and validation
 - Provides consistent error handling
 - Manages server lifecycle
 
-### 2. Account Module (src/modules/accounts/*)
+### 3. Account Module (src/modules/accounts/*)
 - OAuth Client:
   - Implements Google OAuth 2.0 flow
   - Handles token exchange and refresh
@@ -42,7 +49,7 @@ graph TD
   - Handles account persistence
   - Validates account status
 
-### 3. Gmail Module (src/modules/gmail/*)
+### 4. Gmail Module (src/modules/gmail/*)
 - Implements email operations:
   - List and fetch emails
   - Send emails
@@ -51,6 +58,25 @@ graph TD
 - Handles Gmail authentication scopes
 
 ## Data Flows
+
+### Scope Validation Flow
+```mermaid
+sequenceDiagram
+    participant TR as Tool Request
+    participant SR as Scope Registry
+    participant TM as Token Manager
+    participant GA as Gmail API
+
+    TR->>SR: Get Required Scopes
+    SR->>TM: Validate Token Scopes
+    alt Valid Scopes
+        TM->>GA: Make API Call
+        GA-->>TR: Return Response
+    else Invalid Scopes
+        TM-->>TR: Request Re-auth
+        Note over TR,GA: Re-auth with correct scopes
+    end
+```
 
 ### Authentication Flow
 ```mermaid

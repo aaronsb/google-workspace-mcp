@@ -7,8 +7,7 @@ import {
   GetGmailSettingsParams,
   GetGmailSettingsResponse,
   GmailError,
-  GmailModuleConfig,
-  DEFAULT_GMAIL_SCOPES
+  GmailModuleConfig
 } from './types.js';
 
 // Create singleton instance
@@ -42,6 +41,5 @@ export {
   GetGmailSettingsParams,
   GetGmailSettingsResponse,
   GmailError,
-  GmailModuleConfig,
-  DEFAULT_GMAIL_SCOPES
+  GmailModuleConfig
 };

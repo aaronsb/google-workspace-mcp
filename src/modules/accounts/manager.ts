@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { Account, AccountsConfig, AccountError, AccountModuleConfig } from './types.js';
-import { ALL_SCOPES } from '../../common/scopes.js';
+import { scopeRegistry } from '../tools/scope-registry.js';
 import { TokenManager } from './token.js';
 import { GoogleOAuthClient } from './oauth.js';
 
@@ -148,8 +148,7 @@ export class AccountManager {
   async validateAccount(
     email: string,
     category?: string,
-    description?: string,
-    requiredScopes: string[] = ALL_SCOPES
+    description?: string
   ): Promise<Account> {
     let account = await this.getAccount(email);
 
@@ -163,8 +162,9 @@ export class AccountManager {
       );
     }
 
-    // If scopes are provided, validate token and include auth status
-    if (requiredScopes) {
+    // Get all registered scopes and validate token
+    const requiredScopes = scopeRegistry.getAllScopes();
+    if (requiredScopes.length > 0) {
       const tokenStatus = await this.tokenManager.validateToken(email, requiredScopes);
       account.auth_status = {
         valid: tokenStatus.valid,

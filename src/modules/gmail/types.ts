@@ -82,10 +82,6 @@ export interface GmailModuleConfig {
   requiredScopes?: string[];
 }
 
-import { GMAIL_SCOPES } from '../../common/scopes.js';
-
-export const DEFAULT_GMAIL_SCOPES = GMAIL_SCOPES;
-
 export class GmailError extends Error {
   constructor(
     message: string,

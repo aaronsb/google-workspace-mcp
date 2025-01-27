@@ -133,6 +133,7 @@ Search emails with advanced filtering capabilities (replaces list_workspace_emai
   query?: string;          // Advanced search query with filters
   maxResults?: number;     // Maximum number of emails (default: 10)
   labelIds?: string[];     // List of label IDs (default: ["INBOX"])
+  messageIds?: string[];   // Optional list of specific message IDs to retrieve
 }
 ```
 

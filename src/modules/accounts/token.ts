@@ -1,8 +1,27 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { AccountError, TokenStatus } from './types.js';
+import { scopeRegistry } from '../tools/scope-registry.js';
 import { GoogleOAuthClient } from './oauth.js';
 
+/**
+ * Manages OAuth token operations with integrated scope validation.
+ * 
+ * The TokenManager works in conjunction with the ScopeRegistry to ensure
+ * that tokens have the correct permissions for all operations. This is
+ * particularly important for:
+ * 
+ * 1. Gmail Operations:
+ *    - Prevents metadata-only scope issues
+ *    - Ensures proper search and full content access
+ * 
+ * 2. Calendar Operations:
+ *    - Validates event management permissions
+ *    - Ensures proper access levels for calendar features
+ * 
+ * Token validation includes checking both expiration and scope coverage,
+ * triggering re-authentication when necessary to obtain proper permissions.
+ */
 export class TokenManager {
   private readonly credentialsPath: string;
   private oauthClient?: GoogleOAuthClient;
@@ -67,6 +86,27 @@ export class TokenManager {
     }
   }
 
+  /**
+   * Validates a token's expiration and scope coverage.
+   * 
+   * This method performs comprehensive token validation:
+   * 1. Checks if token exists
+   * 2. Verifies token expiration
+   * 3. Validates scope coverage using ScopeRegistry
+   * 
+   * For Gmail operations, this ensures the token has proper scopes to:
+   * - Perform searches with 'q' parameter
+   * - Access full email content
+   * - Manage email settings
+   * 
+   * For Calendar operations, it verifies:
+   * - Event viewing/management permissions
+   * - Settings access rights
+   * 
+   * @param email - The email address associated with the token
+   * @param requiredScopes - Array of required OAuth scopes
+   * @returns TokenStatus object indicating validity and any issues
+   */
   async validateToken(email: string, requiredScopes: string[]): Promise<TokenStatus> {
     const token = await this.loadToken(email);
     
@@ -94,15 +134,13 @@ export class TokenManager {
 
     // Check if token has required scopes
     const tokenScopes = token.scope.split(' ');
-    const hasAllScopes = requiredScopes.every(scope => 
-      tokenScopes.includes(scope)
-    );
-
-    if (!hasAllScopes) {
+    try {
+      scopeRegistry.validateScopes(tokenScopes);
+    } catch (error) {
       const authUrl = await this.getAuthUrl(requiredScopes);
       return {
         valid: false,
-        reason: 'Additional permissions required.',
+        reason: error instanceof Error ? error.message : 'Additional permissions required.',
         authUrl,
         requiredScopes
       };
@@ -125,6 +163,19 @@ export class TokenManager {
     return this.oauthClient.generateAuthUrl(scopes);
   }
 
+  /**
+   * Gets the current status of a token without full scope validation.
+   * 
+   * This is a lightweight check that:
+   * 1. Verifies token existence
+   * 2. Checks expiration
+   * 
+   * Unlike validateToken, this doesn't perform scope validation,
+   * making it suitable for quick token presence checks.
+   * 
+   * @param email - The email address associated with the token
+   * @returns TokenStatus object with basic validity information
+   */
   async getTokenStatus(email: string): Promise<TokenStatus> {
     const token = await this.loadToken(email);
     

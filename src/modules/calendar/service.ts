@@ -1,13 +1,13 @@
 import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import { getAccountManager } from '../accounts/index.js';
+import { scopeRegistry } from '../tools/scope-registry.js';
 import {
   GetEventsParams,
   CreateEventParams,
   EventResponse,
   CreateEventResponse,
   CalendarError,
-  DEFAULT_CALENDAR_SCOPES,
   CalendarModuleConfig
 } from './types.js';
 
@@ -24,10 +24,9 @@ import {
  */
 export class CalendarService {
   private oauth2Client!: OAuth2Client;
-  private requiredScopes: string[];
 
   constructor(config?: CalendarModuleConfig) {
-    this.requiredScopes = config?.requiredScopes || DEFAULT_CALENDAR_SCOPES;
+    // No longer need to store scopes as they're managed by the registry
   }
 
   /**
@@ -51,7 +50,7 @@ export class CalendarService {
     const accountManager = getAccountManager();
     
     // Get token for the email
-    const tokenStatus = await accountManager.validateToken(email, this.requiredScopes);
+    const tokenStatus = await accountManager.validateToken(email, scopeRegistry.getAllScopes());
 
     if (!tokenStatus.valid || !tokenStatus.token) {
       throw new CalendarError(
