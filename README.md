@@ -1,97 +1,116 @@
-# Google API MCP Server
+# Google Workspace MCP Server
 
-A Model Context Protocol (MCP) server that provides authenticated access to Google APIs. This server handles OAuth authentication, token management, and request validation for Google services like Gmail and Drive.
+A Model Context Protocol (MCP) server that provides authenticated access to Google Workspace APIs, currently focused on Gmail functionality with Calendar support in development.
 
 ## Features
 
-- **Standardized Interface**: Consistent request/response format for all Google APIs
-- **OAuth Authentication**: Handles the complete OAuth flow including token refresh
-- **Request Validation**: Validates endpoints, parameters, and scopes before making requests
-- **Error Handling**: Comprehensive error handling with clear messages and resolution steps
-- **Multiple Services**: Support for Gmail, Drive, and other Google services
+- **Gmail Integration**: Complete email operations (list, get, send messages)
+- **OAuth Authentication**: Robust OAuth 2.0 flow with token refresh
+- **Account Management**: Multi-account support with secure token handling
+- **Error Handling**: Detailed error messages with resolution steps
+- **Modular Design**: Extensible architecture for additional services
 
-## Supported Services
+## Current Capabilities
 
-- **Gmail**: Email operations (list, get, send messages)
-- **Drive**: File operations (list, get, create, update files)
-- More services coming soon...
+- **Gmail Operations**:
+  - List and fetch emails with filtering
+  - Send emails with CC/BCC support
+  - Gmail-specific error handling
+
+- **Account Management**:
+  - Multiple account support
+  - Secure token storage
+  - Automatic token refresh
 
 ## Documentation
 
-- [API Documentation](docs/API.md): Detailed API reference
-- [Error Handling](docs/ERRORS.md): Error codes and resolution steps
-- [Usage Examples](docs/EXAMPLES.md): Code examples and best practices
+- [API Documentation](docs/API.md): Available tools and usage
+- [Architecture](ARCHITECTURE.md): System design and components
+- [Error Handling](docs/ERRORS.md): Error types and resolution
 
-## Quick Start
+## Getting Started
 
-1. **Installation**
-   ```bash
-   npm install @modelcontextprotocol/sdk
-   ```
+1. **Setup Google Cloud Project**
+   - Create project in Google Cloud Console
+   - Enable Gmail API
+   - Configure OAuth consent screen
+   - Create OAuth 2.0 credentials
 
 2. **Configuration**
-   - Set up Google OAuth credentials
-   - Configure the MCP server settings
+   ```bash
+   # Set up environment variables
+   AUTH_CONFIG_FILE=/path/to/gauth.json
+   ACCOUNTS_FILE=/path/to/accounts.json
+   CREDENTIALS_DIR=/path/to/credentials
+   ```
 
 3. **Basic Usage**
    ```typescript
+   // List emails
    const response = await use_mcp_tool({
-     server_name: "mcp-gsuite",
-     tool_name: "google_api_request",
+     server_name: "gsuite",
+     tool_name: "get_emails",
      arguments: {
        email: "user@example.com",
-       api_endpoint: "gmail.users.messages.list",
-       method: "GET",
-       params: {
-         userId: "me",
-         maxResults: 10
-       },
-       required_scopes: [
-         "https://www.googleapis.com/auth/gmail.readonly"
-       ]
+       maxResults: 10,
+       labelIds: ["INBOX"]
+     }
+   });
+
+   // Send email
+   await use_mcp_tool({
+     server_name: "gsuite",
+     tool_name: "send_email",
+     arguments: {
+       email: "user@example.com",
+       to: ["recipient@example.com"],
+       subject: "Hello",
+       body: "Message content"
      }
    });
    ```
 
-## Architecture
+## Available Tools
 
-The server follows a modular architecture with clear separation of concerns:
+### Account Management
+- `list_google_accounts`: List configured accounts
+- `use_google_account`: Add/authenticate account
+- `forget_google_account`: Remove account
 
-- **Request Handler**: Manages the request lifecycle
-- **Endpoint Validator**: Validates API endpoints and methods
-- **Parameter Validator**: Validates request parameters
-- **OAuth Client**: Handles authentication flows
-- **Token Manager**: Manages OAuth tokens
-- **Account Manager**: Handles user account management
+### Gmail Operations
+- `get_emails`: Fetch emails with filtering
+- `send_email`: Send emails with CC/BCC
 
-## Error Handling
+See [API Documentation](docs/API.md) for detailed usage.
 
-The server provides detailed error information:
+## Coming Soon
 
-```typescript
-{
-  status: "error",
-  error: "Detailed error message",
-  resolution: "Steps to resolve the error"
-}
-```
+### Calendar Integration (In Development)
+- Event management
+- Calendar operations
+- Meeting scheduling
 
-See [Error Documentation](docs/ERRORS.md) for more details.
+### Future Services
+- Drive API integration
+- Admin SDK support
+- Additional Google services
 
 ## Best Practices
 
-1. **Minimal Scopes**: Request only the scopes needed
-2. **Error Handling**: Implement proper error handling
-3. **Token Management**: Handle token refresh flows
-4. **Parameter Validation**: Validate parameters before sending
-5. **Rate Limiting**: Implement retry logic with backoff
+1. **Authentication**
+   - Store credentials securely
+   - Use minimal required scopes
+   - Handle token refresh properly
 
-## Contributing
+2. **Error Handling**
+   - Check response status
+   - Handle auth errors appropriately
+   - Implement proper retries
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+3. **Configuration**
+   - Use environment variables
+   - Secure credential storage
+   - Regular token rotation
 
 ## License
 
