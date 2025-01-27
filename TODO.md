@@ -7,24 +7,24 @@
   - [x] List/get messages
   - [x] Send emails
   - [x] Basic search
-- [ ] Advanced features
-  - [ ] Get user information
-  - [ ] Advanced search capabilities
-    - [ ] Search by unread status
-    - [ ] Search by sender
-    - [ ] Search by date range
-    - [ ] Search for emails with attachments
-  - [ ] Email management
-    - [ ] Retrieve complete email content by ID
-    - [ ] Batch retrieve multiple emails by IDs
-  - [ ] Draft management
-    - [ ] Create new drafts with recipients, subject, body, and CC
-    - [ ] Delete draft emails
-  - [ ] Reply handling
-    - [ ] Reply to existing emails (immediate send)
-    - [ ] Save replies as drafts
+- [x] Advanced features
+  - [x] Get user information
+  - [x] Advanced search capabilities
+    - [x] Search by unread status
+    - [x] Search by sender
+    - [x] Search by date range
+    - [x] Search for emails with attachments
+  - [ ] Email content management
+    - [ ] get_workspace_email_content: Retrieve complete email content by ID
+    - [ ] get_workspace_email_batch: Batch retrieve multiple emails by IDs
+  - [ ] Draft operations
+    - [ ] create_workspace_draft: Create new drafts with recipients, subject, body, and CC
+    - [ ] delete_workspace_draft: Delete draft emails
+  - [ ] Reply management
+    - [ ] send_workspace_reply: Reply to existing emails (immediate send)
+    - [ ] create_workspace_reply_draft: Save replies as drafts
   - [ ] Attachment handling
-    - [ ] Save multiple attachments locally
+    - [ ] save_workspace_attachments: Save multiple attachments locally
 
 ### Calendar Module (In Development)
 - [ ] Core functionality
