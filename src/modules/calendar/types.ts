@@ -53,10 +53,9 @@ export interface CalendarModuleConfig {
   requiredScopes?: string[];
 }
 
-export const DEFAULT_CALENDAR_SCOPES = [
-  'https://www.googleapis.com/auth/calendar.readonly',
-  'https://www.googleapis.com/auth/calendar.events'
-];
+import { CALENDAR_SCOPES } from '../../common/scopes.js';
+
+export const DEFAULT_CALENDAR_SCOPES = CALENDAR_SCOPES;
 
 export class CalendarError extends Error {
   constructor(
