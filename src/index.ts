@@ -11,6 +11,7 @@ import { AccountManager } from './utils/account.js';
 import { GoogleApiRequest } from './api/request.js';
 import { RequestHandler } from './api/handler.js';
 import { GoogleAuthParams, GoogleApiResponse, GoogleApiError } from './types.js';
+import { GmailService } from './services/gmail/index.js';
 
 class GSuiteServer {
   private server: Server;
@@ -18,6 +19,7 @@ class GSuiteServer {
   private tokenManager?: TokenManager;
   private accountManager?: AccountManager;
   private apiRequest?: GoogleApiRequest;
+  private gmailService?: GmailService;
   
   constructor() {
     this.server = new Server(
@@ -38,6 +40,11 @@ class GSuiteServer {
     this.accountManager = new AccountManager();
     
     this.setupRequestHandlers();
+    
+    // Initialize Gmail service
+    this.oauthClient.getAuthClient().then(authClient => {
+      this.gmailService = new GmailService(authClient);
+    });
   }
 
   private requestHandler?: RequestHandler;
@@ -92,6 +99,70 @@ class GSuiteServer {
               },
               required: ['email', 'required_scopes']
             }
+          },
+          {
+            name: 'get_emails',
+            description: 'Get emails from a Gmail account with optional filtering',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                email: {
+                  type: 'string',
+                  description: 'Email address of the Gmail account'
+                },
+                query: {
+                  type: 'string',
+                  description: 'Search query to filter emails'
+                },
+                maxResults: {
+                  type: 'number',
+                  description: 'Maximum number of emails to return (default: 10)'
+                },
+                labelIds: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'List of label IDs to filter by (default: ["INBOX"])'
+                }
+              },
+              required: ['email']
+            }
+          },
+          {
+            name: 'send_email',
+            description: 'Send an email from a Gmail account',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                email: {
+                  type: 'string',
+                  description: 'Email address to send from'
+                },
+                to: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'List of recipient email addresses'
+                },
+                subject: {
+                  type: 'string',
+                  description: 'Email subject'
+                },
+                body: {
+                  type: 'string',
+                  description: 'Email body content'
+                },
+                cc: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'List of CC recipient email addresses'
+                },
+                bcc: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'List of BCC recipient email addresses'
+                }
+              },
+              required: ['email', 'to', 'subject', 'body']
+            }
           }
         ]
     }));
@@ -145,6 +216,52 @@ class GSuiteServer {
               }]
             };
           } catch (error: unknown) {
+            const response = this.formatErrorResponse(error);
+            return {
+              content: [{ type: 'text', text: JSON.stringify(response, null, 2) }],
+              isError: true
+            };
+          }
+        }
+
+        case 'get_emails': {
+          await this.ensureApiRequest();
+          if (!this.gmailService) {
+            throw new Error('Gmail service not initialized');
+          }
+
+          try {
+            const emails = await this.gmailService.getEmails(request.params.arguments as any);
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify(emails, null, 2)
+              }]
+            };
+          } catch (error) {
+            const response = this.formatErrorResponse(error);
+            return {
+              content: [{ type: 'text', text: JSON.stringify(response, null, 2) }],
+              isError: true
+            };
+          }
+        }
+
+        case 'send_email': {
+          await this.ensureApiRequest();
+          if (!this.gmailService) {
+            throw new Error('Gmail service not initialized');
+          }
+
+          try {
+            const result = await this.gmailService.sendEmail(request.params.arguments as any);
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify(result, null, 2)
+              }]
+            };
+          } catch (error) {
             const response = this.formatErrorResponse(error);
             return {
               content: [{ type: 'text', text: JSON.stringify(response, null, 2) }],
