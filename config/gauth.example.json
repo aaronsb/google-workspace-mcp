@@ -1,0 +1,5 @@
+{
+  "client_id": "your-client-id.apps.googleusercontent.com",
+  "client_secret": "your-client-secret",
+  "redirect_uri": "urn:ietf:wg:oauth:2.0:oob"
+}

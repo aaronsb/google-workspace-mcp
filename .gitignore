@@ -15,6 +15,7 @@ dist/
 
 # Credentials
 config/gauth.json
+config/accounts.json
 config/credentials/
 *.token.json
 

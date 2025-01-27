@@ -1,0 +1,22 @@
+{
+  "accounts": [
+    {
+      "email": "user@example.com",
+      "category": "work",
+      "description": "Work Google Account",
+      "auth_status": {
+        "valid": false,
+        "token": null
+      }
+    },
+    {
+      "email": "personal@gmail.com",
+      "category": "personal",
+      "description": "Personal Gmail Account",
+      "auth_status": {
+        "valid": false,
+        "token": null
+      }
+    }
+  ]
+}
