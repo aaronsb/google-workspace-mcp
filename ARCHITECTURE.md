@@ -14,7 +14,8 @@ graph TD
     AM --> SM[Service Modules]
     subgraph ServiceModules[Service Modules]
         GM[Gmail Module]
-        CM[Calendar Module<br/>(Planned)]
+        CM["Calendar Module
+        (Planned)"]
     end
 ```
 
