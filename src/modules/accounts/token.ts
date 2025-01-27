@@ -1,12 +1,19 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { AccountError, TokenStatus } from './types.js';
+import { GoogleOAuthClient } from './oauth.js';
 
 export class TokenManager {
   private readonly credentialsPath: string;
+  private oauthClient?: GoogleOAuthClient;
 
-  constructor() {
+  constructor(oauthClient?: GoogleOAuthClient) {
     this.credentialsPath = process.env.CREDENTIALS_DIR || path.resolve('config', 'credentials');
+    this.oauthClient = oauthClient;
+  }
+
+  setOAuthClient(client: GoogleOAuthClient) {
+    this.oauthClient = client;
   }
 
   private getTokenPath(email: string): string {
@@ -64,18 +71,24 @@ export class TokenManager {
     const token = await this.loadToken(email);
     
     if (!token) {
+      const authUrl = await this.getAuthUrl(requiredScopes);
       return {
         valid: false,
-        reason: 'No token found'
+        reason: 'No token found. Authentication required.',
+        authUrl,
+        requiredScopes
       };
     }
 
     // Check if token is expired
     if (token.expiry_date && token.expiry_date < Date.now()) {
+      const authUrl = await this.getAuthUrl(requiredScopes);
       return {
         valid: false,
         token,
-        reason: 'Token expired'
+        reason: 'Token expired. Re-authentication required.',
+        authUrl,
+        requiredScopes
       };
     }
 
@@ -86,9 +99,12 @@ export class TokenManager {
     );
 
     if (!hasAllScopes) {
+      const authUrl = await this.getAuthUrl(requiredScopes);
       return {
         valid: false,
-        reason: 'Missing required scopes'
+        reason: 'Additional permissions required.',
+        authUrl,
+        requiredScopes
       };
     }
 
@@ -96,6 +112,17 @@ export class TokenManager {
       valid: true,
       token
     };
+  }
+
+  private async getAuthUrl(scopes: string[]): Promise<string | undefined> {
+    if (!this.oauthClient) {
+      throw new AccountError(
+        'OAuth client not configured',
+        'AUTH_CLIENT_ERROR',
+        'Please ensure the OAuth client is properly initialized'
+      );
+    }
+    return this.oauthClient.generateAuthUrl(scopes);
   }
 
   async getTokenStatus(email: string): Promise<TokenStatus> {

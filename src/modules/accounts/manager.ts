@@ -13,8 +13,8 @@ export class AccountManager {
   constructor(config?: AccountModuleConfig) {
     this.accountsPath = config?.accountsPath || process.env.ACCOUNTS_FILE || path.resolve('config', 'accounts.json');
     this.accounts = new Map();
-    this.tokenManager = new TokenManager();
     this.oauthClient = new GoogleOAuthClient();
+    this.tokenManager = new TokenManager(this.oauthClient);
   }
 
   async initialize(): Promise<void> {
@@ -147,7 +147,8 @@ export class AccountManager {
   async validateAccount(
     email: string,
     category?: string,
-    description?: string
+    description?: string,
+    requiredScopes?: string[]
   ): Promise<Account> {
     let account = await this.getAccount(email);
 
@@ -159,6 +160,17 @@ export class AccountManager {
         'ACCOUNT_NOT_FOUND',
         'Please provide category and description for new accounts'
       );
+    }
+
+    // If scopes are provided, validate token and include auth status
+    if (requiredScopes) {
+      const tokenStatus = await this.tokenManager.validateToken(email, requiredScopes);
+      account.auth_status = {
+        valid: tokenStatus.valid,
+        reason: tokenStatus.reason,
+        authUrl: tokenStatus.authUrl,
+        requiredScopes: tokenStatus.requiredScopes
+      };
     }
 
     return account;

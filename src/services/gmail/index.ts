@@ -1,7 +1,8 @@
 import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { TokenManager } from '../../utils/token.js';
+import { TokenManager } from '../../modules/accounts/token.js';
+import { TokenStatus } from '../../modules/accounts/types.js';
 
 interface GetEmailsParams {
   email: string;
@@ -36,9 +37,15 @@ export class GmailService {
     ]);
 
     if (!tokenStatus.valid || !tokenStatus.token) {
+      const errorMessage = tokenStatus.reason || 'Gmail authentication required';
+      const resolution = tokenStatus.authUrl 
+        ? `Please visit ${tokenStatus.authUrl} to authenticate with the required permissions: ${tokenStatus.requiredScopes?.join(', ')}`
+        : 'Authentication required but URL generation failed';
+      
       throw new McpError(
         ErrorCode.InvalidRequest,
-        'Gmail authentication required'
+        errorMessage,
+        resolution
       );
     }
 

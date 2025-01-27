@@ -8,6 +8,8 @@ export interface Account {
     valid: boolean;
     token?: any;
     reason?: string;
+    authUrl?: string;
+    requiredScopes?: string[];
   };
 }
 
@@ -19,6 +21,13 @@ export interface TokenStatus {
   valid: boolean;
   token?: any;
   reason?: string;
+  authUrl?: string;
+  requiredScopes?: string[];
+}
+
+export interface AuthenticationError extends AccountError {
+  authUrl: string;
+  requiredScopes: string[];
 }
 
 export interface AccountModuleConfig {
