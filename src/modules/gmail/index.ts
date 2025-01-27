@@ -4,6 +4,8 @@ import {
   SendEmailParams,
   EmailResponse,
   SendEmailResponse,
+  GetGmailSettingsParams,
+  GetGmailSettingsResponse,
   GmailError,
   GmailModuleConfig,
   DEFAULT_GMAIL_SCOPES
@@ -37,6 +39,8 @@ export {
   SendEmailParams,
   EmailResponse,
   SendEmailResponse,
+  GetGmailSettingsParams,
+  GetGmailSettingsResponse,
   GmailError,
   GmailModuleConfig,
   DEFAULT_GMAIL_SCOPES

@@ -162,6 +162,20 @@ class GSuiteServer {
             required: ['email', 'to', 'subject', 'body']
           }
         },
+        {
+          name: 'get_workspace_gmail_settings',
+          description: 'Get Gmail settings and profile information for a workspace account',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              email: {
+                type: 'string',
+                description: 'Email address of the Gmail account'
+              }
+            },
+            required: ['email']
+          }
+        },
         // Calendar Tools
         // Note: These tools require calendar.events.readonly scope for reading events
         // and calendar.events scope for creating/modifying events
@@ -392,6 +406,16 @@ class GSuiteServer {
 
           case 'send_workspace_email': {
             const result = await getGmailService().sendEmail(request.params.arguments as any);
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify(result, null, 2)
+              }]
+            };
+          }
+
+          case 'get_workspace_gmail_settings': {
+            const result = await getGmailService().getWorkspaceGmailSettings(request.params.arguments as any);
             return {
               content: [{
                 type: 'text',

@@ -7,6 +7,8 @@ import {
   SendEmailParams,
   EmailResponse,
   SendEmailResponse,
+  GetGmailSettingsParams,
+  GetGmailSettingsResponse,
   GmailError,
   DEFAULT_GMAIL_SCOPES,
   GmailModuleConfig
@@ -158,6 +160,84 @@ export class GmailService {
       throw new GmailError(
         'Failed to send email',
         'SEND_ERROR',
+        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  async getWorkspaceGmailSettings({ email }: GetGmailSettingsParams): Promise<GetGmailSettingsResponse> {
+    try {
+      const gmail = await this.getGmailClient(email);
+
+      // Get profile data
+      const { data: profile } = await gmail.users.getProfile({
+        userId: 'me'
+      });
+
+      // Get settings data
+      const [
+        { data: autoForwarding },
+        { data: imap },
+        { data: language },
+        { data: pop },
+        { data: vacation }
+      ] = await Promise.all([
+        gmail.users.settings.getAutoForwarding({ userId: 'me' }),
+        gmail.users.settings.getImap({ userId: 'me' }),
+        gmail.users.settings.getLanguage({ userId: 'me' }),
+        gmail.users.settings.getPop({ userId: 'me' }),
+        gmail.users.settings.getVacation({ userId: 'me' })
+      ]);
+
+      // Helper function to safely handle null/undefined values
+      const nullSafeString = (value: string | null | undefined): string | undefined => 
+        value === null ? undefined : value;
+
+      const response: GetGmailSettingsResponse = {
+        profile: {
+          emailAddress: profile.emailAddress || '',
+          messagesTotal: profile.messagesTotal || 0,
+          threadsTotal: profile.threadsTotal || 0,
+          historyId: profile.historyId || ''
+        },
+        settings: {
+          autoForwarding: {
+            enabled: Boolean(autoForwarding.enabled),
+            emailAddress: nullSafeString(autoForwarding.emailAddress),
+            disposition: nullSafeString(autoForwarding.disposition)
+          },
+          imap: {
+            enabled: Boolean(imap.enabled),
+            autoExpunge: imap.autoExpunge === null ? undefined : imap.autoExpunge,
+            expungeBehavior: nullSafeString(imap.expungeBehavior),
+            maxFolderSize: imap.maxFolderSize === null ? undefined : imap.maxFolderSize
+          },
+          language: {
+            displayLanguage: language.displayLanguage || 'en'
+          },
+          pop: {
+            enabled: Boolean(pop.accessWindow !== null), // POP is enabled if accessWindow is set
+            accessWindow: nullSafeString(pop.accessWindow),
+            disposition: nullSafeString(pop.disposition)
+          },
+          vacationResponder: {
+            enabled: Boolean(vacation.enableAutoReply),
+            startTime: nullSafeString(vacation.startTime),
+            endTime: nullSafeString(vacation.endTime),
+            message: nullSafeString(vacation.responseBodyHtml) || nullSafeString(vacation.responseBodyPlainText),
+            responseSubject: nullSafeString(vacation.responseSubject)
+          }
+        }
+      };
+
+      return response;
+    } catch (error) {
+      if (error instanceof GmailError) {
+        throw error;
+      }
+      throw new GmailError(
+        'Failed to get Gmail settings',
+        'SETTINGS_ERROR',
         `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }

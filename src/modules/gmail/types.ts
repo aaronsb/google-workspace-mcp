@@ -32,6 +32,51 @@ export interface SendEmailResponse {
   labelIds?: string[];
 }
 
+export interface GmailProfileData {
+  emailAddress: string;
+  messagesTotal: number;
+  threadsTotal: number;
+  historyId: string;
+}
+
+export interface GmailSettings {
+  autoForwarding: {
+    enabled: boolean;
+    emailAddress?: string;
+    disposition?: string;
+  };
+  imap: {
+    enabled: boolean;
+    autoExpunge?: boolean;
+    expungeBehavior?: string;
+    maxFolderSize?: number;
+  };
+  language: {
+    displayLanguage: string;
+  };
+  pop: {
+    enabled: boolean;
+    accessWindow?: string;
+    disposition?: string;
+  };
+  vacationResponder: {
+    enabled: boolean;
+    startTime?: string;
+    endTime?: string;
+    message?: string;
+    responseSubject?: string;
+  };
+}
+
+export interface GetGmailSettingsParams {
+  email: string;
+}
+
+export interface GetGmailSettingsResponse {
+  profile: GmailProfileData;
+  settings: GmailSettings;
+}
+
 export interface GmailModuleConfig {
   requiredScopes?: string[];
 }
