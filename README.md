@@ -63,7 +63,7 @@ A Model Context Protocol (MCP) server that provides authenticated access to Goog
    // List emails
    const response = await use_mcp_tool({
      server_name: "gsuite",
-     tool_name: "get_emails",
+     tool_name: "list_workspace_emails",
      arguments: {
        email: "user@example.com",
        maxResults: 10,
@@ -74,7 +74,7 @@ A Model Context Protocol (MCP) server that provides authenticated access to Goog
    // Send email
    await use_mcp_tool({
      server_name: "gsuite",
-     tool_name: "send_email",
+     tool_name: "send_workspace_email",
      arguments: {
        email: "user@example.com",
        to: ["recipient@example.com"],
@@ -87,13 +87,18 @@ A Model Context Protocol (MCP) server that provides authenticated access to Goog
 ## Available Tools
 
 ### Account Management
-- `list_google_accounts`: List configured accounts
-- `use_google_account`: Add/authenticate account
-- `forget_google_account`: Remove account
+- `list_workspace_accounts`: List configured accounts
+- `authenticate_workspace_account`: Add/authenticate account
+- `remove_workspace_account`: Remove account
 
 ### Gmail Operations
-- `get_emails`: Fetch emails with filtering
-- `send_email`: Send emails with CC/BCC
+- `list_workspace_emails`: Fetch emails with filtering
+- `send_workspace_email`: Send emails with CC/BCC
+
+### Calendar Operations
+- `list_workspace_calendar_events`: List calendar events with filtering
+- `get_workspace_calendar_event`: Get a specific calendar event
+- `create_workspace_calendar_event`: Create a new calendar event
 
 See [API Documentation](docs/API.md) for detailed usage.
 
@@ -141,7 +146,7 @@ See [API Documentation](docs/API.md) for detailed usage.
 
 3. **Token Issues**
    - Error: "Token refresh failed"
-   - Solution: Remove the account using `forget_google_account` and re-authenticate
+   - Solution: Remove the account using `remove_workspace_account` and re-authenticate
    - Check that your Google Cloud project has the necessary API scopes enabled
 
 4. **Directory Structure**

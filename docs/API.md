@@ -15,7 +15,7 @@ If a tool is not registered in the `ListToolsRequestSchema` handler, the AI won'
 
 ### Account Management
 
-#### 1. list_google_accounts
+#### 1. list_workspace_accounts
 Lists all configured Google accounts and their authentication status.
 
 **Request Format**
@@ -38,7 +38,7 @@ Lists all configured Google accounts and their authentication status.
 }]
 ```
 
-#### 2. use_google_account
+#### 2. authenticate_workspace_account
 Add and authenticate a Google account for API access.
 
 **Request Format**
@@ -52,7 +52,7 @@ Add and authenticate a Google account for API access.
 }
 ```
 
-#### 3. forget_google_account
+#### 3. remove_workspace_account
 Remove a Google account and delete its associated authentication tokens.
 
 **Request Format**
@@ -64,7 +64,7 @@ Remove a Google account and delete its associated authentication tokens.
 
 ### Calendar Operations
 
-#### 1. get_events
+#### 1. list_workspace_calendar_events
 Get events from a Google Calendar with optional filtering.
 
 **Request Format**
@@ -78,7 +78,18 @@ Get events from a Google Calendar with optional filtering.
 }
 ```
 
-#### 2. create_event
+#### 2. get_workspace_calendar_event
+Get a specific calendar event by ID.
+
+**Request Format**
+```typescript
+{
+  email: string;          // Email address of the Calendar account
+  eventId: string;       // ID of the event to retrieve
+}
+```
+
+#### 3. create_workspace_calendar_event
 Create a new calendar event.
 
 **Request Format**
@@ -103,7 +114,7 @@ Create a new calendar event.
 
 ### Gmail Operations
 
-#### 1. get_emails
+#### 1. list_workspace_emails
 Get emails from a Gmail account with optional filtering.
 
 **Request Format**
@@ -116,7 +127,7 @@ Get emails from a Gmail account with optional filtering.
 }
 ```
 
-#### 2. send_email
+#### 2. send_workspace_email
 Send an email from a Gmail account.
 
 **Request Format**
@@ -275,7 +286,7 @@ Send an email from a Gmail account.
    ```typescript
    await use_mcp_tool({
      server_name: "gsuite",
-     tool_name: "use_google_account",
+     tool_name: "authenticate_workspace_account",
      arguments: {
        email: "user@example.com",
        required_scopes: ["https://www.googleapis.com/auth/gmail.send"]
@@ -288,7 +299,7 @@ Send an email from a Gmail account.
    ```typescript
    await use_mcp_tool({
      server_name: "gsuite",
-     tool_name: "use_google_account",
+     tool_name: "authenticate_workspace_account",
      arguments: {
        email: "user@example.com",
        required_scopes: ["https://www.googleapis.com/auth/gmail.send"],
@@ -302,7 +313,7 @@ Send an email from a Gmail account.
    // Token refresh handled automatically
    await use_mcp_tool({
      server_name: "gsuite",
-     tool_name: "send_email",
+     tool_name: "send_workspace_email",
      arguments: {
        email: "user@example.com",
        to: ["recipient@example.com"],

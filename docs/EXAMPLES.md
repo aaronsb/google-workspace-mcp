@@ -1,14 +1,14 @@
-# GSuite OAuth MCP Server Examples
+# Google Workspace MCP Server Examples
 
 ## Account Management Examples
 
-### 1. List Google Accounts
+### 1. List Workspace Accounts
 
 ```typescript
 // List all configured accounts and their status
 const response = await use_mcp_tool({
-  server_name: "mcp-gsuite",
-  tool_name: "list_google_accounts",
+  server_name: "gsuite",
+  tool_name: "list_workspace_accounts",
   arguments: {}
 });
 
@@ -37,8 +37,8 @@ const response = await use_mcp_tool({
 ```typescript
 // Initial authentication request
 const response = await use_mcp_tool({
-  server_name: "mcp-gsuite",
-  tool_name: "authenticate_google_account",
+  server_name: "gsuite",
+  tool_name: "authenticate_workspace_account",
   arguments: {
     email: "user@example.com",
     category: "work",
@@ -65,8 +65,8 @@ const response = await use_mcp_tool({
 
 // Complete authentication with auth code
 const authResponse = await use_mcp_tool({
-  server_name: "mcp-gsuite",
-  tool_name: "authenticate_google_account",
+  server_name: "gsuite",
+  tool_name: "authenticate_workspace_account",
   arguments: {
     email: "user@example.com",
     required_scopes: [
@@ -82,8 +82,8 @@ const authResponse = await use_mcp_tool({
 ```typescript
 // Request additional scopes for existing account
 const response = await use_mcp_tool({
-  server_name: "mcp-gsuite",
-  tool_name: "authenticate_google_account",
+  server_name: "gsuite",
+  tool_name: "authenticate_workspace_account",
   arguments: {
     email: "user@example.com",
     required_scopes: [
@@ -109,8 +109,8 @@ const response = await use_mcp_tool({
 ```typescript
 try {
   const response = await use_mcp_tool({
-    server_name: "mcp-gsuite",
-    tool_name: "authenticate_google_account",
+    server_name: "gsuite",
+    tool_name: "authenticate_workspace_account",
     arguments: {
       email: "invalid-email",
       required_scopes: []
@@ -127,8 +127,8 @@ try {
 ```typescript
 try {
   const response = await use_mcp_tool({
-    server_name: "mcp-gsuite",
-    tool_name: "authenticate_google_account",
+    server_name: "gsuite",
+    tool_name: "authenticate_workspace_account",
     arguments: {
       email: "unknown@example.com",
       required_scopes: []
@@ -147,8 +147,8 @@ try {
 ```typescript
 // First check existing accounts
 const listResponse = await use_mcp_tool({
-  server_name: "mcp-gsuite",
-  tool_name: "list_google_accounts",
+  server_name: "gsuite",
+  tool_name: "list_workspace_accounts",
   arguments: {}
 });
 
@@ -169,8 +169,8 @@ if (account && account.auth_status.has_token) {
 
 // Proceed with authentication if needed
 const authResponse = await use_mcp_tool({
-  server_name: "mcp-gsuite",
-  tool_name: "authenticate_google_account",
+  server_name: "gsuite",
+  tool_name: "authenticate_workspace_account",
   arguments: {
     email: "user@example.com",
     required_scopes: requiredScopes
@@ -184,8 +184,8 @@ const authResponse = await use_mcp_tool({
 const authenticateWithRetry = async (email, scopes, retries = 3) => {
   try {
     const response = await use_mcp_tool({
-      server_name: "mcp-gsuite",
-      tool_name: "authenticate_google_account",
+      server_name: "gsuite",
+      tool_name: "authenticate_workspace_account",
       arguments: {
         email,
         required_scopes: scopes

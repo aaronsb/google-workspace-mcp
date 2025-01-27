@@ -46,7 +46,7 @@ class GSuiteServer {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
         {
-          name: 'list_google_accounts',
+          name: 'list_workspace_accounts',
           description: 'List all configured Google accounts and their authentication status',
           inputSchema: {
             type: 'object',
@@ -54,7 +54,7 @@ class GSuiteServer {
           }
         },
         {
-          name: 'use_google_account',
+          name: 'authenticate_workspace_account',
           description: 'Add and authenticate a Google account for API access',
           inputSchema: {
             type: 'object',
@@ -85,7 +85,7 @@ class GSuiteServer {
           }
         },
         {
-          name: 'forget_google_account',
+          name: 'remove_workspace_account',
           description: 'Remove a Google account and delete its associated authentication tokens',
           inputSchema: {
             type: 'object',
@@ -99,7 +99,7 @@ class GSuiteServer {
           }
         },
         {
-          name: 'get_emails',
+          name: 'list_workspace_emails',
           description: 'Get emails from a Gmail account with optional filtering',
           inputSchema: {
             type: 'object',
@@ -126,7 +126,7 @@ class GSuiteServer {
           }
         },
         {
-          name: 'send_email',
+          name: 'send_workspace_email',
           description: 'Send an email from a Gmail account',
           inputSchema: {
             type: 'object',
@@ -166,7 +166,7 @@ class GSuiteServer {
         // Note: These tools require calendar.events.readonly scope for reading events
         // and calendar.events scope for creating/modifying events
         {
-          name: 'get_calendar_events',
+          name: 'list_workspace_calendar_events',
           description: 'Get calendar events with optional filtering',
           inputSchema: {
             type: 'object',
@@ -196,7 +196,7 @@ class GSuiteServer {
           }
         },
         {
-          name: 'get_calendar_event',
+          name: 'get_workspace_calendar_event',
           description: 'Get a single calendar event by ID',
           inputSchema: {
             type: 'object',
@@ -214,7 +214,7 @@ class GSuiteServer {
           }
         },
         {
-          name: 'create_calendar_event',
+          name: 'create_workspace_calendar_event',
           description: 'Create a new calendar event',
           inputSchema: {
             type: 'object',
@@ -284,7 +284,7 @@ class GSuiteServer {
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       try {
         switch (request.params.name) {
-          case 'list_google_accounts': {
+          case 'list_workspace_accounts': {
             const accounts = await getAccountManager().listAccounts();
             return {
               content: [{
@@ -294,7 +294,7 @@ class GSuiteServer {
             };
           }
 
-          case 'use_google_account': {
+          case 'authenticate_workspace_account': {
             const accountManager = getAccountManager();
             const args = request.params.arguments as any;
 
@@ -365,7 +365,7 @@ class GSuiteServer {
             };
           }
 
-          case 'forget_google_account': {
+          case 'remove_workspace_account': {
             const { email } = request.params.arguments as { email: string };
             await getAccountManager().removeAccount(email);
             
@@ -380,7 +380,7 @@ class GSuiteServer {
             };
           }
 
-          case 'get_emails': {
+          case 'list_workspace_emails': {
             const emails = await getGmailService().getEmails(request.params.arguments as any);
             return {
               content: [{
@@ -390,7 +390,7 @@ class GSuiteServer {
             };
           }
 
-          case 'send_email': {
+          case 'send_workspace_email': {
             const result = await getGmailService().sendEmail(request.params.arguments as any);
             return {
               content: [{
@@ -401,7 +401,7 @@ class GSuiteServer {
           }
 
           // Calendar Tool Handlers
-          case 'get_calendar_events': {
+          case 'list_workspace_calendar_events': {
             // Fetch calendar events with support for filtering by date range, query, and max results
             const events = await getCalendarService().getEvents(request.params.arguments as any);
             return {
@@ -412,7 +412,7 @@ class GSuiteServer {
             };
           }
 
-          case 'get_calendar_event': {
+          case 'get_workspace_calendar_event': {
             // Get detailed information about a specific calendar event
             const { email, eventId } = request.params.arguments as { email: string, eventId: string };
             const event = await getCalendarService().getEvent(email, eventId);
@@ -424,7 +424,7 @@ class GSuiteServer {
             };
           }
 
-          case 'create_calendar_event': {
+          case 'create_workspace_calendar_event': {
             // Create a new calendar event with optional attendees
             // Note: This automatically sends email notifications to attendees
             const event = await getCalendarService().createEvent(request.params.arguments as any);
