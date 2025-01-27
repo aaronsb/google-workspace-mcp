@@ -105,13 +105,74 @@ HTTP Status Codes:
 - 500: Server Error - Internal error
 - 503: Service Unavailable - Temporary outage
 
+## Initial Setup
+
+### Google Cloud Console Setup
+
+1. Create a new project in Google Cloud Console:
+   - Go to https://console.cloud.google.com
+   - Click "Select a project" > "New Project"
+   - Enter a project name and create
+
+2. Enable required APIs:
+   - Go to "APIs & Services" > "Library"
+   - Search for and enable the APIs you need (e.g., Gmail API, Google Calendar API)
+
+3. Configure OAuth consent screen:
+   - Go to "APIs & Services" > "OAuth consent screen"
+   - Choose "External" user type
+   - Fill in required app information
+   - Add necessary scopes based on the APIs you enabled
+   - Add your test users' email addresses
+
+4. Create OAuth credentials:
+   - Go to "APIs & Services" > "Credentials"
+   - Click "Create Credentials" > "OAuth client ID"
+   - Choose "Desktop application" as application type
+   - Give it a name and create
+
+5. Configure OAuth credentials:
+   - Download the client credentials JSON
+   - Create a `config/gauth.json` file with the following structure:
+     ```json
+     {
+       "client_id": "your-client-id.apps.googleusercontent.com",
+       "client_secret": "your-client-secret",
+       "redirect_uri": "urn:ietf:wg:oauth:2.0:oob",
+       "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+       "token_uri": "https://oauth2.googleapis.com/token"
+     }
+     ```
+
+### Environment Configuration
+
+1. Configure the MCP server in your Claude desktop config:
+   ```json
+   {
+     "mcpServers": {
+       "gsuite": {
+         "command": "node",
+         "args": ["path/to/gsuite-mcp/build/index.js"],
+         "env": {
+           "AUTH_CONFIG_FILE": "path/to/gsuite-mcp/config/gauth.json",
+           "ACCOUNTS_FILE": "path/to/gsuite-mcp/config/accounts.json",
+           "CREDENTIALS_DIR": "path/to/gsuite-mcp/config/credentials"
+         }
+       }
+     }
+   }
+   ```
+
 ## Authentication Flow
 
 1. Initial request without token:
    - Server returns auth_required response with OAuth URL
-   - User completes OAuth flow and gets authorization code
+   - User opens the URL in a browser
+   - Google displays authorization screen with a code
+   - User copies the authorization code
 
 2. Request with auth_code:
+   - User provides the copied authorization code
    - Server exchanges code for access/refresh tokens
    - Tokens are saved for future use
    - User should retry original request
