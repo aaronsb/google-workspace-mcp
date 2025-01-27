@@ -126,10 +126,19 @@ See [API Documentation](docs/API.md) for detailed usage.
    - Handle auth errors appropriately
    - Implement proper retries
 
-3. **Configuration**
+3. **Configuration & Security**
    - Use environment variables
    - Secure credential storage
    - Regular token rotation
+   - Never commit accounts.json to git
+   - Use accounts.example.json as a template
+   - A pre-commit hook prevents accidental token commits
+
+4. **Local Development Setup**
+   - Copy accounts.example.json to accounts.json (gitignored)
+   - Add your account details to accounts.json
+   - Keep sensitive tokens out of version control
+   - Run authentication script for each account
 
 ## Troubleshooting
 

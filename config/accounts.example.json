@@ -1,4 +1,8 @@
 {
+  "// IMPORTANT": "This is an example configuration file. Do not add real tokens here.",
+  "// SETUP": "1. Copy this file to accounts.json",
+  "// SETUP": "2. Update accounts.json with your real account details",
+  "// SETUP": "3. Never commit accounts.json to git - it should remain ignored",
   "accounts": [
     {
       "email": "user@example.com",
