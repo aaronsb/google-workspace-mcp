@@ -3,6 +3,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { TokenManager } from '../../modules/accounts/token.js';
 import { TokenStatus } from '../../modules/accounts/types.js';
+import { scopeRegistry } from '../../modules/tools/scope-registry.js';
 
 interface GetEmailsParams {
   email: string;
@@ -31,10 +32,7 @@ export class GmailService {
 
   private async getGmailClient(email: string) {
     // Get token for the email
-    const tokenStatus = await this.tokenManager.validateToken(email, [
-      'https://www.googleapis.com/auth/gmail.readonly',
-      'https://www.googleapis.com/auth/gmail.send'
-    ]);
+    const tokenStatus = await this.tokenManager.validateToken(email, scopeRegistry.getToolScopes('gmail'));
 
     if (!tokenStatus.valid || !tokenStatus.token) {
       const errorMessage = tokenStatus.reason || 'Gmail authentication required';

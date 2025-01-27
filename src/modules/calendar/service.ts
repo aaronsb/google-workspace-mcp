@@ -50,7 +50,7 @@ export class CalendarService {
     const accountManager = getAccountManager();
     
     // Get token for the email
-    const tokenStatus = await accountManager.validateToken(email, scopeRegistry.getAllScopes());
+    const tokenStatus = await accountManager.validateToken(email, scopeRegistry.getToolScopes('calendar'));
 
     if (!tokenStatus.valid || !tokenStatus.token) {
       throw new CalendarError(
