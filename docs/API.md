@@ -13,6 +13,15 @@ If a tool is not registered in the `ListToolsRequestSchema` handler, the AI won'
 
 ## Available Tools
 
+### Tool Naming Convention
+All tools in this MCP follow a verb-noun pattern to clearly indicate their function:
+- `list_workspace_accounts` - Lists (verb) accounts (noun)
+- `authenticate_workspace_account` - Authenticates (verb) an account (noun)
+- `get_workspace_calendar_event` - Gets (verb) a calendar event (noun)
+- `send_workspace_email` - Sends (verb) an email (noun)
+
+Note: Tools that only retrieve data use verbs like "get" or "list", indicating they don't modify the resource. Future tools that modify these resources will use appropriate verbs like "update" or "set".
+
 ### Account Management
 
 #### 1. list_workspace_accounts
@@ -114,20 +123,74 @@ Create a new calendar event.
 
 ### Gmail Operations
 
-#### 1. list_workspace_emails
-Get emails from a Gmail account with optional filtering.
+#### 1. search_workspace_emails
+Search emails with advanced filtering capabilities (replaces list_workspace_emails).
 
 **Request Format**
 ```typescript
 {
   email: string;           // Email address of the Gmail account
-  query?: string;          // Search query to filter emails
+  query?: string;          // Advanced search query with filters
   maxResults?: number;     // Maximum number of emails (default: 10)
   labelIds?: string[];     // List of label IDs (default: ["INBOX"])
 }
 ```
 
-#### 2. send_workspace_email
+**Search Query Examples**
+```
+is:unread                           // Only unread messages
+from:someone@example.com            // Messages from specific sender
+after:2024/01/01 before:2024/01/31 // Date range
+has:attachment                      // Messages with attachments
+```
+
+#### 2. get_workspace_gmail_settings
+Get Gmail settings and profile information.
+
+**Request Format**
+```typescript
+{
+  email: string;           // Email address of the Gmail account
+}
+```
+
+**Response Format**
+```typescript
+{
+  profile: {
+    emailAddress: string;
+    messagesTotal: number;
+    threadsTotal: number;
+    historyId: string;
+  };
+  settings: {
+    autoForwarding: {
+      enabled: boolean;
+      emailAddress?: string;
+    };
+    imap: {
+      enabled: boolean;
+      autoExpunge: boolean;
+      expungeBehavior: string;
+    };
+    language: {
+      displayLanguage: string;
+    };
+    pop: {
+      accessWindow: string;
+      disposition: string;
+    };
+    vacationResponder: {
+      enabled: boolean;
+      startTime?: string;
+      endTime?: string;
+      message?: string;
+    };
+  };
+}
+```
+
+#### 3. send_workspace_email
 Send an email from a Gmail account.
 
 **Request Format**
@@ -201,6 +264,14 @@ Send an email from a Gmail account.
 ```
 
 ## Error Types
+
+### Gmail Scopes
+- `https://www.googleapis.com/auth/gmail.readonly` - Read-only access
+- `https://www.googleapis.com/auth/gmail.send` - Send emails only
+- `https://www.googleapis.com/auth/gmail.modify` - All read/write operations
+- `https://www.googleapis.com/auth/gmail.compose` - Create/send emails
+- `https://www.googleapis.com/auth/gmail.settings.basic` - Access basic settings
+- `https://www.googleapis.com/auth/gmail.settings.sharing` - Access sharing settings
 
 ### Calendar Errors
 - `FETCH_ERROR`: Failed to get calendar events
