@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { Account, AccountsConfig, AccountError, AccountModuleConfig } from './types.js';
+import { ALL_SCOPES } from '../../common/scopes.js';
 import { TokenManager } from './token.js';
 import { GoogleOAuthClient } from './oauth.js';
 
@@ -148,7 +149,7 @@ export class AccountManager {
     email: string,
     category?: string,
     description?: string,
-    requiredScopes?: string[]
+    requiredScopes: string[] = ALL_SCOPES
   ): Promise<Account> {
     let account = await this.getAccount(email);
 
