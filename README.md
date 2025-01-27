@@ -1,10 +1,11 @@
 # Google Workspace MCP Server
 
-A Model Context Protocol (MCP) server that provides authenticated access to Google Workspace APIs, currently focused on Gmail functionality with Calendar support in development.
+A Model Context Protocol (MCP) server that provides authenticated access to Google Workspace APIs, offering comprehensive Gmail and Calendar functionality.
 
 ## Features
 
 - **Gmail Integration**: Complete email operations (list, get, send messages)
+- **Calendar Integration**: Full calendar event management and scheduling
 - **OAuth Authentication**: Robust OAuth 2.0 flow with token refresh
 - **Account Management**: Multi-account support with secure token handling
 - **Error Handling**: Detailed error messages with resolution steps
@@ -16,6 +17,11 @@ A Model Context Protocol (MCP) server that provides authenticated access to Goog
   - List and fetch emails with filtering
   - Send emails with CC/BCC support
   - Gmail-specific error handling
+
+- **Calendar Operations**:
+  - List and fetch calendar events
+  - Create and manage calendar events
+  - Meeting scheduling support
 
 - **Account Management**:
   - Multiple account support
@@ -103,11 +109,6 @@ A Model Context Protocol (MCP) server that provides authenticated access to Goog
 See [API Documentation](docs/API.md) for detailed usage.
 
 ## Coming Soon
-
-### Calendar Integration (In Development)
-- Event management
-- Calendar operations
-- Meeting scheduling
 
 ### Future Services
 - Drive API integration
