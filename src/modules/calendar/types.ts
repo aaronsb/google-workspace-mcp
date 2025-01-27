@@ -92,10 +92,6 @@ export interface CalendarModuleConfig {
   requiredScopes?: string[];
 }
 
-import { CALENDAR_SCOPES } from '../../common/scopes.js';
-
-export const DEFAULT_CALENDAR_SCOPES = CALENDAR_SCOPES;
-
 /**
  * Custom error class for Calendar-specific errors
  * Follows the same pattern as GmailError for consistent error handling

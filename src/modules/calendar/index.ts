@@ -30,8 +30,7 @@ import {
   EventResponse,
   CreateEventResponse,
   CalendarError,
-  CalendarModuleConfig,
-  DEFAULT_CALENDAR_SCOPES
+  CalendarModuleConfig
 } from './types.js';
 
 // Create singleton instance
@@ -81,6 +80,5 @@ export {
   EventResponse,
   CreateEventResponse,
   CalendarError,
-  CalendarModuleConfig,
-  DEFAULT_CALENDAR_SCOPES
+  CalendarModuleConfig
 };

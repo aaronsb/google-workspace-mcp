@@ -1,8 +1,14 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { AccountError, TokenStatus } from './types.js';
+import { scopeRegistry } from '../tools/scope-registry.js';
 import { GoogleOAuthClient } from './oauth.js';
 
+/**
+ * Manages OAuth token operations.
+ * Focuses on basic token storage, retrieval, and refresh.
+ * Auth issues are handled via 401 responses rather than pre-validation.
+ */
 export class TokenManager {
   private readonly credentialsPath: string;
   private oauthClient?: GoogleOAuthClient;
@@ -37,13 +43,27 @@ export class TokenManager {
 
   async loadToken(email: string): Promise<any> {
     try {
+      // First try loading from file
       const tokenPath = this.getTokenPath(email);
-      const data = await fs.readFile(tokenPath, 'utf-8');
-      return JSON.parse(data);
-    } catch (error) {
-      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-        return null;
+      try {
+        const data = await fs.readFile(tokenPath, 'utf-8');
+        return JSON.parse(data);
+      } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+          // File doesn't exist, try environment variable
+          const envKey = `GOOGLE_TOKEN_${email.replace(/[@.]/g, '_').toUpperCase()}`;
+          const envToken = process.env[envKey];
+          if (envToken) {
+            const tokenData = JSON.parse(Buffer.from(envToken, 'base64').toString());
+            // Save to file for future use
+            await this.saveToken(email, tokenData);
+            return tokenData;
+          }
+          return null;
+        }
+        throw error;
       }
+    } catch (error) {
       throw new AccountError(
         'Failed to load token',
         'TOKEN_LOAD_ERROR',
@@ -67,65 +87,11 @@ export class TokenManager {
     }
   }
 
-  async validateToken(email: string, requiredScopes: string[]): Promise<TokenStatus> {
-    const token = await this.loadToken(email);
-    
-    if (!token) {
-      const authUrl = await this.getAuthUrl(requiredScopes);
-      return {
-        valid: false,
-        reason: 'No token found. Authentication required.',
-        authUrl,
-        requiredScopes
-      };
-    }
-
-    // Check if token is expired
-    if (token.expiry_date && token.expiry_date < Date.now()) {
-      const authUrl = await this.getAuthUrl(requiredScopes);
-      return {
-        valid: false,
-        token,
-        reason: 'Token expired. Re-authentication required.',
-        authUrl,
-        requiredScopes
-      };
-    }
-
-    // Check if token has required scopes
-    const tokenScopes = token.scope.split(' ');
-    const hasAllScopes = requiredScopes.every(scope => 
-      tokenScopes.includes(scope)
-    );
-
-    if (!hasAllScopes) {
-      const authUrl = await this.getAuthUrl(requiredScopes);
-      return {
-        valid: false,
-        reason: 'Additional permissions required.',
-        authUrl,
-        requiredScopes
-      };
-    }
-
-    return {
-      valid: true,
-      token
-    };
-  }
-
-  private async getAuthUrl(scopes: string[]): Promise<string | undefined> {
-    if (!this.oauthClient) {
-      throw new AccountError(
-        'OAuth client not configured',
-        'AUTH_CLIENT_ERROR',
-        'Please ensure the OAuth client is properly initialized'
-      );
-    }
-    return this.oauthClient.generateAuthUrl(scopes);
-  }
-
-  async getTokenStatus(email: string): Promise<TokenStatus> {
+  /**
+   * Basic token validation - just checks if token exists and isn't expired.
+   * No scope validation - auth issues handled via 401 responses.
+   */
+  async validateToken(email: string): Promise<TokenStatus> {
     const token = await this.loadToken(email);
     
     if (!token) {
@@ -136,9 +102,23 @@ export class TokenManager {
     }
 
     if (token.expiry_date && token.expiry_date < Date.now()) {
+      if (token.refresh_token && this.oauthClient) {
+        try {
+          const newToken = await this.oauthClient.refreshToken(token.refresh_token);
+          await this.saveToken(email, newToken);
+          return {
+            valid: true,
+            token: newToken
+          };
+        } catch (error) {
+          return {
+            valid: false,
+            reason: 'Token refresh failed'
+          };
+        }
+      }
       return {
         valid: false,
-        token,
         reason: 'Token expired'
       };
     }

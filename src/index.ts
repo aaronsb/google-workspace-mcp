@@ -9,14 +9,19 @@ import {
 // Core module imports for account management and Gmail functionality
 import { initializeAccountModule, getAccountManager } from './modules/accounts/index.js';
 import { initializeGmailModule, getGmailService } from './modules/gmail/index.js';
+import { registerGmailScopes } from './modules/gmail/scopes.js';
 
 // Calendar module imports - provides Google Calendar integration
 import { initializeCalendarModule, getCalendarService } from './modules/calendar/index.js';
+import { registerCalendarScopes } from './modules/calendar/scopes.js';
 
 // Error types for proper error handling and user feedback
 import { AccountError } from './modules/accounts/types.js';
 import { GmailError } from './modules/gmail/types.js';
 import { CalendarError } from './modules/calendar/types.js';
+
+// Scope registry for managing tool scopes
+import { scopeRegistry } from './modules/tools/scope-registry.js';
 
 class GSuiteServer {
   private server: Server;
@@ -71,17 +76,12 @@ class GSuiteServer {
                 type: 'string',
                 description: 'Account description'
               },
-              required_scopes: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Required OAuth scopes for the account'
-              },
               auth_code: {
                 type: 'string',
                 description: 'Authorization code from Google OAuth (only needed during initial authentication)'
               }
             },
-            required: ['email', 'required_scopes']
+            required: ['email']
           }
         },
         {
@@ -315,8 +315,11 @@ class GSuiteServer {
             // Validate/create account
             await accountManager.validateAccount(args.email, args.category, args.description);
 
+            // Get all registered scopes from the registry
+            const requiredScopes = scopeRegistry.getAllScopes();
+
             // Check token status
-            const tokenStatus = await accountManager.validateToken(args.email, args.required_scopes);
+            const tokenStatus = await accountManager.validateToken(args.email);
 
             if (!tokenStatus.valid || !tokenStatus.token) {
               if (tokenStatus.token && tokenStatus.reason === 'Token expired') {
@@ -348,7 +351,7 @@ class GSuiteServer {
                 };
               }
 
-              const authUrl = await accountManager.generateAuthUrl(args.required_scopes);
+              const authUrl = await accountManager.generateAuthUrl();
               return {
                 content: [{
                   type: 'text',
@@ -492,6 +495,10 @@ class GSuiteServer {
   async run(): Promise<void> {
     try {
       console.error('Initializing Google Workspace MCP server...');
+      
+      // Register scopes for all tools
+      registerGmailScopes();
+      registerCalendarScopes();
       
       // Initialize all required modules
       // Order matters: Account module must be initialized first as other modules depend on it

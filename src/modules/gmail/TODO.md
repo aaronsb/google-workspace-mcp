@@ -1,52 +1,65 @@
-# Gmail Advanced Features Implementation
+# Gmail Composition Enhancements
 
 ## Overview
-Adding advanced Gmail features including user settings retrieval and enhanced search capabilities.
+Enhancing Gmail composition capabilities with draft management, reply handling, and attachment support.
 
-## Required Scopes
-- [x] Add to scopes.ts:
-  - https://www.googleapis.com/auth/gmail.settings.basic
-  - https://www.googleapis.com/auth/gmail.settings.sharing
+## Implementation Plan
 
-## New Tools
+### Phase 1: Draft Management
+- [ ] Add types and interfaces for draft operations
+- [ ] Implement `create_workspace_draft` tool
+  - Support all sendEmail parameters (to, cc, bcc, subject, body)
+  - Add draft ID return
+  - Add optional attachment support
+  - Add proper error handling
+- [ ] Implement `delete_workspace_draft` tool
+  - Take draft ID parameter
+  - Handle non-existent drafts gracefully
+- [ ] Add tests for draft operations
 
-### get_workspace_gmail_settings
-- [x] Implement new tool to collect:
-  - Profile data:
-    - Email address
-    - Total messages count
-    - Total threads count
-    - History ID
-  - Settings:
-    - Auto-forwarding configuration
-    - IMAP settings
-    - Language preferences
-    - POP settings
-    - Vacation responder status
-- [x] Format response for human readability
-- [x] Add error handling for each API call
-- [x] Add tool definition to index.ts
-- [x] Add documentation with example responses
+### Phase 2: Reply Management
+- [ ] Add types for reply operations
+- [ ] Implement `send_workspace_reply` tool
+  - Original message ID parameter
+  - Support reply-all vs single recipient
+  - Include original message context
+  - Support immediate sending
+- [ ] Implement `create_workspace_reply_draft` tool
+  - Save replies as drafts
+  - Return draft ID
+  - Maintain all reply-all capabilities
+- [ ] Add tests for reply operations
 
-### search_workspace_emails (replacing list_workspace_emails)
-- [x] Implement advanced search with filters:
-  - Unread status (is:unread)
-  - Sender (from:someone@example.com)
-  - Date range (after:2024/01/01 before:2024/01/31)
-  - Attachment presence (has:attachment)
-- [x] Update existing tool definition with new parameters
-- [x] Add new parameter types to types.ts
-- [x] Update documentation with search examples
-- [x] Add migration guide for users of list_workspace_emails
+### Phase 3: Attachment Support
+- [ ] Add attachment handling types and utilities
+- [ ] Implement attachment support
+  - Support multiple attachments
+  - Handle different MIME types
+  - Implement size limits and validation
+- [ ] Implement `save_workspace_attachments` tool
+  - Download attachments from emails
+  - Support batch operations
+  - Allow specifying save location
+- [ ] Add tests for attachment operations
 
-## Testing
-- [x] Test new scopes authentication flow
-- [x] Test settings retrieval:
-  - Profile data
-  - Each settings endpoint
-  - Error scenarios
-- [x] Test search functionality:
-  - Individual filters
-  - Combined filters
-  - Edge cases
-  - Error handling
+### Phase 4: Enhanced Email Composition
+- [ ] Add HTML body support to existing sendEmail
+- [ ] Integrate attachment support
+- [ ] Improve email validation
+- [ ] Enhance error handling
+- [ ] Update tests for enhanced functionality
+
+## Documentation Updates
+- [ ] Update API documentation with new features
+- [ ] Add examples for each new operation
+- [ ] Update type definitions
+
+## Testing & Review
+- [ ] Ensure test coverage for all new features
+- [ ] Perform manual testing
+- [ ] Prepare for code review
+
+## Branch Management
+- [ ] Create feature branch: `feature/gmail-composition-enhancements`
+- [ ] Regular commits with clear messages
+- [ ] Prepare PR with comprehensive description

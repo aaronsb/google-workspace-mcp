@@ -2,7 +2,6 @@ import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { TokenManager } from '../../modules/accounts/token.js';
-import { TokenStatus } from '../../modules/accounts/types.js';
 
 interface GetEmailsParams {
   email: string;
@@ -30,34 +29,50 @@ export class GmailService {
   }
 
   private async getGmailClient(email: string) {
-    // Get token for the email
-    const tokenStatus = await this.tokenManager.validateToken(email, [
-      'https://www.googleapis.com/auth/gmail.readonly',
-      'https://www.googleapis.com/auth/gmail.send'
-    ]);
+    try {
+      // Load token without validation
+      const token = await this.tokenManager.loadToken(email);
+      if (!token) {
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          'Gmail authentication required'
+        );
+      }
 
-    if (!tokenStatus.valid || !tokenStatus.token) {
-      const errorMessage = tokenStatus.reason || 'Gmail authentication required';
-      const resolution = tokenStatus.authUrl 
-        ? `Please visit ${tokenStatus.authUrl} to authenticate with the required permissions: ${tokenStatus.requiredScopes?.join(', ')}`
-        : 'Authentication required but URL generation failed';
-      
+      // Set credentials and create client
+      this.oauth2Client.setCredentials(token);
+      return google.gmail({ version: 'v1', auth: this.oauth2Client });
+    } catch (error) {
+      if (error instanceof McpError) {
+        throw error;
+      }
       throw new McpError(
-        ErrorCode.InvalidRequest,
-        errorMessage,
-        resolution
+        ErrorCode.InternalError,
+        'Failed to initialize Gmail client'
       );
     }
+  }
 
-    // Set credentials on the OAuth client
-    this.oauth2Client.setCredentials(tokenStatus.token);
-    return google.gmail({ version: 'v1', auth: this.oauth2Client });
+  private async handleGmailOperation<T>(email: string, operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
+    } catch (error: any) {
+      // Handle 401/403 errors by attempting token refresh
+      if (error.code === 401 || error.code === 403) {
+        const token = await this.tokenManager.validateToken(email);
+        if (token.valid && token.token) {
+          this.oauth2Client.setCredentials(token.token);
+          return await operation();
+        }
+      }
+      throw error;
+    }
   }
 
   async getEmails({ email, query = '', maxResults = 10, labelIds = ['INBOX'] }: GetEmailsParams) {
-    try {
-      const gmail = await this.getGmailClient(email);
+    const gmail = await this.getGmailClient(email);
 
+    return this.handleGmailOperation(email, async () => {
       // List messages matching query
       const { data: messages } = await gmail.users.messages.list({
         userId: 'me',
@@ -76,7 +91,7 @@ export class GmailService {
           const { data: email } = await gmail.users.messages.get({
             userId: 'me',
             id: message.id!,
-            format: 'full',
+            format: 'full'
           });
 
           const headers = email.payload?.headers || [];
@@ -111,18 +126,13 @@ export class GmailService {
       );
 
       return emails;
-    } catch (error) {
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to get emails: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 
   async sendEmail({ email, to, subject, body, cc = [], bcc = [] }: SendEmailParams) {
-    try {
-      const gmail = await this.getGmailClient(email);
+    const gmail = await this.getGmailClient(email);
 
+    return this.handleGmailOperation(email, async () => {
       // Construct email
       const message = [
         'Content-Type: text/plain; charset="UTF-8"\n',
@@ -155,11 +165,6 @@ export class GmailService {
         threadId: data.threadId,
         labelIds: data.labelIds,
       };
-    } catch (error) {
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    });
   }
 }

@@ -1,5 +1,18 @@
 # Architecture
 
+## Design Philosophy: Simplest Viable Design
+
+This project follows the "simplest viable design" principle, which emerged from our experience with AI systems' tendency toward over-engineering, particularly in OAuth scope handling. This principle addresses a pattern we term "scope fondling" - where AI systems optimize for maximum anticipated flexibility rather than minimal necessary permissions.
+
+Key aspects of this approach:
+- Minimize complexity in permission structures
+- Handle auth through simple HTTP response codes (401/403)
+- Move OAuth mechanics entirely into platform infrastructure
+- Present simple verb-noun interfaces to AI agents
+- Focus on core operational requirements over edge cases
+
+This principle helps prevent goal misgeneralization, where AI systems might otherwise create unnecessary complexity in authentication paths, connection management, and permission hierarchies.
+
 ## System Overview
 
 The Google Services MCP Server implements a modular architecture focused on Gmail functionality with planned expansion to other Google services. The system is built around core modules that handle authentication, account management, and service-specific operations.
@@ -21,13 +34,19 @@ graph TD
 
 ## Core Components (Current Implementation)
 
-### 1. MCP Server (src/index.ts)
+### 1. Scope Registry (src/modules/tools/scope-registry.ts)
+- Simple scope collection system
+- Gathers required scopes at startup
+- Used only for initial auth setup
+- No runtime validation - handled by API responses
+
+### 2. MCP Server (src/index.ts)
 - Registers and manages available tools
 - Handles request routing and validation
 - Provides consistent error handling
 - Manages server lifecycle
 
-### 2. Account Module (src/modules/accounts/*)
+### 3. Account Module (src/modules/accounts/*)
 - OAuth Client:
   - Implements Google OAuth 2.0 flow
   - Handles token exchange and refresh
@@ -42,7 +61,7 @@ graph TD
   - Handles account persistence
   - Validates account status
 
-### 3. Gmail Module (src/modules/gmail/*)
+### 4. Gmail Module (src/modules/gmail/*)
 - Implements email operations:
   - List and fetch emails
   - Send emails
@@ -52,41 +71,44 @@ graph TD
 
 ## Data Flows
 
-### Authentication Flow
+### Operation Flow
 ```mermaid
 sequenceDiagram
     participant TR as Tool Request
-    participant AM as Account Manager
-    participant OC as OAuth Client
-    participant T as Token
+    participant S as Service
+    participant API as Google API
 
-    TR->>AM: Request
-    AM->>T: Check Token
-    alt Token Invalid
-        AM->>OC: Request Auth
-        OC-->>TR: Generate Auth URL
-        TR->>OC: User Authentication
-        OC->>T: Exchange & Save Token
-        T-->>TR: Retry Request
+    TR->>S: Request
+    S->>API: API Call
+    alt Success
+        API-->>TR: Return Response
+    else Auth Error (401/403)
+        S->>S: Refresh Token
+        S->>API: Retry API Call
+        API-->>TR: Return Response
     end
 ```
 
-### Gmail Operation Flow
+### Auth Flow
 ```mermaid
 sequenceDiagram
     participant TR as Tool Request
-    participant GS as Gmail Service
-    participant T as Token
-    participant GA as Gmail API
+    participant S as Service
+    participant AM as Account Manager
+    participant API as Google API
 
-    TR->>GS: Request
-    GS->>T: Validate Token
-    alt Token Valid
-        GS->>GA: API Call
-        GA-->>TR: Process Response
-    else Token Invalid
-        GS->>T: Refresh Token
-        T-->>TR: Retry Request
+    TR->>S: Request
+    S->>API: API Call
+    alt Success
+        API-->>TR: Return Response
+    else Auth Error
+        S->>AM: Refresh Token
+        alt Refresh Success
+            S->>API: Retry API Call
+            API-->>TR: Return Response
+        else Refresh Failed
+            AM-->>TR: Request Re-auth
+        end
     end
 ```
 
@@ -100,9 +122,9 @@ sequenceDiagram
 - Secure credential handling
 
 ### Error Handling
-- Detailed error messages with resolution steps
+- Simplified auth error handling through 401/403 responses
+- Automatic token refresh on auth failures
 - Service-specific error types
-- Automatic token refresh handling
 - Clear authentication error guidance
 
 ### Configuration
