@@ -35,7 +35,7 @@ export class GmailService {
       throw new GmailError(
         'Gmail authentication required',
         'AUTH_REQUIRED',
-        'Please authenticate the account with Gmail scopes'
+        'Please authenticate the account, which will grant all necessary permissions'
       );
     }
 

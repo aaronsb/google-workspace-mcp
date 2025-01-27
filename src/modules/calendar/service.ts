@@ -57,7 +57,7 @@ export class CalendarService {
       throw new CalendarError(
         'Calendar authentication required',
         'AUTH_REQUIRED',
-        'Please authenticate the account with Calendar scopes'
+        'Please authenticate the account, which will grant all necessary permissions'
       );
     }
 
