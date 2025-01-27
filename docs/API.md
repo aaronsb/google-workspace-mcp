@@ -1,42 +1,42 @@
-# GSuite OAuth MCP Server Documentation
+# Google Workspace MCP Server API Documentation
 
 ## Overview
-This MCP server provides tools for managing Google account authentication and access to Google APIs. It handles OAuth authentication flows, token management, and account configuration.
+This MCP server provides tools for Gmail operations and Google account management. The server handles OAuth authentication, token management, and Gmail API interactions.
 
 ## Available Tools
 
-### 1. list_google_accounts
+### Account Management
+
+#### 1. list_google_accounts
 Lists all configured Google accounts and their authentication status.
 
-#### Request Format
+**Request Format**
 ```typescript
 // No parameters required
 {}
 ```
 
-#### Response Format
+**Response Format**
 ```typescript
-[
-  {
-    email: string;          // Google account email
-    category: string;       // Account category (e.g., work, personal)
-    description: string;    // Account description
-    auth_status: {
-      has_token: boolean;   // Whether account has valid token
-      scopes?: string[];    // Currently authorized scopes
-      expires?: number;     // Token expiration timestamp
-    }
+[{
+  email: string;          // Google account email
+  category?: string;      // Account category (e.g., work, personal)
+  description?: string;   // Account description
+  auth_status: {
+    has_token: boolean;   // Whether account has valid token
+    scopes?: string[];    // Currently authorized scopes
+    expires?: number;     // Token expiration timestamp
   }
-]
+}]
 ```
 
-### 2. authenticate_google_account
-Handles Google account authentication, including initial setup and token refresh.
+#### 2. use_google_account
+Add and authenticate a Google account for API access.
 
-#### Request Format
+**Request Format**
 ```typescript
 {
-  email: string;           // Google account email
+  email: string;           // Email address of the Google account
   category?: string;       // Account category (e.g., work, personal)
   description?: string;    // Account description
   required_scopes: string[]; // Required OAuth scopes
@@ -44,119 +44,172 @@ Handles Google account authentication, including initial setup and token refresh
 }
 ```
 
-## Response Format
+#### 3. forget_google_account
+Remove a Google account and delete its associated authentication tokens.
+
+**Request Format**
+```typescript
+{
+  email: string;          // Email address of the account to remove
+}
+```
+
+### Gmail Operations
+
+#### 1. get_emails
+Get emails from a Gmail account with optional filtering.
+
+**Request Format**
+```typescript
+{
+  email: string;           // Email address of the Gmail account
+  query?: string;          // Search query to filter emails
+  maxResults?: number;     // Maximum number of emails (default: 10)
+  labelIds?: string[];     // List of label IDs (default: ["INBOX"])
+}
+```
+
+#### 2. send_email
+Send an email from a Gmail account.
+
+**Request Format**
+```typescript
+{
+  email: string;           // Email address to send from
+  to: string[];           // List of recipient email addresses
+  subject: string;        // Email subject
+  body: string;           // Email body content
+  cc?: string[];         // Optional CC recipients
+  bcc?: string[];        // Optional BCC recipients
+}
+```
+
+## Response Formats
 
 ### Success Response
 ```typescript
 {
-  status: "success",
-  data: {
-    // API-specific response data
-  }
+  content: [{
+    type: 'text',
+    text: JSON.stringify({
+      status: 'success',
+      // Operation-specific data
+    })
+  }]
 }
 ```
 
 ### Error Response
 ```typescript
 {
-  status: "error",
-  error: string,      // Error message
-  resolution?: string // Suggested resolution steps
+  content: [{
+    type: 'text',
+    text: JSON.stringify({
+      status: 'error',
+      error: string,      // Error message
+      resolution: string  // Resolution steps
+    })
+  }],
+  isError: true
 }
 ```
 
 ### Authentication Required Response
 ```typescript
 {
-  status: "auth_required",
-  auth_url: string,   // OAuth URL to complete authentication
-  message: string,    // User instructions
-  instructions: string // Step-by-step auth instructions
+  content: [{
+    type: 'text',
+    text: JSON.stringify({
+      status: 'auth_required',
+      auth_url: string,    // OAuth URL
+      message: string,     // User instructions
+      instructions: string // Step-by-step guide
+    })
+  }]
 }
 ```
 
 ### Token Refresh Response
 ```typescript
 {
-  status: "refreshing",
-  message: string     // Confirmation of token refresh
+  content: [{
+    type: 'text',
+    text: JSON.stringify({
+      status: 'refreshing',
+      message: 'Token refreshed successfully'
+    })
+  }]
 }
 ```
 
-## Error Handling
+## Error Types
 
-Common error codes and their meanings:
+### Account Errors
+- `AUTH_CONFIG_ERROR`: OAuth configuration issues
+- `AUTH_CLIENT_ERROR`: OAuth client initialization failed
+- `AUTH_CODE_ERROR`: Invalid authorization code
+- `TOKEN_REFRESH_ERROR`: Token refresh failed
+- `MODULE_NOT_INITIALIZED`: Account module not ready
 
-- `INVALID_SERVICE`: The requested API service is not supported
-- `INVALID_METHOD`: The requested API method is not supported
-- `INVALID_ENDPOINT`: Malformed API endpoint
-- `MISSING_REQUIRED_PARAMS`: Required parameters are missing
-- `INVALID_PARAM_TYPE`: Parameter type mismatch
-- `SERVICE_NOT_SUPPORTED`: Requested service is not implemented
-- `METHOD_NOT_FOUND`: Requested method doesn't exist
-- `API_REQUEST_ERROR`: General API request failure
+### Gmail Errors
+- `FETCH_ERROR`: Failed to get emails
+- `SEND_ERROR`: Failed to send email
+- `AUTH_REQUIRED`: Gmail authentication needed
+- `MODULE_NOT_INITIALIZED`: Gmail module not ready
 
-HTTP Status Codes:
-- 400: Bad Request - Check parameters
-- 401: Unauthorized - Token expired or invalid
-- 403: Forbidden - Insufficient permissions
-- 404: Not Found - Resource doesn't exist
-- 429: Too Many Requests - Rate limit exceeded
-- 500: Server Error - Internal error
-- 503: Service Unavailable - Temporary outage
+## Setup Guide
 
-## Initial Setup
+### 1. Google Cloud Setup
 
-### Google Cloud Console Setup
+1. Create Project:
+   ```
+   https://console.cloud.google.com
+   → Select a project → New Project
+   ```
 
-1. Create a new project in Google Cloud Console:
-   - Go to https://console.cloud.google.com
-   - Click "Select a project" > "New Project"
-   - Enter a project name and create
+2. Enable APIs:
+   ```
+   APIs & Services → Library
+   → Enable "Gmail API"
+   ```
 
-2. Enable required APIs:
-   - Go to "APIs & Services" > "Library"
-   - Search for and enable the APIs you need (e.g., Gmail API, Google Calendar API)
+3. OAuth Screen:
+   ```
+   APIs & Services → OAuth consent screen
+   → External
+   → Add scopes for Gmail
+   → Add test users
+   ```
 
-3. Configure OAuth consent screen:
-   - Go to "APIs & Services" > "OAuth consent screen"
-   - Choose "External" user type
-   - Fill in required app information
-   - Add necessary scopes based on the APIs you enabled
-   - Add your test users' email addresses
+4. Create Credentials:
+   ```
+   APIs & Services → Credentials
+   → Create Credentials → OAuth client ID
+   → Desktop application
+   ```
 
-4. Create OAuth credentials:
-   - Go to "APIs & Services" > "Credentials"
-   - Click "Create Credentials" > "OAuth client ID"
-   - Choose "Desktop application" as application type
-   - Give it a name and create
+### 2. Configuration Files
 
-5. Configure OAuth credentials:
-   - Download the client credentials JSON
-   - Create a `config/gauth.json` file with the following structure:
-     ```json
-     {
-       "client_id": "your-client-id.apps.googleusercontent.com",
-       "client_secret": "your-client-secret",
-       "redirect_uri": "urn:ietf:wg:oauth:2.0:oob",
-       "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-       "token_uri": "https://oauth2.googleapis.com/token"
-     }
-     ```
+1. OAuth Config (`gauth.json`):
+   ```json
+   {
+     "client_id": "your-client-id",
+     "client_secret": "your-client-secret",
+     "redirect_uri": "urn:ietf:wg:oauth:2.0:oob"
+   }
+   ```
 
-### Environment Configuration
-
-1. Configure the MCP server in your Claude desktop config:
+2. MCP Server Config:
    ```json
    {
      "mcpServers": {
        "gsuite": {
          "command": "node",
-         "args": ["path/to/gsuite-mcp/build/index.js"],
+         "args": ["path/to/build/index.js"],
          "env": {
-           "AUTH_CONFIG_FILE": "path/to/gsuite-mcp/config/gauth.json",
-           "ACCOUNTS_FILE": "path/to/gsuite-mcp/config/accounts.json",
-           "CREDENTIALS_DIR": "path/to/gsuite-mcp/config/credentials"
+           "AUTH_CONFIG_FILE": "path/to/gauth.json",
+           "ACCOUNTS_FILE": "path/to/accounts.json",
+           "CREDENTIALS_DIR": "path/to/credentials"
          }
        }
      }
@@ -165,36 +218,50 @@ HTTP Status Codes:
 
 ## Authentication Flow
 
-1. Initial request without token:
-   - Server returns auth_required response with OAuth URL
-   - User opens the URL in a browser
-   - Google displays authorization screen with a code
-   - User copies the authorization code
+1. Initial Setup:
+   ```typescript
+   await use_mcp_tool({
+     server_name: "gsuite",
+     tool_name: "use_google_account",
+     arguments: {
+       email: "user@example.com",
+       required_scopes: ["https://www.googleapis.com/auth/gmail.send"]
+     }
+   });
+   // → Returns auth_url to complete OAuth
+   ```
 
-2. Request with auth_code:
-   - User provides the copied authorization code
-   - Server exchanges code for access/refresh tokens
-   - Tokens are saved for future use
-   - User should retry original request
+2. Complete Auth:
+   ```typescript
+   await use_mcp_tool({
+     server_name: "gsuite",
+     tool_name: "use_google_account",
+     arguments: {
+       email: "user@example.com",
+       required_scopes: ["https://www.googleapis.com/auth/gmail.send"],
+       auth_code: "4/1AX4XfWh..."  // Code from OAuth
+     }
+   });
+   ```
 
-3. Subsequent requests:
-   - Server automatically uses saved tokens
-   - Handles token refresh when needed
-   - Returns API response directly
+3. Use Services:
+   ```typescript
+   // Token refresh handled automatically
+   await use_mcp_tool({
+     server_name: "gsuite",
+     tool_name: "send_email",
+     arguments: {
+       email: "user@example.com",
+       to: ["recipient@example.com"],
+       subject: "Test",
+       body: "Hello"
+     }
+   });
+   ```
 
-## Best Practices
+## Common Gmail Scopes
 
-1. Error Handling
-   - Always check response status
-   - Handle authentication flows appropriately
-   - Retry requests after token refresh
-
-2. Scopes
-   - Request minimum required scopes
-   - Check documentation for required scopes
-   - Handle scope validation errors
-
-3. Parameters
-   - Validate parameters before sending
-   - Use correct parameter types
-   - Include all required parameters
+- `https://www.googleapis.com/auth/gmail.readonly` - Read-only access
+- `https://www.googleapis.com/auth/gmail.send` - Send emails only
+- `https://www.googleapis.com/auth/gmail.modify` - All read/write operations
+- `https://www.googleapis.com/auth/gmail.compose` - Create/send emails
