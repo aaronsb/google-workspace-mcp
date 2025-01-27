@@ -1,5 +1,18 @@
 # Architecture
 
+## Design Philosophy: Simplest Viable Design
+
+This project follows the "simplest viable design" principle, which emerged from our experience with AI systems' tendency toward over-engineering, particularly in OAuth scope handling. This principle addresses a pattern we term "scope fondling" - where AI systems optimize for maximum anticipated flexibility rather than minimal necessary permissions.
+
+Key aspects of this approach:
+- Minimize complexity in permission structures
+- Handle auth through simple HTTP response codes (401/403)
+- Move OAuth mechanics entirely into platform infrastructure
+- Present simple verb-noun interfaces to AI agents
+- Focus on core operational requirements over edge cases
+
+This principle helps prevent goal misgeneralization, where AI systems might otherwise create unnecessary complexity in authentication paths, connection management, and permission hierarchies.
+
 ## System Overview
 
 The Google Services MCP Server implements a modular architecture focused on Gmail functionality with planned expansion to other Google services. The system is built around core modules that handle authentication, account management, and service-specific operations.
