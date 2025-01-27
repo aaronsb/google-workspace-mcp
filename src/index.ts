@@ -6,10 +6,17 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
+// Core module imports for account management and Gmail functionality
 import { initializeAccountModule, getAccountManager } from './modules/accounts/index.js';
 import { initializeGmailModule, getGmailService } from './modules/gmail/index.js';
+
+// Calendar module imports - provides Google Calendar integration
+import { initializeCalendarModule, getCalendarService } from './modules/calendar/index.js';
+
+// Error types for proper error handling and user feedback
 import { AccountError } from './modules/accounts/types.js';
 import { GmailError } from './modules/gmail/types.js';
+import { CalendarError } from './modules/calendar/types.js';
 
 class GSuiteServer {
   private server: Server;
@@ -31,6 +38,10 @@ class GSuiteServer {
   }
 
   private setupRequestHandlers(): void {
+    // IMPORTANT: Tools must be registered in BOTH ListToolsRequestSchema and CallToolRequestSchema handlers
+    // to be visible to the AI. If a tool is not listed in ListToolsRequestSchema, the AI won't know it exists,
+    // even if it has a handler in CallToolRequestSchema.
+    
     // List available tools
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
@@ -149,6 +160,121 @@ class GSuiteServer {
               }
             },
             required: ['email', 'to', 'subject', 'body']
+          }
+        },
+        // Calendar Tools
+        // Note: These tools require calendar.events.readonly scope for reading events
+        // and calendar.events scope for creating/modifying events
+        {
+          name: 'get_calendar_events',
+          description: 'Get calendar events with optional filtering',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              email: {
+                type: 'string',
+                description: 'Email address of the calendar owner'
+              },
+              query: {
+                type: 'string',
+                description: 'Optional text search within events'
+              },
+              maxResults: {
+                type: 'number',
+                description: 'Maximum number of events to return (default: 10)'
+              },
+              timeMin: {
+                type: 'string',
+                description: 'Start of time range to search (ISO date string)'
+              },
+              timeMax: {
+                type: 'string',
+                description: 'End of time range to search (ISO date string)'
+              }
+            },
+            required: ['email']
+          }
+        },
+        {
+          name: 'get_calendar_event',
+          description: 'Get a single calendar event by ID',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              email: {
+                type: 'string',
+                description: 'Email address of the calendar owner'
+              },
+              eventId: {
+                type: 'string',
+                description: 'Unique identifier of the event to retrieve'
+              }
+            },
+            required: ['email', 'eventId']
+          }
+        },
+        {
+          name: 'create_calendar_event',
+          description: 'Create a new calendar event',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              email: {
+                type: 'string',
+                description: 'Email address of the calendar owner'
+              },
+              summary: {
+                type: 'string',
+                description: 'Event title'
+              },
+              description: {
+                type: 'string',
+                description: 'Optional event description'
+              },
+              start: {
+                type: 'object',
+                properties: {
+                  dateTime: {
+                    type: 'string',
+                    description: 'Event start time (ISO date string)'
+                  },
+                  timeZone: {
+                    type: 'string',
+                    description: 'Timezone for start time'
+                  }
+                },
+                required: ['dateTime']
+              },
+              end: {
+                type: 'object',
+                properties: {
+                  dateTime: {
+                    type: 'string',
+                    description: 'Event end time (ISO date string)'
+                  },
+                  timeZone: {
+                    type: 'string',
+                    description: 'Timezone for end time'
+                  }
+                },
+                required: ['dateTime']
+              },
+              attendees: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    email: {
+                      type: 'string',
+                      description: 'Attendee email address'
+                    }
+                  },
+                  required: ['email']
+                },
+                description: 'Optional list of event attendees'
+              }
+            },
+            required: ['email', 'summary', 'start', 'end']
           }
         }
       ]
@@ -274,6 +400,42 @@ class GSuiteServer {
             };
           }
 
+          // Calendar Tool Handlers
+          case 'get_calendar_events': {
+            // Fetch calendar events with support for filtering by date range, query, and max results
+            const events = await getCalendarService().getEvents(request.params.arguments as any);
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify(events, null, 2)
+              }]
+            };
+          }
+
+          case 'get_calendar_event': {
+            // Get detailed information about a specific calendar event
+            const { email, eventId } = request.params.arguments as { email: string, eventId: string };
+            const event = await getCalendarService().getEvent(email, eventId);
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify(event, null, 2)
+              }]
+            };
+          }
+
+          case 'create_calendar_event': {
+            // Create a new calendar event with optional attendees
+            // Note: This automatically sends email notifications to attendees
+            const event = await getCalendarService().createEvent(request.params.arguments as any);
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify(event, null, 2)
+              }]
+            };
+          }
+
           default:
             throw new Error(`Unknown tool: ${request.params.name}`);
         }
@@ -288,7 +450,7 @@ class GSuiteServer {
   }
 
   private formatErrorResponse(error: unknown) {
-    if (error instanceof AccountError || error instanceof GmailError) {
+    if (error instanceof AccountError || error instanceof GmailError || error instanceof CalendarError) {
       return {
         status: 'error',
         error: error.message,
@@ -307,9 +469,11 @@ class GSuiteServer {
     try {
       console.error('Initializing Google Workspace MCP server...');
       
-      // Initialize modules
-      await initializeAccountModule();
-      await initializeGmailModule();
+      // Initialize all required modules
+      // Order matters: Account module must be initialized first as other modules depend on it
+      await initializeAccountModule();  // Handles OAuth and token management
+      await initializeGmailModule();    // Provides email functionality
+      await initializeCalendarModule(); // Provides calendar operations
       
       // Set up error handler for server
       this.server.onerror = (error) => {

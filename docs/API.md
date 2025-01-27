@@ -3,6 +3,14 @@
 ## Overview
 This MCP server provides tools for Gmail and Calendar operations along with Google account management. The server handles OAuth authentication, token management, and API interactions with Google Workspace services.
 
+## Tool Registration Requirements
+
+IMPORTANT: For a tool to be visible to the AI, it must be registered in two places:
+1. The `ListToolsRequestSchema` handler - This defines the tool's interface and makes it discoverable
+2. The `CallToolRequestSchema` handler - This implements the tool's functionality
+
+If a tool is not registered in the `ListToolsRequestSchema` handler, the AI won't know it exists, even if it has a handler implementation in `CallToolRequestSchema`. This is a common pitfall when adding new tools - always ensure both handlers are properly configured.
+
 ## Available Tools
 
 ### Account Management
