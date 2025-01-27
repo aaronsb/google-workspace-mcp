@@ -99,8 +99,8 @@ class GSuiteServer {
           }
         },
         {
-          name: 'list_workspace_emails',
-          description: 'Get emails from a Gmail account with optional filtering',
+          name: 'search_workspace_emails',
+          description: 'Search emails in a Gmail account with advanced filtering capabilities',
           inputSchema: {
             type: 'object',
             properties: {
@@ -110,7 +110,7 @@ class GSuiteServer {
               },
               query: {
                 type: 'string',
-                description: 'Search query to filter emails'
+                description: 'Advanced search query supporting Gmail search operators (e.g., from:someone@example.com, is:unread, has:attachment, after:2024/01/01)'
               },
               maxResults: {
                 type: 'number',
@@ -394,7 +394,7 @@ class GSuiteServer {
             };
           }
 
-          case 'list_workspace_emails': {
+          case 'search_workspace_emails': {
             const emails = await getGmailService().getEmails(request.params.arguments as any);
             return {
               content: [{
