@@ -3,6 +3,7 @@ export interface GetEmailsParams {
   query?: string;
   maxResults?: number;
   labelIds?: string[];
+  messageIds?: string[]; // For directly fetching specific emails
 }
 
 export interface SendEmailParams {

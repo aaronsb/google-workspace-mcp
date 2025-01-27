@@ -46,17 +46,25 @@ export class GmailService {
     return google.gmail({ version: 'v1', auth: this.oauth2Client });
   }
 
-  async getEmails({ email, query = '', maxResults = 10, labelIds = ['INBOX'] }: GetEmailsParams): Promise<EmailResponse[]> {
+  async getEmails({ email, query = '', maxResults = 10, labelIds = ['INBOX'], messageIds }: GetEmailsParams): Promise<EmailResponse[]> {
     try {
       const gmail = await this.getGmailClient(email);
 
-      // List messages matching query
-      const { data: messages } = await gmail.users.messages.list({
-        userId: 'me',
-        q: query,
-        maxResults,
-        labelIds,
-      });
+      let messages;
+      
+      if (messageIds && messageIds.length > 0) {
+        // If specific message IDs are provided, use them directly
+        messages = { messages: messageIds.map(id => ({ id })) };
+      } else {
+        // Otherwise, list messages matching query
+        const { data } = await gmail.users.messages.list({
+          userId: 'me',
+          q: query,
+          maxResults,
+          labelIds,
+        });
+        messages = data;
+      }
 
       if (!messages.messages || messages.messages.length === 0) {
         return [];

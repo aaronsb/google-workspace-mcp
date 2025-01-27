@@ -14,9 +14,8 @@
     - [x] Search by sender
     - [x] Search by date range
     - [x] Search for emails with attachments
-  - [ ] Email content management
-    - [ ] get_workspace_email_content: Retrieve complete email content by ID
-    - [ ] get_workspace_email_batch: Batch retrieve multiple emails by IDs
+  - [x] Email content management
+    - [x] Enhanced getEmails to support direct message ID retrieval and batch fetching
   - [ ] Draft operations
     - [ ] create_workspace_draft: Create new drafts with recipients, subject, body, and CC
     - [ ] delete_workspace_draft: Delete draft emails
