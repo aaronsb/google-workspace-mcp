@@ -8,10 +8,23 @@
   - [x] Send emails
   - [x] Basic search
 - [ ] Advanced features
-  - [ ] Manage labels
-  - [ ] Draft support
-  - [ ] Thread management
+  - [ ] Get user information
+  - [ ] Advanced search capabilities
+    - [ ] Search by unread status
+    - [ ] Search by sender
+    - [ ] Search by date range
+    - [ ] Search for emails with attachments
+  - [ ] Email management
+    - [ ] Retrieve complete email content by ID
+    - [ ] Batch retrieve multiple emails by IDs
+  - [ ] Draft management
+    - [ ] Create new drafts with recipients, subject, body, and CC
+    - [ ] Delete draft emails
+  - [ ] Reply handling
+    - [ ] Reply to existing emails (immediate send)
+    - [ ] Save replies as drafts
   - [ ] Attachment handling
+    - [ ] Save multiple attachments locally
 
 ### Calendar Module (In Development)
 - [ ] Core functionality
