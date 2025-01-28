@@ -108,18 +108,67 @@ class GSuiteServer {
                 type: 'string',
                 description: 'Email address of the Gmail account'
               },
-              query: {
-                type: 'string',
-                description: 'Advanced search query supporting Gmail search operators (e.g., from:someone@example.com, is:unread, has:attachment, after:2024/01/01)'
+              search: {
+                type: 'object',
+                description: 'Search criteria for filtering emails',
+                properties: {
+                  from: {
+                    oneOf: [
+                      { type: 'string' },
+                      { type: 'array', items: { type: 'string' } }
+                    ],
+                    description: 'Search by sender email address(es)'
+                  },
+                  to: {
+                    oneOf: [
+                      { type: 'string' },
+                      { type: 'array', items: { type: 'string' } }
+                    ],
+                    description: 'Search by recipient email address(es)'
+                  },
+                  subject: {
+                    type: 'string',
+                    description: 'Search in email subject lines'
+                  },
+                  content: {
+                    type: 'string',
+                    description: 'Search in email body text'
+                  },
+                  after: {
+                    type: 'string',
+                    description: 'Search emails after this date (YYYY-MM-DD)'
+                  },
+                  before: {
+                    type: 'string',
+                    description: 'Search emails before this date (YYYY-MM-DD)'
+                  },
+                  hasAttachment: {
+                    type: 'boolean',
+                    description: 'Filter emails with attachments'
+                  },
+                  labels: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Include emails with these labels (e.g., INBOX, SENT, IMPORTANT)'
+                  },
+                  excludeLabels: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Exclude emails with these labels'
+                  },
+                  includeSpam: {
+                    type: 'boolean',
+                    description: 'Include emails from spam/trash folders'
+                  },
+                  isUnread: {
+                    type: 'boolean',
+                    description: 'Filter by read/unread status'
+                  }
+                }
               },
               maxResults: {
                 type: 'number',
                 description: 'Maximum number of emails to return (default: 10)'
-              },
-              labelIds: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'List of label IDs to filter by (default: ["INBOX"])'
               }
             },
             required: ['email']
@@ -398,7 +447,16 @@ class GSuiteServer {
           }
 
           case 'search_workspace_emails': {
-            const emails = await getGmailService().getEmails(request.params.arguments as any);
+            // Convert the structured search criteria into the format expected by getEmails
+            const args = request.params.arguments as any;
+            const params = {
+              email: args.email,
+              search: args.search || {},
+              options: {
+                maxResults: args.maxResults
+              }
+            };
+            const emails = await getGmailService().getEmails(params);
             return {
               content: [{
                 type: 'text',
