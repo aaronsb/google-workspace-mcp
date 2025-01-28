@@ -143,31 +143,45 @@ export class GmailService {
     // Handle from (support multiple senders)
     if (criteria.from) {
       const fromAddresses = Array.isArray(criteria.from) ? criteria.from : [criteria.from];
-      queryParts.push(`{${fromAddresses.map((f: string) => `from:${f}`).join(' OR ')}}`);
+      if (fromAddresses.length === 1) {
+        queryParts.push(`from:${fromAddresses[0]}`);
+      } else {
+        queryParts.push(`{${fromAddresses.map(f => `from:${f}`).join(' OR ')}}`);
+      }
     }
 
     // Handle to (support multiple recipients)
     if (criteria.to) {
       const toAddresses = Array.isArray(criteria.to) ? criteria.to : [criteria.to];
-      queryParts.push(`{${toAddresses.map((t: string) => `to:${t}`).join(' OR ')}}`);
+      if (toAddresses.length === 1) {
+        queryParts.push(`to:${toAddresses[0]}`);
+      } else {
+        queryParts.push(`{${toAddresses.map(t => `to:${t}`).join(' OR ')}}`);
+      }
     }
 
-    // Handle subject
+    // Handle subject (escape special characters and quotes)
     if (criteria.subject) {
-      queryParts.push(`subject:"${criteria.subject}"`);
+      const escapedSubject = criteria.subject.replace(/["\\]/g, '\\$&');
+      queryParts.push(`subject:"${escapedSubject}"`);
     }
 
-    // Handle content
+    // Handle content (escape special characters and quotes)
     if (criteria.content) {
-      queryParts.push(`"${criteria.content}"`);
+      const escapedContent = criteria.content.replace(/["\\]/g, '\\$&');
+      queryParts.push(`"${escapedContent}"`);
     }
 
-    // Handle date range
+    // Handle date range (use Gmail's date format: YYYY/MM/DD)
     if (criteria.after) {
-      queryParts.push(`after:${new Date(criteria.after).getTime() / 1000}`);
+      const afterDate = new Date(criteria.after);
+      const afterStr = `${afterDate.getFullYear()}/${(afterDate.getMonth() + 1).toString().padStart(2, '0')}/${afterDate.getDate().toString().padStart(2, '0')}`;
+      queryParts.push(`after:${afterStr}`);
     }
     if (criteria.before) {
-      queryParts.push(`before:${new Date(criteria.before).getTime() / 1000}`);
+      const beforeDate = new Date(criteria.before);
+      const beforeStr = `${beforeDate.getFullYear()}/${(beforeDate.getMonth() + 1).toString().padStart(2, '0')}/${beforeDate.getDate().toString().padStart(2, '0')}`;
+      queryParts.push(`before:${beforeStr}`);
     }
 
     // Handle attachments
@@ -175,14 +189,18 @@ export class GmailService {
       queryParts.push('has:attachment');
     }
 
-    // Handle labels
+    // Handle labels (no need to join with spaces, Gmail supports multiple label: operators)
     if (criteria.labels && criteria.labels.length > 0) {
-      queryParts.push(criteria.labels.map((label: string) => `label:${label}`).join(' '));
+      criteria.labels.forEach(label => {
+        queryParts.push(`label:${label}`);
+      });
     }
 
     // Handle excluded labels
     if (criteria.excludeLabels && criteria.excludeLabels.length > 0) {
-      queryParts.push(criteria.excludeLabels.map((label: string) => `-label:${label}`).join(' '));
+      criteria.excludeLabels.forEach(label => {
+        queryParts.push(`-label:${label}`);
+      });
     }
 
     // Handle spam/trash inclusion
