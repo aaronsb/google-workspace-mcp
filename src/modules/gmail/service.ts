@@ -10,7 +10,10 @@ import {
   GetGmailSettingsParams,
   GetGmailSettingsResponse,
   GmailError,
-  GmailModuleConfig
+  GmailModuleConfig,
+  SearchCriteria,
+  GetEmailsResponse,
+  ThreadInfo
 } from './types.js';
 import { scopeRegistry } from '../tools/scope-registry.js';
 
@@ -85,40 +88,170 @@ export class GmailService {
    * @returns Array of email responses with full content
    * @throws {GmailError} If proper scopes are not available
    */
-  async getEmails({ email, query = '', maxResults = 10, labelIds = ['INBOX'], messageIds }: GetEmailsParams): Promise<EmailResponse[]> {
+  /**
+   * Extracts all headers into a key-value map
+   */
+  private extractHeaders(headers: { name: string; value: string }[]): { [key: string]: string } {
+    return headers.reduce((acc, header) => {
+      acc[header.name] = header.value;
+      return acc;
+    }, {} as { [key: string]: string });
+  }
+
+  /**
+   * Groups emails by thread ID and extracts thread information
+   */
+  private groupEmailsByThread(emails: EmailResponse[]): { [threadId: string]: ThreadInfo } {
+    return emails.reduce((threads, email) => {
+      if (!threads[email.threadId]) {
+        // Initialize with empty arrays instead of Set
+        threads[email.threadId] = {
+          messages: [],
+          participants: [],
+          subject: email.subject,
+          lastUpdated: email.date
+        };
+      }
+
+      const thread = threads[email.threadId];
+      thread.messages.push(email.id);
+      
+      // Add participants if they're not already in the array
+      if (!thread.participants.includes(email.from)) {
+        thread.participants.push(email.from);
+      }
+      if (email.to && !thread.participants.includes(email.to)) {
+        thread.participants.push(email.to);
+      }
+      
+      const emailDate = new Date(email.date);
+      const threadDate = new Date(thread.lastUpdated);
+      if (emailDate > threadDate) {
+        thread.lastUpdated = email.date;
+      }
+
+      return threads;
+    }, {} as { [threadId: string]: ThreadInfo });
+  }
+
+  /**
+   * Builds a Gmail search query string from SearchCriteria
+   */
+  private buildSearchQuery(criteria: SearchCriteria = {}): string {
+    const queryParts: string[] = [];
+
+    // Handle from (support multiple senders)
+    if (criteria.from) {
+      const fromAddresses = Array.isArray(criteria.from) ? criteria.from : [criteria.from];
+      queryParts.push(`{${fromAddresses.map((f: string) => `from:${f}`).join(' OR ')}}`);
+    }
+
+    // Handle to (support multiple recipients)
+    if (criteria.to) {
+      const toAddresses = Array.isArray(criteria.to) ? criteria.to : [criteria.to];
+      queryParts.push(`{${toAddresses.map((t: string) => `to:${t}`).join(' OR ')}}`);
+    }
+
+    // Handle subject
+    if (criteria.subject) {
+      queryParts.push(`subject:"${criteria.subject}"`);
+    }
+
+    // Handle content
+    if (criteria.content) {
+      queryParts.push(`"${criteria.content}"`);
+    }
+
+    // Handle date range
+    if (criteria.after) {
+      queryParts.push(`after:${new Date(criteria.after).getTime() / 1000}`);
+    }
+    if (criteria.before) {
+      queryParts.push(`before:${new Date(criteria.before).getTime() / 1000}`);
+    }
+
+    // Handle attachments
+    if (criteria.hasAttachment) {
+      queryParts.push('has:attachment');
+    }
+
+    // Handle labels
+    if (criteria.labels && criteria.labels.length > 0) {
+      queryParts.push(criteria.labels.map((label: string) => `label:${label}`).join(' '));
+    }
+
+    // Handle excluded labels
+    if (criteria.excludeLabels && criteria.excludeLabels.length > 0) {
+      queryParts.push(criteria.excludeLabels.map((label: string) => `-label:${label}`).join(' '));
+    }
+
+    // Handle spam/trash inclusion
+    if (criteria.includeSpam) {
+      queryParts.push('in:anywhere');
+    }
+
+    // Handle read/unread status
+    if (criteria.isUnread !== undefined) {
+      queryParts.push(criteria.isUnread ? 'is:unread' : 'is:read');
+    }
+
+    return queryParts.join(' ');
+  }
+
+  /**
+   * Enhanced getEmails method with support for advanced search criteria and options
+   */
+  async getEmails({ email, search = {}, options = {}, messageIds }: GetEmailsParams): Promise<GetEmailsResponse> {
     try {
       const gmail = await this.getGmailClient(email);
-
+      const maxResults = options.maxResults || 10;
+      
       let messages;
+      let nextPageToken: string | undefined;
       
       if (messageIds && messageIds.length > 0) {
-        // If specific message IDs are provided, use them directly
         messages = { messages: messageIds.map(id => ({ id })) };
       } else {
-        // Otherwise, list messages matching query
+        // Build search query from criteria
+        const query = this.buildSearchQuery(search);
+        
+        // List messages matching query
         const { data } = await gmail.users.messages.list({
           userId: 'me',
           q: query,
           maxResults,
-          labelIds,
+          pageToken: options.pageToken,
         });
+        
         messages = data;
+        nextPageToken = data.nextPageToken || undefined;
       }
 
       if (!messages.messages || messages.messages.length === 0) {
-        return [];
+        return {
+          emails: [],
+          resultSummary: {
+            total: 0,
+            returned: 0,
+            hasMore: false,
+            searchCriteria: search
+          }
+        };
       }
 
-      // Get full message details for each email
+      // Get full message details
       const emails = await Promise.all(
         messages.messages.map(async (message) => {
           const { data: email } = await gmail.users.messages.get({
             userId: 'me',
             id: message.id!,
-            format: 'full',
+            format: options.format || 'full',
           });
 
-          const headers = email.payload?.headers || [];
+          const headers = (email.payload?.headers || []).map(h => ({
+            name: h.name || '',
+            value: h.value || ''
+          }));
           const subject = headers.find(h => h.name === 'Subject')?.value || '';
           const from = headers.find(h => h.name === 'From')?.value || '';
           const to = headers.find(h => h.name === 'To')?.value || '';
@@ -145,13 +278,38 @@ export class GmailService {
             to,
             date,
             body,
+            headers: options.includeHeaders ? this.extractHeaders(headers) : undefined,
+            isUnread: email.labelIds?.includes('UNREAD') || false,
+            hasAttachment: email.payload?.parts?.some(part => part.filename && part.filename.length > 0) || false
           };
 
           return response;
         })
       );
 
-      return emails;
+      // Handle threaded view if requested
+      const threads = options.threadedView ? this.groupEmailsByThread(emails) : undefined;
+
+      // Sort emails if requested
+      if (options.sortOrder) {
+        emails.sort((a, b) => {
+          const dateA = new Date(a.date).getTime();
+          const dateB = new Date(b.date).getTime();
+          return options.sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+        });
+      }
+
+      return {
+        emails,
+        nextPageToken,
+        resultSummary: {
+          total: messages.resultSizeEstimate || emails.length,
+          returned: emails.length,
+          hasMore: Boolean(nextPageToken),
+          searchCriteria: search
+        },
+        threads
+      };
     } catch (error) {
       if (error instanceof GmailError) {
         throw error;
