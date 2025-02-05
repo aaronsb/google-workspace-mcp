@@ -20,10 +20,31 @@ export const mockFileSystem = () => {
     dirname: jest.fn(() => '/mock'),
   }));
 
+  // Set up mock OAuth config
+  mockFs.readFile.mockImplementation((path: string) => {
+    if (path.includes('gauth.json')) {
+      return Promise.resolve(JSON.stringify({
+        client_id: 'mock-client-id',
+        client_secret: 'mock-client-secret',
+        redirect_uri: 'http://localhost:3000/oauth2callback'
+      }));
+    }
+    return Promise.resolve('{}');
+  });
+
   return {
     fs: mockFs,
     setMockFileContent: (content: any) => {
-      mockFs.readFile.mockResolvedValue(JSON.stringify(content));
+      mockFs.readFile.mockImplementation((path: string) => {
+        if (path.includes('gauth.json')) {
+          return Promise.resolve(JSON.stringify({
+            client_id: 'mock-client-id',
+            client_secret: 'mock-client-secret',
+            redirect_uri: 'http://localhost:3000/oauth2callback'
+          }));
+        }
+        return Promise.resolve(JSON.stringify(content));
+      });
     },
   };
 };
@@ -88,6 +109,7 @@ export const setupTestEnvironment = () => {
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.ACCOUNTS_FILE = '/mock/accounts.json';
+    process.env.AUTH_CONFIG_FILE = '/mock/gauth.json';
   });
 
   return {
