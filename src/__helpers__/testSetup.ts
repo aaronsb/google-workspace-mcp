@@ -26,7 +26,6 @@ export const mockFileSystem = () => {
   return {
     fs: mockFs,
     setMockFileContent: (content: any) => {
-      console.log('Setting mock content:', content);
       if (typeof content === 'string') {
         mockFs.readFile.mockImplementation((path: string) => {
           console.log('Reading file (string):', path);
@@ -39,7 +38,6 @@ export const mockFileSystem = () => {
         });
       } else {
         mockFs.readFile.mockImplementation((path: string) => {
-          console.log('Reading file (object):', path);
           if (path.includes('gauth.json')) {
             return Promise.resolve(JSON.stringify({
               client_id: 'mock-client-id',
@@ -47,8 +45,9 @@ export const mockFileSystem = () => {
               redirect_uri: 'http://localhost:3000/oauth2callback'
             }));
           }
-          const mockData = JSON.stringify(content);
-          console.log('Mock data:', mockData);
+          // Use JSON.stringify with proper spacing for readability in logs
+          const mockData = JSON.stringify(content, null, 2);
+          console.log('Mock data for', path, ':', mockData);
           return Promise.resolve(mockData);
         });
       }
