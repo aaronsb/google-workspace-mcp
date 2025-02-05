@@ -92,19 +92,36 @@ A Model Context Protocol (MCP) server that provides authenticated access to Goog
 
 ## Docker Installation
 
+⚠️ **IMPORTANT: Config Directory Mounting Required**
+
+The MCP server requires configuration files to run. When using Docker, you **must** mount a local config directory containing your credentials and account settings.
+
+### Required Configuration Files
+
+Before running the container, prepare your configuration:
+
+1. Create a `config` directory on your host machine
+2. Add these required files to your config directory:
+   - `gauth.json`: Your Google OAuth credentials
+   - `accounts.json`: Your account configurations
+   
+You can use the example files in `config/*.example.json` as templates.
+
+### Running with Docker
+
 You can run this MCP server using Docker in two ways:
 
-### Option 1: Pull from GitHub Container Registry
+#### Option 1: Pull from GitHub Container Registry
 
 ```bash
 # Pull the latest image
 docker pull ghcr.io/aaronsb/google-workspace-mcp:latest
 
-# Run the container
+# Run the container (replace /path/to/your/config with your actual config directory path)
 docker run -v /path/to/your/config:/app/config ghcr.io/aaronsb/gsuite-mcp:latest
 ```
 
-### Option 2: Build Locally
+#### Option 2: Build Locally
 
 ```bash
 # Clone the repository
@@ -114,20 +131,17 @@ cd gsuite-mcp
 # Build the image
 docker build -t gsuite-mcp .
 
-# Run the container
+# Run the container (replace /path/to/your/config with your actual config directory path)
 docker run -v /path/to/your/config:/app/config gsuite-mcp
 ```
 
-### Required Configuration
+### Configuration Volume Mount
 
-When running with Docker, you'll need to:
-1. Create a `config` directory on your host machine
-2. Add your `gauth.json` and `accounts.json` files to this directory
-3. Mount this directory when running the container using the `-v` flag as shown above
+The `-v /path/to/your/config:/app/config` flag is **required** and mounts your local config directory into the container:
+- Source: `/path/to/your/config` (your local config directory)
+- Target: `/app/config` (where the container expects config files)
 
-The container expects these configuration files in the mounted `/app/config` directory:
-- `config/gauth.json`: Your Google OAuth credentials
-- `config/accounts.json`: Your account configurations
+Without this volume mount, the container will fail to start with an OAuth configuration error.
 
 ## Available Tools
 
