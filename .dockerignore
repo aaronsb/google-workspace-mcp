@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.env
+.vscode
+coverage
+docs
+cline_docs
+src/__tests__
+*.md
+!README.md
+config/*
+!config/*.example.json

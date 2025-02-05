@@ -90,6 +90,45 @@ A Model Context Protocol (MCP) server that provides authenticated access to Goog
    });
    ```
 
+## Docker Installation
+
+You can run this MCP server using Docker in two ways:
+
+### Option 1: Pull from GitHub Container Registry
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/aaronsb/gsuite-mcp:latest
+
+# Run the container
+docker run -v /path/to/your/config:/app/config ghcr.io/aaronsb/gsuite-mcp:latest
+```
+
+### Option 2: Build Locally
+
+```bash
+# Clone the repository
+git clone [repository-url]
+cd gsuite-mcp
+
+# Build the image
+docker build -t gsuite-mcp .
+
+# Run the container
+docker run -v /path/to/your/config:/app/config gsuite-mcp
+```
+
+### Required Configuration
+
+When running with Docker, you'll need to:
+1. Create a `config` directory on your host machine
+2. Add your `gauth.json` and `accounts.json` files to this directory
+3. Mount this directory when running the container using the `-v` flag as shown above
+
+The container expects these configuration files in the mounted `/app/config` directory:
+- `config/gauth.json`: Your Google OAuth credentials
+- `config/accounts.json`: Your account configurations
+
 ## Available Tools
 
 ### Account Management
