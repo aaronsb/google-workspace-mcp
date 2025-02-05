@@ -1,11 +1,11 @@
 {
-  "name": "GSuite OAuth MCP Server",
+  "name": "google-workspace-mcp",
   "version": "0.1.0",
-  "description": "Google OAuth MCP Server for Suite integration",
+  "description": "Google Workspace OAuth MCP Server for Google Workspace integration",
   "private": true,
   "type": "module",
   "bin": {
-    "GSuite OAuth MCP Server": "./build/index.js"
+    "google-workspace-mcp": "./build/index.js"
   },
   "files": [
     "build"

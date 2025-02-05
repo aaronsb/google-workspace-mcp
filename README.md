@@ -40,7 +40,7 @@ A Model Context Protocol (MCP) server that provides authenticated access to Goog
    ```bash
    # Clone the repository
    git clone [repository-url]
-   cd gsuite-mcp
+   cd google-workspace-mcp
 
    # Install dependencies
    npm install
@@ -98,7 +98,7 @@ You can run this MCP server using Docker in two ways:
 
 ```bash
 # Pull the latest image
-docker pull ghcr.io/aaronsb/gsuite-mcp:latest
+docker pull ghcr.io/aaronsb/google-workspace-mcp:latest
 
 # Run the container
 docker run -v /path/to/your/config:/app/config ghcr.io/aaronsb/gsuite-mcp:latest
