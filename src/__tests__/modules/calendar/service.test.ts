@@ -66,13 +66,16 @@ describe('CalendarService', () => {
         timeMax: '2024-01-31T23:59:59Z',
       });
 
-      expect(mockCalendarClient.events.list).toHaveBeenCalledWith({
-        calendarId: 'primary',
-        timeMin: expect.any(String),
-        timeMax: expect.any(String),
-        singleEvents: true,
-        orderBy: 'startTime',
-      });
+      expect(mockCalendarClient.events.list).toHaveBeenCalledWith(
+        expect.objectContaining({
+          calendarId: 'primary',
+          singleEvents: true,
+          orderBy: 'startTime',
+          timeMin: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          timeMax: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          maxResults: 10
+        })
+      );
 
       expect(result.length).toBe(2);
       expect(result[0]).toHaveProperty('id', 'event1');
@@ -89,6 +92,66 @@ describe('CalendarService', () => {
       });
 
       expect(result).toEqual([]);
+    });
+
+    it('should properly format date parameters', async () => {
+      (mockCalendarClient.events.list as any).mockResolvedValue({ data: {} });
+
+      await calendarService.getEvents({
+        email: mockEmail,
+        timeMin: '2024-01-01',  // Date without time
+        timeMax: '2024-01-31',  // Date without time
+      });
+
+      expect(mockCalendarClient.events.list).toHaveBeenCalledWith(
+        expect.objectContaining({
+          timeMin: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          timeMax: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+          maxResults: 10
+        })
+      );
+    });
+
+    it('should handle optional parameters', async () => {
+      (mockCalendarClient.events.list as any).mockResolvedValue({ data: {} });
+
+      await calendarService.getEvents({
+        email: mockEmail,
+        query: 'test meeting',
+        maxResults: 5,
+      });
+
+      expect(mockCalendarClient.events.list).toHaveBeenCalledWith(
+        expect.objectContaining({
+          q: 'test meeting',
+          maxResults: 5,
+        })
+      );
+    });
+
+    it('should use default maxResults if not provided', async () => {
+      (mockCalendarClient.events.list as any).mockResolvedValue({ data: {} });
+
+      await calendarService.getEvents({
+        email: mockEmail,
+      });
+
+      expect(mockCalendarClient.events.list).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxResults: 10,  // Default value from GetEventsParams
+        })
+      );
+    });
+
+    it('should handle invalid date formats gracefully', async () => {
+      (mockCalendarClient.events.list as any).mockResolvedValue({ data: {} });
+
+      const invalidDate = 'not-a-date';
+      
+      await expect(calendarService.getEvents({
+        email: mockEmail,
+        timeMin: invalidDate,
+      })).rejects.toThrow('Invalid date format');
     });
   });
 
@@ -113,10 +176,7 @@ describe('CalendarService', () => {
         data: {
           id: 'new-event-1',
           summary: 'New Meeting',
-          description: 'Team sync',
-          start: { dateTime: '2024-01-15T10:00:00Z' },
-          end: { dateTime: '2024-01-15T11:00:00Z' },
-          attendees: [{ email: 'attendee@example.com' }],
+          htmlLink: 'https://calendar.google.com/event?id=123',
         },
       };
 
@@ -124,23 +184,49 @@ describe('CalendarService', () => {
 
       const result = await calendarService.createEvent(mockEventParams);
 
-      expect(result).toEqual(mockCreateResponse.data);
+      // Verify the response matches CreateEventResponse type
+      expect(result).toEqual({
+        id: 'new-event-1',
+        summary: 'New Meeting',
+        htmlLink: 'https://calendar.google.com/event?id=123',
+      });
+
+      // Verify the request was properly formatted
       expect(mockCalendarClient.events.insert).toHaveBeenCalledWith({
         calendarId: 'primary',
-        requestBody: expect.objectContaining({
+        sendUpdates: 'all',
+        requestBody: {
           summary: mockEventParams.summary,
           description: mockEventParams.description,
-          start: { dateTime: mockEventParams.start },
-          end: { dateTime: mockEventParams.end },
+          start: mockEventParams.start,
+          end: mockEventParams.end,
           attendees: mockEventParams.attendees?.map(({ email }) => ({ email })),
-        }),
+        },
       });
     });
 
     it('should handle creation failure', async () => {
-      (mockCalendarClient.events.insert as any).mockRejectedValue(new Error('Creation failed'));
+      const error = new Error('Creation failed');
+      (mockCalendarClient.events.insert as any).mockRejectedValue(error);
 
-      await expect(calendarService.createEvent(mockEventParams)).rejects.toThrow();
+      await expect(calendarService.createEvent(mockEventParams))
+        .rejects
+        .toThrow('Creation failed');
+    });
+
+    it('should throw error if response is incomplete', async () => {
+      const mockIncompleteResponse = {
+        data: {
+          // Missing required id or summary
+          htmlLink: 'https://calendar.google.com/event?id=123',
+        },
+      };
+
+      (mockCalendarClient.events.insert as any).mockResolvedValue(mockIncompleteResponse);
+
+      await expect(calendarService.createEvent(mockEventParams))
+        .rejects
+        .toThrow('Failed to create event');
     });
   });
 

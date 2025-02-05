@@ -115,11 +115,35 @@ export class CalendarService {
       }
 
       if (timeMin) {
-        params.timeMin = new Date(timeMin).toISOString();
+        try {
+          const date = new Date(timeMin);
+          if (isNaN(date.getTime())) {
+            throw new Error('Invalid date');
+          }
+          params.timeMin = date.toISOString();
+        } catch (error) {
+          throw new CalendarError(
+            'Invalid date format',
+            'INVALID_DATE',
+            'Please provide dates in ISO format or YYYY-MM-DD format'
+          );
+        }
       }
 
       if (timeMax) {
-        params.timeMax = new Date(timeMax).toISOString();
+        try {
+          const date = new Date(timeMax);
+          if (isNaN(date.getTime())) {
+            throw new Error('Invalid date');
+          }
+          params.timeMax = date.toISOString();
+        } catch (error) {
+          throw new CalendarError(
+            'Invalid date format',
+            'INVALID_DATE',
+            'Please provide dates in ISO format or YYYY-MM-DD format'
+          );
+        }
       }
 
       // List events matching criteria

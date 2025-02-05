@@ -54,16 +54,31 @@ export class AccountManager {
           data = JSON.stringify({ accounts: [] });
           await fs.writeFile(this.accountsPath, data);
         } else {
-          throw error;
+          throw new AccountError(
+            'Failed to read accounts configuration',
+            'ACCOUNTS_READ_ERROR',
+            'Please ensure the accounts file is readable'
+          );
         }
       }
-      const config = JSON.parse(data) as AccountsConfig;
-      
-      this.accounts.clear();
-      for (const account of config.accounts) {
-        this.accounts.set(account.email, account);
+
+      try {
+        const config = JSON.parse(data) as AccountsConfig;
+        this.accounts.clear();
+        for (const account of config.accounts) {
+          this.accounts.set(account.email, account);
+        }
+      } catch (error) {
+        throw new AccountError(
+          'Failed to parse accounts configuration',
+          'ACCOUNTS_PARSE_ERROR',
+          'Please ensure the accounts file contains valid JSON'
+        );
       }
     } catch (error) {
+      if (error instanceof AccountError) {
+        throw error;
+      }
       throw new AccountError(
         'Failed to load accounts configuration',
         'ACCOUNTS_LOAD_ERROR',

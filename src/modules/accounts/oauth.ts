@@ -28,12 +28,14 @@ export class GoogleOAuthClient {
     redirect_uri: string;
   }> {
     try {
+      console.log('Loading auth config from:', this.authConfigPath);
       // Ensure directory exists
       await fs.mkdir(path.dirname(this.authConfigPath), { recursive: true });
       
       let data: string;
       try {
         data = await fs.readFile(this.authConfigPath, 'utf-8');
+        console.log('Successfully read auth config');
       } catch (error) {
         if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
           throw new AccountError(
@@ -44,7 +46,9 @@ export class GoogleOAuthClient {
         }
         throw error;
       }
-      return JSON.parse(data);
+      const config = JSON.parse(data);
+      console.log('Successfully parsed auth config');
+      return config;
     } catch (error) {
       throw new AccountError(
         'Failed to load OAuth configuration',

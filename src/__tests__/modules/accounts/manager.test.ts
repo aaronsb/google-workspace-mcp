@@ -5,10 +5,16 @@ import { TokenManager } from '../../../modules/accounts/token.js';
 import fs from 'fs/promises';
 import path from 'path';
 
-jest.mock('fs/promises');
 jest.mock('path', () => ({
   join: jest.fn((dir, file) => `${dir}/${file}`),
   resolve: jest.fn((...args) => args.join('/')),
+  dirname: jest.fn((p) => '/mock'),
+}));
+
+jest.mock('fs/promises', () => ({
+  mkdir: jest.fn().mockResolvedValue(undefined),
+  readFile: jest.fn(),
+  writeFile: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('../../../modules/accounts/token.js');
@@ -38,6 +44,9 @@ describe('AccountManager', () => {
     jest.clearAllMocks();
     process.env.ACCOUNTS_FILE = '/mock/accounts.json';
 
+    // Reset fs mocks
+    jest.clearAllMocks();
+
     mockOAuthClient = {
       ensureInitialized: jest.fn().mockResolvedValue(undefined),
       getAuthClient: jest.fn().mockResolvedValue({}),
@@ -63,18 +72,36 @@ describe('AccountManager', () => {
     it('should load and parse accounts file', async () => {
       (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify(mockAccounts));
 
-      const accounts = await accountManager.loadAccounts();
-      expect(accounts).toEqual(mockAccounts.accounts);
+      await accountManager.loadAccounts();
+      const accounts = await accountManager.listAccounts();
+      
+      // Mock token validation for listAccounts
+      mockTokenManager.validateToken.mockResolvedValue({ valid: true });
+      
+      expect(accounts).toHaveLength(mockAccounts.accounts.length);
+      expect(accounts[0].email).toBe(mockAccounts.accounts[0].email);
+      expect(accounts[1].email).toBe(mockAccounts.accounts[1].email);
       expect(fs.readFile).toHaveBeenCalledWith('/mock/accounts.json', 'utf-8');
     });
 
-    it('should return empty array if accounts file does not exist', async () => {
+    it('should create empty accounts file if it does not exist', async () => {
       const error = new Error('File not found');
       (error as any).code = 'ENOENT';
-      (fs.readFile as jest.Mock).mockRejectedValue(error);
+      (fs.readFile as jest.Mock).mockRejectedValueOnce(error);
+      
+      // Mock the write of empty accounts file
+      (fs.writeFile as jest.Mock).mockResolvedValueOnce(undefined);
+      // Mock subsequent read of empty accounts
+      (fs.readFile as jest.Mock).mockResolvedValueOnce(JSON.stringify({ accounts: [] }));
 
-      const accounts = await accountManager.loadAccounts();
+      await accountManager.loadAccounts();
+      const accounts = await accountManager.listAccounts();
+      
       expect(accounts).toEqual([]);
+      expect(fs.writeFile).toHaveBeenCalledWith(
+        '/mock/accounts.json',
+        JSON.stringify({ accounts: [] })
+      );
     });
   });
 
@@ -83,14 +110,22 @@ describe('AccountManager', () => {
     const mockCategory = 'work';
     const mockDescription = 'Test Work Account';
 
+    beforeEach(async () => {
+      // Initialize accounts map before each test
+      await accountManager.loadAccounts();
+    });
+
     it('should validate existing account with valid token', async () => {
       const mockTokenStatus = {
         valid: true,
         token: { access_token: 'valid-token' },
       };
 
-      mockTokenManager.validateToken.mockResolvedValue(mockTokenStatus);
+      // Setup account data
       (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify(mockAccounts));
+      await accountManager.loadAccounts();
+
+      mockTokenManager.validateToken.mockResolvedValue(mockTokenStatus);
 
       const account = await accountManager.validateAccount(mockEmail);
       expect(account.email).toBe(mockEmail);
@@ -103,8 +138,11 @@ describe('AccountManager', () => {
         reason: 'No token found',
       };
 
-      mockTokenManager.validateToken.mockResolvedValue(mockTokenStatus);
+      // Setup empty accounts data
       (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify({ accounts: [] }));
+      await accountManager.loadAccounts();
+
+      mockTokenManager.validateToken.mockResolvedValue(mockTokenStatus);
 
       const account = await accountManager.validateAccount(
         mockEmail,
@@ -120,7 +158,9 @@ describe('AccountManager', () => {
     });
 
     it('should throw error if account not found and missing category/description', async () => {
+      // Setup empty accounts data
       (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify({ accounts: [] }));
+      await accountManager.loadAccounts();
 
       await expect(accountManager.validateAccount(mockEmail))
         .rejects
