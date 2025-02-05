@@ -114,6 +114,68 @@ sequenceDiagram
 
 ## Implementation Details
 
+### Testing Strategy
+
+The project follows a simplified unit testing approach that emphasizes:
+
+```mermaid
+graph TD
+    A[Unit Tests] --> B[Simplified Mocks]
+    A --> C[Focused Tests]
+    A --> D[Clean State]
+    
+    B --> B1[Static Responses]
+    B --> B2[Simple File System]
+    B --> B3[Basic OAuth]
+    
+    C --> C1[Grouped by Function]
+    C --> C2[Single Responsibility]
+    C --> C3[Clear Assertions]
+    
+    D --> D1[Reset Modules]
+    D --> D2[Fresh Instances]
+    D --> D3[Tracked Mocks]
+```
+
+#### Key Testing Principles
+
+1. **Simplified Mocking**
+   - Use static mock responses instead of complex simulations
+   - Mock external dependencies with minimal implementations
+   - Focus on behavior verification over implementation details
+   - Avoid end-to-end complexity in unit tests
+
+2. **Test Organization**
+   - Group tests by functional area (e.g., account operations, file operations)
+   - Each test verifies a single piece of functionality
+   - Clear test descriptions that document behavior
+   - Independent test cases that don't rely on shared state
+
+3. **Mock Management**
+   - Reset modules and mocks between tests
+   - Track mock function calls explicitly
+   - Re-require modules after mock changes
+   - Verify both function calls and results
+
+4. **File System Testing**
+   - Use simple JSON structures
+   - Focus on data correctness over formatting
+   - Test error scenarios explicitly
+   - Verify operations without implementation details
+
+5. **Token Handling**
+   - Mock token validation with static responses
+   - Test success and failure scenarios separately
+   - Focus on account manager's token handling logic
+   - Avoid OAuth complexity in unit tests
+
+This approach ensures tests are:
+- Reliable and predictable
+- Easy to maintain
+- Quick to execute
+- Clear in intent
+- Focused on behavior
+
 ### Security
 - OAuth 2.0 implementation with offline access
 - Secure token storage and management

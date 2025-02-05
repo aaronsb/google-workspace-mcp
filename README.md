@@ -154,6 +154,53 @@ See [API Documentation](docs/API.md) for detailed usage.
 - Admin SDK support
 - Additional Google services
 
+## Testing Strategy
+
+### Unit Testing Approach
+
+1. **Simplified Mocking**
+   - Use static mock responses for predictable testing
+   - Avoid complex end-to-end simulations in unit tests
+   - Focus on testing one piece of functionality at a time
+   - Mock external dependencies (OAuth, file system) with simple implementations
+
+2. **Test Organization**
+   - Group tests by functionality (e.g., account operations, file operations)
+   - Use clear, descriptive test names
+   - Keep tests focused and isolated
+   - Reset mocks and modules between tests
+
+3. **Mock Management**
+   - Use jest.resetModules() to ensure clean state
+   - Re-require modules after mock changes
+   - Track mock function calls explicitly
+   - Verify both function calls and results
+
+4. **File System Testing**
+   - Use simple JSON structures
+   - Focus on data correctness over formatting
+   - Test error scenarios (missing files, invalid JSON)
+   - Verify file operations without implementation details
+
+5. **Token Handling**
+   - Mock token validation with static responses
+   - Test success and failure scenarios separately
+   - Verify token operations without OAuth complexity
+   - Focus on account manager's token handling logic
+
+### Running Tests
+
+```bash
+# Run all tests
+npm test
+
+# Run specific test file
+npm test path/to/test.ts
+
+# Run tests with coverage
+npm test -- --coverage
+```
+
 ## Best Practices
 
 1. **Authentication**

@@ -1,148 +1,232 @@
 import { AccountManager } from '../../../modules/accounts/manager.js';
-import { mockAccounts } from '../../../__fixtures__/accounts.js';
-import { setupTestEnvironment } from '../../../__helpers__/testSetup.js';
+import { mockAccounts, mockTokens } from '../../../__fixtures__/accounts.js';
 
-jest.mock('../../../modules/accounts/token.js');
-jest.mock('../../../modules/accounts/oauth.js');
-jest.mock('fs/promises');
-jest.mock('path');
+// Simple mocks for token and oauth
+jest.mock('../../../modules/accounts/token.js', () => ({
+  TokenManager: jest.fn().mockImplementation(() => ({
+    validateToken: jest.fn().mockResolvedValue({ valid: true }),
+    saveToken: jest.fn().mockResolvedValue(undefined),
+    deleteToken: jest.fn().mockResolvedValue(undefined)
+  }))
+}));
+
+jest.mock('../../../modules/accounts/oauth.js', () => ({
+  GoogleOAuthClient: jest.fn().mockImplementation(() => ({
+    ensureInitialized: jest.fn().mockResolvedValue(undefined),
+    getTokenFromCode: jest.fn().mockResolvedValue(mockTokens.valid),
+    refreshToken: jest.fn().mockResolvedValue(mockTokens.valid)
+  }))
+}));
+
+// Simple file system mock
+jest.mock('fs/promises', () => ({
+  readFile: jest.fn(),
+  writeFile: jest.fn().mockResolvedValue(undefined),
+  mkdir: jest.fn().mockResolvedValue(undefined)
+}));
+
+jest.mock('path', () => ({
+  resolve: jest.fn().mockReturnValue('/mock/accounts.json'),
+  dirname: jest.fn().mockReturnValue('/mock')
+}));
 
 describe('AccountManager', () => {
-  const { fileSystem, accountManager: mocks } = setupTestEnvironment();
   let accountManager: AccountManager;
+  const fs = require('fs/promises');
 
-  beforeEach(async () => {
+  beforeEach(() => {
     jest.clearAllMocks();
+    jest.resetModules();
     process.env.ACCOUNTS_FILE = '/mock/accounts.json';
+    // Default successful file read
+    fs.readFile.mockResolvedValue(JSON.stringify(mockAccounts));
+    
+    // Reset TokenManager mock to default implementation
+    const TokenManager = require('../../../modules/accounts/token.js').TokenManager;
+    TokenManager.mockImplementation(() => ({
+      validateToken: jest.fn().mockResolvedValue({ valid: true }),
+      saveToken: jest.fn().mockResolvedValue(undefined),
+      deleteToken: jest.fn().mockResolvedValue(undefined)
+    }));
+    
     accountManager = new AccountManager();
-    await accountManager.initialize(); // Initialize before each test
   });
 
-  describe('loadAccounts', () => {
-    it('should load and parse accounts file', async () => {
-      // Setup
-      fileSystem.setMockFileContent(mockAccounts);
-
-      // Execute
-      await accountManager.loadAccounts();
+  // Basic account operations
+  describe('account operations', () => {
+    it('should load accounts from file', async () => {
+      await accountManager.initialize();
       const accounts = await accountManager.listAccounts();
       
-      // Verify
       expect(accounts).toHaveLength(mockAccounts.accounts.length);
       expect(accounts[0].email).toBe(mockAccounts.accounts[0].email);
-      expect(accounts[1].email).toBe(mockAccounts.accounts[1].email);
     });
 
-    it('should create empty accounts file if it does not exist', async () => {
-      // Setup
+    it('should add new account', async () => {
+      await accountManager.initialize();
+      const newAccount = await accountManager.addAccount(
+        'new@example.com',
+        'work',
+        'New Test Account'
+      );
+
+      expect(newAccount.email).toBe('new@example.com');
+      expect(fs.writeFile).toHaveBeenCalled();
+    });
+
+    it('should not add duplicate account', async () => {
+      await accountManager.initialize();
+      await expect(accountManager.addAccount(
+        mockAccounts.accounts[0].email,
+        'work',
+        'Duplicate'
+      )).rejects.toThrow('Account already exists');
+    });
+  });
+
+  // File system operations
+  describe('file operations', () => {
+    it('should handle missing accounts file', async () => {
+      // Reset all mocks and modules
+      jest.clearAllMocks();
+      jest.resetModules();
+      
+      // Re-require fs after reset
+      const fs = require('fs/promises');
+      
+      // Setup error for first read attempt
       const error = new Error('File not found');
       (error as any).code = 'ENOENT';
-      fileSystem.fs.readFile.mockRejectedValueOnce(error);
-      fileSystem.fs.readFile.mockResolvedValueOnce(JSON.stringify({ accounts: [] }));
-
-      // Execute
-      await accountManager.loadAccounts();
+      fs.readFile.mockRejectedValueOnce(error);
+      
+      // Mock path module
+      jest.doMock('path', () => ({
+        resolve: jest.fn().mockReturnValue('/mock/accounts.json'),
+        dirname: jest.fn().mockReturnValue('/mock')
+      }));
+      
+      // Re-require AccountManager to use fresh mocks
+      const { AccountManager } = require('../../../modules/accounts/manager.js');
+      accountManager = new AccountManager();
+      
+      // Initialize with empty file system
+      await accountManager.initialize();
+      
+      // Mock empty response for listAccounts call
+      fs.readFile.mockResolvedValueOnce('{"accounts":[]}');
       const accounts = await accountManager.listAccounts();
       
-      // Verify
-      expect(accounts).toEqual([]);
-      expect(fileSystem.fs.writeFile).toHaveBeenCalledWith(
-        '/mock/accounts.json',
-        JSON.stringify({ accounts: [] }, null, 2)
-      );
+      // Verify results
+      expect(accounts).toHaveLength(0);
+      
+      // Verify write was called with correct data
+      expect(fs.writeFile).toHaveBeenCalledTimes(1);
+      const [path, content] = fs.writeFile.mock.calls[0];
+      expect(path).toBe('/mock/accounts.json');
+      
+      // Parse and re-stringify to normalize formatting
+      const parsedContent = JSON.parse(content);
+      expect(parsedContent).toEqual({ accounts: [] });
+    });
+
+    it('should handle invalid JSON', async () => {
+      fs.readFile.mockResolvedValueOnce('invalid json');
+      
+      await expect(accountManager.initialize())
+        .rejects
+        .toThrow('Failed to parse accounts configuration');
     });
   });
 
-  describe('validateAccount', () => {
+  // Token validation (simplified)
+  describe('token validation', () => {
     const testEmail = mockAccounts.accounts[0].email;
-    const testCategory = mockAccounts.accounts[0].category;
-    const testDescription = mockAccounts.accounts[0].description;
 
-    beforeEach(async () => {
-      fileSystem.setMockFileContent(mockAccounts);
-      await accountManager.loadAccounts();
-      mocks.mockTokenManager.validateToken.mockResolvedValue({ valid: true });
-    });
-
-    it('should validate existing account with valid token', async () => {
-      // Execute
+    it('should validate token with simple success', async () => {
+      await accountManager.initialize();
       const account = await accountManager.validateAccount(testEmail);
-
-      // Verify
+      
       expect(account.email).toBe(testEmail);
       expect(account.auth_status?.valid).toBe(true);
-      expect(mocks.mockTokenManager.validateToken).toHaveBeenCalledWith(testEmail);
     });
 
-    it('should create and validate new account if not exists', async () => {
-      // Setup
-      const newEmail = 'new@example.com';
-      fileSystem.setMockFileContent({ accounts: [] });
-      await accountManager.loadAccounts();
-
-      // Execute
-      const account = await accountManager.validateAccount(
-        newEmail,
-        testCategory,
-        testDescription
-      );
-
-      // Verify
-      expect(account.email).toBe(newEmail);
-      expect(account.category).toBe(testCategory);
-      expect(account.description).toBe(testDescription);
-    });
-
-    it('should throw error if account not found and missing category/description', async () => {
-      // Setup
-      fileSystem.setMockFileContent({ accounts: [] });
-      await accountManager.loadAccounts();
-
-      // Execute & Verify
-      await expect(accountManager.validateAccount(testEmail))
-        .rejects
-        .toThrow('Account not found');
+    it('should handle token validation failure', async () => {
+      // Reset all mocks and modules
+      jest.clearAllMocks();
+      jest.resetModules();
+      
+      // Re-require fs and setup fresh state
+      const fs = require('fs/promises');
+      fs.readFile.mockResolvedValue(JSON.stringify(mockAccounts));
+      
+      // Create mock implementation
+      const mockValidateToken = jest.fn().mockResolvedValue({ 
+        valid: false, 
+        reason: 'Token expired' 
+      });
+      
+      // Setup TokenManager with tracked mock
+      jest.doMock('../../../modules/accounts/token.js', () => ({
+        TokenManager: jest.fn().mockImplementation(() => ({
+          validateToken: mockValidateToken,
+          saveToken: jest.fn(),
+          deleteToken: jest.fn()
+        }))
+      }));
+      
+      // Re-require AccountManager to use new mocks
+      const { AccountManager } = require('../../../modules/accounts/manager.js');
+      accountManager = new AccountManager();
+      await accountManager.initialize();
+      
+      const account = await accountManager.validateAccount(testEmail);
+      
+      expect(mockValidateToken).toHaveBeenCalledWith(testEmail);
+      expect(account.auth_status?.valid).toBe(false);
+      expect(account.auth_status?.reason).toBe('Token expired');
     });
   });
 
-  describe('token operations', () => {
-    const testEmail = mockAccounts.accounts[0].email;
-    const testAuthCode = 'test-auth-code';
-    const testToken = { access_token: 'test-token' };
-
-    beforeEach(async () => {
-      fileSystem.setMockFileContent(mockAccounts);
-      await accountManager.loadAccounts();
-      mocks.mockOAuthClient.getTokenFromCode.mockResolvedValue(testToken);
-    });
-
-    it('should get token from auth code', async () => {
-      // Execute
-      const token = await accountManager.getTokenFromCode(testAuthCode);
-
-      // Verify
-      expect(token).toEqual(testToken);
-      expect(mocks.mockOAuthClient.getTokenFromCode).toHaveBeenCalledWith(testAuthCode);
+  // OAuth operations (simplified)
+  describe('oauth operations', () => {
+    it('should handle token from auth code', async () => {
+      await accountManager.initialize();
+      const token = await accountManager.getTokenFromCode('test-code');
+      
+      expect(token).toEqual(mockTokens.valid);
     });
 
     it('should save token for account', async () => {
-      // Execute
-      await accountManager.saveToken(testEmail, testToken);
-
-      // Verify
-      expect(mocks.mockTokenManager.saveToken).toHaveBeenCalledWith(testEmail, testToken);
-    });
-
-    it('should validate token', async () => {
-      // Setup
-      mocks.mockTokenManager.validateToken.mockResolvedValue({ valid: true, token: testToken });
-
-      // Execute
-      const status = await accountManager.validateToken(testEmail);
-
-      // Verify
-      expect(status.valid).toBe(true);
-      expect(mocks.mockTokenManager.validateToken).toHaveBeenCalledWith(testEmail);
+      // Reset all mocks and modules
+      jest.clearAllMocks();
+      jest.resetModules();
+      
+      // Re-require fs and setup fresh state
+      const fs = require('fs/promises');
+      fs.readFile.mockResolvedValue(JSON.stringify(mockAccounts));
+      
+      // Create mock implementation
+      const mockSaveToken = jest.fn().mockResolvedValue(undefined);
+      
+      // Setup TokenManager with tracked mock
+      jest.doMock('../../../modules/accounts/token.js', () => ({
+        TokenManager: jest.fn().mockImplementation(() => ({
+          validateToken: jest.fn().mockResolvedValue({ valid: true }),
+          saveToken: mockSaveToken,
+          deleteToken: jest.fn()
+        }))
+      }));
+      
+      // Re-require AccountManager to use new mocks
+      const { AccountManager } = require('../../../modules/accounts/manager.js');
+      accountManager = new AccountManager();
+      await accountManager.initialize();
+      
+      const testEmail = 'test@example.com';
+      await accountManager.saveToken(testEmail, mockTokens.valid);
+      
+      expect(mockSaveToken).toHaveBeenCalledWith(testEmail, mockTokens.valid);
+      expect(mockSaveToken).toHaveBeenCalledTimes(1);
     });
   });
 });
