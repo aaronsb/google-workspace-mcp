@@ -35,6 +35,7 @@ export const mockFileSystem = () => {
   return {
     fs: mockFs,
     setMockFileContent: (content: any) => {
+      const stringContent = typeof content === 'string' ? content : JSON.stringify(content);
       mockFs.readFile.mockImplementation((path: string) => {
         if (path.includes('gauth.json')) {
           return Promise.resolve(JSON.stringify({
@@ -43,7 +44,7 @@ export const mockFileSystem = () => {
             redirect_uri: 'http://localhost:3000/oauth2callback'
           }));
         }
-        return Promise.resolve(JSON.stringify(content));
+        return Promise.resolve(stringContent);
       });
     },
   };
