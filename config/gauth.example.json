@@ -1,5 +1,7 @@
 {
-  "client_id": "your-client-id.apps.googleusercontent.com",
-  "client_secret": "your-client-secret",
-  "redirect_uri": "urn:ietf:wg:oauth:2.0:oob"
+  "client_id": "YOUR_CLIENT_ID.apps.googleusercontent.com",
+  "client_secret": "YOUR_CLIENT_SECRET",
+  "redirect_uri": "urn:ietf:wg:oauth:2.0:oob",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token"
 }

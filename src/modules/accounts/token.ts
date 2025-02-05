@@ -29,8 +29,9 @@ export class TokenManager {
 
   async saveToken(email: string, tokenData: any): Promise<void> {
     try {
+      // Ensure base credentials directory exists
+      await fs.mkdir(this.credentialsPath, { recursive: true });
       const tokenPath = this.getTokenPath(email);
-      await fs.mkdir(path.dirname(tokenPath), { recursive: true });
       await fs.writeFile(tokenPath, JSON.stringify(tokenData, null, 2));
     } catch (error) {
       throw new AccountError(

@@ -28,7 +28,22 @@ export class GoogleOAuthClient {
     redirect_uri: string;
   }> {
     try {
-      const data = await fs.readFile(this.authConfigPath, 'utf-8');
+      // Ensure directory exists
+      await fs.mkdir(path.dirname(this.authConfigPath), { recursive: true });
+      
+      let data: string;
+      try {
+        data = await fs.readFile(this.authConfigPath, 'utf-8');
+      } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+          throw new AccountError(
+            'OAuth configuration file not found',
+            'AUTH_CONFIG_ERROR',
+            'Please ensure gauth.json exists with valid credentials'
+          );
+        }
+        throw error;
+      }
       return JSON.parse(data);
     } catch (error) {
       throw new AccountError(

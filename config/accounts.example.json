@@ -1,26 +1,25 @@
 {
-  "// IMPORTANT": "This is an example configuration file. Do not add real tokens here.",
-  "// SETUP": "1. Copy this file to accounts.json",
-  "// SETUP": "2. Update accounts.json with your real account details",
-  "// SETUP": "3. Never commit accounts.json to git - it should remain ignored",
   "accounts": [
     {
-      "email": "user@example.com",
-      "category": "work",
-      "description": "Work Google Account",
+      "email": "example@gmail.com",
+      "category": "personal",
+      "description": "Personal Google Account",
       "auth_status": {
-        "valid": false,
-        "token": null
+        "valid": true,
+        "token": {
+          "access_token": "YOUR_ACCESS_TOKEN",
+          "refresh_token": "YOUR_REFRESH_TOKEN",
+          "scope": "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
+          "token_type": "Bearer",
+          "expiry_date": 1737951212015,
+          "last_refresh": 1737947613015
+        }
       }
     },
     {
-      "email": "personal@gmail.com",
-      "category": "personal",
-      "description": "Personal Gmail Account",
-      "auth_status": {
-        "valid": false,
-        "token": null
-      }
+      "email": "work@company.com",
+      "category": "work",
+      "description": "Work Google Account"
     }
   ]
 }

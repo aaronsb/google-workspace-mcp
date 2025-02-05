@@ -42,7 +42,21 @@ export class AccountManager {
 
   async loadAccounts(): Promise<void> {
     try {
-      const data = await fs.readFile(this.accountsPath, 'utf-8');
+      // Ensure directory exists
+      await fs.mkdir(path.dirname(this.accountsPath), { recursive: true });
+      
+      let data: string;
+      try {
+        data = await fs.readFile(this.accountsPath, 'utf-8');
+      } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+          // Create empty accounts file if it doesn't exist
+          data = JSON.stringify({ accounts: [] });
+          await fs.writeFile(this.accountsPath, data);
+        } else {
+          throw error;
+        }
+      }
       const config = JSON.parse(data) as AccountsConfig;
       
       this.accounts.clear();
