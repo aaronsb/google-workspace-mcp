@@ -3,14 +3,16 @@ import { GoogleOAuthClient } from '../modules/accounts/oauth.js';
 import { TokenManager } from '../modules/accounts/token.js';
 import { mockTokens } from '../__fixtures__/accounts.js';
 import { gmail_v1 } from 'googleapis';
-import fs from 'fs/promises';
 
 export const mockFileSystem = () => {
-  jest.mock('fs/promises', () => ({
+  const mockFs = {
     mkdir: jest.fn().mockResolvedValue(undefined),
     readFile: jest.fn(),
     writeFile: jest.fn().mockResolvedValue(undefined),
-  }));
+    unlink: jest.fn().mockResolvedValue(undefined),
+  };
+
+  jest.mock('fs/promises', () => mockFs);
 
   jest.mock('path', () => ({
     join: jest.fn((dir, file) => `${dir}/${file}`),
@@ -19,9 +21,9 @@ export const mockFileSystem = () => {
   }));
 
   return {
-    fs,
+    fs: mockFs,
     setMockFileContent: (content: any) => {
-      (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify(content));
+      mockFs.readFile.mockResolvedValue(JSON.stringify(content));
     },
   };
 };

@@ -1,6 +1,5 @@
 import winston from 'winston';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
 // Get package info without using require
 const packageInfo = {
@@ -26,6 +25,7 @@ const logger = winston.createLogger({
   ],
 });
 
+// Add console transport in non-production
 if (process.env.NODE_ENV !== 'production') {
   logger.add(new winston.transports.Console({
     format: winston.format.combine(
