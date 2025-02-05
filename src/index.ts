@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { Logger } from './utils/logger.js';
+import logger from './utils/logger.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -565,7 +565,7 @@ class GSuiteServer {
       
       // Set up error handler for server
       this.server.onerror = (error) => {
-        Logger.error('Server error:', error);
+        logger.error('Server error:', error);
         // Don't exit on error, let the server try to recover
       };
       
@@ -596,6 +596,6 @@ process.on('SIGTERM', () => {
 
 // Start with error handling
 server.run().catch((error) => {
-  Logger.error('Fatal server error:', error);
+  logger.error('Fatal server error:', error);
   process.exit(1);
 });

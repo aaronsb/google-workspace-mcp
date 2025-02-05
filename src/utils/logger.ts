@@ -1,41 +1,35 @@
-import fs from 'fs';
+import winston from 'winston';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 
-// Get the directory name in ESM
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
+const { name, version } = require('../../package.json');
 
-// Create logs directory if it doesn't exist
-const logsDir = path.join(__dirname, '../../logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  defaultMeta: { service: `${name}@${version}` },
+  transports: [
+    new winston.transports.File({ 
+      filename: path.join('logs', 'error.log'), 
+      level: 'error' 
+    }),
+    new winston.transports.File({ 
+      filename: path.join('logs', 'combined.log') 
+    }),
+  ],
+});
+
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: winston.format.combine(
+      winston.format.colorize(),
+      winston.format.simple()
+    ),
+  }));
 }
 
-const logFile = path.join(logsDir, 'gsuite-mcp.log');
-
-export class Logger {
-  private static writeToFile(level: string, message: string) {
-    const timestamp = new Date().toISOString();
-    const logMessage = `${timestamp} [${level}] ${message}\n`;
-    
-    fs.appendFileSync(logFile, logMessage);
-  }
-
-  static info(message: string | object) {
-    const msg = typeof message === 'object' ? JSON.stringify(message, null, 2) : message;
-    this.writeToFile('INFO', msg);
-  }
-
-  static error(message: string | object, error?: Error) {
-    const msg = typeof message === 'object' ? JSON.stringify(message, null, 2) : message;
-    const errorDetails = error ? `\nError: ${error.message}\nStack: ${error.stack}` : '';
-    this.writeToFile('ERROR', `${msg}${errorDetails}`);
-  }
-
-  static debug(message: string | object) {
-    if (process.env.DEBUG) {
-      const msg = typeof message === 'object' ? JSON.stringify(message, null, 2) : message;
-      this.writeToFile('DEBUG', msg);
-    }
-  }
-}
+export default logger;

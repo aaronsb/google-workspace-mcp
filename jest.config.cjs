@@ -1,27 +1,23 @@
 /** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
-  preset: 'ts-jest',
+  preset: 'ts-jest/presets/default-esm',
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   transform: {
-    // Transform TypeScript files
     '^.+\\.tsx?$': [
       'ts-jest',
       {
         useESM: true,
-      },
-    ],
-    // Transform JavaScript files in build directory
-    '^.+\\.jsx?$': [
-      'babel-jest',
-      {
-        presets: [['@babel/preset-env', { targets: { node: 'current' } }]],
+        tsconfig: 'tsconfig.json'
       },
     ],
   },
-  transformIgnorePatterns: ['/node_modules/'],
-  setupFilesAfterEnv: ['<rootDir>/jest.setup.cjs'],
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
+  testMatch: ['**/__tests__/**/*.test.ts'],
+  transformIgnorePatterns: [
+    'node_modules/(?!(googleapis|google-auth-library)/)'
+  ]
 };
