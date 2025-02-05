@@ -17,8 +17,8 @@
     "inspector": "npx @modelcontextprotocol/inspector build/index.js",
     "start": "node build/index.js",
     "setup": "node build/scripts/setup-google-env.js",
-    "test": "jest",
-    "test:watch": "jest --watch"
+    "test": "jest --config jest.config.cjs",
+    "test:watch": "jest --config jest.config.cjs --watch"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "0.6.0",
