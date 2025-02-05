@@ -60,7 +60,7 @@ class GSuiteServer {
         },
         {
           name: 'authenticate_workspace_account',
-          description: 'Add and authenticate a Google account for API access',
+          description: 'Add and authenticate a Google account for API access. IMPORTANT: When authenticating, always use the exact auth_url from the API response to ensure all OAuth parameters are preserved correctly.',
           inputSchema: {
             type: 'object',
             properties: {

@@ -70,6 +70,13 @@ export class GoogleOAuthClient {
     return this.oauth2Client;
   }
 
+  /**
+   * Generates the OAuth authorization URL
+   * IMPORTANT: When using the generated URL, always use it exactly as returned.
+   * Do not attempt to modify, reformat, or reconstruct the URL as this can break
+   * the authentication flow. The URL contains carefully encoded parameters that
+   * must be preserved exactly as provided.
+   */
   async generateAuthUrl(scopes: string[]): Promise<string> {
     await this.ensureInitialized();
     return this.oauth2Client!.generateAuthUrl({
