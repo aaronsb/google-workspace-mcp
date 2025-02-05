@@ -11,10 +11,11 @@ describe('AccountManager', () => {
   const { fileSystem, accountManager: mocks } = setupTestEnvironment();
   let accountManager: AccountManager;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
     process.env.ACCOUNTS_FILE = '/mock/accounts.json';
     accountManager = new AccountManager();
+    await accountManager.initialize(); // Initialize before each test
   });
 
   describe('loadAccounts', () => {
@@ -47,7 +48,7 @@ describe('AccountManager', () => {
       expect(accounts).toEqual([]);
       expect(fileSystem.fs.writeFile).toHaveBeenCalledWith(
         '/mock/accounts.json',
-        JSON.stringify({ accounts: [] })
+        JSON.stringify({ accounts: [] }, null, 2)
       );
     });
   });
