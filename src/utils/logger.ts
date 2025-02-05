@@ -1,9 +1,12 @@
 import winston from 'winston';
 import path from 'path';
-import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
 
-const require = createRequire(import.meta.url);
-const { name, version } = require('../../package.json');
+// Get package info without using require
+const packageInfo = {
+  name: 'GSuite OAuth MCP Server',
+  version: '0.1.0'
+};
 
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
@@ -11,7 +14,7 @@ const logger = winston.createLogger({
     winston.format.timestamp(),
     winston.format.json()
   ),
-  defaultMeta: { service: `${name}@${version}` },
+  defaultMeta: { service: `${packageInfo.name}@${packageInfo.version}` },
   transports: [
     new winston.transports.File({ 
       filename: path.join('logs', 'error.log'), 
