@@ -1,43 +1,54 @@
 # Active Context
 
 ## Current Task
-Investigating potential code duplication in the codebase.
+Testing and verification of the MCP server implementation, focusing on the dev-add-tests branch.
 
-## Recent Analysis
-1. Completed code analysis of:
-   - Gmail and Calendar service implementations
-   - Account management system
-   - Token handling mechanisms
-   - Error handling patterns
+## Recent Changes
+1. Fixed Account Manager Tests:
+   - Fixed loadAccounts functionality with proper Map structure handling
+   - Added proper initialization in validateAccount tests
+   - Added better error handling with specific AccountError types
+   - Fixed fs mocks including mkdir and dirname
 
-2. Identified Duplication Areas:
-   - Service Module Authentication: Both services implement similar client initialization
-   - Error Handling: Redundant error classes and handling patterns
-   - Token Management: Scattered token validation and refresh logic
-   - API Response Processing: Similar transformation patterns
-   - Configuration: Duplicate environment handling
-   - Tool Registration: Repeated registration patterns
+2. Fixed Calendar Service Tests:
+   - Updated date format expectations to match ISO string format
+   - Fixed createEvent response validation
+   - Added comprehensive tests for optional parameters
+   - Added tests for invalid date handling
 
-3. Proposed Solutions:
-   - Create BaseGoogleService for common service patterns
-   - Implement unified error handling system
-   - Centralize token management
-   - Create shared API utilities
-   - Develop unified configuration system
-   - Build tool registration utility
+3. Improved Error Handling:
+   - Added better error handling in OAuth client
+   - Added debug logging for auth config loading
+   - Fixed error message expectations in tests
+
+## Test Coverage Status
+- Account manager: 14 tests passing
+- Calendar service: 11 tests passing
+- Gmail service: 6 tests passing
+- Total: 31 tests passing across all suites
 
 ## Next Steps
-1. Implementation Priority:
-   - Start with BaseGoogleService class
-   - Gradually refactor error handling
-   - Consolidate token management
-   - Create shared utilities
-   - Update configuration system
-   - Streamline tool registration
+1. Add more test cases:
+   - Edge conditions and error scenarios
+   - Token refresh flows
+   - Rate limiting handling
+   - Invalid input handling
+   - Concurrent operations
 
-2. Expected Benefits:
-   - 30-40% reduction in code duplication
-   - Improved maintainability
-   - Easier service additions
-   - Consistent error handling
-   - Simplified auth flows
+2. Test MCP server operations:
+   - Tool registration
+   - Request validation
+   - Error propagation
+   - Authentication flows
+   - Response formatting
+
+3. Review and improve:
+   - Error messages clarity
+   - Test organization
+   - Mock implementations
+   - Documentation coverage
+
+4. Final Steps:
+   - Complete thorough testing
+   - Review test coverage
+   - Merge dev-add-tests to main
