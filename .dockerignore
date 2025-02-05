@@ -7,7 +7,6 @@ npm-debug.log
 coverage
 docs
 cline_docs
-src/__tests__
 *.md
 !README.md
 config/*

@@ -12,8 +12,8 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build TypeScript code
-RUN npm run build
+# Build TypeScript code and run tests
+RUN npm run build && npm test
 
 # Runtime stage
 FROM node:20-slim
