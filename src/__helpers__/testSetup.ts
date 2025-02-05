@@ -26,13 +26,20 @@ export const mockFileSystem = () => {
   return {
     fs: mockFs,
     setMockFileContent: (content: any) => {
+      console.log('Setting mock content:', content);
       if (typeof content === 'string') {
-        mockFs.readFile.mockResolvedValue(content);
-      } else if (content === null || content === undefined) {
-        mockFs.readFile.mockResolvedValue('{"accounts":[]}');
-      } else {
-        // Handle different paths
         mockFs.readFile.mockImplementation((path: string) => {
+          console.log('Reading file (string):', path);
+          return Promise.resolve(content);
+        });
+      } else if (content === null || content === undefined) {
+        mockFs.readFile.mockImplementation((path: string) => {
+          console.log('Reading file (null/undefined):', path);
+          return Promise.resolve('{"accounts":[]}');
+        });
+      } else {
+        mockFs.readFile.mockImplementation((path: string) => {
+          console.log('Reading file (object):', path);
           if (path.includes('gauth.json')) {
             return Promise.resolve(JSON.stringify({
               client_id: 'mock-client-id',
@@ -40,10 +47,9 @@ export const mockFileSystem = () => {
               redirect_uri: 'http://localhost:3000/oauth2callback'
             }));
           }
-          if (path.includes('accounts.json')) {
-            return Promise.resolve(JSON.stringify(content));
-          }
-          return Promise.resolve('{}');
+          const mockData = JSON.stringify(content);
+          console.log('Mock data:', mockData);
+          return Promise.resolve(mockData);
         });
       }
     },
