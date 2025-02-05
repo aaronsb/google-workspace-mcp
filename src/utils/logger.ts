@@ -7,6 +7,9 @@ const packageInfo = {
   version: '0.1.0'
 };
 
+// Create logs directory if it doesn't exist
+const logsDir = 'logs';
+
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
@@ -15,23 +18,23 @@ const logger = winston.createLogger({
   ),
   defaultMeta: { service: `${packageInfo.name}@${packageInfo.version}` },
   transports: [
-    new winston.transports.File({ 
-      filename: path.join('logs', 'error.log'), 
-      level: 'error' 
-    }),
-    new winston.transports.File({ 
-      filename: path.join('logs', 'combined.log') 
-    }),
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      ),
+    })
   ],
 });
 
-// Add console transport in non-production
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: winston.format.combine(
-      winston.format.colorize(),
-      winston.format.simple()
-    ),
+// Only add file transports in production
+if (process.env.NODE_ENV === 'production') {
+  logger.add(new winston.transports.File({ 
+    filename: 'logs/error.log', 
+    level: 'error' 
+  }));
+  logger.add(new winston.transports.File({ 
+    filename: 'logs/combined.log' 
   }));
 }
 
