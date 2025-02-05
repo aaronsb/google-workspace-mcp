@@ -20,32 +20,32 @@ export const mockFileSystem = () => {
     dirname: jest.fn(() => '/mock'),
   }));
 
-  // Set up mock OAuth config
-  mockFs.readFile.mockImplementation((path: string) => {
-    if (path.includes('gauth.json')) {
-      return Promise.resolve(JSON.stringify({
-        client_id: 'mock-client-id',
-        client_secret: 'mock-client-secret',
-        redirect_uri: 'http://localhost:3000/oauth2callback'
-      }));
-    }
-    return Promise.resolve('{}');
-  });
+  // Default empty response
+  mockFs.readFile.mockResolvedValue('{"accounts":[]}');
 
   return {
     fs: mockFs,
     setMockFileContent: (content: any) => {
-      const stringContent = typeof content === 'string' ? content : JSON.stringify(content);
-      mockFs.readFile.mockImplementation((path: string) => {
-        if (path.includes('gauth.json')) {
-          return Promise.resolve(JSON.stringify({
-            client_id: 'mock-client-id',
-            client_secret: 'mock-client-secret',
-            redirect_uri: 'http://localhost:3000/oauth2callback'
-          }));
-        }
-        return Promise.resolve(stringContent);
-      });
+      if (typeof content === 'string') {
+        mockFs.readFile.mockResolvedValue(content);
+      } else if (content === null || content === undefined) {
+        mockFs.readFile.mockResolvedValue('{"accounts":[]}');
+      } else {
+        // Handle different paths
+        mockFs.readFile.mockImplementation((path: string) => {
+          if (path.includes('gauth.json')) {
+            return Promise.resolve(JSON.stringify({
+              client_id: 'mock-client-id',
+              client_secret: 'mock-client-secret',
+              redirect_uri: 'http://localhost:3000/oauth2callback'
+            }));
+          }
+          if (path.includes('accounts.json')) {
+            return Promise.resolve(JSON.stringify(content));
+          }
+          return Promise.resolve('{}');
+        });
+      }
     },
   };
 };
