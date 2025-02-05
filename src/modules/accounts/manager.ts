@@ -4,6 +4,7 @@ import { Account, AccountsConfig, AccountError, AccountModuleConfig } from './ty
 import { scopeRegistry } from '../tools/scope-registry.js';
 import { TokenManager } from './token.js';
 import { GoogleOAuthClient } from './oauth.js';
+import { Logger } from '../../utils/logger.js';
 
 export class AccountManager {
   private readonly accountsPath: string;
@@ -19,11 +20,14 @@ export class AccountManager {
   }
 
   async initialize(): Promise<void> {
+    Logger.info('Initializing AccountManager...');
     await this.oauthClient.ensureInitialized();
     await this.loadAccounts();
+    Logger.info('AccountManager initialized successfully');
   }
 
   async listAccounts(): Promise<Account[]> {
+    Logger.debug('Listing accounts with auth status');
     await this.loadAccounts();
     const accounts = Array.from(this.accounts.values());
     
@@ -32,6 +36,7 @@ export class AccountManager {
       account.auth_status = await this.tokenManager.validateToken(account.email);
     }
     
+    Logger.debug(`Found ${accounts.length} accounts`);
     return accounts;
   }
 
@@ -42,6 +47,7 @@ export class AccountManager {
 
   async loadAccounts(): Promise<void> {
     try {
+      Logger.debug(`Loading accounts from ${this.accountsPath}`);
       // Ensure directory exists
       await fs.mkdir(path.dirname(this.accountsPath), { recursive: true });
       
@@ -51,6 +57,7 @@ export class AccountManager {
       } catch (error) {
         if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
           // Create empty accounts file if it doesn't exist
+          Logger.info('Creating new accounts file');
           data = JSON.stringify({ accounts: [] });
           await fs.writeFile(this.accountsPath, data);
         } else {
@@ -106,7 +113,9 @@ export class AccountManager {
   }
 
   async addAccount(email: string, category: string, description: string): Promise<Account> {
+    Logger.info(`Adding new account: ${email}`);
     if (!this.validateEmail(email)) {
+      Logger.error(`Invalid email format: ${email}`);
       throw new AccountError(
         'Invalid email format',
         'INVALID_EMAIL',
@@ -154,7 +163,9 @@ export class AccountManager {
   }
 
   async removeAccount(email: string): Promise<void> {
+    Logger.info(`Removing account: ${email}`);
     if (!this.accounts.has(email)) {
+      Logger.error(`Account not found: ${email}`);
       throw new AccountError(
         'Account not found',
         'ACCOUNT_NOT_FOUND',
@@ -168,6 +179,7 @@ export class AccountManager {
     // Then remove account
     this.accounts.delete(email);
     await this.saveAccounts();
+    Logger.info(`Successfully removed account: ${email}`);
   }
 
   async getAccount(email: string): Promise<Account | null> {
@@ -179,6 +191,7 @@ export class AccountManager {
     category?: string,
     description?: string
   ): Promise<Account> {
+    Logger.debug(`Validating account: ${email}`);
     let account = await this.getAccount(email);
 
     if (!account && category && description) {

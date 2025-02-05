@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { Logger } from './utils/logger.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -552,8 +553,6 @@ class GSuiteServer {
 
   async run(): Promise<void> {
     try {
-      console.error('Initializing Google Workspace MCP server...');
-      
       // Register scopes for all tools
       registerGmailScopes();
       registerCalendarScopes();
@@ -566,7 +565,7 @@ class GSuiteServer {
       
       // Set up error handler for server
       this.server.onerror = (error) => {
-        console.error('Server error:', error);
+        Logger.error('Server error:', error);
         // Don't exit on error, let the server try to recover
       };
       
@@ -574,13 +573,10 @@ class GSuiteServer {
       const transport = new StdioServerTransport();
       try {
         await this.server.connect(transport);
-        console.error('Google Workspace MCP server running successfully');
       } catch (error) {
-        console.error('Failed to connect to transport:', error);
         throw error;
       }
     } catch (error) {
-      console.error('Failed to initialize server:', error);
       throw error;
     }
   }
@@ -591,17 +587,15 @@ const server = new GSuiteServer();
 
 // Handle process signals
 process.on('SIGINT', () => {
-  console.error('Shutting down Google Workspace MCP server...');
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-  console.error('Shutting down Google Workspace MCP server...');
   process.exit(0);
 });
 
 // Start with error handling
 server.run().catch((error) => {
-  console.error('Fatal server error:', error);
+  Logger.error('Fatal server error:', error);
   process.exit(1);
 });

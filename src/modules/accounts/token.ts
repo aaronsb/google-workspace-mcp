@@ -3,6 +3,7 @@ import path from 'path';
 import { AccountError, TokenStatus } from './types.js';
 import { scopeRegistry } from '../tools/scope-registry.js';
 import { GoogleOAuthClient } from './oauth.js';
+import { Logger } from '../../utils/logger.js';
 
 /**
  * Manages OAuth token operations.
@@ -28,11 +29,13 @@ export class TokenManager {
   }
 
   async saveToken(email: string, tokenData: any): Promise<void> {
+    Logger.info(`Saving token for account: ${email}`);
     try {
       // Ensure base credentials directory exists
       await fs.mkdir(this.credentialsPath, { recursive: true });
       const tokenPath = this.getTokenPath(email);
       await fs.writeFile(tokenPath, JSON.stringify(tokenData, null, 2));
+      Logger.debug(`Token saved successfully at: ${tokenPath}`);
     } catch (error) {
       throw new AccountError(
         'Failed to save token',
@@ -43,6 +46,7 @@ export class TokenManager {
   }
 
   async loadToken(email: string): Promise<any> {
+    Logger.debug(`Loading token for account: ${email}`);
     try {
       // First try loading from file
       const tokenPath = this.getTokenPath(email);
@@ -52,14 +56,17 @@ export class TokenManager {
       } catch (error) {
         if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
           // File doesn't exist, try environment variable
+          Logger.debug('Token file not found, checking environment variable');
           const envKey = `GOOGLE_TOKEN_${email.replace(/[@.]/g, '_').toUpperCase()}`;
           const envToken = process.env[envKey];
           if (envToken) {
+            Logger.info('Found token in environment variable, saving to file');
             const tokenData = JSON.parse(Buffer.from(envToken, 'base64').toString());
             // Save to file for future use
             await this.saveToken(email, tokenData);
             return tokenData;
           }
+          Logger.debug('No token found in environment variable');
           return null;
         }
         throw error;
@@ -74,9 +81,11 @@ export class TokenManager {
   }
 
   async deleteToken(email: string): Promise<void> {
+    Logger.info(`Deleting token for account: ${email}`);
     try {
       const tokenPath = this.getTokenPath(email);
       await fs.unlink(tokenPath);
+      Logger.debug('Token file deleted successfully');
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code !== 'ENOENT') {
         throw new AccountError(
@@ -93,9 +102,11 @@ export class TokenManager {
    * No scope validation - auth issues handled via 401 responses.
    */
   async validateToken(email: string): Promise<TokenStatus> {
+    Logger.debug(`Validating token for account: ${email}`);
     const token = await this.loadToken(email);
     
     if (!token) {
+      Logger.debug('No token found');
       return {
         valid: false,
         reason: 'No token found'
@@ -103,27 +114,32 @@ export class TokenManager {
     }
 
     if (token.expiry_date && token.expiry_date < Date.now()) {
+      Logger.debug('Token has expired, attempting refresh');
       if (token.refresh_token && this.oauthClient) {
         try {
           const newToken = await this.oauthClient.refreshToken(token.refresh_token);
           await this.saveToken(email, newToken);
+          Logger.info('Token refreshed successfully');
           return {
             valid: true,
             token: newToken
           };
         } catch (error) {
+          Logger.error('Token refresh failed', error as Error);
           return {
             valid: false,
             reason: 'Token refresh failed'
           };
         }
       }
+      Logger.debug('No refresh token available');
       return {
         valid: false,
         reason: 'Token expired'
       };
     }
 
+    Logger.debug('Token is valid');
     return {
       valid: true,
       token

@@ -2,6 +2,7 @@ import { OAuth2Client } from 'google-auth-library';
 import fs from 'fs/promises';
 import path from 'path';
 import { AccountError } from './types.js';
+import { Logger } from '../../utils/logger.js';
 
 export class GoogleOAuthClient {
   private oauth2Client?: OAuth2Client;
@@ -13,12 +14,14 @@ export class GoogleOAuthClient {
 
   async ensureInitialized(): Promise<void> {
     if (!this.oauth2Client) {
+      Logger.info('Initializing OAuth client...');
       const config = await this.loadAuthConfig();
       this.oauth2Client = new OAuth2Client(
         config.client_id,
         config.client_secret,
         config.redirect_uri
       );
+      Logger.info('OAuth client initialized successfully');
     }
   }
 
@@ -28,14 +31,14 @@ export class GoogleOAuthClient {
     redirect_uri: string;
   }> {
     try {
-      console.log('Loading auth config from:', this.authConfigPath);
+      Logger.debug(`Loading auth config from: ${this.authConfigPath}`);
       // Ensure directory exists
       await fs.mkdir(path.dirname(this.authConfigPath), { recursive: true });
       
       let data: string;
       try {
         data = await fs.readFile(this.authConfigPath, 'utf-8');
-        console.log('Successfully read auth config');
+        Logger.debug('Successfully read auth config');
       } catch (error) {
         if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
           throw new AccountError(
@@ -47,7 +50,7 @@ export class GoogleOAuthClient {
         throw error;
       }
       const config = JSON.parse(data);
-      console.log('Successfully parsed auth config');
+      Logger.debug('Successfully parsed auth config');
       return config;
     } catch (error) {
       throw new AccountError(
@@ -78,18 +81,23 @@ export class GoogleOAuthClient {
    * must be preserved exactly as provided.
    */
   async generateAuthUrl(scopes: string[]): Promise<string> {
+    Logger.info('Generating OAuth authorization URL');
     await this.ensureInitialized();
-    return this.oauth2Client!.generateAuthUrl({
+    const url = this.oauth2Client!.generateAuthUrl({
       access_type: 'offline',
       scope: scopes,
       prompt: 'consent'
     });
+    Logger.debug('Authorization URL generated successfully');
+    return url;
   }
 
   async getTokenFromCode(code: string): Promise<any> {
+    Logger.info('Exchanging authorization code for tokens');
     await this.ensureInitialized();
     try {
       const { tokens } = await this.oauth2Client!.getToken(code);
+      Logger.info('Successfully obtained tokens from auth code');
       return tokens;
     } catch (error) {
       throw new AccountError(
@@ -101,12 +109,14 @@ export class GoogleOAuthClient {
   }
 
   async refreshToken(refreshToken: string): Promise<any> {
+    Logger.info('Refreshing access token');
     await this.ensureInitialized();
     try {
       this.oauth2Client!.setCredentials({
         refresh_token: refreshToken
       });
       const { credentials } = await this.oauth2Client!.refreshAccessToken();
+      Logger.info('Successfully refreshed access token');
       return credentials;
     } catch (error) {
       throw new AccountError(
