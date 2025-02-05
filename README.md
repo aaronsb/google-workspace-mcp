@@ -1,5 +1,7 @@
 # Google Workspace MCP Server
 
+[![smithery badge](https://smithery.ai/badge/@aaronsb/google-workspace-mcp)](https://smithery.ai/server/@aaronsb/google-workspace-mcp)
+
 A Model Context Protocol (MCP) server that provides authenticated access to Google Workspace APIs, offering comprehensive Gmail and Calendar functionality.
 
 ## Features
@@ -36,6 +38,15 @@ A Model Context Protocol (MCP) server that provides authenticated access to Goog
 
 ## Getting Started
 
+### Installing via Smithery
+
+To install Google Workspace MCP Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@aaronsb/google-workspace-mcp):
+
+```bash
+npx -y @smithery/cli install @aaronsb/google-workspace-mcp --client claude
+```
+
+### Manual Installation
 1. **Initial Setup**
    ```bash
    # Clone the repository
