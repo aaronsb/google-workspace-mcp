@@ -61,11 +61,32 @@ npx -y @smithery/cli install @aaronsb/google-workspace-mcp --client claude
    ```
 
 2. **Setup Google Cloud Project**
-   - Create project in Google Cloud Console
-   - Enable Gmail API
-   - Configure OAuth consent screen
-   - Create OAuth 2.0 credentials
-   - Copy credentials to `config/gauth.json` (use `config/gauth.example.json` as template)
+   ⚠️ **IMPORTANT: Individual Setup Required**
+   Each user currently needs to set up their own Google Cloud Project. This is a temporary requirement as the project maintainer does not maintain a central application for security, cost, and logistics reasons.
+
+   Follow these steps to set up your own project:
+
+   1. Create or Select Project:
+      - Go to the [Google Cloud Console](https://console.cloud.google.com)
+      - Create a new project or select an existing one
+   
+   2. Enable Required APIs:
+      - Enable the Gmail API
+      - Enable the Google Calendar API
+   
+   3. Configure OAuth Consent Screen:
+      - Set up as an External app
+      - Add test users who will be using the application
+      - No need to submit for verification (only test users can access)
+   
+   4. Create OAuth 2.0 Credentials:
+      - Go to "Credentials" → "Create Credentials" → "OAuth client ID"
+      - Choose "Desktop app" or "Web application" as the application type
+      - For callback URL, you can use the default localhost callback
+        (The app uses out of band OAuth flow: urn:ietf:wg:oauth:2.0:oob)
+   
+   5. Save Credentials:
+      - Copy credentials to `config/gauth.json` using the template in `config/gauth.example.json`
 
 3. **Configure Accounts**
    - Copy `config/accounts.example.json` to `config/accounts.json` if not done by setup script
@@ -239,6 +260,7 @@ npm test -- --coverage
    - Implement proper retries
 
 3. **Configuration & Security**
+   - Each user maintains their own Google Cloud Project
    - Use environment variables
    - Secure credential storage
    - Regular token rotation
@@ -262,8 +284,11 @@ npm test -- --coverage
 
 2. **Authentication Errors**
    - Error: "Invalid OAuth credentials"
-   - Solution: Verify your Google Cloud project is properly configured and credentials in gauth.json are correct
-   - Ensure the OAuth consent screen is configured and the Gmail API is enabled
+   - Solution: 
+     - Verify your Google Cloud project is properly configured
+     - Ensure you've added yourself as a test user in the OAuth consent screen
+     - Check that both Gmail API and Google Calendar API are enabled
+     - Verify credentials in gauth.json match your OAuth client configuration
 
 3. **Token Issues**
    - Error: "Token refresh failed"
