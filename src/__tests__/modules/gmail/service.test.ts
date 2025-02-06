@@ -2,6 +2,10 @@ import { GmailService } from '../../../modules/gmail/service.js';
 import { mockGmailResponses } from '../../../__fixtures__/accounts.js';
 import { setupTestEnvironment } from '../../../__helpers__/testSetup.js';
 import { getAccountManager } from '../../../modules/accounts/index.js';
+import { SearchService } from '../../../modules/gmail/services/search.js';
+import { EmailService } from '../../../modules/gmail/services/email.js';
+import { DraftService } from '../../../modules/gmail/services/draft.js';
+import { SettingsService } from '../../../modules/gmail/services/settings.js';
 
 jest.mock('../../../modules/accounts/index.js');
 
@@ -11,9 +15,27 @@ describe('GmailService', () => {
   const testEmail = 'test@example.com';
 
   beforeEach(() => {
-    (getAccountManager as jest.Mock).mockReturnValue(mocks);
+    // Simple mock for account manager
+    (getAccountManager as jest.Mock).mockReturnValue({
+      getAuthClient: jest.fn().mockResolvedValue({})
+    });
+    
     gmailService = new GmailService();
-    (gmailService as any).getGmailClient = jest.fn().mockResolvedValue(mockGmailClient);
+    
+    // Create a minimal mock OAuth client
+    const mockOAuth2Client = {
+      setCredentials: jest.fn(),
+      getAccessToken: jest.fn(),
+      refreshAccessToken: jest.fn()
+    } as any;
+
+    // Mock internal services directly
+    (gmailService as any).gmailClient = mockGmailClient;
+    (gmailService as any).oauth2Client = mockOAuth2Client;
+    (gmailService as any).searchService = new SearchService();
+    (gmailService as any).emailService = new EmailService(mockGmailClient, mockOAuth2Client, (gmailService as any).searchService);
+    (gmailService as any).draftService = new DraftService(mockGmailClient, mockOAuth2Client, (gmailService as any).emailService);
+    (gmailService as any).settingsService = new SettingsService(mockGmailClient, mockOAuth2Client);
   });
 
   describe('getEmails', () => {
