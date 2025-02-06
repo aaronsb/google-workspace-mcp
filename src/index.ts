@@ -226,6 +226,100 @@ class GSuiteServer {
             required: ['email']
           }
         },
+        {
+          name: 'create_workspace_draft',
+          description: 'Create a new email draft, with support for both new emails and replies',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              email: {
+                type: 'string',
+                description: 'Email address of the Gmail account'
+              },
+              to: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'List of recipient email addresses'
+              },
+              subject: {
+                type: 'string',
+                description: 'Email subject'
+              },
+              body: {
+                type: 'string',
+                description: 'Email body content'
+              },
+              cc: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'List of CC recipient email addresses'
+              },
+              bcc: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'List of BCC recipient email addresses'
+              },
+              replyToMessageId: {
+                type: 'string',
+                description: 'Message ID to reply to (for creating reply drafts)'
+              },
+              threadId: {
+                type: 'string',
+                description: 'Thread ID for the email (optional for replies)'
+              },
+              references: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Reference message IDs for email threading'
+              },
+              inReplyTo: {
+                type: 'string',
+                description: 'Message ID being replied to (for email threading)'
+              }
+            },
+            required: ['email', 'to', 'subject', 'body']
+          }
+        },
+        {
+          name: 'get_workspace_drafts',
+          description: 'Get a list of email drafts',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              email: {
+                type: 'string',
+                description: 'Email address of the Gmail account'
+              },
+              maxResults: {
+                type: 'number',
+                description: 'Maximum number of drafts to return (default: 10)'
+              },
+              pageToken: {
+                type: 'string',
+                description: 'Page token for pagination'
+              }
+            },
+            required: ['email']
+          }
+        },
+        {
+          name: 'send_workspace_draft',
+          description: 'Send an existing draft',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              email: {
+                type: 'string',
+                description: 'Email address of the Gmail account'
+              },
+              draftId: {
+                type: 'string',
+                description: 'ID of the draft to send'
+              }
+            },
+            required: ['email', 'draftId']
+          }
+        },
         // Calendar Tools
         // Note: These tools require calendar.events.readonly scope for reading events
         // and calendar.events scope for creating/modifying events
@@ -518,6 +612,36 @@ class GSuiteServer {
               content: [{
                 type: 'text',
                 text: JSON.stringify(event, null, 2)
+              }]
+            };
+          }
+
+          case 'create_workspace_draft': {
+            const result = await getGmailService().createDraft(request.params.arguments as any);
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify(result, null, 2)
+              }]
+            };
+          }
+
+          case 'get_workspace_drafts': {
+            const result = await getGmailService().getDrafts(request.params.arguments as any);
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify(result, null, 2)
+              }]
+            };
+          }
+
+          case 'send_workspace_draft': {
+            const result = await getGmailService().sendDraft(request.params.arguments as any);
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify(result, null, 2)
               }]
             };
           }

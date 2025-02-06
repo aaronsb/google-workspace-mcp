@@ -206,6 +206,48 @@ Send an email from a Gmail account.
 }
 ```
 
+#### 4. create_workspace_draft
+Create a new email draft, with support for both new emails and replies.
+
+**Request Format**
+```typescript
+{
+  email: string;           // Email address of the Gmail account
+  to: string[];           // List of recipient email addresses
+  subject: string;        // Email subject
+  body: string;           // Email body content
+  cc?: string[];         // Optional CC recipients
+  bcc?: string[];        // Optional BCC recipients
+  replyToMessageId?: string;  // Message ID to reply to
+  threadId?: string;      // Thread ID for the email
+  references?: string[];  // Reference message IDs for threading
+  inReplyTo?: string;    // Message ID being replied to
+}
+```
+
+#### 5. get_workspace_drafts
+Get a list of email drafts with pagination support.
+
+**Request Format**
+```typescript
+{
+  email: string;           // Email address of the Gmail account
+  maxResults?: number;     // Maximum number of drafts (default: 10)
+  pageToken?: string;      // Page token for pagination
+}
+```
+
+#### 6. send_workspace_draft
+Send an existing draft.
+
+**Request Format**
+```typescript
+{
+  email: string;           // Email address of the Gmail account
+  draftId: string;        // ID of the draft to send
+}
+```
+
 ## Response Formats
 
 ### Success Response
