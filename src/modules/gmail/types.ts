@@ -79,6 +79,42 @@ export interface SendEmailResponse {
   labelIds?: string[];
 }
 
+export interface DraftEmailParams {
+  email: string;
+  to: string[];
+  subject: string;
+  body: string;
+  cc?: string[];
+  bcc?: string[];
+  replyToMessageId?: string;  // ID of message being replied to
+  threadId?: string;          // Thread ID for the reply
+  references?: string[];      // Message IDs being referenced (for reply chains)
+  inReplyTo?: string;        // Message ID being directly replied to
+}
+
+export interface GetDraftsParams {
+  email: string;
+  maxResults?: number;
+  pageToken?: string;
+}
+
+export interface DraftResponse {
+  id: string;
+  message: EmailResponse;
+  updated: string;
+}
+
+export interface GetDraftsResponse {
+  drafts: DraftResponse[];
+  nextPageToken?: string;
+  resultSizeEstimate?: number;
+}
+
+export interface SendDraftParams {
+  email: string;
+  draftId: string;
+}
+
 export interface GmailProfileData {
   emailAddress: string;
   messagesTotal: number;
