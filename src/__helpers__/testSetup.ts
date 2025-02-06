@@ -93,6 +93,12 @@ export const mockGmailClient = () => {
         get: jest.fn(() => Promise.resolve({ data: {} })),
         send: jest.fn(() => Promise.resolve({ data: {} })),
       },
+      drafts: {
+        create: jest.fn(() => Promise.resolve({ data: {} })),
+        list: jest.fn(() => Promise.resolve({ data: {} })),
+        get: jest.fn(() => Promise.resolve({ data: {} })),
+        send: jest.fn(() => Promise.resolve({ data: {} })),
+      },
       getProfile: jest.fn(() => Promise.resolve({ data: {} })),
       settings: {
         getAutoForwarding: jest.fn(() => Promise.resolve({ data: {} })),
