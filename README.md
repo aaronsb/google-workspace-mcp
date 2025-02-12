@@ -1,6 +1,7 @@
 # Google Workspace MCP Server
 
 [![smithery badge](https://smithery.ai/badge/@aaronsb/google-workspace-mcp)](https://smithery.ai/server/@aaronsb/google-workspace-mcp)
+[![glama badge](https://glama.ai/mcp/servers/0finyxgwlk/badge)](https://glama.ai/mcp/servers/0finyxgwlk)
 
 A Model Context Protocol (MCP) server that provides authenticated access to Google Workspace APIs, offering comprehensive Gmail and Calendar functionality.
 
@@ -69,22 +70,22 @@ npx -y @smithery/cli install @aaronsb/google-workspace-mcp --client claude
    1. Create or Select Project:
       - Go to the [Google Cloud Console](https://console.cloud.google.com)
       - Create a new project or select an existing one
-   
+
    2. Enable Required APIs:
       - Enable the Gmail API
       - Enable the Google Calendar API
-   
+
    3. Configure OAuth Consent Screen:
       - Set up as an External app
       - Add test users who will be using the application
       - No need to submit for verification (only test users can access)
-   
+
    4. Create OAuth 2.0 Credentials:
       - Go to "Credentials" → "Create Credentials" → "OAuth client ID"
       - Choose "Desktop app" or "Web application" as the application type
       - For callback URL, you can use the default localhost callback
         (The app uses out of band OAuth flow: urn:ietf:wg:oauth:2.0:oob)
-   
+
    5. Save Credentials:
       - Copy credentials to `config/gauth.json` using the template in `config/gauth.example.json`
 
@@ -136,7 +137,7 @@ Before running the container, prepare your configuration:
 2. Add these required files to your config directory:
    - `gauth.json`: Your Google OAuth credentials
    - `accounts.json`: Your account configurations
-   
+
 You can use the example files in `config/*.example.json` as templates.
 
 ### Running with Docker
@@ -284,7 +285,7 @@ npm test -- --coverage
 
 2. **Authentication Errors**
    - Error: "Invalid OAuth credentials"
-   - Solution: 
+   - Solution:
      - Verify your Google Cloud project is properly configured
      - Ensure you've added yourself as a test user in the OAuth consent screen
      - Check that both Gmail API and Google Calendar API are enabled
