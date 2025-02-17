@@ -7,11 +7,22 @@ A Model Context Protocol (MCP) server that provides authenticated access to Goog
 
 ## Docker Usage
 
-The MCP server can be run directly using Docker:
+The MCP server is self-configuring and securely stores sensitive data locally:
 
 ```bash
+# Create local config directory (recommended location)
+mkdir -p ~/.mcp/google-workspace-mcp
+
+# Run the container
 docker run -i --rm \
-  -v /path/to/your/config:/app/config \
+  -v /path/to/your/config:/app/config \  # Use your preferred location
+  -e GOOGLE_CLIENT_ID=your_client_id \
+  -e GOOGLE_CLIENT_SECRET=your_client_secret \
+  ghcr.io/aaronsb/google-workspace-mcp:latest
+
+# Example using recommended ~/.mcp location
+docker run -i --rm \
+  -v ~/.mcp/google-workspace-mcp:/app/config \
   -e GOOGLE_CLIENT_ID=your_client_id \
   -e GOOGLE_CLIENT_SECRET=your_client_secret \
   ghcr.io/aaronsb/google-workspace-mcp:latest
@@ -19,18 +30,28 @@ docker run -i --rm \
 
 ### Required Environment Variables
 
-- `GOOGLE_CLIENT_ID`: Your Google OAuth client ID
+- `GOOGLE_CLIENT_ID`: Your Google OAuth client ID (from Google Cloud Console)
 - `GOOGLE_CLIENT_SECRET`: Your Google OAuth client secret
 
-### Optional Volume Mount
+### Local Configuration
 
-You can optionally mount a config directory to persist account data:
+The container requires a local directory mounted to `/app/config` to store sensitive data:
+- `gauth.json`: OAuth credentials (created on first run)
+- `accounts.json`: Account tokens and settings
+- `credentials/`: Additional authentication data
 
-```bash
--v /path/to/your/config:/app/config
-```
+While you can use any location for your config directory, we recommend using `~/.mcp/google-workspace-mcp` as it:
+- Follows the Unix convention of using dotfiles for configuration
+- Keeps sensitive data in your home directory
+- Matches common practices of other MCP servers
 
-This will store account tokens and settings between container runs.
+The container will automatically:
+1. Create necessary config files if they don't exist
+2. Initialize an empty accounts list if needed
+3. Use provided OAuth credentials for Google Workspace authentication
+4. Maintain proper file permissions for security
+
+All sensitive data (tokens, credentials) persists locally between container runs, ensuring secure and consistent access to your Google Workspace accounts.
 
 ### Development Build
 

@@ -10,6 +10,8 @@ export const mockFileSystem = () => {
     readFile: jest.fn(),
     writeFile: jest.fn().mockResolvedValue(undefined),
     unlink: jest.fn().mockResolvedValue(undefined),
+    access: jest.fn().mockResolvedValue(undefined), // Add access check
+    chmod: jest.fn().mockResolvedValue(undefined), // Add chmod for permissions
   };
 
   jest.mock('fs/promises', () => mockFs);
@@ -17,11 +19,21 @@ export const mockFileSystem = () => {
   jest.mock('path', () => ({
     join: jest.fn((dir, file) => `${dir}/${file}`),
     resolve: jest.fn((...args) => args.join('/')),
-    dirname: jest.fn(() => '/mock'),
+    dirname: jest.fn(() => '/app/config'),  // Update to container path
   }));
 
   // Default empty response
   mockFs.readFile.mockResolvedValue('{"accounts":[]}');
+
+  // Mock directory access check
+  mockFs.access.mockImplementation((path) => {
+    if (path === '/app/config') {
+      return Promise.resolve();
+    }
+    const error = new Error('Directory not accessible');
+    (error as any).code = 'ENOENT';
+    return Promise.reject(error);
+  });
 
   return {
     fs: mockFs,
@@ -120,8 +132,11 @@ export const setupTestEnvironment = () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.ACCOUNTS_FILE = '/mock/accounts.json';
-    process.env.AUTH_CONFIG_FILE = '/mock/gauth.json';
+    process.env.ACCOUNTS_FILE = '/app/config/accounts.json';
+    process.env.AUTH_CONFIG_FILE = '/app/config/gauth.json';
+    process.env.CREDENTIALS_DIR = '/app/config/credentials';
+    process.env.GOOGLE_CLIENT_ID = 'test-client-id';
+    process.env.GOOGLE_CLIENT_SECRET = 'test-client-secret';
   });
 
   return {

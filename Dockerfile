@@ -7,6 +7,7 @@ RUN npm install
 COPY . .
 RUN npm run build && \
     chmod +x build/index.js && \
+    chmod +x docker-entrypoint.sh && \
     mkdir -p config
 
-ENTRYPOINT ["node", "build/index.js"]
+ENTRYPOINT ["./docker-entrypoint.sh"]
