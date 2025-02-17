@@ -1,75 +1,32 @@
 import { OAuth2Client } from 'google-auth-library';
-import fs from 'fs/promises';
-import path from 'path';
 import { AccountError } from './types.js';
 import logger from '../../utils/logger.js';
 
 export class GoogleOAuthClient {
-  private oauth2Client?: OAuth2Client;
-  private readonly authConfigPath: string;
+  private oauth2Client: OAuth2Client;
 
   constructor() {
-    this.authConfigPath = process.env.AUTH_CONFIG_FILE || path.resolve('config', 'gauth.json');
-  }
-
-  async ensureInitialized(): Promise<void> {
-    if (!this.oauth2Client) {
-      logger.info('Initializing OAuth client...');
-      const config = await this.loadAuthConfig();
-      this.oauth2Client = new OAuth2Client(
-        config.client_id,
-        config.client_secret,
-        config.redirect_uri
-      );
-      logger.info('OAuth client initialized successfully');
-    }
-  }
-
-  private async loadAuthConfig(): Promise<{
-    client_id: string;
-    client_secret: string;
-    redirect_uri: string;
-  }> {
-    try {
-      logger.debug(`Loading auth config from: ${this.authConfigPath}`);
-      // Ensure directory exists
-      await fs.mkdir(path.dirname(this.authConfigPath), { recursive: true });
-      
-      let data: string;
-      try {
-        data = await fs.readFile(this.authConfigPath, 'utf-8');
-        logger.debug('Successfully read auth config');
-      } catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-          throw new AccountError(
-            'OAuth configuration file not found',
-            'AUTH_CONFIG_ERROR',
-            'Please ensure gauth.json exists with valid credentials'
-          );
-        }
-        throw error;
-      }
-      const config = JSON.parse(data);
-      logger.debug('Successfully parsed auth config');
-      return config;
-    } catch (error) {
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    
+    if (!clientId || !clientSecret) {
       throw new AccountError(
-        'Failed to load OAuth configuration',
+        'Missing OAuth credentials',
         'AUTH_CONFIG_ERROR',
-        'Please ensure gauth.json exists and contains valid credentials'
+        'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be provided'
       );
     }
+
+    logger.info('Initializing OAuth client...');
+    this.oauth2Client = new OAuth2Client(
+      clientId,
+      clientSecret,
+      'urn:ietf:wg:oauth:2.0:oob'
+    );
+    logger.info('OAuth client initialized successfully');
   }
 
-  async getAuthClient(): Promise<OAuth2Client> {
-    await this.ensureInitialized();
-    if (!this.oauth2Client) {
-      throw new AccountError(
-        'OAuth client not initialized',
-        'AUTH_CLIENT_ERROR',
-        'Please ensure the OAuth client is properly initialized'
-      );
-    }
+  getAuthClient(): OAuth2Client {
     return this.oauth2Client;
   }
 
@@ -82,8 +39,7 @@ export class GoogleOAuthClient {
    */
   async generateAuthUrl(scopes: string[]): Promise<string> {
     logger.info('Generating OAuth authorization URL');
-    await this.ensureInitialized();
-    const url = this.oauth2Client!.generateAuthUrl({
+    const url = this.oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: scopes,
       prompt: 'consent'
@@ -94,9 +50,8 @@ export class GoogleOAuthClient {
 
   async getTokenFromCode(code: string): Promise<any> {
     logger.info('Exchanging authorization code for tokens');
-    await this.ensureInitialized();
     try {
-      const { tokens } = await this.oauth2Client!.getToken(code);
+      const { tokens } = await this.oauth2Client.getToken(code);
       logger.info('Successfully obtained tokens from auth code');
       return tokens;
     } catch (error) {
@@ -110,9 +65,8 @@ export class GoogleOAuthClient {
 
   async refreshToken(refreshToken: string): Promise<any> {
     logger.info('Refreshing access token');
-    await this.ensureInitialized();
     try {
-      this.oauth2Client!.setCredentials({
+      this.oauth2Client.setCredentials({
         refresh_token: refreshToken
       });
       const { credentials } = await this.oauth2Client!.refreshAccessToken();

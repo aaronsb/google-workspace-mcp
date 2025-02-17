@@ -15,7 +15,8 @@ export class TokenManager {
   private oauthClient?: GoogleOAuthClient;
 
   constructor(oauthClient?: GoogleOAuthClient) {
-    this.credentialsPath = process.env.CREDENTIALS_DIR || path.resolve('config', 'credentials');
+    // Use the mounted config directory for persistent storage
+    this.credentialsPath = path.resolve('/app/config/credentials');
     this.oauthClient = oauthClient;
   }
 
@@ -48,29 +49,9 @@ export class TokenManager {
   async loadToken(email: string): Promise<any> {
     logger.debug(`Loading token for account: ${email}`);
     try {
-      // First try loading from file
       const tokenPath = this.getTokenPath(email);
-      try {
-        const data = await fs.readFile(tokenPath, 'utf-8');
-        return JSON.parse(data);
-      } catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
-          // File doesn't exist, try environment variable
-          logger.debug('Token file not found, checking environment variable');
-          const envKey = `GOOGLE_TOKEN_${email.replace(/[@.]/g, '_').toUpperCase()}`;
-          const envToken = process.env[envKey];
-          if (envToken) {
-            logger.info('Found token in environment variable, saving to file');
-            const tokenData = JSON.parse(Buffer.from(envToken, 'base64').toString());
-            // Save to file for future use
-            await this.saveToken(email, tokenData);
-            return tokenData;
-          }
-          logger.debug('No token found in environment variable');
-          return null;
-        }
-        throw error;
-      }
+      const data = await fs.readFile(tokenPath, 'utf-8');
+      return JSON.parse(data);
     } catch (error) {
       throw new AccountError(
         'Failed to load token',

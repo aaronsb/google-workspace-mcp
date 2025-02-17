@@ -12,8 +12,8 @@ export class AccountManager {
   private tokenManager: TokenManager;
   private oauthClient: GoogleOAuthClient;
 
-  constructor(config?: AccountModuleConfig) {
-    this.accountsPath = config?.accountsPath || process.env.ACCOUNTS_FILE || path.resolve('config', 'accounts.json');
+  constructor() {
+    this.accountsPath = path.resolve('/app/config/accounts.json');
     this.accounts = new Map();
     this.oauthClient = new GoogleOAuthClient();
     this.tokenManager = new TokenManager(this.oauthClient);
@@ -21,14 +21,12 @@ export class AccountManager {
 
   async initialize(): Promise<void> {
     logger.info('Initializing AccountManager...');
-    await this.oauthClient.ensureInitialized();
     await this.loadAccounts();
     logger.info('AccountManager initialized successfully');
   }
 
   async listAccounts(): Promise<Account[]> {
     logger.debug('Listing accounts with auth status');
-    await this.loadAccounts();
     const accounts = Array.from(this.accounts.values());
     
     // Add auth status to each account
@@ -45,7 +43,7 @@ export class AccountManager {
     return emailRegex.test(email);
   }
 
-  async loadAccounts(): Promise<void> {
+  private async loadAccounts(): Promise<void> {
     try {
       logger.debug(`Loading accounts from ${this.accountsPath}`);
       // Ensure directory exists
@@ -89,7 +87,7 @@ export class AccountManager {
       throw new AccountError(
         'Failed to load accounts configuration',
         'ACCOUNTS_LOAD_ERROR',
-        'Please ensure ACCOUNTS_FILE environment variable is set or accounts.json exists and is valid'
+        'Please ensure accounts.json exists and is valid'
       );
     }
   }
@@ -107,7 +105,7 @@ export class AccountManager {
       throw new AccountError(
         'Failed to save accounts configuration',
         'ACCOUNTS_SAVE_ERROR',
-        'Please ensure the accounts file specified by ACCOUNTS_FILE is writable'
+        'Please ensure accounts.json is writable'
       );
     }
   }

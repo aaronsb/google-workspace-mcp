@@ -43,21 +43,20 @@ done
 # Directory will be automatically created by Docker volume mount
 log_info "Config directory will be mounted at /app/config"
 
-# Create gauth.json with provided credentials
-log_info "Creating gauth.json with provided credentials"
-create_secure_file "/app/config/gauth.json" "{
-  \"client_id\": \"$GOOGLE_CLIENT_ID\",
-  \"client_secret\": \"$GOOGLE_CLIENT_SECRET\",
-  \"redirect_uri\": \"urn:ietf:wg:oauth:2.0:oob\",
-  \"auth_uri\": \"https://accounts.google.com/o/oauth2/auth\",
-  \"token_uri\": \"https://oauth2.googleapis.com/token\"
-}"
-
-# Create empty accounts.json if it doesn't exist
+# Initialize accounts.json if it doesn't exist
 if [ ! -f "/app/config/accounts.json" ]; then
     log_info "Creating initial accounts.json"
-    create_secure_file "/app/config/accounts.json" '{"accounts":[]}'
+    create_secure_file "/app/config/accounts.json" '{"accounts":[]}' || {
+        log_error "Failed to create accounts.json. Please check permissions."
+        exit 1
+    }
 fi
+
+# Create credentials directory if it doesn't exist
+mkdir -p "/app/config/credentials" || {
+    log_error "Failed to create credentials directory. Please check permissions."
+    exit 1
+}
 
 log_info "Config directory is ready at /app/config"
 

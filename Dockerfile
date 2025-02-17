@@ -23,7 +23,6 @@ WORKDIR /app
 # Create non-root user
 RUN groupadd -r mcp && \
     useradd -r -g mcp -s /bin/false mcp && \
-    mkdir -p config && \
     chown -R mcp:mcp /app
 
 # Copy only necessary files from builder
