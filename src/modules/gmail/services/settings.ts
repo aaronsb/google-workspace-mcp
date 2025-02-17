@@ -8,14 +8,33 @@ import {
 
 export class SettingsService {
   constructor(
-    private gmailClient: ReturnType<typeof google.gmail>,
-    private oauth2Client: OAuth2Client
+    private gmailClient?: ReturnType<typeof google.gmail>
   ) {}
+
+  /**
+   * Updates the Gmail client instance
+   * @param client - New Gmail client instance
+   */
+  updateClient(client: ReturnType<typeof google.gmail>) {
+    this.gmailClient = client;
+  }
+
+  private ensureClient(): ReturnType<typeof google.gmail> {
+    if (!this.gmailClient) {
+      throw new GmailError(
+        'Gmail client not initialized',
+        'CLIENT_ERROR',
+        'Please ensure the service is initialized'
+      );
+    }
+    return this.gmailClient;
+  }
 
   async getWorkspaceGmailSettings({ email }: GetGmailSettingsParams): Promise<GetGmailSettingsResponse> {
     try {
       // Get profile data
-      const { data: profile } = await this.gmailClient.users.getProfile({
+      const client = this.ensureClient();
+      const { data: profile } = await client.users.getProfile({
         userId: 'me'
       });
 
@@ -27,11 +46,11 @@ export class SettingsService {
         { data: pop },
         { data: vacation }
       ] = await Promise.all([
-        this.gmailClient.users.settings.getAutoForwarding({ userId: 'me' }),
-        this.gmailClient.users.settings.getImap({ userId: 'me' }),
-        this.gmailClient.users.settings.getLanguage({ userId: 'me' }),
-        this.gmailClient.users.settings.getPop({ userId: 'me' }),
-        this.gmailClient.users.settings.getVacation({ userId: 'me' })
+        client.users.settings.getAutoForwarding({ userId: 'me' }),
+        client.users.settings.getImap({ userId: 'me' }),
+        client.users.settings.getLanguage({ userId: 'me' }),
+        client.users.settings.getPop({ userId: 'me' }),
+        client.users.settings.getVacation({ userId: 'me' })
       ]);
 
       const response: GetGmailSettingsResponse = {

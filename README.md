@@ -29,11 +29,13 @@ Add the following configuration to your Cline MCP settings:
         "-v", "${HOME}/.mcp/google-workspace-mcp:/app/config",
         "-e", "GOOGLE_CLIENT_ID",
         "-e", "GOOGLE_CLIENT_SECRET",
+        "-e", "GOOGLE_REDIRECT_URI",
         "ghcr.io/aaronsb/google-workspace-mcp:latest"
       ],
       "env": {
         "GOOGLE_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
-        "GOOGLE_CLIENT_SECRET": "your-client-secret"
+        "GOOGLE_CLIENT_SECRET": "your-client-secret",
+        "GOOGLE_REDIRECT_URI": "urn:ietf:wg:oauth:2.0:oob"
       },
       "autoApprove": [],
       "disabled": false
@@ -51,6 +53,7 @@ docker run -i --rm \
   -v ~/.mcp/google-workspace-mcp:/app/config \
   -e GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com \
   -e GOOGLE_CLIENT_SECRET=your-client-secret \
+  -e GOOGLE_REDIRECT_URI=urn:ietf:wg:oauth:2.0:oob \
   ghcr.io/aaronsb/google-workspace-mcp:latest
 ```
 
@@ -65,13 +68,15 @@ For local development, you can build and run the container:
 
 ```bash
 # Build the image
-docker build -t google-workspace-mcp .
+docker build -t google-workspace-mcp:local .
 
 # Run with required environment variables
 docker run -i --rm \
+  -v ~/.mcp/google-workspace-mcp:/app/config \
   -e GOOGLE_CLIENT_ID=your_client_id \
   -e GOOGLE_CLIENT_SECRET=your_client_secret \
-  google-workspace-mcp
+  -e GOOGLE_REDIRECT_URI=urn:ietf:wg:oauth:2.0:oob \
+  google-workspace-mcp:local
 ```
 
 ## Available Tools
@@ -149,7 +154,7 @@ npm test -- --coverage
 ## Best Practices
 
 1. **Authentication**
-   - Store credentials securely
+   - Store credentials securely in MCP settings
    - Use minimal required scopes
    - Handle token refresh properly
 
@@ -160,16 +165,15 @@ npm test -- --coverage
 
 3. **Configuration & Security**
    - Each user maintains their own Google Cloud Project
-   - Use environment variables
-   - Secure credential storage
+   - Configure OAuth credentials in MCP settings
+   - Secure token storage in ~/.mcp/google-workspace-mcp
    - Regular token rotation
-   - Never commit accounts.json to git
-   - Use accounts.example.json as a template
-   - A pre-commit hook prevents accidental token commits
+   - Never commit sensitive files to git
+   - Use proper file permissions for config directory
 
 4. **Local Development Setup**
-   - Copy accounts.example.json to accounts.json (gitignored)
-   - Add your account details to accounts.json
+   - Configure OAuth credentials in MCP settings
+   - Create ~/.mcp/google-workspace-mcp directory
    - Keep sensitive tokens out of version control
    - Run authentication script for each account
 
@@ -177,9 +181,9 @@ npm test -- --coverage
 
 ### Common Setup Issues
 
-1. **Missing Configuration Files**
-   - Error: "Required file config/gauth.json is missing"
-   - Solution: Run `npx ts-node src/scripts/setup-environment.ts` to create example files, then copy and configure with your credentials
+1. **Missing Configuration**
+   - Error: "GOOGLE_CLIENT_ID environment variable is required"
+   - Solution: Configure the OAuth credentials in your MCP settings file (see docs/API.md for details)
 
 2. **Authentication Errors**
    - Error: "Invalid OAuth credentials"
@@ -187,7 +191,7 @@ npm test -- --coverage
      - Verify your Google Cloud project is properly configured
      - Ensure you've added yourself as a test user in the OAuth consent screen
      - Check that both Gmail API and Google Calendar API are enabled
-     - Verify credentials in gauth.json match your OAuth client configuration
+     - Verify credentials in MCP settings match your OAuth client configuration
 
 3. **Token Issues**
    - Error: "Token refresh failed"
@@ -196,8 +200,8 @@ npm test -- --coverage
 
 4. **Directory Structure**
    - Error: "Directory not found"
-   - Solution: Run the setup script to create required directories
-   - Ensure you have write permissions in the config directory
+   - Solution: Ensure ~/.mcp/google-workspace-mcp exists with proper permissions
+   - Verify Docker has access to mount the config directory
 
 For additional help, consult the [Error Handling](docs/ERRORS.md) documentation.
 

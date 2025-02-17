@@ -190,8 +190,8 @@ This approach ensures tests are:
 - Clear authentication error guidance
 
 ### Configuration
-- Environment-based file paths
-- Separate credential storage
+- OAuth credentials via environment variables
+- Secure token storage in user's home directory
 - Account configuration management
 - Token persistence handling
 
@@ -212,32 +212,24 @@ src/
 └── scripts/
     └── setup-google-env.ts # Setup utilities
 
-config/
-├── gauth.json              # OAuth credentials
+~/.mcp/google-workspace-mcp/
 ├── accounts.json           # Account configs
-└── credentials/            # Token storage
+└── credentials/           # Token storage
 ```
 
 ## Configuration
 
 ### Environment Variables
 ```
-AUTH_CONFIG_FILE  - OAuth credentials path
-ACCOUNTS_FILE     - Account config path
-CREDENTIALS_DIR   - Token storage path
+GOOGLE_CLIENT_ID     - OAuth client ID
+GOOGLE_CLIENT_SECRET - OAuth client secret
+GOOGLE_REDIRECT_URI  - OAuth redirect URI
 ```
 
-### Required Files
-1. OAuth Config (gauth.json):
-```json
-{
-  "client_id": "...",
-  "client_secret": "...",
-  "redirect_uri": "..."
-}
-```
+### Data Directory Structure
+The server uses a data directory in the user's home folder (`~/.mcp/google-workspace-mcp`) to store:
 
-2. Account Config (accounts.json):
+1. Account Configuration (accounts.json):
 ```json
 {
   "accounts": [{
@@ -247,6 +239,11 @@ CREDENTIALS_DIR   - Token storage path
   }]
 }
 ```
+
+2. Credentials Directory:
+- Contains OAuth tokens for each account
+- Tokens are stored securely with appropriate permissions
+- Each token file is named using the account's email address
 
 ## Planned Extensions
 

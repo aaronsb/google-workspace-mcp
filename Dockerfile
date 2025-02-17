@@ -20,10 +20,8 @@ RUN npm run build
 FROM node:20-slim
 WORKDIR /app
 
-# Create non-root user
-RUN groupadd -r mcp && \
-    useradd -r -g mcp -s /bin/false mcp && \
-    chown -R mcp:mcp /app
+# Use host user's UID for file ownership
+RUN chown -R 1000:1000 /app
 
 # Copy only necessary files from builder
 COPY --from=builder /app/build ./build
@@ -36,7 +34,7 @@ RUN npm ci --only=production && \
     chmod +x build/index.js && \
     chmod +x docker-entrypoint.sh
 
-# Switch to non-root user
-USER mcp
+# Switch to host user's UID
+USER 1000
 
 ENTRYPOINT ["./docker-entrypoint.sh"]

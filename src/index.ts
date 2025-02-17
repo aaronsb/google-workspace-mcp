@@ -459,68 +459,37 @@ class GSuiteServer {
             // Validate/create account
             await accountManager.validateAccount(args.email, args.category, args.description);
 
-            // Get all registered scopes from the registry
-            const requiredScopes = scopeRegistry.getAllScopes();
-
-            // Check token status
-            const tokenStatus = await accountManager.validateToken(args.email);
-
-            if (!tokenStatus.valid || !tokenStatus.token) {
-              if (tokenStatus.token && tokenStatus.reason === 'Token expired') {
-                const newToken = await accountManager.refreshToken(tokenStatus.token.refresh_token);
-                await accountManager.saveToken(args.email, newToken);
-                
-                return {
-                  content: [{
-                    type: 'text',
-                    text: JSON.stringify({
-                      status: 'refreshing',
-                      message: 'Token refreshed successfully, please retry the request'
-                    }, null, 2)
-                  }]
-                };
-              }
-
-              if (args.auth_code) {
-                const tokenData = await accountManager.getTokenFromCode(args.auth_code);
-                await accountManager.saveToken(args.email, tokenData);
-                return {
-                  content: [{
-                    type: 'text',
-                    text: JSON.stringify({
-                      status: 'success',
-                      message: 'Authentication successful! Token saved. Please retry your request.'
-                    }, null, 2)
-                  }]
-                };
-              }
-
-              const authUrl = await accountManager.generateAuthUrl();
+            // If auth code is provided, complete the OAuth flow
+            if (args.auth_code) {
+              const tokenData = await accountManager.getTokenFromCode(args.auth_code);
+              await accountManager.saveToken(args.email, tokenData);
               return {
                 content: [{
                   type: 'text',
                   text: JSON.stringify({
-                    status: 'auth_required',
-                    auth_url: authUrl,
-                    message: 'Please complete authentication:',
-                    instructions: [
-                      '1. Click the authorization URL below to open Google sign-in',
-                      '2. Sign in with your Google account',
-                      '3. Allow the requested permissions',
-                      '4. Copy the authorization code shown',
-                      '5. Run this request again with the auth_code parameter set to the code you copied'
-                    ].join('\n')
+                    status: 'success',
+                    message: 'Authentication successful! Token saved. Please retry your request.'
                   }, null, 2)
                 }]
               };
             }
 
+            // Start OAuth flow
+            const authUrl = await accountManager.generateAuthUrl();
             return {
               content: [{
                 type: 'text',
                 text: JSON.stringify({
-                  status: 'success',
-                  message: 'Account is already authenticated with required scopes'
+                  status: 'auth_required',
+                  auth_url: authUrl,
+                  message: 'Please complete authentication:',
+                  instructions: [
+                    '1. Click the authorization URL below to open Google sign-in',
+                    '2. Sign in with your Google account',
+                    '3. Allow the requested permissions',
+                    '4. Copy the authorization code shown',
+                    '5. Run this request again with the auth_code parameter set to the code you copied'
+                  ].join('\n')
                 }, null, 2)
               }]
             };
@@ -695,12 +664,10 @@ class GSuiteServer {
       
       // Connect to transport
       const transport = new StdioServerTransport();
-      try {
-        await this.server.connect(transport);
-      } catch (error) {
-        throw error;
-      }
+      await this.server.connect(transport);
+      logger.info('Server connected to transport');
     } catch (error) {
+      logger.error('Fatal server error:', error);
       throw error;
     }
   }

@@ -13,10 +13,28 @@ import { EmailService } from './email.js';
 
 export class DraftService {
   constructor(
-    private gmailClient: ReturnType<typeof google.gmail>,
-    private oauth2Client: OAuth2Client,
-    private emailService: EmailService
+    private emailService: EmailService,
+    private gmailClient?: ReturnType<typeof google.gmail>
   ) {}
+
+  /**
+   * Updates the Gmail client instance
+   * @param client - New Gmail client instance
+   */
+  updateClient(client: ReturnType<typeof google.gmail>) {
+    this.gmailClient = client;
+  }
+
+  private ensureClient(): ReturnType<typeof google.gmail> {
+    if (!this.gmailClient) {
+      throw new GmailError(
+        'Gmail client not initialized',
+        'CLIENT_ERROR',
+        'Please ensure the service is initialized'
+      );
+    }
+    return this.gmailClient;
+  }
 
   /**
    * Creates a new email draft, with support for both new emails and replies
@@ -85,7 +103,8 @@ export class DraftService {
         .replace(/=+$/, '');
 
       // Create the draft
-      const { data } = await this.gmailClient.users.drafts.create({
+      const client = this.ensureClient();
+      const { data } = await client.users.drafts.create({
         userId: 'me',
         requestBody: {
           message: {
@@ -132,7 +151,8 @@ export class DraftService {
   async getDrafts({ email, maxResults = 10, pageToken }: GetDraftsParams): Promise<GetDraftsResponse> {
     try {
       // List drafts
-      const { data } = await this.gmailClient.users.drafts.list({
+      const client = this.ensureClient();
+      const { data } = await client.users.drafts.list({
         userId: 'me',
         maxResults,
         pageToken,
@@ -148,7 +168,8 @@ export class DraftService {
       // Get full draft details including messages
       const drafts = await Promise.all(
         data.drafts.map(async (draft) => {
-          const { data: draftData } = await this.gmailClient.users.drafts.get({
+          const client = this.ensureClient();
+          const { data: draftData } = await client.users.drafts.get({
             userId: 'me',
             id: draft.id!,
             format: 'full',
@@ -200,7 +221,8 @@ export class DraftService {
    */
   async sendDraft({ email, draftId }: SendDraftParams): Promise<SendEmailResponse> {
     try {
-      const { data } = await this.gmailClient.users.drafts.send({
+      const client = this.ensureClient();
+      const { data } = await client.users.drafts.send({
         userId: 'me',
         requestBody: {
           id: draftId,

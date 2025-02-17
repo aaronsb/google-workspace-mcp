@@ -1,41 +1,56 @@
 import { GmailService } from '../../../modules/gmail/service.js';
 import { mockGmailResponses } from '../../../__fixtures__/accounts.js';
-import { setupTestEnvironment } from '../../../__helpers__/testSetup.js';
 import { getAccountManager } from '../../../modules/accounts/index.js';
-import { SearchService } from '../../../modules/gmail/services/search.js';
-import { EmailService } from '../../../modules/gmail/services/email.js';
-import { DraftService } from '../../../modules/gmail/services/draft.js';
-import { SettingsService } from '../../../modules/gmail/services/settings.js';
+import { AccountManager } from '../../../modules/accounts/manager.js';
 
 jest.mock('../../../modules/accounts/index.js');
+jest.mock('../../../modules/accounts/manager.js');
 
 describe('GmailService', () => {
-  const { accountManager: mocks, gmailClient: mockGmailClient } = setupTestEnvironment();
   let gmailService: GmailService;
+  let mockGmailClient: any;
+  let mockAccountManager: jest.Mocked<AccountManager>;
   const testEmail = 'test@example.com';
 
   beforeEach(() => {
-    // Simple mock for account manager
-    (getAccountManager as jest.Mock).mockReturnValue({
-      getAuthClient: jest.fn().mockResolvedValue({})
-    });
-    
-    gmailService = new GmailService();
-    
-    // Create a minimal mock OAuth client
-    const mockOAuth2Client = {
-      setCredentials: jest.fn(),
-      getAccessToken: jest.fn(),
-      refreshAccessToken: jest.fn()
-    } as any;
+    mockGmailClient = {
+      users: {
+        messages: {
+          list: jest.fn(),
+          get: jest.fn(),
+          send: jest.fn()
+        },
+        drafts: {
+          create: jest.fn(),
+          list: jest.fn(),
+          get: jest.fn(),
+          send: jest.fn()
+        },
+        getProfile: jest.fn(),
+        settings: {
+          getAutoForwarding: jest.fn(),
+          getImap: jest.fn(),
+          getLanguage: jest.fn(),
+          getPop: jest.fn(),
+          getVacation: jest.fn()
+        }
+      }
+    };
 
-    // Mock internal services directly
-    (gmailService as any).gmailClient = mockGmailClient;
-    (gmailService as any).oauth2Client = mockOAuth2Client;
-    (gmailService as any).searchService = new SearchService();
-    (gmailService as any).emailService = new EmailService(mockGmailClient, mockOAuth2Client, (gmailService as any).searchService);
-    (gmailService as any).draftService = new DraftService(mockGmailClient, mockOAuth2Client, (gmailService as any).emailService);
-    (gmailService as any).settingsService = new SettingsService(mockGmailClient, mockOAuth2Client);
+    mockAccountManager = {
+      validateToken: jest.fn().mockResolvedValue({ valid: true, token: {} }),
+      getAuthClient: jest.fn().mockResolvedValue({})
+    } as unknown as jest.Mocked<AccountManager>;
+
+    (getAccountManager as jest.Mock).mockReturnValue(mockAccountManager);
+
+    gmailService = new GmailService();
+    (gmailService as any).getGmailClient = jest.fn().mockResolvedValue(mockGmailClient);
+    
+    // Initialize internal services with mock client
+    (gmailService as any).emailService.updateClient(mockGmailClient);
+    (gmailService as any).draftService.updateClient(mockGmailClient);
+    (gmailService as any).settingsService.updateClient(mockGmailClient);
   });
 
   describe('getEmails', () => {

@@ -14,10 +14,28 @@ import { SearchService } from './search.js';
 
 export class EmailService {
   constructor(
-    private gmailClient: ReturnType<typeof google.gmail>,
-    private oauth2Client: OAuth2Client,
-    private searchService: SearchService
+    private searchService: SearchService,
+    private gmailClient?: ReturnType<typeof google.gmail>
   ) {}
+
+  /**
+   * Updates the Gmail client instance
+   * @param client - New Gmail client instance
+   */
+  updateClient(client: ReturnType<typeof google.gmail>) {
+    this.gmailClient = client;
+  }
+
+  private ensureClient(): ReturnType<typeof google.gmail> {
+    if (!this.gmailClient) {
+      throw new GmailError(
+        'Gmail client not initialized',
+        'CLIENT_ERROR',
+        'Please ensure the service is initialized'
+      );
+    }
+    return this.gmailClient;
+  }
 
   /**
    * Extracts all headers into a key-value map
@@ -80,7 +98,8 @@ export class EmailService {
         const query = this.searchService.buildSearchQuery(search);
         
         // List messages matching query
-        const { data } = await this.gmailClient.users.messages.list({
+        const client = this.ensureClient();
+        const { data } = await client.users.messages.list({
           userId: 'me',
           q: query,
           maxResults,
@@ -106,7 +125,8 @@ export class EmailService {
       // Get full message details
       const emails = await Promise.all(
         messages.messages.map(async (message) => {
-          const { data: email } = await this.gmailClient.users.messages.get({
+          const client = this.ensureClient();
+          const { data: email } = await client.users.messages.get({
             userId: 'me',
             id: message.id!,
             format: options.format || 'full',
@@ -208,7 +228,8 @@ export class EmailService {
         .replace(/=+$/, '');
 
       // Send the email
-      const { data } = await this.gmailClient.users.messages.send({
+      const client = this.ensureClient();
+      const { data } = await client.users.messages.send({
         userId: 'me',
         requestBody: {
           raw: encodedMessage,

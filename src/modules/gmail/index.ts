@@ -16,7 +16,7 @@ let gmailService: GmailService | null = null;
 export async function initializeGmailModule(config?: GmailModuleConfig): Promise<GmailService> {
   if (!gmailService) {
     gmailService = new GmailService(config);
-    await gmailService.initialize();
+    await gmailService.init();
   }
   return gmailService;
 }

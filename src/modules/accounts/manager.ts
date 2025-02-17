@@ -9,18 +9,18 @@ import logger from '../../utils/logger.js';
 export class AccountManager {
   private readonly accountsPath: string;
   private accounts: Map<string, Account>;
-  private tokenManager: TokenManager;
-  private oauthClient: GoogleOAuthClient;
+  private tokenManager!: TokenManager;
+  private oauthClient!: GoogleOAuthClient;
 
-  constructor() {
-    this.accountsPath = path.resolve('/app/config/accounts.json');
+  constructor(config?: AccountModuleConfig) {
+    this.accountsPath = config?.accountsPath || path.resolve('/app/config/accounts.json');
     this.accounts = new Map();
-    this.oauthClient = new GoogleOAuthClient();
-    this.tokenManager = new TokenManager(this.oauthClient);
   }
 
   async initialize(): Promise<void> {
     logger.info('Initializing AccountManager...');
+    this.oauthClient = new GoogleOAuthClient();
+    this.tokenManager = new TokenManager(this.oauthClient);
     await this.loadAccounts();
     logger.info('AccountManager initialized successfully');
   }
@@ -31,7 +31,13 @@ export class AccountManager {
     
     // Add auth status to each account
     for (const account of accounts) {
-      account.auth_status = await this.tokenManager.validateToken(account.email);
+      const tokenStatus = await this.tokenManager.validateToken(account.email, false);
+      account.auth_status = {
+        valid: tokenStatus.valid,
+        status: tokenStatus.status,
+        reason: tokenStatus.reason,
+        token: tokenStatus.token
+      };
     }
     
     logger.debug(`Found ${accounts.length} accounts`);
@@ -191,25 +197,79 @@ export class AccountManager {
   ): Promise<Account> {
     logger.debug(`Validating account: ${email}`);
     let account = await this.getAccount(email);
+    const isNewAccount: boolean = Boolean(!account && category && description);
 
-    if (!account && category && description) {
-      account = await this.addAccount(email, category, description);
-    } else if (!account) {
+    try {
+      // Handle new account creation
+      if (isNewAccount && category && description) {
+        logger.info('Creating new account during validation');
+        account = await this.addAccount(email, category, description);
+      } else if (!account) {
+        throw new AccountError(
+          'Account not found',
+          'ACCOUNT_NOT_FOUND',
+          'Please provide category and description for new accounts'
+        );
+      }
+
+      // Validate token with appropriate flags for new accounts
+      const tokenStatus = await this.tokenManager.validateToken(email, isNewAccount);
+      
+      // Map token status to account auth status
+      switch (tokenStatus.status) {
+        case 'NO_TOKEN':
+          account.auth_status = {
+            valid: false,
+            status: tokenStatus.status,
+            reason: isNewAccount ? 'New account requires authentication' : 'No token found',
+            authUrl: await this.generateAuthUrl()
+          };
+          break;
+          
+        case 'VALID':
+        case 'REFRESHED':
+          account.auth_status = {
+            valid: true,
+            status: tokenStatus.status,
+            token: tokenStatus.token
+          };
+          break;
+          
+        case 'INVALID':
+        case 'REFRESH_FAILED':
+        case 'EXPIRED':
+          account.auth_status = {
+            valid: false,
+            status: tokenStatus.status,
+            reason: tokenStatus.reason,
+            authUrl: await this.generateAuthUrl()
+          };
+          break;
+          
+        case 'ERROR':
+          account.auth_status = {
+            valid: false,
+            status: tokenStatus.status,
+            reason: 'Authentication error occurred',
+            authUrl: await this.generateAuthUrl()
+          };
+          break;
+      }
+
+      logger.debug(`Account validation complete for ${email}. Status: ${tokenStatus.status}`);
+      return account;
+      
+    } catch (error) {
+      logger.error('Account validation failed', error as Error);
+      if (error instanceof AccountError) {
+        throw error;
+      }
       throw new AccountError(
-        'Account not found',
-        'ACCOUNT_NOT_FOUND',
-        'Please provide category and description for new accounts'
+        'Account validation failed',
+        'VALIDATION_ERROR',
+        'An unexpected error occurred during account validation'
       );
     }
-
-    // Simple token validation - no scope checking
-    const tokenStatus = await this.tokenManager.validateToken(email);
-    account.auth_status = {
-      valid: tokenStatus.valid,
-      reason: tokenStatus.reason
-    };
-
-    return account;
   }
 
   // OAuth related methods
@@ -232,8 +292,8 @@ export class AccountManager {
   }
 
   // Token related methods
-  async validateToken(email: string) {
-    return this.tokenManager.validateToken(email);
+  async validateToken(email: string, skipValidationForNew: boolean = false) {
+    return this.tokenManager.validateToken(email, skipValidationForNew);
   }
 
   async saveToken(email: string, tokenData: any) {

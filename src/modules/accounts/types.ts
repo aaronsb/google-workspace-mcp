@@ -6,6 +6,7 @@ export interface Account {
   description: string;
   auth_status?: {
     valid: boolean;
+    status?: TokenStatusType;
     token?: any;
     reason?: string;
     authUrl?: string;
@@ -17,8 +18,18 @@ export interface AccountsConfig {
   accounts: Account[];
 }
 
+export type TokenStatusType = 
+  | 'NO_TOKEN'
+  | 'VALID'
+  | 'INVALID'
+  | 'REFRESHED'
+  | 'REFRESH_FAILED'
+  | 'EXPIRED'
+  | 'ERROR';
+
 export interface TokenStatus {
   valid: boolean;
+  status: TokenStatusType;
   token?: any;
   reason?: string;
   authUrl?: string;

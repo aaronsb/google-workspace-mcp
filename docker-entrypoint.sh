@@ -40,23 +40,18 @@ for dir in "/app/config" "/app/config/credentials"; do
     fi
 done
 
+# Initialize accounts.json if it doesn't exist
+ACCOUNTS_FILE="/app/config/accounts.json"
+if [ ! -f "$ACCOUNTS_FILE" ]; then
+    log_info "Creating initial accounts.json file"
+    create_secure_file "$ACCOUNTS_FILE" '{"accounts":[]}'
+fi
+
 # Directory will be automatically created by Docker volume mount
 log_info "Config directory will be mounted at /app/config"
 
-# Initialize accounts.json if it doesn't exist
-if [ ! -f "/app/config/accounts.json" ]; then
-    log_info "Creating initial accounts.json"
-    create_secure_file "/app/config/accounts.json" '{"accounts":[]}' || {
-        log_error "Failed to create accounts.json. Please check permissions."
-        exit 1
-    }
-fi
-
-# Create credentials directory if it doesn't exist
-mkdir -p "/app/config/credentials" || {
-    log_error "Failed to create credentials directory. Please check permissions."
-    exit 1
-}
+# Let AccountManager handle file creation
+log_info "Config directory is ready for AccountManager initialization"
 
 log_info "Config directory is ready at /app/config"
 

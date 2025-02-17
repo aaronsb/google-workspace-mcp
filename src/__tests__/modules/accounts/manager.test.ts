@@ -4,7 +4,11 @@ import { mockAccounts, mockTokens } from '../../../__fixtures__/accounts.js';
 // Simple mocks for token and oauth
 jest.mock('../../../modules/accounts/token.js', () => ({
   TokenManager: jest.fn().mockImplementation(() => ({
-    validateToken: jest.fn().mockResolvedValue({ valid: true }),
+    validateToken: jest.fn().mockResolvedValue({
+      valid: true,
+      status: 'VALID',
+      token: { access_token: 'test-token' }
+    }),
     saveToken: jest.fn().mockResolvedValue(undefined),
     deleteToken: jest.fn().mockResolvedValue(undefined)
   }))
@@ -14,7 +18,12 @@ jest.mock('../../../modules/accounts/oauth.js', () => ({
   GoogleOAuthClient: jest.fn().mockImplementation(() => ({
     ensureInitialized: jest.fn().mockResolvedValue(undefined),
     getTokenFromCode: jest.fn().mockResolvedValue(mockTokens.valid),
-    refreshToken: jest.fn().mockResolvedValue(mockTokens.valid)
+    refreshToken: jest.fn().mockResolvedValue(mockTokens.valid),
+    generateAuthUrl: jest.fn().mockReturnValue('https://mock-auth-url'),
+    getAuthClient: jest.fn().mockReturnValue({
+      setCredentials: jest.fn(),
+      getAccessToken: jest.fn().mockResolvedValue({ token: 'test-token' })
+    })
   }))
 }));
 
@@ -142,12 +151,16 @@ describe('AccountManager', () => {
   describe('token validation', () => {
     const testEmail = mockAccounts.accounts[0].email;
 
-    it('should validate token with simple success', async () => {
+    it('should validate token successfully', async () => {
       await accountManager.initialize();
       const account = await accountManager.validateAccount(testEmail);
       
       expect(account.email).toBe(testEmail);
-      expect(account.auth_status?.valid).toBe(true);
+      expect(account.auth_status).toEqual({
+        valid: true,
+        status: 'VALID',
+        token: { access_token: 'test-token' }
+      });
     });
 
     it('should handle token validation failure', async () => {
@@ -159,10 +172,11 @@ describe('AccountManager', () => {
       const fs = require('fs/promises');
       fs.readFile.mockResolvedValue(JSON.stringify(mockAccounts));
       
-      // Create mock implementation
+      // Create simple mock implementation
       const mockValidateToken = jest.fn().mockResolvedValue({ 
-        valid: false, 
-        reason: 'Token expired' 
+        valid: false,
+        status: 'EXPIRED',
+        reason: 'Token expired'
       });
       
       // Setup TokenManager with tracked mock
@@ -181,9 +195,13 @@ describe('AccountManager', () => {
       
       const account = await accountManager.validateAccount(testEmail);
       
-      expect(mockValidateToken).toHaveBeenCalledWith(testEmail);
-      expect(account.auth_status?.valid).toBe(false);
-      expect(account.auth_status?.reason).toBe('Token expired');
+      expect(mockValidateToken).toHaveBeenCalledWith(testEmail, false);
+      expect(account.auth_status).toMatchObject({
+        valid: false,
+        status: 'EXPIRED',
+        reason: 'Token expired'
+      });
+      expect(account.auth_status).toHaveProperty('authUrl');
     });
   });
 

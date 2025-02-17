@@ -53,6 +53,10 @@ export class TokenManager {
       const data = await fs.readFile(tokenPath, 'utf-8');
       return JSON.parse(data);
     } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        // File doesn't exist - return null to trigger OAuth flow
+        return null;
+      }
       throw new AccountError(
         'Failed to load token',
         'TOKEN_LOAD_ERROR',
@@ -82,48 +86,82 @@ export class TokenManager {
    * Basic token validation - just checks if token exists and isn't expired.
    * No scope validation - auth issues handled via 401 responses.
    */
-  async validateToken(email: string): Promise<TokenStatus> {
+  async validateToken(email: string, skipValidationForNew: boolean = false): Promise<TokenStatus> {
     logger.debug(`Validating token for account: ${email}`);
-    const token = await this.loadToken(email);
     
-    if (!token) {
-      logger.debug('No token found');
-      return {
-        valid: false,
-        reason: 'No token found'
-      };
-    }
-
-    if (token.expiry_date && token.expiry_date < Date.now()) {
-      logger.debug('Token has expired, attempting refresh');
-      if (token.refresh_token && this.oauthClient) {
-        try {
-          const newToken = await this.oauthClient.refreshToken(token.refresh_token);
-          await this.saveToken(email, newToken);
-          logger.info('Token refreshed successfully');
-          return {
-            valid: true,
-            token: newToken
-          };
-        } catch (error) {
-          logger.error('Token refresh failed', error as Error);
-          return {
-            valid: false,
-            reason: 'Token refresh failed'
-          };
-        }
+    try {
+      const token = await this.loadToken(email);
+      
+      if (!token) {
+        logger.debug('No token found');
+        return {
+          valid: false,
+          status: 'NO_TOKEN',
+          reason: 'No token found'
+        };
       }
-      logger.debug('No refresh token available');
+
+      // Skip validation if this is a new account setup
+      if (skipValidationForNew) {
+        logger.debug('Skipping validation for new account setup');
+        return {
+          valid: true,
+          status: 'VALID',
+          token
+        };
+      }
+
+      if (!token.expiry_date) {
+        logger.debug('Token missing expiry date');
+        return {
+          valid: false,
+          status: 'INVALID',
+          reason: 'Invalid token format'
+        };
+      }
+
+      if (token.expiry_date < Date.now()) {
+        logger.debug('Token has expired, attempting refresh');
+        if (token.refresh_token && this.oauthClient) {
+          try {
+            const newToken = await this.oauthClient.refreshToken(token.refresh_token);
+            await this.saveToken(email, newToken);
+            logger.info('Token refreshed successfully');
+            return {
+              valid: true,
+              status: 'REFRESHED',
+              token: newToken
+            };
+          } catch (error) {
+            logger.error('Token refresh failed', error as Error);
+            return {
+              valid: false,
+              status: 'REFRESH_FAILED',
+              reason: 'Token refresh failed'
+            };
+          }
+        }
+        logger.debug('No refresh token available');
+        return {
+          valid: false,
+          status: 'EXPIRED',
+          reason: 'Token expired and no refresh token available'
+        };
+      }
+
+      logger.debug('Token is valid');
+      return {
+        valid: true,
+        status: 'VALID',
+        token
+      };
+    } catch (error) {
+      logger.error('Token validation error', error as Error);
       return {
         valid: false,
-        reason: 'Token expired'
+        status: 'ERROR',
+        reason: 'Token validation failed'
       };
     }
-
-    logger.debug('Token is valid');
-    return {
-      valid: true,
-      token
-    };
   }
 }

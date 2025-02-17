@@ -380,33 +380,43 @@ Send an existing draft.
    → Desktop application
    ```
 
-### 2. Configuration Files
+### 2. MCP Server Configuration
 
-1. OAuth Config (`gauth.json`):
-   ```json
-   {
-     "client_id": "your-client-id",
-     "client_secret": "your-client-secret",
-     "redirect_uri": "urn:ietf:wg:oauth:2.0:oob"
-   }
-   ```
+The server is configured through the MCP settings file (e.g., `cline_mcp_settings.json` for Claude or `claude_desktop_config.json` for the desktop app):
 
-2. MCP Server Config:
-   ```json
-   {
-     "mcpServers": {
-       "gsuite": {
-         "command": "node",
-         "args": ["path/to/build/index.js"],
-         "env": {
-           "AUTH_CONFIG_FILE": "path/to/gauth.json",
-           "ACCOUNTS_FILE": "path/to/accounts.json",
-           "CREDENTIALS_DIR": "path/to/credentials"
-         }
-       }
-     }
-   }
-   ```
+```json
+{
+  "mcpServers": {
+    "google-workspace-mcp": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-v", "~/.mcp/google-workspace-mcp:/app/config",
+        "-e", "GOOGLE_CLIENT_ID",
+        "-e", "GOOGLE_CLIENT_SECRET",
+        "-e", "GOOGLE_REDIRECT_URI",
+        "google-workspace-mcp:local"
+      ],
+      "env": {
+        "GOOGLE_CLIENT_ID": "your-client-id",
+        "GOOGLE_CLIENT_SECRET": "your-client-secret",
+        "GOOGLE_REDIRECT_URI": "urn:ietf:wg:oauth:2.0:oob"
+      }
+    }
+  }
+}
+```
+
+The server uses a data directory in the user's home folder (`~/.mcp/google-workspace-mcp`) to store:
+- `accounts.json`: List of configured Google accounts
+- `credentials/`: Directory containing OAuth tokens for each account
+
+This configuration approach:
+1. Keeps OAuth credentials secure in the MCP configuration
+2. Persists account data and tokens across container restarts
+3. Allows multiple users to maintain separate configurations
 
 ## Authentication Flow
 
@@ -414,7 +424,7 @@ Send an existing draft.
    ```typescript
    // Register account with necessary scopes
    await use_mcp_tool({
-     server_name: "gsuite",
+     server_name: "google-workspace-mcp",
      tool_name: "authenticate_workspace_account",
      arguments: {
        email: "user@example.com"
@@ -427,7 +437,7 @@ Send an existing draft.
    ```typescript
    // Complete OAuth flow with auth code
    await use_mcp_tool({
-     server_name: "gsuite",
+     server_name: "google-workspace-mcp",
      tool_name: "authenticate_workspace_account",
      arguments: {
        email: "user@example.com",
@@ -440,7 +450,7 @@ Send an existing draft.
    ```typescript
    // Auth errors handled automatically through 401/403 responses
    await use_mcp_tool({
-     server_name: "gsuite",
+     server_name: "google-workspace-mcp",
      tool_name: "send_workspace_email",
      arguments: {
        email: "user@example.com",

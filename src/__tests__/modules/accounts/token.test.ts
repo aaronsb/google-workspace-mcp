@@ -16,7 +16,7 @@ describe('TokenManager', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.CREDENTIALS_DIR = '/mock/credentials';
+    process.env.CREDENTIALS_DIR = '/app/config/credentials';
     
     mockOAuthClient = {
       ensureInitialized: jest.fn().mockResolvedValue(undefined),
@@ -35,16 +35,16 @@ describe('TokenManager', () => {
       const mockToken = {
         access_token: 'mock-access-token',
         refresh_token: 'mock-refresh-token',
-        expiry_date: Date.now() + 3600000,
+        expiry_date: Date.now() + 3600000
       };
 
       await tokenManager.saveToken(mockEmail, mockToken);
 
-      expect(fs.mkdir).toHaveBeenCalledWith('/mock/credentials', {
-        recursive: true,
+      expect(fs.mkdir).toHaveBeenCalledWith('/app/config/credentials', {
+        recursive: true
       });
       expect(fs.writeFile).toHaveBeenCalledWith(
-        '/mock/credentials/test-example-com.token.json',
+        '/app/config/credentials/test-example-com.token.json',
         JSON.stringify(mockToken, null, 2)
       );
     });
@@ -56,6 +56,8 @@ describe('TokenManager', () => {
         access_token: 'mock-access-token',
         refresh_token: 'mock-refresh-token',
         expiry_date: Date.now() + 3600000,
+        token_type: 'Bearer',
+        scope: 'https://www.googleapis.com/auth/gmail.modify'
       };
 
       (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify(mockToken));
@@ -63,7 +65,7 @@ describe('TokenManager', () => {
       const token = await tokenManager.loadToken(mockEmail);
       expect(token).toEqual(mockToken);
       expect(fs.readFile).toHaveBeenCalledWith(
-        '/mock/credentials/test-example-com.token.json',
+        '/app/config/credentials/test-example-com.token.json',
         'utf-8'
       );
     });
@@ -75,6 +77,23 @@ describe('TokenManager', () => {
 
       const token = await tokenManager.loadToken(mockEmail);
       expect(token).toBeNull();
+    });
+  });
+
+  describe('deleteToken', () => {
+    it('should delete token file', async () => {
+      await tokenManager.deleteToken(mockEmail);
+      expect(fs.unlink).toHaveBeenCalledWith(
+        '/app/config/credentials/test-example-com.token.json'
+      );
+    });
+
+    it('should handle missing token file', async () => {
+      const error = new Error('File not found');
+      (error as any).code = 'ENOENT';
+      (fs.unlink as jest.Mock).mockRejectedValue(error);
+
+      await expect(tokenManager.deleteToken(mockEmail)).resolves.toBeUndefined();
     });
   });
 
@@ -91,7 +110,8 @@ describe('TokenManager', () => {
       const status = await tokenManager.validateToken(mockEmail);
       expect(status).toEqual({
         valid: true,
-        token: mockToken,
+        status: 'VALID',
+        token: mockToken
       });
     });
 
@@ -99,13 +119,13 @@ describe('TokenManager', () => {
       const expiredToken = {
         access_token: 'mock-access-token',
         refresh_token: 'mock-refresh-token',
-        expiry_date: Date.now() - 3600000,
+        expiry_date: Date.now() - 3600000
       };
 
       const newToken = {
         access_token: 'new-access-token',
         refresh_token: 'mock-refresh-token',
-        expiry_date: Date.now() + 3600000,
+        expiry_date: Date.now() + 3600000
       };
 
       (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify(expiredToken));
@@ -114,7 +134,8 @@ describe('TokenManager', () => {
       const status = await tokenManager.validateToken(mockEmail);
       expect(status).toEqual({
         valid: true,
-        token: newToken,
+        status: 'REFRESHED',
+        token: newToken
       });
       expect(mockOAuthClient.refreshToken).toHaveBeenCalledWith('mock-refresh-token');
     });
@@ -127,7 +148,8 @@ describe('TokenManager', () => {
       const status = await tokenManager.validateToken(mockEmail);
       expect(status).toEqual({
         valid: false,
-        reason: 'No token found',
+        status: 'NO_TOKEN',
+        reason: 'No token found'
       });
     });
   });
