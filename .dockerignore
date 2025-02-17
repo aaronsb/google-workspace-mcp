@@ -1,13 +1,33 @@
-node_modules
-npm-debug.log
+# Version control
 .git
 .gitignore
-.env
+
+# Dependencies
+node_modules
+
+# Build output
+build
+
+# Development files
 .vscode
-coverage
-docs
-cline_docs
+.idea
+*.log
+logs
 *.md
 !README.md
+
+# Test files
+__tests__
+__fixtures__
+__helpers__
+*.test.*
+jest.config.*
+jest.setup.*
+
+# Configuration
 config/*
 !config/*.example.json
+
+# Documentation
+docs
+cline_docs

@@ -21,30 +21,52 @@ export class GoogleOAuthClient {
   }
 
   private async loadConfig(): Promise<void> {
-    try {
-      const configPath = process.env.GAUTH_FILE || path.resolve('config', 'gauth.json');
-      const data = await fs.readFile(configPath, 'utf-8');
-      this.config = JSON.parse(data) as OAuthConfig;
-      
-      this.client = new google.auth.OAuth2(
-        this.config.client_id,
-        this.config.client_secret,
-        'urn:ietf:wg:oauth:2.0:oob'  // Use device code flow
-      );
-    } catch (error) {
-      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+    // First try environment variables
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+    if (clientId && clientSecret) {
+      this.config = {
+        client_id: clientId,
+        client_secret: clientSecret,
+        auth_uri: 'https://accounts.google.com/o/oauth2/v2/auth',
+        token_uri: 'https://oauth2.googleapis.com/token'
+      };
+    } else {
+      // Fall back to config file if environment variables are not set
+      try {
+        const configPath = process.env.GAUTH_FILE || path.resolve('config', 'gauth.json');
+        const data = await fs.readFile(configPath, 'utf-8');
+        this.config = JSON.parse(data) as OAuthConfig;
+      } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+          throw new GoogleApiError(
+            'OAuth credentials not found',
+            'CONFIG_NOT_FOUND',
+            'Please provide GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables or ensure config/gauth.json exists'
+          );
+        }
         throw new GoogleApiError(
-          'OAuth configuration file not found',
-          'CONFIG_NOT_FOUND',
-          'Please ensure config/gauth.json exists'
+          'Failed to load OAuth configuration',
+          'OAUTH_CONFIG_ERROR',
+          'Please check your environment variables or ensure gauth.json is valid'
         );
       }
+    }
+
+    if (!this.config) {
       throw new GoogleApiError(
-        'Failed to load OAuth configuration',
-        'OAUTH_CONFIG_ERROR',
-        'Please ensure gauth.json exists and is valid'
+        'OAuth configuration not available',
+        'CONFIG_NOT_FOUND',
+        'Please provide OAuth credentials through environment variables or config file'
       );
     }
+
+    this.client = new google.auth.OAuth2(
+      this.config.client_id,
+      this.config.client_secret,
+      'urn:ietf:wg:oauth:2.0:oob'  // Use device code flow
+    );
   }
 
   async generateAuthUrl(scopes: string[]): Promise<string> {

@@ -5,176 +5,47 @@
 
 A Model Context Protocol (MCP) server that provides authenticated access to Google Workspace APIs, offering comprehensive Gmail and Calendar functionality.
 
-## Features
+## Docker Usage
 
-- **Gmail Integration**: Complete email operations (list, get, send messages)
-- **Calendar Integration**: Full calendar event management and scheduling
-- **OAuth Authentication**: Robust OAuth 2.0 flow with token refresh
-- **Account Management**: Multi-account support with secure token handling
-- **Error Handling**: Detailed error messages with resolution steps
-- **Modular Design**: Extensible architecture for additional services
-
-## Current Capabilities
-
-- **Gmail Operations**:
-  - List and fetch emails with filtering
-  - Send emails with CC/BCC support
-  - Gmail-specific error handling
-
-- **Calendar Operations**:
-  - List and fetch calendar events
-  - Create and manage calendar events
-  - Meeting scheduling support
-
-- **Account Management**:
-  - Multiple account support
-  - Secure token storage
-  - Automatic token refresh
-
-## Documentation
-
-- [API Documentation](docs/API.md): Available tools and usage
-- [Architecture](ARCHITECTURE.md): System design and components
-- [Error Handling](docs/ERRORS.md): Error types and resolution
-
-## Getting Started
-
-### Installing via Smithery
-
-To install Google Workspace MCP Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@aaronsb/google-workspace-mcp):
+The MCP server can be run directly using Docker:
 
 ```bash
-npx -y @smithery/cli install @aaronsb/google-workspace-mcp --client claude
+docker run -i --rm \
+  -v /path/to/your/config:/app/config \
+  -e GOOGLE_CLIENT_ID=your_client_id \
+  -e GOOGLE_CLIENT_SECRET=your_client_secret \
+  ghcr.io/aaronsb/google-workspace-mcp:latest
 ```
 
-### Manual Installation
-1. **Initial Setup**
-   ```bash
-   # Clone the repository
-   git clone [repository-url]
-   cd google-workspace-mcp
+### Required Environment Variables
 
-   # Install dependencies
-   npm install
+- `GOOGLE_CLIENT_ID`: Your Google OAuth client ID
+- `GOOGLE_CLIENT_SECRET`: Your Google OAuth client secret
 
-   # Run setup script to create required directories and example configs
-   npx ts-node src/scripts/setup-environment.ts
-   ```
+### Optional Volume Mount
 
-2. **Setup Google Cloud Project**
-   ⚠️ **IMPORTANT: Individual Setup Required**
-   Each user currently needs to set up their own Google Cloud Project. This is a temporary requirement as the project maintainer does not maintain a central application for security, cost, and logistics reasons.
-
-   Follow these steps to set up your own project:
-
-   1. Create or Select Project:
-      - Go to the [Google Cloud Console](https://console.cloud.google.com)
-      - Create a new project or select an existing one
-
-   2. Enable Required APIs:
-      - Enable the Gmail API
-      - Enable the Google Calendar API
-
-   3. Configure OAuth Consent Screen:
-      - Set up as an External app
-      - Add test users who will be using the application
-      - No need to submit for verification (only test users can access)
-
-   4. Create OAuth 2.0 Credentials:
-      - Go to "Credentials" → "Create Credentials" → "OAuth client ID"
-      - Choose "Desktop app" or "Web application" as the application type
-      - For callback URL, you can use the default localhost callback
-        (The app uses out of band OAuth flow: urn:ietf:wg:oauth:2.0:oob)
-
-   5. Save Credentials:
-      - Copy credentials to `config/gauth.json` using the template in `config/gauth.example.json`
-
-3. **Configure Accounts**
-   - Copy `config/accounts.example.json` to `config/accounts.json` if not done by setup script
-   - Edit `config/accounts.json` to add your Google accounts
-   - Run the authentication script:
-     ```bash
-     npx ts-node src/scripts/setup-google-env.ts
-     ```
-
-4. **Basic Usage**
-   ```typescript
-   // List emails
-   const response = await use_mcp_tool({
-     server_name: "gsuite",
-     tool_name: "list_workspace_emails",
-     arguments: {
-       email: "user@example.com",
-       maxResults: 10,
-       labelIds: ["INBOX"]
-     }
-   });
-
-   // Send email
-   await use_mcp_tool({
-     server_name: "gsuite",
-     tool_name: "send_workspace_email",
-     arguments: {
-       email: "user@example.com",
-       to: ["recipient@example.com"],
-       subject: "Hello",
-       body: "Message content"
-     }
-   });
-   ```
-
-## Docker Installation
-
-⚠️ **IMPORTANT: Config Directory Mounting Required**
-
-The MCP server requires configuration files to run. When using Docker, you **must** mount a local config directory containing your credentials and account settings.
-
-### Required Configuration Files
-
-Before running the container, prepare your configuration:
-
-1. Create a `config` directory on your host machine
-2. Add these required files to your config directory:
-   - `gauth.json`: Your Google OAuth credentials
-   - `accounts.json`: Your account configurations
-
-You can use the example files in `config/*.example.json` as templates.
-
-### Running with Docker
-
-You can run this MCP server using Docker in two ways:
-
-#### Option 1: Pull from GitHub Container Registry
+You can optionally mount a config directory to persist account data:
 
 ```bash
-# Pull the latest image
-docker pull ghcr.io/aaronsb/google-workspace-mcp:latest
-
-# Run the container (replace /path/to/your/config with your actual config directory path)
-docker run -v /path/to/your/config:/app/config ghcr.io/aaronsb/gsuite-mcp:latest
+-v /path/to/your/config:/app/config
 ```
 
-#### Option 2: Build Locally
+This will store account tokens and settings between container runs.
+
+### Development Build
+
+For local development, you can build and run the container:
 
 ```bash
-# Clone the repository
-git clone [repository-url]
-cd gsuite-mcp
-
 # Build the image
-docker build -t gsuite-mcp .
+docker build -t google-workspace-mcp .
 
-# Run the container (replace /path/to/your/config with your actual config directory path)
-docker run -v /path/to/your/config:/app/config gsuite-mcp
+# Run with required environment variables
+docker run -i --rm \
+  -e GOOGLE_CLIENT_ID=your_client_id \
+  -e GOOGLE_CLIENT_SECRET=your_client_secret \
+  google-workspace-mcp
 ```
-
-### Configuration Volume Mount
-
-The `-v /path/to/your/config:/app/config` flag is **required** and mounts your local config directory into the container:
-- Source: `/path/to/your/config` (your local config directory)
-- Target: `/app/config` (where the container expects config files)
-
-Without this volume mount, the container will fail to start with an OAuth configuration error.
 
 ## Available Tools
 
