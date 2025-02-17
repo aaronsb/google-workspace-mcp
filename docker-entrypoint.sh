@@ -10,6 +10,14 @@ log_info() {
     echo "[INFO] $1"
 }
 
+# Function to safely create a file with proper permissions
+create_secure_file() {
+    local file="$1"
+    local content="$2"
+    umask 077  # Set strict permissions for new files
+    echo "$content" > "$file"
+}
+
 # Validate required environment variables
 if [ -z "$GOOGLE_CLIENT_ID" ]; then
     log_error "GOOGLE_CLIENT_ID environment variable is required"
@@ -21,41 +29,34 @@ if [ -z "$GOOGLE_CLIENT_SECRET" ]; then
     exit 1
 fi
 
-# Create config directory if it doesn't exist
-mkdir -p /app/config || {
-    log_error "Failed to create config directory"
-    exit 1
-}
-
-# Create necessary subdirectories and files
-mkdir -p /app/config/credentials
-log_info "Created credentials directory at /app/config/credentials"
+# Ensure config directories exist with proper permissions
+for dir in "/app/config" "/app/config/credentials"; do
+    if [ ! -d "$dir" ]; then
+        log_info "Creating directory: $dir"
+        mkdir -p "$dir"
+    fi
+done
 
 # Create gauth.json with provided credentials
 log_info "Creating gauth.json with provided credentials"
-cat > /app/config/gauth.json << EOF
-{
-  "client_id": "$GOOGLE_CLIENT_ID",
-  "client_secret": "$GOOGLE_CLIENT_SECRET",
-  "redirect_uri": "urn:ietf:wg:oauth:2.0:oob",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token"
-}
-EOF
+create_secure_file "/app/config/gauth.json" "{
+  \"client_id\": \"$GOOGLE_CLIENT_ID\",
+  \"client_secret\": \"$GOOGLE_CLIENT_SECRET\",
+  \"redirect_uri\": \"urn:ietf:wg:oauth:2.0:oob\",
+  \"auth_uri\": \"https://accounts.google.com/o/oauth2/auth\",
+  \"token_uri\": \"https://oauth2.googleapis.com/token\"
+}"
 
 # Create empty accounts.json if it doesn't exist
 if [ ! -f "/app/config/accounts.json" ]; then
     log_info "Creating initial accounts.json"
-    echo '{"accounts":[]}' > /app/config/accounts.json
+    create_secure_file "/app/config/accounts.json" '{"accounts":[]}'
 fi
 
-# Ensure proper permissions on config files
-log_info "Setting secure file permissions"
-chmod 600 /app/config/gauth.json 2>/dev/null || log_error "Failed to set permissions on gauth.json"
-chmod 600 /app/config/accounts.json 2>/dev/null || log_error "Failed to set permissions on accounts.json"
-chmod 700 /app/config/credentials 2>/dev/null || log_error "Failed to set permissions on credentials directory"
-
 log_info "Config directory is ready at /app/config"
+
+# Trap signals for clean shutdown
+trap 'log_info "Shutting down..."; exit 0' SIGTERM SIGINT
 
 # Execute the main application
 exec node build/index.js
