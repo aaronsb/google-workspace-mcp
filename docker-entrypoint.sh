@@ -33,9 +33,15 @@ fi
 for dir in "/app/config" "/app/config/credentials"; do
     if [ ! -d "$dir" ]; then
         log_info "Creating directory: $dir"
-        mkdir -p "$dir"
+        mkdir -p "$dir" || {
+            log_error "Failed to create directory: $dir. This is expected if running as non-root user."
+            log_info "Directory will be created by Docker volume mount"
+        }
     fi
 done
+
+# Directory will be automatically created by Docker volume mount
+log_info "Config directory will be mounted at /app/config"
 
 # Create gauth.json with provided credentials
 log_info "Creating gauth.json with provided credentials"
