@@ -80,4 +80,7 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest --version || true
+          docker run --rm \
+            -e GOOGLE_CLIENT_ID=test-client-id \
+            -e GOOGLE_CLIENT_SECRET=test-secret \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest --version || true
