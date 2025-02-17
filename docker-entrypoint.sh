@@ -10,33 +10,30 @@ log_info() {
     echo "[INFO] $1"
 }
 
-# Check if config directory is mounted and writable
-if [ ! -d "/app/config" ]; then
-    log_error "Config directory /app/config is not mounted."
-    log_error "Please ensure you have:"
-    log_error "1. Created a local config directory for storing sensitive data"
-    log_error "2. Mounted it correctly using: -v /path/to/your/config:/app/config"
-    log_error ""
-    log_error "Recommended: Use ~/.mcp/google-workspace-mcp as your config location"
-    log_error "Example: mkdir -p ~/.mcp/google-workspace-mcp"
+# Validate required environment variables
+if [ -z "$GOOGLE_CLIENT_ID" ]; then
+    log_error "GOOGLE_CLIENT_ID environment variable is required"
     exit 1
 fi
 
-if [ ! -w "/app/config" ]; then
-    log_error "Config directory /app/config is not writable."
-    log_error "Please check permissions on your config directory"
-    log_error "The directory must be writable by the container user"
+if [ -z "$GOOGLE_CLIENT_SECRET" ]; then
+    log_error "GOOGLE_CLIENT_SECRET environment variable is required"
     exit 1
 fi
 
-# Create credentials directory if it doesn't exist
+# Create config directory if it doesn't exist
+mkdir -p /app/config || {
+    log_error "Failed to create config directory"
+    exit 1
+}
+
+# Create necessary subdirectories and files
 mkdir -p /app/config/credentials
-log_info "Ensuring credentials directory exists at /app/config/credentials"
+log_info "Created credentials directory at /app/config/credentials"
 
-# Create gauth.json if it doesn't exist and credentials are provided
-if [ ! -f /app/config/gauth.json ] && [ ! -z "$GOOGLE_CLIENT_ID" ] && [ ! -z "$GOOGLE_CLIENT_SECRET" ]; then
-    log_info "Creating initial gauth.json with provided credentials"
-    cat > /app/config/gauth.json << EOF
+# Create gauth.json with provided credentials
+log_info "Creating gauth.json with provided credentials"
+cat > /app/config/gauth.json << EOF
 {
   "client_id": "$GOOGLE_CLIENT_ID",
   "client_secret": "$GOOGLE_CLIENT_SECRET",
@@ -45,14 +42,9 @@ if [ ! -f /app/config/gauth.json ] && [ ! -z "$GOOGLE_CLIENT_ID" ] && [ ! -z "$G
   "token_uri": "https://oauth2.googleapis.com/token"
 }
 EOF
-elif [ ! -f /app/config/gauth.json" ]; then
-    log_error "gauth.json not found and OAuth credentials not provided"
-    log_error "Please provide GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables"
-    exit 1
-fi
 
 # Create empty accounts.json if it doesn't exist
-if [ ! -f /app/config/accounts.json" ]; then
+if [ ! -f "/app/config/accounts.json" ]; then
     log_info "Creating initial accounts.json"
     echo '{"accounts":[]}' > /app/config/accounts.json
 fi

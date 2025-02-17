@@ -5,53 +5,59 @@
 
 A Model Context Protocol (MCP) server that provides authenticated access to Google Workspace APIs, offering comprehensive Gmail and Calendar functionality.
 
-## Docker Usage
+## Quick Start
 
-The MCP server is self-configuring and securely stores sensitive data locally:
+The MCP server is fully self-configuring and only requires three inputs:
+
+1. Google OAuth Client ID
+2. Google OAuth Client Secret
+3. Local directory path for storing configuration (recommended: `~/.mcp/google-workspace-mcp`)
+
+### Using with Cline
+
+Add the following configuration to your Cline MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "google-workspace-mcp": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-v", "${HOME}/.mcp/google-workspace-mcp:/app/config",
+        "-e", "GOOGLE_CLIENT_ID",
+        "-e", "GOOGLE_CLIENT_SECRET",
+        "ghcr.io/aaronsb/google-workspace-mcp:latest"
+      ],
+      "env": {
+        "GOOGLE_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
+        "GOOGLE_CLIENT_SECRET": "your-client-secret"
+      },
+      "autoApprove": [],
+      "disabled": false
+    }
+  }
+}
+```
+
+### Manual Usage
+
+You can also run the container directly:
 
 ```bash
-# Create local config directory (recommended location)
-mkdir -p ~/.mcp/google-workspace-mcp
-
-# Run the container
-docker run -i --rm \
-  -v /path/to/your/config:/app/config \  # Use your preferred location
-  -e GOOGLE_CLIENT_ID=your_client_id \
-  -e GOOGLE_CLIENT_SECRET=your_client_secret \
-  ghcr.io/aaronsb/google-workspace-mcp:latest
-
-# Example using recommended ~/.mcp location
 docker run -i --rm \
   -v ~/.mcp/google-workspace-mcp:/app/config \
-  -e GOOGLE_CLIENT_ID=your_client_id \
-  -e GOOGLE_CLIENT_SECRET=your_client_secret \
+  -e GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com \
+  -e GOOGLE_CLIENT_SECRET=your-client-secret \
   ghcr.io/aaronsb/google-workspace-mcp:latest
 ```
 
-### Required Environment Variables
-
-- `GOOGLE_CLIENT_ID`: Your Google OAuth client ID (from Google Cloud Console)
-- `GOOGLE_CLIENT_SECRET`: Your Google OAuth client secret
-
-### Local Configuration
-
-The container requires a local directory mounted to `/app/config` to store sensitive data:
-- `gauth.json`: OAuth credentials (created on first run)
-- `accounts.json`: Account tokens and settings
-- `credentials/`: Additional authentication data
-
-While you can use any location for your config directory, we recommend using `~/.mcp/google-workspace-mcp` as it:
-- Follows the Unix convention of using dotfiles for configuration
-- Keeps sensitive data in your home directory
-- Matches common practices of other MCP servers
-
-The container will automatically:
-1. Create necessary config files if they don't exist
-2. Initialize an empty accounts list if needed
-3. Use provided OAuth credentials for Google Workspace authentication
-4. Maintain proper file permissions for security
-
-All sensitive data (tokens, credentials) persists locally between container runs, ensuring secure and consistent access to your Google Workspace accounts.
+The server will automatically:
+- Create and manage all necessary configuration files
+- Handle secure storage of credentials and tokens
+- Maintain proper file permissions
 
 ### Development Build
 
