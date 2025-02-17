@@ -5,9 +5,6 @@
 # Dependencies
 node_modules
 
-# Build output
-build
-
 # Development files
 .vscode
 .idea
