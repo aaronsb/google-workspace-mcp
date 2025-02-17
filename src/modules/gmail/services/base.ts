@@ -44,7 +44,15 @@ export class GmailService {
   private draftService?: DraftService;
   private settingsService?: SettingsService;
   
-  constructor(config?: GmailModuleConfig) {}
+  constructor(config?: GmailModuleConfig) {
+    this.initialize().catch(error => {
+      throw new GmailError(
+        'Failed to initialize Gmail service',
+        'INIT_ERROR',
+        error.message
+      );
+    });
+  }
 
   async initialize(): Promise<void> {
     const accountManager = getAccountManager();
