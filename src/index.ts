@@ -6,6 +6,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { google } from 'googleapis';
 
 // Core module imports for account management and Gmail functionality
 import { initializeAccountModule, getAccountManager } from './modules/accounts/index.js';
@@ -498,9 +499,37 @@ class GSuiteServer {
                   required: ['email']
                 },
                 description: 'Optional list of event attendees'
+              },
+              recurrence: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'RRULE strings for recurring events (e.g., ["RRULE:FREQ=WEEKLY"])'
               }
             },
             required: ['email', 'summary', 'start', 'end']
+          }
+        },
+        {
+          name: 'delete_workspace_calendar_event',
+          description: 'Delete a calendar event',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              email: {
+                type: 'string',
+                description: 'Email address of the calendar owner'
+              },
+              eventId: {
+                type: 'string',
+                description: 'ID of the event to delete'
+              },
+              sendUpdates: {
+                type: 'string',
+                enum: ['all', 'externalOnly', 'none'],
+                description: 'Whether to send update notifications'
+              }
+            },
+            required: ['email', 'eventId']
           }
         },
         // Gmail Label Management Tools
@@ -838,6 +867,31 @@ class GSuiteServer {
                 content: [{
                   type: 'text',
                   text: JSON.stringify(event, null, 2)
+                }]
+              };
+            });
+          }
+
+          case 'delete_workspace_calendar_event': {
+            const args = request.params.arguments as any;
+            const accountManager = getAccountManager();
+            
+            return await accountManager.withTokenRenewal(args.email, async () => {
+              const authClient = await accountManager.getAuthClient();
+              const calendar = google.calendar({ version: 'v3', auth: authClient });
+              await calendar.events.delete({
+                calendarId: 'primary',
+                eventId: args.eventId,
+                sendUpdates: args.sendUpdates || 'all'
+              });
+              
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    status: 'success',
+                    message: `Successfully deleted event ${args.eventId}`
+                  }, null, 2)
                 }]
               };
             });
