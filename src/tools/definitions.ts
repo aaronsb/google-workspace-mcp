@@ -38,19 +38,19 @@ export const accountTools: ToolMetadata[] = [
     
     IMPORTANT: Only use this tool if list_workspace_accounts shows:
     1. No existing accounts, OR
-    2. Existing account lacks required scopes
+    2. When using the account it seems to lack necessary auth scopes.
     
-    DO NOT use this tool:
+    To prevent wasted time, DO NOT use this tool:
     - Without checking list_workspace_accounts first
     - When token is just expired (auto-refresh handles this)
     - To re-authenticate an already valid account
     
-    Authentication Flow:
-    1. Call with required email address
-    2. Receive auth_url in response
-    3. Share EXACT auth_url with user
-    4. User completes OAuth flow
-    5. User provides auth_code
+    Steps to complete authentication:
+    1. You call with required email address
+    2. You receive auth_url in response
+    3. You share EXACT auth_url with user - in a clickable URL form! (Important!)
+    4. User completes OAuth flow by clicking on the link you furnished them
+    5. User provides auth_code back to you
     6. Complete authentication with auth_code
     
     Technical Details:
