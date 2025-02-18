@@ -20,6 +20,7 @@ describe('CalendarService', () => {
         list: jest.fn(() => Promise.resolve({ data: {} })),
         get: jest.fn(() => Promise.resolve({ data: {} })),
         insert: jest.fn(() => Promise.resolve({ data: {} })),
+        patch: jest.fn(() => Promise.resolve({ data: {} })),
       },
       calendarList: {
         list: jest.fn(() => Promise.resolve({ data: {} })),
@@ -251,7 +252,13 @@ describe('CalendarService', () => {
         Promise.resolve({ data: { ...mockEvent.data, ...params.requestBody } })
       );
       (mockCalendarClient.events.insert as any).mockImplementation((params: { requestBody: any }) => 
-        Promise.resolve({ data: { id: 'counter-proposal-1', ...params.requestBody } })
+        Promise.resolve({ 
+          data: { 
+            id: 'counter-proposal-1',
+            htmlLink: 'https://calendar.google.com/event?id=counter-proposal-1',
+            ...params.requestBody 
+          }
+        })
       );
     });
 

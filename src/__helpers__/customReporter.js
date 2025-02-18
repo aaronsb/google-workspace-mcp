@@ -49,7 +49,7 @@ class CustomReporter {
         return self.originalStderrWrite.call(process.stderr, buffer, encoding, cb);
       }
 
-      // 3. Test progress and results
+      // 3. Test progress, results, and error details
       if (
         // Test initialization
         strContent.includes('Determining test suites') ||
@@ -65,7 +65,14 @@ class CustomReporter {
         /^Tests:.*total/.test(strContent) ||
         /^Snapshots:.*total/.test(strContent) ||
         /^Time:.*s$/.test(strContent) ||
-        strContent.includes('Ran all test suites')
+        strContent.includes('Ran all test suites') ||
+        // Error details
+        strContent.includes('Expected:') ||
+        strContent.includes('Received:') ||
+        strContent.includes('Error:') ||
+        strContent.includes('at ') ||  // Stack traces
+        strContent.includes('● ') ||   // Test case descriptions
+        strContent.includes('expect(') // Jest expectations
       ) {
         return self.originalStderrWrite.call(process.stderr, buffer, encoding, cb);
       }
