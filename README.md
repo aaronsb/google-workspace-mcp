@@ -144,18 +144,22 @@ docker run -i --rm \
 ## Available Tools
 
 ### Account Management
-- `list_workspace_accounts`: List configured accounts
-- `authenticate_workspace_account`: Add/authenticate account
-- `remove_workspace_account`: Remove account
+- `list_workspace_accounts`: List all configured Google accounts and their authentication status
+- `authenticate_workspace_account`: Add and authenticate a Google account for API access
+- `remove_workspace_account`: Remove a Google account and delete its associated authentication tokens
 
 ### Gmail Operations
-- `list_workspace_emails`: Fetch emails with filtering
-- `send_workspace_email`: Send emails with CC/BCC
+- `search_workspace_emails`: Search emails with advanced filtering (by sender, recipient, subject, content, date, labels, etc.)
+- `send_workspace_email`: Send emails with support for CC/BCC recipients
+- `get_workspace_gmail_settings`: Get Gmail settings and profile information
+- `create_workspace_draft`: Create new email drafts with support for replies and threading
+- `get_workspace_drafts`: Get a list of email drafts
+- `send_workspace_draft`: Send an existing draft
 
 ### Calendar Operations
-- `list_workspace_calendar_events`: List calendar events with filtering
-- `get_workspace_calendar_event`: Get a specific calendar event
-- `create_workspace_calendar_event`: Create a new calendar event
+- `list_workspace_calendar_events`: Get calendar events with optional filtering by date range and search terms
+- `get_workspace_calendar_event`: Get detailed information about a specific calendar event
+- `create_workspace_calendar_event`: Create new calendar events with optional attendees
 
 See [API Documentation](docs/API.md) for detailed usage.
 
