@@ -7,7 +7,11 @@ import {
   CreateLabelArgs,
   UpdateLabelArgs,
   DeleteLabelArgs,
-  ModifyLabelsArgs
+  ModifyLabelsArgs,
+  CreateLabelFilterArgs,
+  GetLabelFiltersArgs,
+  UpdateLabelFilterArgs,
+  DeleteLabelFilterArgs
 } from './types.js';
 
 export function isBaseToolArguments(args: Record<string, unknown>): args is BaseToolArguments {
@@ -134,5 +138,56 @@ export function assertDeleteLabelArgs(args: Record<string, unknown>): asserts ar
 export function assertModifyLabelsArgs(args: Record<string, unknown>): asserts args is ModifyLabelsArgs {
   if (!isModifyLabelsArgs(args)) {
     throw new Error('Invalid label modification parameters. Required: email, messageId');
+  }
+}
+
+// Label Filter Type Guards
+export function isCreateLabelFilterArgs(args: Record<string, unknown>): args is CreateLabelFilterArgs {
+  return typeof args.email === 'string' &&
+    typeof args.labelId === 'string' &&
+    typeof args.criteria === 'object' &&
+    args.criteria !== null &&
+    typeof args.actions === 'object' &&
+    args.actions !== null &&
+    typeof (args.actions as { addLabel: boolean }).addLabel === 'boolean';
+}
+
+export function isGetLabelFiltersArgs(args: Record<string, unknown>): args is GetLabelFiltersArgs {
+  return typeof args.email === 'string' &&
+    (args.labelId === undefined || typeof args.labelId === 'string');
+}
+
+export function isUpdateLabelFilterArgs(args: Record<string, unknown>): args is UpdateLabelFilterArgs {
+  return typeof args.email === 'string' &&
+    typeof args.filterId === 'string' &&
+    (args.criteria === undefined || (typeof args.criteria === 'object' && args.criteria !== null)) &&
+    (args.actions === undefined || (typeof args.actions === 'object' && args.actions !== null));
+}
+
+export function isDeleteLabelFilterArgs(args: Record<string, unknown>): args is DeleteLabelFilterArgs {
+  return typeof args.email === 'string' && typeof args.filterId === 'string';
+}
+
+export function assertCreateLabelFilterArgs(args: Record<string, unknown>): asserts args is CreateLabelFilterArgs {
+  if (!isCreateLabelFilterArgs(args)) {
+    throw new Error('Invalid filter parameters. Required: email, labelId, criteria, actions');
+  }
+}
+
+export function assertGetLabelFiltersArgs(args: Record<string, unknown>): asserts args is GetLabelFiltersArgs {
+  if (!isGetLabelFiltersArgs(args)) {
+    throw new Error('Missing required email parameter');
+  }
+}
+
+export function assertUpdateLabelFilterArgs(args: Record<string, unknown>): asserts args is UpdateLabelFilterArgs {
+  if (!isUpdateLabelFilterArgs(args)) {
+    throw new Error('Invalid filter update parameters. Required: email, filterId');
+  }
+}
+
+export function assertDeleteLabelFilterArgs(args: Record<string, unknown>): asserts args is DeleteLabelFilterArgs {
+  if (!isDeleteLabelFilterArgs(args)) {
+    throw new Error('Missing required email or filterId parameter');
   }
 }
