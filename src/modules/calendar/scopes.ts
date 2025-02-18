@@ -2,10 +2,15 @@ import { scopeRegistry } from '../tools/scope-registry.js';
 
 // Define Calendar scopes as constants for reuse and testing
 export const CALENDAR_SCOPES = {
-  READONLY: 'https://www.googleapis.com/auth/calendar.readonly',
-  EVENTS: 'https://www.googleapis.com/auth/calendar.events',
-  SETTINGS_READONLY: 'https://www.googleapis.com/auth/calendar.settings.readonly',
-  FULL_ACCESS: 'https://www.googleapis.com/auth/calendar'
+  // Core functionality scopes
+  READONLY: 'https://www.googleapis.com/auth/calendar.readonly',  // Required for reading events
+  EVENTS: 'https://www.googleapis.com/auth/calendar.events',      // Required for creating/updating events
+  
+  // Settings scopes
+  SETTINGS_READONLY: 'https://www.googleapis.com/auth/calendar.settings.readonly',  // Required for reading calendar settings
+  
+  // Full access scope (includes all above permissions)
+  FULL_ACCESS: 'https://www.googleapis.com/auth/calendar'         // Complete calendar access
 };
 
 /**
@@ -17,15 +22,15 @@ export const CALENDAR_SCOPES = {
  * followed by feature-specific scopes (events), and settings scopes last.
  */
 export function registerCalendarScopes() {
-  // Register core functionality scopes first
-  scopeRegistry.registerScope('calendar', CALENDAR_SCOPES.READONLY);
+  // Register core functionality scopes first (order matters for auth URL generation)
+  scopeRegistry.registerScope('calendar', CALENDAR_SCOPES.READONLY);   // For reading calendar events
+  scopeRegistry.registerScope('calendar', CALENDAR_SCOPES.EVENTS);     // For managing calendar events
   
-  // Register feature-specific scopes
-  scopeRegistry.registerScope('calendar', CALENDAR_SCOPES.EVENTS);
-  scopeRegistry.registerScope('calendar', CALENDAR_SCOPES.FULL_ACCESS);
+  // Register settings scopes
+  scopeRegistry.registerScope('calendar', CALENDAR_SCOPES.SETTINGS_READONLY);  // For reading calendar settings
   
-  // Register settings scopes last
-  scopeRegistry.registerScope('calendar', CALENDAR_SCOPES.SETTINGS_READONLY);
+  // Register full access scope last
+  scopeRegistry.registerScope('calendar', CALENDAR_SCOPES.FULL_ACCESS);  // Complete calendar access (includes all above)
   
   // Verify all scopes are registered
   const registeredScopes = scopeRegistry.getAllScopes();

@@ -2,12 +2,18 @@ import { scopeRegistry } from '../tools/scope-registry.js';
 
 // Define Gmail scopes as constants for reuse and testing
 export const GMAIL_SCOPES = {
+  // Core functionality scopes
   READONLY: 'https://www.googleapis.com/auth/gmail.readonly',
   SEND: 'https://www.googleapis.com/auth/gmail.send',
   MODIFY: 'https://www.googleapis.com/auth/gmail.modify',
+  
+  // Feature-specific scopes
   LABELS: 'https://www.googleapis.com/auth/gmail.labels',
+  
+  // Settings scopes
   SETTINGS_BASIC: 'https://www.googleapis.com/auth/gmail.settings.basic',
-  SETTINGS_SHARING: 'https://www.googleapis.com/auth/gmail.settings.sharing'
+  SETTINGS_SHARING: 'https://www.googleapis.com/auth/gmail.settings.sharing',
+  SETTINGS_FILTERS: 'https://www.googleapis.com/auth/gmail.settings.filters'
 };
 
 /**
@@ -27,9 +33,10 @@ export function registerGmailScopes() {
   // Register feature-specific scopes
   scopeRegistry.registerScope('gmail', GMAIL_SCOPES.LABELS);
   
-  // Register settings scopes last
+  // Register settings scopes last (order matters for auth URL generation)
   scopeRegistry.registerScope('gmail', GMAIL_SCOPES.SETTINGS_BASIC);
   scopeRegistry.registerScope('gmail', GMAIL_SCOPES.SETTINGS_SHARING);
+  scopeRegistry.registerScope('gmail', GMAIL_SCOPES.SETTINGS_FILTERS); // Required for filter operations
   
   // Verify all scopes are registered
   const registeredScopes = scopeRegistry.getAllScopes();
