@@ -22,26 +22,3 @@ export enum ErrorCode {
   ServiceUnavailable = 'SERVICE_UNAVAILABLE',
   ParseError = 'PARSE_ERROR'
 }
-
-export class Server {
-  private config: any;
-  public onerror: ((error: Error) => void) | undefined;
-
-  constructor(config: any, options?: any) {
-    this.config = config;
-  }
-
-  async connect(transport: any): Promise<void> {
-    // Mock implementation
-    return Promise.resolve();
-  }
-
-  async close(): Promise<void> {
-    // Mock implementation
-    return Promise.resolve();
-  }
-
-  setRequestHandler(schema: any, handler: any): void {
-    // Mock implementation
-  }
-}

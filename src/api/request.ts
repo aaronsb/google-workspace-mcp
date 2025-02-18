@@ -72,7 +72,7 @@ export class GoogleApiRequest {
     return serviceConstructor({ version, auth: this.authClient });
   }
 
-  private getApiMethod(service: any, methodPath: string): Function {
+  private getApiMethod(service: any, methodPath: string): (params: Record<string, any>) => Promise<any> {
     const method = methodPath.split('.').reduce((obj: any, part) => obj?.[part], service);
 
     if (typeof method !== 'function') {

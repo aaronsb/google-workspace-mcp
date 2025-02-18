@@ -11,13 +11,16 @@
     "build"
   ],
   "scripts": {
-    "build": "tsc && node --eval \"import('fs').then(fs => { fs.chmodSync('build/index.js', '755'); fs.chmodSync('build/scripts/setup-google-env.js', '755'); })\"",
+    "build": "tsc && node --eval \"import('fs').then(fs => { ['build/index.js', 'build/scripts/setup-google-env.js', 'build/scripts/health-check.js'].forEach(f => fs.chmodSync(f, '755')); })\"",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint \"src/**/*.ts\"",
     "watch": "tsc --watch",
     "inspector": "npx @modelcontextprotocol/inspector build/index.js",
     "start": "node build/index.js",
     "setup": "node build/scripts/setup-google-env.js",
     "test": "jest --config jest.config.cjs",
-    "test:watch": "jest --config jest.config.cjs --watch"
+    "test:watch": "jest --config jest.config.cjs --watch",
+    "test:integration": "NODE_ENV=test jest --config jest.config.cjs --testPathPattern=src/__tests__/integration"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.7.0",
@@ -33,7 +36,10 @@
     "@types/express": "^4.17.21",
     "@types/jest": "^29.5.14",
     "@types/node": "^20.11.24",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
     "babel-jest": "^29.7.0",
+    "eslint": "^8.56.0",
     "jest": "^29.7.0",
     "lru-cache": "^11.0.2",
     "ts-jest": "^29.2.5",

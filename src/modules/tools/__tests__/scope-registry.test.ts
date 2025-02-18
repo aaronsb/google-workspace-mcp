@@ -3,9 +3,9 @@ import { scopeRegistry } from '../scope-registry.js';
 describe('ScopeRegistry', () => {
   beforeEach(() => {
     // Reset the scope registry before each test
-    // @ts-ignore - accessing private property for testing
+    // @ts-expect-error - accessing private property for testing
     scopeRegistry.scopes = new Map();
-    // @ts-ignore - accessing private property for testing
+    // @ts-expect-error - accessing private property for testing
     scopeRegistry.scopeOrder = [];
   });
 
