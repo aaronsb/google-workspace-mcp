@@ -19,4 +19,10 @@ export function registerCalendarScopes() {
     'calendar',
     'https://www.googleapis.com/auth/calendar.settings.readonly'
   );
+
+  // Add full calendar access scope for managing events
+  scopeRegistry.registerScope(
+    'calendar',
+    'https://www.googleapis.com/auth/calendar'
+  );
 }
