@@ -48,6 +48,8 @@ Before using this MCP server, you must:
 
 Configure the server through your MCP settings file (e.g., `cline_mcp_settings.json`):
 
+#### Basic Configuration
+
 ```json
 {
   "mcpServers": {
@@ -78,6 +80,35 @@ Configure the server through your MCP settings file (e.g., `cline_mcp_settings.j
 The server uses a data directory (`~/.mcp/google-workspace-mcp`) to store:
 - `accounts.json`: List of configured Google accounts
 - `credentials/`: Directory containing OAuth tokens for each account
+
+#### Logging Configuration
+
+The server supports two logging modes controlled by the `LOG_MODE` environment variable:
+
+```json
+{
+  "mcpServers": {
+    "google-workspace-mcp": {
+      "env": {
+        // ... other env vars ...
+        "LOG_MODE": "normal" // or "strict"
+      }
+    }
+  }
+}
+```
+
+Available modes:
+- `normal` (default): Uses appropriate console methods for each log level
+  - error → stderr
+  - warn → stdout with [WARN] prefix
+  - info → stdout with [INFO] prefix
+  - debug → stdout with [DEBUG] prefix (when DEBUG=true)
+
+- `strict`: Routes all non-JSON-RPC messages to stderr
+  - Recommended for tools like Claude desktop that require stderr separation
+  - All log messages go to stderr except JSON-RPC protocol messages
+  - Ensures clean separation of logs from protocol communication
 
 ## Tool Registration Requirements
 

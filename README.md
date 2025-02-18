@@ -37,7 +37,8 @@ A Model Context Protocol (MCP) server that provides authenticated access to Goog
          ],
          "env": {
            "GOOGLE_CLIENT_ID": "YOUR_CLIENT_ID_HERE.apps.googleusercontent.com",
-           "GOOGLE_CLIENT_SECRET": "YOUR_CLIENT_SECRET_HERE"
+           "GOOGLE_CLIENT_SECRET": "YOUR_CLIENT_SECRET_HERE",
+           "LOG_MODE": "strict"  // For Claude desktop compatibility
          },
          "autoApprove": [],
          "disabled": false
@@ -45,6 +46,10 @@ A Model Context Protocol (MCP) server that provides authenticated access to Goog
      }
    }
    ```
+
+   Logging modes:
+   - `normal` (default): Uses appropriate console methods for each log level
+   - `strict`: Routes all non-JSON-RPC messages to stderr (recommended for Claude desktop)
 
 4. Restart Cline/Claude
 
