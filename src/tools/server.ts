@@ -4,10 +4,12 @@ import logger from '../utils/logger.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  Tool
 } from "@modelcontextprotocol/sdk/types.js";
 
-// Import tool definitions
+// Import tool definitions and registry
 import { allTools } from './definitions.js';
+import { ToolRegistry } from '../modules/tools/registry.js';
 
 // Import handlers
 import {
@@ -79,8 +81,10 @@ import {
 
 export class GSuiteServer {
   private server: Server;
+  private toolRegistry: ToolRegistry;
 
   constructor() {
+    this.toolRegistry = new ToolRegistry(allTools);
     this.server = new Server(
       {
         name: "Google Workspace MCP Server",
@@ -101,16 +105,53 @@ export class GSuiteServer {
 
   private setupRequestHandlers(): void {
     // List available tools
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: allTools
-    }));
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      // Get tools with categories organized
+      const categories = this.toolRegistry.getCategories();
+      const toolsByCategory: { [key: string]: Tool[] } = {};
+      
+      for (const category of categories) {
+        // Convert ToolMetadata to Tool (strip out category and aliases for SDK compatibility)
+        toolsByCategory[category.name] = category.tools.map(tool => ({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema
+        }));
+      }
+
+      return {
+        tools: allTools.map(tool => ({
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema
+        })),
+        _meta: {
+          categories: toolsByCategory,
+          aliases: Object.fromEntries(
+            allTools.flatMap(tool => 
+              (tool.aliases || []).map(alias => [alias, tool.name])
+            )
+          )
+        }
+      };
+    });
 
     // Handle tool calls
     this.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       try {
         const args = request.params.arguments || {};
+        const toolName = request.params.name;
         
-        switch (request.params.name) {
+        // Look up the tool using the registry
+        const tool = this.toolRegistry.getTool(toolName);
+        if (!tool) {
+          // Generate helpful error message with suggestions
+          const errorMessage = this.toolRegistry.formatErrorWithSuggestions(toolName);
+          throw new Error(errorMessage);
+        }
+        
+        // Use the canonical tool name for the switch
+        switch (tool.name) {
           // Account Management
           case 'list_workspace_accounts':
             return await handleListWorkspaceAccounts();
