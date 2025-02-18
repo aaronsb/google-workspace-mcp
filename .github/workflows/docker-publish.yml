@@ -28,6 +28,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Type check
+        run: npm run type-check
+
+      - name: Lint
+        run: npm run lint
+
       - name: Run tests
         run: npm test
 
@@ -75,12 +81,51 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            DOCKER_HASH=${{ github.sha }}
 
-      - name: Verify build
-        if: github.event_name != 'pull_request'
+  integration-test:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Pull container
         run: |
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          docker run --rm \
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+      
+      - name: Run integration tests
+        run: |
+          docker run -i \
             -e GOOGLE_CLIENT_ID=test-client-id \
             -e GOOGLE_CLIENT_SECRET=test-secret \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest --version || true
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }} \
+            npm run test:integration
+      
+      - name: Verify container health
+        run: |
+          docker run -i \
+            -e GOOGLE_CLIENT_ID=test-client-id \
+            -e GOOGLE_CLIENT_SECRET=test-secret \
+            --health-cmd="node /app/build/health-check.js" \
+            --health-interval=10s \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+
+  cleanup:
+    name: Cleanup
+    needs: [build-and-deploy, integration-test]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Remove old packages
+        uses: actions/delete-package-versions@v4
+        with:
+          package-name: ${{ env.IMAGE_NAME }}
+          package-type: container
+          min-versions-to-keep: 10
+          delete-only-untagged-versions: true
