@@ -14,8 +14,9 @@ log_info() {
 create_secure_file() {
     local file="$1"
     local content="$2"
-    umask 077  # Set strict permissions for new files
+    umask 027  # Set permissions for new files (640)
     echo "$content" > "$file"
+    chmod 640 "$file"  # Ensure file is readable by user and group only
 }
 
 # Validate required environment variables
@@ -37,6 +38,7 @@ for dir in "/app/config" "/app/config/credentials"; do
             log_error "Failed to create directory: $dir. This is expected if running as non-root user."
             log_info "Directory will be created by Docker volume mount"
         }
+        chmod 750 "$dir" || log_info "Directory permissions will be set by Docker volume mount"
     fi
 done
 
@@ -45,6 +47,10 @@ ACCOUNTS_FILE="/app/config/accounts.json"
 if [ ! -f "$ACCOUNTS_FILE" ]; then
     log_info "Creating initial accounts.json file"
     create_secure_file "$ACCOUNTS_FILE" '{"accounts":[]}'
+    # Ensure proper ownership if running as root
+    if [ "$(id -u)" = "0" ]; then
+        chown "$DOCKER_USER:$DOCKER_USER" "$ACCOUNTS_FILE" 2>/dev/null || true
+    fi
 fi
 
 # Directory will be automatically created by Docker volume mount
