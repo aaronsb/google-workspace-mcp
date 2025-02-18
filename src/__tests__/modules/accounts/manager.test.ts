@@ -10,7 +10,12 @@ jest.mock('../../../modules/accounts/token.js', () => ({
       token: { access_token: 'test-token' }
     }),
     saveToken: jest.fn().mockResolvedValue(undefined),
-    deleteToken: jest.fn().mockResolvedValue(undefined)
+    deleteToken: jest.fn().mockResolvedValue(undefined),
+    autoRenewToken: jest.fn().mockResolvedValue({
+      success: true,
+      status: 'VALID',
+      token: { access_token: 'test-token' }
+    })
   }))
 }));
 
@@ -55,7 +60,12 @@ describe('AccountManager', () => {
     TokenManager.mockImplementation(() => ({
       validateToken: jest.fn().mockResolvedValue({ valid: true }),
       saveToken: jest.fn().mockResolvedValue(undefined),
-      deleteToken: jest.fn().mockResolvedValue(undefined)
+      deleteToken: jest.fn().mockResolvedValue(undefined),
+      autoRenewToken: jest.fn().mockResolvedValue({
+        success: true,
+        status: 'VALID',
+        token: { access_token: 'test-token' }
+      })
     }));
     
     accountManager = new AccountManager();

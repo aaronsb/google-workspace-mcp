@@ -1,9 +1,18 @@
 // @ts-nocheck
-const { Reporter } = require('@jest/reporters');
 
 /**
- * Custom Jest reporter that filters stderr output during tests
+ * Custom Jest reporter that selectively filters stderr output during tests
  * while maintaining MCP protocol compatibility.
+ * 
+ * This reporter is necessary because MCP tools communicate via stderr,
+ * which can interfere with Jest's test output. The reporter:
+ * 
+ * 1. Allows through all MCP protocol messages (JSON-RPC format)
+ * 2. Allows through Jest's own test progress/results output
+ * 3. Filters out other stderr output that could confuse the test results
+ * 
+ * This ensures clean test output while preserving the MCP tool communication
+ * that happens over stderr.
  */
 class CustomReporter {
   constructor() {
@@ -81,4 +90,4 @@ class CustomReporter {
   onTestResult() {}
 }
 
-module.exports = CustomReporter;
+export default CustomReporter;
