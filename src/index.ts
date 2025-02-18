@@ -502,6 +502,157 @@ class GSuiteServer {
             },
             required: ['email', 'summary', 'start', 'end']
           }
+        },
+        // Gmail Label Management Tools
+        {
+          name: 'get_workspace_labels',
+          description: 'List all labels in a Gmail account',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              email: {
+                type: 'string',
+                description: 'Email address of the Gmail account'
+              }
+            },
+            required: ['email']
+          }
+        },
+        {
+          name: 'create_workspace_label',
+          description: 'Create a new label in a Gmail account',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              email: {
+                type: 'string',
+                description: 'Email address of the Gmail account'
+              },
+              name: {
+                type: 'string',
+                description: 'Name of the label'
+              },
+              messageListVisibility: {
+                type: 'string',
+                enum: ['show', 'hide'],
+                description: 'Label visibility in message list'
+              },
+              labelListVisibility: {
+                type: 'string',
+                enum: ['labelShow', 'labelHide', 'labelShowIfUnread'],
+                description: 'Label visibility in label list'
+              },
+              color: {
+                type: 'object',
+                properties: {
+                  textColor: {
+                    type: 'string',
+                    description: 'Text color in hex format'
+                  },
+                  backgroundColor: {
+                    type: 'string',
+                    description: 'Background color in hex format'
+                  }
+                }
+              }
+            },
+            required: ['email', 'name']
+          }
+        },
+        {
+          name: 'update_workspace_label',
+          description: 'Update an existing label in a Gmail account',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              email: {
+                type: 'string',
+                description: 'Email address of the Gmail account'
+              },
+              labelId: {
+                type: 'string',
+                description: 'ID of the label to update'
+              },
+              name: {
+                type: 'string',
+                description: 'New name for the label'
+              },
+              messageListVisibility: {
+                type: 'string',
+                enum: ['show', 'hide'],
+                description: 'Label visibility in message list'
+              },
+              labelListVisibility: {
+                type: 'string',
+                enum: ['labelShow', 'labelHide', 'labelShowIfUnread'],
+                description: 'Label visibility in label list'
+              },
+              color: {
+                type: 'object',
+                properties: {
+                  textColor: {
+                    type: 'string',
+                    description: 'Text color in hex format'
+                  },
+                  backgroundColor: {
+                    type: 'string',
+                    description: 'Background color in hex format'
+                  }
+                }
+              }
+            },
+            required: ['email', 'labelId']
+          }
+        },
+        {
+          name: 'delete_workspace_label',
+          description: 'Delete a label from a Gmail account',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              email: {
+                type: 'string',
+                description: 'Email address of the Gmail account'
+              },
+              labelId: {
+                type: 'string',
+                description: 'ID of the label to delete'
+              }
+            },
+            required: ['email', 'labelId']
+          }
+        },
+        {
+          name: 'modify_workspace_message_labels',
+          description: 'Add or remove labels from a Gmail message',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              email: {
+                type: 'string',
+                description: 'Email address of the Gmail account'
+              },
+              messageId: {
+                type: 'string',
+                description: 'ID of the message to modify'
+              },
+              addLabelIds: {
+                type: 'array',
+                items: {
+                  type: 'string'
+                },
+                description: 'Array of label IDs to add to the message'
+              },
+              removeLabelIds: {
+                type: 'array',
+                items: {
+                  type: 'string'
+                },
+                description: 'Array of label IDs to remove from the message'
+              }
+            },
+            required: ['email', 'messageId']
+          }
         }
       ]
     }));
@@ -732,6 +883,88 @@ class GSuiteServer {
                 content: [{
                   type: 'text',
                   text: JSON.stringify(result, null, 2)
+                }]
+              };
+            });
+          }
+
+          // Gmail Label Management Tool Handlers
+          case 'get_workspace_labels': {
+            const args = request.params.arguments as { email: string };
+            const accountManager = getAccountManager();
+            
+            return await accountManager.withTokenRenewal(args.email, async () => {
+              const result = await getGmailService().getLabels({ email: args.email });
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2)
+                }]
+              };
+            });
+          }
+
+          case 'create_workspace_label': {
+            const args = request.params.arguments as any;
+            const accountManager = getAccountManager();
+            
+            return await accountManager.withTokenRenewal(args.email, async () => {
+              const result = await getGmailService().createLabel(args);
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2)
+                }]
+              };
+            });
+          }
+
+          case 'update_workspace_label': {
+            const args = request.params.arguments as any;
+            const accountManager = getAccountManager();
+            
+            return await accountManager.withTokenRenewal(args.email, async () => {
+              const result = await getGmailService().updateLabel(args);
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2)
+                }]
+              };
+            });
+          }
+
+          case 'delete_workspace_label': {
+            const args = request.params.arguments as any;
+            const accountManager = getAccountManager();
+            
+            return await accountManager.withTokenRenewal(args.email, async () => {
+              await getGmailService().deleteLabel(args);
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    status: 'success',
+                    message: `Successfully deleted label ${args.labelId}`
+                  }, null, 2)
+                }]
+              };
+            });
+          }
+
+          case 'modify_workspace_message_labels': {
+            const args = request.params.arguments as any;
+            const accountManager = getAccountManager();
+            
+            return await accountManager.withTokenRenewal(args.email, async () => {
+              await getGmailService().modifyMessageLabels(args);
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    status: 'success',
+                    message: `Successfully modified labels for message ${args.messageId}`
+                  }, null, 2)
                 }]
               };
             });
