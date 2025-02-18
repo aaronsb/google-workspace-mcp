@@ -139,7 +139,14 @@ graph TD
 
 #### Key Testing Principles
 
-1. **Simplified Mocking**
+1. **Logging Strategy**
+   - All logs are directed to stderr to maintain MCP protocol integrity
+   - Prevents log messages from corrupting stdout JSON communication
+   - Enables clean separation of logs and tool responses
+   - Logger is mocked in tests to prevent console.error noise
+   - Consistent logging approach across all modules
+
+2. **Simplified Mocking**
    - Use static mock responses instead of complex simulations
    - Mock external dependencies with minimal implementations
    - Focus on behavior verification over implementation details
