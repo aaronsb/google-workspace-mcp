@@ -35,7 +35,10 @@ class GSuiteServer {
       },
       {
         capabilities: {
-          tools: {}
+          tools: {
+            list: true,
+            call: true
+          }
         }
       }
     );
@@ -484,7 +487,8 @@ class GSuiteServer {
                   auth_url: authUrl,
                   message: 'Please complete authentication:',
                   instructions: [
-                    '1. Click the authorization URL below to open Google sign-in',
+                    '0. Share a clickable authorization URL link below with the user to authenticate',
+                    '1. Instruct the user to click the authorization URL to open Google sign-in',
                     '2. Sign in with your Google account',
                     '3. Allow the requested permissions',
                     '4. Copy the authorization code shown',
