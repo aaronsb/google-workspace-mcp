@@ -24,4 +24,15 @@ export function registerGmailScopes() {
     'gmail',
     'https://www.googleapis.com/auth/gmail.labels'
   );
+
+  // Add settings scopes for Gmail settings functionality
+  scopeRegistry.registerScope(
+    'gmail',
+    'https://www.googleapis.com/auth/gmail.settings.basic'
+  );
+
+  scopeRegistry.registerScope(
+    'gmail',
+    'https://www.googleapis.com/auth/gmail.settings.sharing'
+  );
 }
