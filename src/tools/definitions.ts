@@ -1,10 +1,13 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { ToolMetadata } from "../modules/tools/registry.js";
 
 // Account Management Tools
-export const accountTools: Tool[] = [
+export const accountTools: ToolMetadata[] = [
   {
     name: 'list_workspace_accounts',
+    category: 'Account Management',
     description: 'List all configured Google workspace accounts and their authentication status',
+    aliases: ['list_accounts', 'get_accounts', 'show_accounts'],
     inputSchema: {
       type: 'object',
       properties: {}
@@ -12,7 +15,9 @@ export const accountTools: Tool[] = [
   },
   {
     name: 'authenticate_workspace_account',
+    category: 'Account Management',
     description: 'Add and authenticate a Google account for API access. IMPORTANT: When authenticating, always use the exact auth_url from the API response to ensure all OAuth parameters are preserved correctly. REQUIRED: When you get the auth_url, you must share it with the user by providing it in a response. The user will then click it to visit the URL and authorize the app. After authorization, the user will share that response with you. The auth_code will be a long string starting with "4/" followed by alphanumeric characters. Common errors include: expired auth_code (must be used quickly), invalid auth_code format, or missing required scopes. The response will include the account status and configured scopes.',
+    aliases: ['auth_account', 'add_account', 'connect_account'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -38,7 +43,9 @@ export const accountTools: Tool[] = [
   },
   {
     name: 'remove_workspace_account',
+    category: 'Account Management',
     description: 'Remove a Google account and delete its associated authentication tokens',
+    aliases: ['delete_account', 'disconnect_account', 'remove_account'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -53,10 +60,12 @@ export const accountTools: Tool[] = [
 ];
 
 // Gmail Tools
-export const gmailTools: Tool[] = [
+export const gmailTools: ToolMetadata[] = [
   {
     name: 'search_workspace_emails',
+    category: 'Gmail/Messages',
     description: 'Search emails in a Gmail account with advanced filtering capabilities. Date formats should be YYYY-MM-DD (e.g., "2024-02-18"). Label names are case-sensitive and should match Gmail exactly (e.g., "INBOX", "SENT", "IMPORTANT" for system labels). For pagination, use maxResults to limit initial results and handle the nextPageToken in the response if more results exist.',
+    aliases: ['search_emails', 'find_emails', 'query_emails'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -132,7 +141,9 @@ export const gmailTools: Tool[] = [
   },
   {
     name: 'send_workspace_email',
+    category: 'Gmail/Messages',
     description: 'Send an email from a Gmail account',
+    aliases: ['send_email', 'send_mail', 'create_email'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -169,7 +180,9 @@ export const gmailTools: Tool[] = [
   },
   {
     name: 'get_workspace_gmail_settings',
+    category: 'Gmail/Settings',
     description: 'Get Gmail settings and profile information for a workspace account',
+    aliases: ['get_gmail_settings', 'gmail_settings', 'get_mail_settings'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -183,7 +196,9 @@ export const gmailTools: Tool[] = [
   },
   {
     name: 'create_workspace_draft',
+    category: 'Gmail/Drafts',
     description: 'Create a new email draft, with support for both new emails and replies',
+    aliases: ['create_draft', 'new_draft', 'save_draft'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -237,7 +252,9 @@ export const gmailTools: Tool[] = [
   },
   {
     name: 'get_workspace_drafts',
+    category: 'Gmail/Drafts',
     description: 'Get a list of email drafts',
+    aliases: ['list_drafts', 'show_drafts', 'view_drafts'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -259,7 +276,9 @@ export const gmailTools: Tool[] = [
   },
   {
     name: 'send_workspace_draft',
+    category: 'Gmail/Drafts',
     description: 'Send an existing draft',
+    aliases: ['send_draft', 'publish_draft'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -278,10 +297,12 @@ export const gmailTools: Tool[] = [
 ];
 
 // Calendar Tools
-export const calendarTools: Tool[] = [
+export const calendarTools: ToolMetadata[] = [
   {
     name: 'list_workspace_calendar_events',
+    category: 'Calendar/Events',
     description: 'Get calendar events with optional filtering',
+    aliases: ['list_events', 'get_events', 'show_events'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -311,7 +332,9 @@ export const calendarTools: Tool[] = [
   },
   {
     name: 'get_workspace_calendar_event',
+    category: 'Calendar/Events',
     description: 'Get a single calendar event by ID',
+    aliases: ['get_event', 'view_event', 'show_event'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -329,7 +352,9 @@ export const calendarTools: Tool[] = [
   },
   {
     name: 'manage_workspace_calendar_event',
+    category: 'Calendar/Events',
     description: 'Manage calendar event responses and updates including accept/decline, propose new times, and update event times',
+    aliases: ['manage_event', 'update_event', 'respond_to_event'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -394,7 +419,9 @@ export const calendarTools: Tool[] = [
   },
   {
     name: 'create_workspace_calendar_event',
+    category: 'Calendar/Events',
     description: 'Create a new calendar event. Times must be in ISO-8601 format (e.g., "2024-02-18T15:30:00-06:00"). Timezone should be an IANA timezone identifier (e.g., "America/Chicago"). For recurring events, use standard RRULE format (e.g., "RRULE:FREQ=WEEKLY;COUNT=10" for weekly for 10 occurrences). The response will include the created event ID and any scheduling conflicts with attendees.',
+    aliases: ['create_event', 'new_event', 'schedule_event'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -463,7 +490,9 @@ export const calendarTools: Tool[] = [
   },
   {
     name: 'delete_workspace_calendar_event',
+    category: 'Calendar/Events',
     description: 'Delete a calendar event',
+    aliases: ['delete_event', 'remove_event', 'cancel_event'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -487,10 +516,12 @@ export const calendarTools: Tool[] = [
 ];
 
 // Label Management Tools
-export const labelTools: Tool[] = [
+export const labelTools: ToolMetadata[] = [
   {
     name: 'get_workspace_labels',
+    category: 'Gmail/Labels',
     description: 'List all labels in a Gmail account',
+    aliases: ['list_labels', 'show_labels', 'get_labels'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -504,7 +535,9 @@ export const labelTools: Tool[] = [
   },
   {
     name: 'create_workspace_label',
+    category: 'Gmail/Labels',
     description: 'Create a new label in a Gmail account. Note: System labels (e.g., INBOX, SENT, SPAM) cannot be created or modified. Color values should be hex codes (e.g., textColor: "#000000", backgroundColor: "#FFFFFF"). Nested labels can be created using "/" in the name (e.g., "Work/Projects"). The response will include the created label ID and full label details.',
+    aliases: ['create_label', 'new_label', 'add_label', 'create_gmail_label'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -545,7 +578,9 @@ export const labelTools: Tool[] = [
   },
   {
     name: 'update_workspace_label',
+    category: 'Gmail/Labels',
     description: 'Update an existing label in a Gmail account',
+    aliases: ['update_label', 'edit_label', 'modify_label'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -590,7 +625,9 @@ export const labelTools: Tool[] = [
   },
   {
     name: 'delete_workspace_label',
+    category: 'Gmail/Labels',
     description: 'Delete a label from a Gmail account',
+    aliases: ['delete_label', 'remove_label'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -608,7 +645,9 @@ export const labelTools: Tool[] = [
   },
   {
     name: 'modify_workspace_message_labels',
+    category: 'Gmail/Labels',
     description: 'Add or remove labels from a Gmail message',
+    aliases: ['modify_message_labels', 'update_message_labels', 'change_message_labels'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -641,7 +680,7 @@ export const labelTools: Tool[] = [
 ];
 
 // Export all tools combined
-export const allTools: Tool[] = [
+export const allTools: ToolMetadata[] = [
   ...accountTools,
   ...gmailTools,
   ...calendarTools,
