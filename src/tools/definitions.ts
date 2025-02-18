@@ -6,7 +6,25 @@ export const accountTools: ToolMetadata[] = [
   {
     name: 'list_workspace_accounts',
     category: 'Account Management',
-    description: 'List all configured Google workspace accounts and their authentication status',
+    description: `List all configured Google workspace accounts and their authentication status.
+    
+    IMPORTANT: This tool MUST be called first before any Gmail/Calendar operations to:
+    1. Check for existing authenticated accounts
+    2. Determine which account to use if multiple exist
+    3. Verify required API scopes are authorized
+    
+    Common Response Patterns:
+    - Valid account exists → Proceed with requested operation
+    - Multiple accounts exist → Ask user which to use
+    - Token expired → Proceed normally (auto-refresh occurs)
+    - No accounts exist → Start authentication flow
+    
+    Example Usage:
+    1. User asks to "check email"
+    2. Call this tool first to validate account access
+    3. If account valid, proceed to email operations
+    4. If multiple accounts, ask user "Which account would you like to use?"
+    5. Remember chosen account for subsequent operations`,
     aliases: ['list_accounts', 'get_accounts', 'show_accounts'],
     inputSchema: {
       type: 'object',
@@ -16,7 +34,36 @@ export const accountTools: ToolMetadata[] = [
   {
     name: 'authenticate_workspace_account',
     category: 'Account Management',
-    description: 'Add and authenticate a Google account for API access. IMPORTANT: When authenticating, always use the exact auth_url from the API response to ensure all OAuth parameters are preserved correctly. REQUIRED: When you get the auth_url, you must share it with the user by providing it in a response. The user will then click it to visit the URL and authorize the app. After authorization, the user will share that response with you. The auth_code will be a long string starting with "4/" followed by alphanumeric characters. Common errors include: expired auth_code (must be used quickly), invalid auth_code format, or missing required scopes. The response will include the account status and configured scopes.',
+    description: `Add and authenticate a Google account for API access.
+    
+    IMPORTANT: Only use this tool if list_workspace_accounts shows:
+    1. No existing accounts, OR
+    2. Existing account lacks required scopes
+    
+    DO NOT use this tool:
+    - Without checking list_workspace_accounts first
+    - When token is just expired (auto-refresh handles this)
+    - To re-authenticate an already valid account
+    
+    Authentication Flow:
+    1. Call with required email address
+    2. Receive auth_url in response
+    3. Share EXACT auth_url with user
+    4. User completes OAuth flow
+    5. User provides auth_code
+    6. Complete authentication with auth_code
+    
+    Technical Details:
+    - Auth code format: "4/" followed by alphanumeric characters
+    - Common errors: expired code, invalid format, missing scopes
+    - Response includes: account status and configured scopes
+    
+    Example Usage:
+    1. list_workspace_accounts shows no accounts
+    2. Ask user for email to authenticate
+    3. Start auth flow with provided email
+    4. Share auth URL with user
+    5. Complete flow with returned auth code`,
     aliases: ['auth_account', 'add_account', 'connect_account'],
     inputSchema: {
       type: 'object',
@@ -64,7 +111,33 @@ export const gmailTools: ToolMetadata[] = [
   {
     name: 'search_workspace_emails',
     category: 'Gmail/Messages',
-    description: 'Search emails in a Gmail account with advanced filtering capabilities. Date formats should be YYYY-MM-DD (e.g., "2024-02-18"). Label names are case-sensitive and should match Gmail exactly (e.g., "INBOX", "SENT", "IMPORTANT" for system labels). For pagination, use maxResults to limit initial results and handle the nextPageToken in the response if more results exist.',
+    description: `Search emails in a Gmail account with advanced filtering capabilities.
+
+    IMPORTANT: Before using this tool:
+    1. Call list_workspace_accounts to verify account access
+    2. If multiple accounts, confirm which account to use
+    3. Check required scopes include Gmail read access
+    
+    Common Usage Patterns:
+    - Default search: Use minimal filters for initial results
+    - Refined search: Add filters based on user needs
+    - Pagination: Handle nextPageToken for large result sets
+    
+    Search Tips:
+    - Date format: YYYY-MM-DD (e.g., "2024-02-18")
+    - Labels: Case-sensitive, exact match (e.g., "INBOX", "SENT")
+    - Default maxResults: 10 (increase for broader searches)
+    
+    Example Flows:
+    1. User asks "check my email":
+       - First call list_workspace_accounts
+       - Use default search with INBOX label
+       - Show recent unread messages first
+    
+    2. User asks "find emails from person@example.com":
+       - Verify account access first
+       - Search with from filter
+       - Include relevant labels`,
     aliases: ['search_emails', 'find_emails', 'query_emails'],
     inputSchema: {
       type: 'object',
@@ -142,7 +215,25 @@ export const gmailTools: ToolMetadata[] = [
   {
     name: 'send_workspace_email',
     category: 'Gmail/Messages',
-    description: 'Send an email from a Gmail account',
+    description: `Send an email from a Gmail account.
+    
+    IMPORTANT: Before sending:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm sending account if multiple exist
+    3. Validate all recipient addresses
+    4. Check content for completeness
+    
+    Common Patterns:
+    - Gather all required info before sending
+    - Confirm critical details with user
+    - Handle errors gracefully
+    
+    Example Flow:
+    1. User requests to send email
+    2. Check account access
+    3. Collect recipient, subject, body
+    4. Validate all fields
+    5. Send and confirm success`,
     aliases: ['send_email', 'send_mail', 'create_email'],
     inputSchema: {
       type: 'object',
@@ -181,7 +272,21 @@ export const gmailTools: ToolMetadata[] = [
   {
     name: 'get_workspace_gmail_settings',
     category: 'Gmail/Settings',
-    description: 'Get Gmail settings and profile information for a workspace account',
+    description: `Get Gmail settings and profile information for a workspace account.
+    
+    IMPORTANT: Always verify account access first with list_workspace_accounts.
+    
+    Common Uses:
+    - Check account configuration
+    - Verify email settings
+    - Access profile information
+    
+    Response includes:
+    - Language settings
+    - Signature settings
+    - Vacation responder status
+    - Filters and forwarding
+    - Other account preferences`,
     aliases: ['get_gmail_settings', 'gmail_settings', 'get_mail_settings'],
     inputSchema: {
       type: 'object',
@@ -197,7 +302,29 @@ export const gmailTools: ToolMetadata[] = [
   {
     name: 'create_workspace_draft',
     category: 'Gmail/Drafts',
-    description: 'Create a new email draft, with support for both new emails and replies',
+    description: `Create a new email draft, with support for both new emails and replies.
+    
+    IMPORTANT: Before creating drafts:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm account choice if multiple exist
+    3. Gather all required content
+    
+    Common Patterns:
+    - New Email Draft:
+      1. Collect recipient, subject, body
+      2. Save as draft for user review
+    
+    - Reply Draft:
+      1. Verify original message exists
+      2. Include proper threading info
+      3. Maintain conversation context
+    
+    Example Flow:
+    1. User requests draft creation
+    2. Check account access
+    3. Collect email details
+    4. Create draft
+    5. Confirm draft saved successfully`,
     aliases: ['create_draft', 'new_draft', 'save_draft'],
     inputSchema: {
       type: 'object',
@@ -253,7 +380,22 @@ export const gmailTools: ToolMetadata[] = [
   {
     name: 'get_workspace_drafts',
     category: 'Gmail/Drafts',
-    description: 'Get a list of email drafts',
+    description: `Get a list of email drafts.
+    
+    IMPORTANT: Before listing drafts:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm account if multiple exist
+    
+    Common Uses:
+    - Show pending drafts
+    - Find specific draft
+    - Check draft status
+    
+    Response includes:
+    - Draft IDs
+    - Recipients
+    - Subjects
+    - Last modified time`,
     aliases: ['list_drafts', 'show_drafts', 'view_drafts'],
     inputSchema: {
       type: 'object',
@@ -301,7 +443,28 @@ export const calendarTools: ToolMetadata[] = [
   {
     name: 'list_workspace_calendar_events',
     category: 'Calendar/Events',
-    description: 'Get calendar events with optional filtering',
+    description: `Get calendar events with optional filtering.
+    
+    IMPORTANT: Before listing events:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm calendar account if multiple exist
+    3. Check calendar access permissions
+    
+    Common Usage Patterns:
+    - Default view: Current week's events
+    - Specific range: Use timeMin/timeMax
+    - Search: Use query for text search
+    
+    Example Flows:
+    1. User asks "check my calendar":
+       - Verify account access
+       - Show current week by default
+       - Include upcoming events
+    
+    2. User asks "find meetings about project":
+       - Check account access
+       - Search with relevant query
+       - Focus on recent/upcoming events`,
     aliases: ['list_events', 'get_events', 'show_events'],
     inputSchema: {
       type: 'object',
@@ -420,7 +583,33 @@ export const calendarTools: ToolMetadata[] = [
   {
     name: 'create_workspace_calendar_event',
     category: 'Calendar/Events',
-    description: 'Create a new calendar event. Times must be in ISO-8601 format (e.g., "2024-02-18T15:30:00-06:00"). Timezone should be an IANA timezone identifier (e.g., "America/Chicago"). For recurring events, use standard RRULE format (e.g., "RRULE:FREQ=WEEKLY;COUNT=10" for weekly for 10 occurrences). The response will include the created event ID and any scheduling conflicts with attendees.',
+    description: `Create a new calendar event.
+    
+    IMPORTANT: Before creating events:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm calendar account if multiple exist
+    3. Validate all required details
+    
+    Required Formats:
+    - Times: ISO-8601 (e.g., "2024-02-18T15:30:00-06:00")
+    - Timezone: IANA identifier (e.g., "America/Chicago")
+    - Recurrence: RRULE format (e.g., "RRULE:FREQ=WEEKLY;COUNT=10")
+    
+    Common Patterns:
+    1. Single Event:
+       - Collect title, time, attendees
+       - Check for conflicts
+       - Create and confirm
+    
+    2. Recurring Event:
+       - Validate recurrence pattern
+       - Check series conflicts
+       - Create with RRULE
+    
+    Response includes:
+    - Created event ID
+    - Scheduling conflicts
+    - Attendee responses`,
     aliases: ['create_event', 'new_event', 'schedule_event'],
     inputSchema: {
       type: 'object',
@@ -520,7 +709,18 @@ export const labelTools: ToolMetadata[] = [
   {
     name: 'get_workspace_labels',
     category: 'Gmail/Labels',
-    description: 'List all labels in a Gmail account',
+    description: `List all labels in a Gmail account.
+    
+    IMPORTANT: Before listing labels:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm account if multiple exist
+    
+    Response includes:
+    - System labels (INBOX, SENT, etc.)
+    - Custom labels
+    - Nested label hierarchies
+    - Label visibility settings
+    - Label colors if set`,
     aliases: ['list_labels', 'show_labels', 'get_labels'],
     inputSchema: {
       type: 'object',
@@ -536,7 +736,27 @@ export const labelTools: ToolMetadata[] = [
   {
     name: 'create_workspace_label',
     category: 'Gmail/Labels',
-    description: 'Create a new label in a Gmail account. Note: System labels (e.g., INBOX, SENT, SPAM) cannot be created or modified. Color values should be hex codes (e.g., textColor: "#000000", backgroundColor: "#FFFFFF"). Nested labels can be created using "/" in the name (e.g., "Work/Projects"). The response will include the created label ID and full label details.',
+    description: `Create a new label in a Gmail account.
+    
+    IMPORTANT: Before creating labels:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm account if multiple exist
+    3. Check if similar label exists
+    
+    Limitations:
+    - Cannot create/modify system labels (INBOX, SENT, SPAM)
+    - Label names must be unique
+    
+    Features:
+    - Nested labels: Use "/" (e.g., "Work/Projects")
+    - Custom colors: Hex codes (e.g., "#000000")
+    - Visibility options: Show/hide in lists
+    
+    Example Flow:
+    1. Check account access
+    2. Verify label doesn't exist
+    3. Create with desired settings
+    4. Confirm creation success`,
     aliases: ['create_label', 'new_label', 'add_label', 'create_gmail_label'],
     inputSchema: {
       type: 'object',
@@ -579,7 +799,23 @@ export const labelTools: ToolMetadata[] = [
   {
     name: 'update_workspace_label',
     category: 'Gmail/Labels',
-    description: 'Update an existing label in a Gmail account',
+    description: `Update an existing label in a Gmail account.
+    
+    IMPORTANT: Before updating:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm account if multiple exist
+    3. Verify label exists and is modifiable
+    
+    Common Updates:
+    - Rename label
+    - Change colors
+    - Adjust visibility
+    - Modify hierarchy
+    
+    Limitations:
+    - Cannot modify system labels
+    - Cannot create duplicates
+    - Must maintain unique names`,
     aliases: ['update_label', 'edit_label', 'modify_label'],
     inputSchema: {
       type: 'object',
@@ -646,7 +882,25 @@ export const labelTools: ToolMetadata[] = [
   {
     name: 'modify_workspace_message_labels',
     category: 'Gmail/Labels',
-    description: 'Add or remove labels from a Gmail message',
+    description: `Add or remove labels from a Gmail message.
+    
+    IMPORTANT: Before modifying:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm account if multiple exist
+    3. Verify message exists
+    4. Check label validity
+    
+    Common Patterns:
+    - Add single label
+    - Remove single label
+    - Batch modify multiple labels
+    - Update system labels (e.g., mark as read)
+    
+    Example Flow:
+    1. Check account access
+    2. Verify message and labels exist
+    3. Apply requested changes
+    4. Confirm modifications`,
     aliases: ['modify_message_labels', 'update_message_labels', 'change_message_labels'],
     inputSchema: {
       type: 'object',
