@@ -7,7 +7,9 @@ import {
   EventResponse,
   CreateEventResponse,
   CalendarError,
-  CalendarModuleConfig
+  CalendarModuleConfig,
+  ManageEventParams,
+  ManageEventResponse
 } from './types.js';
 
 /**
@@ -241,6 +243,132 @@ export class CalendarService {
    * 
    * Note: This method automatically sends email notifications to attendees
    */
+  /**
+   * Manage calendar event responses and updates
+   * 
+   * @param params.email - Email address of the calendar owner
+   * @param params.eventId - ID of the event to manage
+   * @param params.action - Action to perform (accept/decline/tentative/propose_new_time/update_time)
+   * @param params.comment - Optional comment to include with the response
+   * @param params.newTimes - Optional array of proposed new times
+   * @returns Response with action status and updated event details
+   * @throws CalendarError on action failure or API errors
+   */
+  async manageEvent({ email, eventId, action, comment, newTimes }: ManageEventParams): Promise<ManageEventResponse> {
+    const calendar = await this.getCalendarClient(email);
+
+    return this.handleCalendarOperation(email, async () => {
+      // First get the event to check current state and permissions
+      const event = await calendar.events.get({
+        calendarId: 'primary',
+        eventId
+      });
+
+      if (!event.data) {
+        throw new CalendarError(
+          'Event not found',
+          'NOT_FOUND',
+          `No event found with ID: ${eventId}`
+        );
+      }
+
+      switch (action) {
+        case 'accept':
+        case 'decline':
+        case 'tentative': {
+          const { data: updatedEvent } = await calendar.events.patch({
+            calendarId: 'primary',
+            eventId,
+            requestBody: {
+              attendees: event.data.attendees?.map(attendee => 
+                attendee.email === email
+                  ? { ...attendee, responseStatus: action }
+                  : attendee
+              )
+            }
+          });
+
+          return {
+            success: true,
+            eventId,
+            action,
+            status: 'completed',
+            htmlLink: updatedEvent.htmlLink || undefined
+          };
+        }
+
+        case 'propose_new_time': {
+          if (!newTimes || newTimes.length === 0) {
+            throw new CalendarError(
+              'No proposed times provided',
+              'INVALID_REQUEST',
+              'Please provide at least one proposed time'
+            );
+          }
+
+          // Create a new event as a counter-proposal
+          const counterProposal = await calendar.events.insert({
+            calendarId: 'primary',
+            requestBody: {
+              summary: `Counter-proposal: ${event.data.summary}`,
+              description: `Counter-proposal for original event.\n\nComment: ${comment || 'No comment provided'}\n\nOriginal event: ${event.data.htmlLink}`,
+              start: newTimes[0].start,
+              end: newTimes[0].end,
+              attendees: event.data.attendees
+            }
+          });
+
+          return {
+            success: true,
+            eventId,
+            action,
+            status: 'proposed',
+            htmlLink: counterProposal.data.htmlLink || undefined,
+            proposedTimes: newTimes.map(time => ({
+              start: { dateTime: time.start.dateTime, timeZone: time.start.timeZone || 'UTC' },
+              end: { dateTime: time.end.dateTime, timeZone: time.end.timeZone || 'UTC' }
+            }))
+          };
+        }
+
+        case 'update_time': {
+          if (!newTimes || newTimes.length === 0) {
+            throw new CalendarError(
+              'No new time provided',
+              'INVALID_REQUEST',
+              'Please provide the new time for the event'
+            );
+          }
+
+          const { data: updatedEvent } = await calendar.events.patch({
+            calendarId: 'primary',
+            eventId,
+            requestBody: {
+              start: newTimes[0].start,
+              end: newTimes[0].end
+            },
+            sendUpdates: 'all'
+          });
+
+          return {
+            success: true,
+            eventId,
+            action,
+            status: 'updated',
+            htmlLink: updatedEvent.htmlLink || undefined
+          };
+        }
+
+        default:
+          throw new CalendarError(
+            'Invalid action',
+            'INVALID_ACTION',
+            'Supported actions are: accept, decline, tentative, propose_new_time, update_time'
+          );
+      }
+    });
+  }
+
   async createEvent({ email, summary, description, start, end, attendees }: CreateEventParams): Promise<CreateEventResponse> {
     const calendar = await this.getCalendarClient(email);
 

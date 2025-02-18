@@ -88,6 +88,35 @@ export interface CreateEventResponse {
  * @property requiredScopes - Optional override for OAuth scopes
  * Default scopes are defined in common/scopes.ts
  */
+/**
+ * Parameters for managing calendar event responses and updates
+ */
+export interface ManageEventParams {
+  email: string;
+  eventId: string;
+  action: 'accept' | 'decline' | 'tentative' | 'propose_new_time' | 'update_time';
+  comment?: string;
+  newTimes?: Array<{
+    start: { dateTime: string; timeZone?: string };
+    end: { dateTime: string; timeZone?: string };
+  }>;
+}
+
+/**
+ * Response structure for event management actions
+ */
+export interface ManageEventResponse {
+  success: boolean;
+  eventId: string;
+  action: string;
+  status: string;
+  htmlLink?: string;
+  proposedTimes?: Array<{
+    start: { dateTime: string; timeZone: string };
+    end: { dateTime: string; timeZone: string };
+  }>;
+}
+
 export interface CalendarModuleConfig {
   requiredScopes?: string[];
 }
