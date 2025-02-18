@@ -516,7 +516,24 @@ export const calendarTools: ToolMetadata[] = [
   {
     name: 'manage_workspace_calendar_event',
     category: 'Calendar/Events',
-    description: 'Manage calendar event responses and updates including accept/decline, propose new times, and update event times',
+    description: `Manage calendar event responses and updates including accept/decline, propose new times, and update event times.
+    
+    IMPORTANT: Before managing events:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm calendar account if multiple exist
+    3. Verify event exists and is modifiable
+    
+    Common Actions:
+    - Accept/Decline invitations
+    - Propose alternative times
+    - Update existing events
+    - Add comments to responses
+    
+    Example Flow:
+    1. Check account access
+    2. Verify event exists
+    3. Perform desired action
+    4. Confirm changes applied`,
     aliases: ['manage_event', 'update_event', 'respond_to_event'],
     inputSchema: {
       type: 'object',
