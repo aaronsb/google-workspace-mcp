@@ -64,5 +64,20 @@ log_info "Config directory is ready at /app/config"
 # Trap signals for clean shutdown
 trap 'log_info "Shutting down..."; exit 0' SIGTERM SIGINT
 
+# Create logs directory with proper permissions
+LOGS_DIR="/app/logs"
+if [ ! -d "$LOGS_DIR" ]; then
+    log_info "Creating logs directory: $LOGS_DIR"
+    mkdir -p "$LOGS_DIR" || {
+        log_error "Failed to create logs directory: $LOGS_DIR. This is expected if running as non-root user."
+        log_info "Directory will be created by Docker volume mount"
+    }
+    chmod 750 "$LOGS_DIR" || log_info "Logs directory permissions will be set by Docker volume mount"
+fi
+
+# Set MCP mode environment variable
+export MCP_MODE=true
+export LOG_FILE="/app/logs/google-workspace-mcp.log"
+
 # Execute the main application
 exec node build/index.js

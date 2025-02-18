@@ -20,8 +20,10 @@ RUN npm run build
 FROM node:20-slim
 WORKDIR /app
 
-# Use host user's UID for file ownership
-RUN chown -R 1000:1000 /app
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/logs /app/config && \
+    chown -R 1000:1000 /app && \
+    chmod 750 /app/logs /app/config
 
 # Copy only necessary files from builder
 COPY --from=builder /app/build ./build
