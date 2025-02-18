@@ -1,55 +1,71 @@
-import type { Reporter, Test } from '@jest/reporters';
+const { Reporter } = require('@jest/reporters');
 
 /**
  * Custom Jest reporter that filters stderr output during tests
  * while maintaining MCP protocol compatibility.
  */
-class CustomReporter implements Reporter {
-  private originalStderrWrite: typeof process.stderr.write;
-  private isInTestBlock = false;
+class CustomReporter {
+  originalStderrWrite: typeof process.stderr.write;
+  isInTestBlock: boolean;
 
   constructor() {
     // Store original stderr.write
     this.originalStderrWrite = process.stderr.write;
+    this.isInTestBlock = false;
   }
 
   onTestStart() {
     this.isInTestBlock = true;
     
     // Override stderr.write during test execution
-    process.stderr.write = (chunk: any, ...args: any[]) => {
-      const str = chunk.toString();
+    const self = this;
+    process.stderr.write = function(
+      buffer: Uint8Array | string,
+      encodingOrCallback?: BufferEncoding | ((err?: Error) => void),
+      callback?: (err?: Error) => void
+    ): boolean {
+      // Handle overloads
+      let encoding: BufferEncoding | undefined;
+      let cb: ((err?: Error) => void) | undefined;
+      
+      if (typeof encodingOrCallback === 'function') {
+        cb = encodingOrCallback;
+      } else {
+        encoding = encodingOrCallback;
+        cb = callback;
+      }
+      const strContent = buffer.toString();
       
       // Always allow through:
       // 1. MCP protocol messages
-      if (str.startsWith('{"jsonrpc":') || str.startsWith('{"id":')) {
-        return this.originalStderrWrite.call(process.stderr, chunk, ...args);
+      if (strContent.startsWith('{"jsonrpc":') || strContent.startsWith('{"id":')) {
+        return self.originalStderrWrite.call(process.stderr, buffer, encoding, cb as (err?: Error) => void);
       }
 
       // 2. Debug mode messages
       if (process.env.DEBUG) {
-        return this.originalStderrWrite.call(process.stderr, chunk, ...args);
+        return self.originalStderrWrite.call(process.stderr, buffer, encoding, cb as (err?: Error) => void);
       }
 
       // 3. Test progress and results
       if (
         // Test initialization
-        str.includes('Determining test suites') ||
+        strContent.includes('Determining test suites') ||
         // Module progress
-        str.includes('RUNS') ||
-        str.includes('PASS') ||
-        str.includes('FAIL') ||
-        str.includes('ERROR') ||
+        strContent.includes('RUNS') ||
+        strContent.includes('PASS') ||
+        strContent.includes('FAIL') ||
+        strContent.includes('ERROR') ||
         // Progress bars
-        str.includes('████') ||
+        strContent.includes('████') ||
         // Test summary
-        /^Test Suites:.*total/.test(str) ||
-        /^Tests:.*total/.test(str) ||
-        /^Snapshots:.*total/.test(str) ||
-        /^Time:.*s$/.test(str) ||
-        str.includes('Ran all test suites')
+        /^Test Suites:.*total/.test(strContent) ||
+        /^Tests:.*total/.test(strContent) ||
+        /^Snapshots:.*total/.test(strContent) ||
+        /^Time:.*s$/.test(strContent) ||
+        strContent.includes('Ran all test suites')
       ) {
-        return this.originalStderrWrite.call(process.stderr, chunk, ...args);
+        return self.originalStderrWrite.call(process.stderr, buffer, encoding, cb as (err?: Error) => void);
       }
 
       // Filter out non-test output (like console.error logs)
@@ -72,4 +88,4 @@ class CustomReporter implements Reporter {
   onTestResult() {}
 }
 
-export default CustomReporter;
+module.exports = CustomReporter;
