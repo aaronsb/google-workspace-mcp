@@ -5,6 +5,7 @@ module.exports = {
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
+    '^@modelcontextprotocol/sdk/(.*)$': '<rootDir>/src/__mocks__/@modelcontextprotocol/sdk.ts',
     '^@modelcontextprotocol/sdk$': '<rootDir>/src/__mocks__/@modelcontextprotocol/sdk.ts'
   },
   transform: {
@@ -19,6 +20,6 @@ module.exports = {
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   testMatch: ['**/__tests__/**/*.test.ts'],
   transformIgnorePatterns: [
-    'node_modules/(?!(googleapis|google-auth-library|@modelcontextprotocol/sdk)/)'
+    'node_modules/(?!(googleapis|google-auth-library|@modelcontextprotocol/sdk|zod)/)'
   ]
 };
