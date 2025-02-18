@@ -716,57 +716,34 @@ export const calendarTools: ToolMetadata[] = [
 // Label Management Tools
 export const labelTools: ToolMetadata[] = [
   {
-    name: 'get_workspace_labels',
+    name: 'manage_workspace_label',
     category: 'Gmail/Labels',
-    description: `List all labels in a Gmail account.
+    description: `Manage Gmail labels with CRUD operations.
     
-    IMPORTANT: Before listing labels:
+    IMPORTANT: Before any operation:
     1. Verify account access with list_workspace_accounts
     2. Confirm account if multiple exist
     
-    Response includes:
-    - System labels (INBOX, SENT, etc.)
-    - Custom labels
-    - Nested label hierarchies
-    - Label visibility settings
-    - Label colors if set`,
-    aliases: ['list_labels', 'show_labels', 'get_labels'],
-    inputSchema: {
-      type: 'object',
-      properties: {
-        email: {
-          type: 'string',
-          description: 'Email address of the Gmail account'
-        }
-      },
-      required: ['email']
-    }
-  },
-  {
-    name: 'create_workspace_label',
-    category: 'Gmail/Labels',
-    description: `Create a new label in a Gmail account.
-    
-    IMPORTANT: Before creating labels:
-    1. Verify account access with list_workspace_accounts
-    2. Confirm account if multiple exist
-    3. Check if similar label exists
-    
-    Limitations:
-    - Cannot create/modify system labels (INBOX, SENT, SPAM)
-    - Label names must be unique
+    Operations:
+    - create: Create a new label
+    - read: Get a specific label or list all labels
+    - update: Modify an existing label
+    - delete: Remove a label
     
     Features:
     - Nested labels: Use "/" (e.g., "Work/Projects")
     - Custom colors: Hex codes (e.g., "#000000")
     - Visibility options: Show/hide in lists
     
+    Limitations:
+    - Cannot create/modify system labels (INBOX, SENT, SPAM)
+    - Label names must be unique
+    
     Example Flow:
     1. Check account access
-    2. Verify label doesn't exist
-    3. Create with desired settings
-    4. Confirm creation success`,
-    aliases: ['create_label', 'new_label', 'add_label', 'create_gmail_label'],
+    2. Perform desired operation
+    3. Confirm success`,
+    aliases: ['manage_label', 'label_operation', 'handle_label'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -774,133 +751,68 @@ export const labelTools: ToolMetadata[] = [
           type: 'string',
           description: 'Email address of the Gmail account'
         },
-        name: {
+        action: {
           type: 'string',
-          description: 'Name of the label'
+          enum: ['create', 'read', 'update', 'delete'],
+          description: 'Operation to perform'
         },
-        messageListVisibility: {
+        labelId: {
           type: 'string',
-          enum: ['show', 'hide'],
-          description: 'Label visibility in message list'
+          description: 'Label ID (required for read/update/delete)'
         },
-        labelListVisibility: {
-          type: 'string',
-          enum: ['labelShow', 'labelHide', 'labelShowIfUnread'],
-          description: 'Label visibility in label list'
-        },
-        color: {
+        data: {
           type: 'object',
           properties: {
-            textColor: {
+            name: {
               type: 'string',
-              description: 'Text color in hex format (e.g., "#000000" for black)'
+              description: 'Label name (required for create)'
             },
-            backgroundColor: {
+            messageListVisibility: {
               type: 'string',
-              description: 'Background color in hex format (e.g., "#FFFFFF" for white)'
+              enum: ['show', 'hide'],
+              description: 'Label visibility in message list'
+            },
+            labelListVisibility: {
+              type: 'string',
+              enum: ['labelShow', 'labelHide', 'labelShowIfUnread'],
+              description: 'Label visibility in label list'
+            },
+            color: {
+              type: 'object',
+              properties: {
+                textColor: {
+                  type: 'string',
+                  description: 'Text color in hex format'
+                },
+                backgroundColor: {
+                  type: 'string',
+                  description: 'Background color in hex format'
+                }
+              }
             }
           }
         }
       },
-      required: ['email', 'name']
+      required: ['email', 'action']
     }
   },
   {
-    name: 'update_workspace_label',
+    name: 'manage_workspace_label_assignment',
     category: 'Gmail/Labels',
-    description: `Update an existing label in a Gmail account.
+    description: `Manage label assignments for Gmail messages.
     
-    IMPORTANT: Before updating:
-    1. Verify account access with list_workspace_accounts
-    2. Confirm account if multiple exist
-    3. Verify label exists and is modifiable
-    
-    Common Updates:
-    - Rename label
-    - Change colors
-    - Adjust visibility
-    - Modify hierarchy
-    
-    Limitations:
-    - Cannot modify system labels
-    - Cannot create duplicates
-    - Must maintain unique names`,
-    aliases: ['update_label', 'edit_label', 'modify_label'],
-    inputSchema: {
-      type: 'object',
-      properties: {
-        email: {
-          type: 'string',
-          description: 'Email address of the Gmail account'
-        },
-        labelId: {
-          type: 'string',
-          description: 'ID of the label to update'
-        },
-        name: {
-          type: 'string',
-          description: 'New name for the label'
-        },
-        messageListVisibility: {
-          type: 'string',
-          enum: ['show', 'hide'],
-          description: 'Label visibility in message list'
-        },
-        labelListVisibility: {
-          type: 'string',
-          enum: ['labelShow', 'labelHide', 'labelShowIfUnread'],
-          description: 'Label visibility in label list'
-        },
-        color: {
-          type: 'object',
-          properties: {
-            textColor: {
-              type: 'string',
-              description: 'Text color in hex format'
-            },
-            backgroundColor: {
-              type: 'string',
-              description: 'Background color in hex format'
-            }
-          }
-        }
-      },
-      required: ['email', 'labelId']
-    }
-  },
-  {
-    name: 'delete_workspace_label',
-    category: 'Gmail/Labels',
-    description: 'Delete a label from a Gmail account',
-    aliases: ['delete_label', 'remove_label'],
-    inputSchema: {
-      type: 'object',
-      properties: {
-        email: {
-          type: 'string',
-          description: 'Email address of the Gmail account'
-        },
-        labelId: {
-          type: 'string',
-          description: 'ID of the label to delete'
-        }
-      },
-      required: ['email', 'labelId']
-    }
-  },
-  {
-    name: 'modify_workspace_message_labels',
-    category: 'Gmail/Labels',
-    description: `Add or remove labels from a Gmail message.
-    
-    IMPORTANT: Before modifying:
+    IMPORTANT: Before assigning:
     1. Verify account access with list_workspace_accounts
     2. Confirm account if multiple exist
     3. Verify message exists
     4. Check label validity
     
-    Common Patterns:
-    - Add single label
+    Operations:
+    - add: Apply labels to a message
+    - remove: Remove labels from a message
+    
+    Common Use Cases:
+    - Apply single label
     - Remove single label
     - Batch modify multiple labels
     - Update system labels (e.g., mark as read)
@@ -910,7 +822,7 @@ export const labelTools: ToolMetadata[] = [
     2. Verify message and labels exist
     3. Apply requested changes
     4. Confirm modifications`,
-    aliases: ['modify_message_labels', 'update_message_labels', 'change_message_labels'],
+    aliases: ['assign_label', 'modify_message_labels', 'change_message_labels'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -918,38 +830,40 @@ export const labelTools: ToolMetadata[] = [
           type: 'string',
           description: 'Email address of the Gmail account'
         },
+        action: {
+          type: 'string',
+          enum: ['add', 'remove'],
+          description: 'Whether to add or remove labels'
+        },
         messageId: {
           type: 'string',
           description: 'ID of the message to modify'
         },
-        addLabelIds: {
+        labelIds: {
           type: 'array',
-          items: {
-            type: 'string'
-          },
-          description: 'Array of label IDs to add to the message'
-        },
-        removeLabelIds: {
-          type: 'array',
-          items: {
-            type: 'string'
-          },
-          description: 'Array of label IDs to remove from the message'
+          items: { type: 'string' },
+          description: 'Array of label IDs to add or remove'
         }
       },
-      required: ['email', 'messageId']
+      required: ['email', 'action', 'messageId', 'labelIds']
     }
   },
   {
-    name: 'create_workspace_label_filter',
+    name: 'manage_workspace_label_filter',
     category: 'Gmail/Labels',
-    description: `Create a new filter for a Gmail label.
+    description: `Manage Gmail label filters with CRUD operations.
     
-    IMPORTANT: Before creating filters:
+    IMPORTANT: Before any operation:
     1. Verify account access with list_workspace_accounts
     2. Confirm account if multiple exist
-    3. Verify label exists
+    3. Verify label exists for create/update
     4. Validate filter criteria
+    
+    Operations:
+    - create: Create a new filter
+    - read: Get filters (all or by label)
+    - update: Modify existing filter
+    - delete: Remove filter
     
     Filter Capabilities:
     - Match sender(s) and recipient(s)
@@ -962,46 +876,24 @@ export const labelTools: ToolMetadata[] = [
     - Mark as important
     - Mark as read
     - Archive message
-
-    Criteria Format Requirements:
-    1. For simple filters:
+    
+    Criteria Format:
+    1. Simple filters:
        - from: Array of email addresses
        - to: Array of email addresses
        - subject: String for exact match
        - hasAttachment: Boolean
-
-    2. For complex Gmail queries:
-       - hasWords: Array with single string containing full Gmail query
-       - Example: ["from:(*@domain.com OR other@domain.com) subject:(word1 OR word2)"]
     
-    Common Query Patterns:
-    - Meeting emails: ["from:(*@zoom.us OR zoom.us OR calendar-notification@google.com) subject:(meeting OR sync OR invite)"]
-    - HR/Admin: ["from:(*@workday.com OR *@adp.com) subject:(time off OR PTO OR benefits)"]
-    - Team updates: ["from:(*@company.com) -from:(notifications@company.com)"]
-    - Newsletters: ["subject:(newsletter OR digest) from:(*@company.com)"]
-    
-    Common Errors:
-    - "Proto field is not repeating" → Convert string to array
-    - "params.criteria.X?.join is not a function" → Make sure field is array
-    - "Invalid JSON payload" → Check field format matches Gmail API
-    
-    Testing Strategy:
-    1. Test search query first:
-       - Use search_workspace_emails with content field
-       - Verify matches expected messages
-    2. Create filter with validated query:
-       - Convert search query to hasWords array
-       - Set appropriate actions
-    3. Verify filter operation:
-       - Check filter was created
-       - Confirm it catches new matching emails
+    2. Complex queries:
+       - hasWords: Array of query strings
+       - doesNotHaveWords: Array of exclusion strings
     
     Example Flow:
     1. Check account access
-    2. Test search query
-    3. Create filter with validated criteria
-    4. Confirm filter creation and operation`,
-    aliases: ['create_filter', 'add_filter', 'new_label_filter'],
+    2. Validate criteria
+    3. Perform operation
+    4. Verify result`,
+    aliases: ['manage_filter', 'handle_filter', 'filter_operation'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -1009,276 +901,95 @@ export const labelTools: ToolMetadata[] = [
           type: 'string',
           description: 'Email address of the Gmail account'
         },
-        labelId: {
+        action: {
           type: 'string',
-          description: 'ID of the label to apply'
-        },
-        criteria: {
-          type: 'object',
-          properties: {
-            from: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Match sender email addresses'
-            },
-            to: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Match recipient email addresses'
-            },
-            subject: {
-              type: 'string',
-              description: 'Match text in subject'
-            },
-            hasWords: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Complex Gmail query strings (e.g., ["from:(*@domain.com) subject:(word1 OR word2)"])'
-            },
-            doesNotHaveWords: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Exclude messages with these words'
-            },
-            hasAttachment: {
-              type: 'boolean',
-              description: 'Match messages with attachments'
-            },
-            size: {
-              type: 'object',
-              properties: {
-                operator: {
-                  type: 'string',
-                  enum: ['larger', 'smaller'],
-                  description: 'Size comparison operator'
-                },
-                size: {
-                  type: 'number',
-                  description: 'Size in bytes'
-                }
-              }
-            }
-          }
-        },
-        actions: {
-          type: 'object',
-          properties: {
-            addLabel: {
-              type: 'boolean',
-              description: 'Apply the label'
-            },
-            markImportant: {
-              type: 'boolean',
-              description: 'Mark as important'
-            },
-            markRead: {
-              type: 'boolean',
-              description: 'Mark as read'
-            },
-            archive: {
-              type: 'boolean',
-              description: 'Archive the message'
-            }
-          },
-          required: ['addLabel']
-        }
-      },
-      required: ['email', 'labelId', 'criteria', 'actions']
-    }
-  },
-  {
-    name: 'get_workspace_label_filters',
-    category: 'Gmail/Labels',
-    description: `Get filters for a Gmail label.
-    
-    IMPORTANT: Before listing filters:
-    1. Verify account access with list_workspace_accounts
-    2. Confirm account if multiple exist
-    
-    Response includes:
-    - Filter IDs
-    - Filter criteria
-    - Associated actions
-    - Label associations`,
-    aliases: ['list_filters', 'show_filters', 'get_filters'],
-    inputSchema: {
-      type: 'object',
-      properties: {
-        email: {
-          type: 'string',
-          description: 'Email address of the Gmail account'
-        },
-        labelId: {
-          type: 'string',
-          description: 'Optional: get filters for specific label'
-        }
-      },
-      required: ['email']
-    }
-  },
-  {
-    name: 'update_workspace_label_filter',
-    category: 'Gmail/Labels',
-    description: `Update an existing Gmail label filter.
-    
-    IMPORTANT: Before updating:
-    1. Verify account access with list_workspace_accounts
-    2. Confirm account if multiple exist
-    3. Verify filter exists
-    
-    Common Updates:
-    - Modify criteria
-    - Change actions
-    - Adjust matching rules
-    
-    Criteria Format Requirements:
-    1. For simple filters:
-       - from: Array of email addresses
-       - to: Array of email addresses
-       - subject: String for exact match
-       - hasAttachment: Boolean
-
-    2. For complex Gmail queries:
-       - hasWords: Array with single string containing full Gmail query
-       - Example: ["from:(*@domain.com OR other@domain.com) subject:(word1 OR word2)"]
-    
-    Common Query Patterns:
-    - Meeting emails: ["from:(*@zoom.us OR zoom.us OR calendar-notification@google.com) subject:(meeting OR sync OR invite)"]
-    - HR/Admin: ["from:(*@workday.com OR *@adp.com) subject:(time off OR PTO OR benefits)"]
-    - Team updates: ["from:(*@company.com) -from:(notifications@company.com)"]
-    - Newsletters: ["subject:(newsletter OR digest) from:(*@company.com)"]
-    
-    Common Errors:
-    - "Proto field is not repeating" → Convert string to array
-    - "params.criteria.X?.join is not a function" → Make sure field is array
-    - "Invalid JSON payload" → Check field format matches Gmail API
-    
-    Testing Strategy:
-    1. Test search query first:
-       - Use search_workspace_emails with content field
-       - Verify matches expected messages
-    2. Update filter with validated query:
-       - Convert search query to hasWords array
-       - Set appropriate actions
-    3. Verify filter operation:
-       - Check filter was updated
-       - Confirm it catches new matching emails
-    
-    Example Flow:
-    1. Check account access
-    2. Test search query
-    3. Update filter with validated criteria
-    4. Confirm filter changes and operation`,
-    aliases: ['update_filter', 'edit_filter', 'modify_filter'],
-    inputSchema: {
-      type: 'object',
-      properties: {
-        email: {
-          type: 'string',
-          description: 'Email address of the Gmail account'
+          enum: ['create', 'read', 'update', 'delete'],
+          description: 'Operation to perform'
         },
         filterId: {
           type: 'string',
-          description: 'ID of filter to update'
+          description: 'Filter ID (required for update/delete)'
         },
-        criteria: {
+        labelId: {
+          type: 'string',
+          description: 'Label ID (required for create/update)'
+        },
+        data: {
           type: 'object',
           properties: {
-            from: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Match sender email addresses'
-            },
-            to: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Match recipient email addresses'
-            },
-            subject: {
-              type: 'string',
-              description: 'Match text in subject'
-            },
-            hasWords: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Complex Gmail query strings (e.g., ["from:(*@domain.com) subject:(word1 OR word2)"])'
-            },
-            doesNotHaveWords: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Exclude messages with these words'
-            },
-            hasAttachment: {
-              type: 'boolean',
-              description: 'Match messages with attachments'
-            },
-            size: {
+            criteria: {
               type: 'object',
               properties: {
-                operator: {
+                from: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Match sender email addresses'
+                },
+                to: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Match recipient email addresses'
+                },
+                subject: {
                   type: 'string',
-                  enum: ['larger', 'smaller'],
-                  description: 'Size comparison operator'
+                  description: 'Match text in subject'
+                },
+                hasWords: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Match words in message body'
+                },
+                doesNotHaveWords: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Exclude messages with these words'
+                },
+                hasAttachment: {
+                  type: 'boolean',
+                  description: 'Match messages with attachments'
                 },
                 size: {
-                  type: 'number',
-                  description: 'Size in bytes'
+                  type: 'object',
+                  properties: {
+                    operator: {
+                      type: 'string',
+                      enum: ['larger', 'smaller'],
+                      description: 'Size comparison operator'
+                    },
+                    size: {
+                      type: 'number',
+                      description: 'Size in bytes'
+                    }
+                  }
                 }
               }
-            }
-          }
-        },
-        actions: {
-          type: 'object',
-          properties: {
-            addLabel: {
-              type: 'boolean',
-              description: 'Apply the label'
             },
-            markImportant: {
-              type: 'boolean',
-              description: 'Mark as important'
-            },
-            markRead: {
-              type: 'boolean',
-              description: 'Mark as read'
-            },
-            archive: {
-              type: 'boolean',
-              description: 'Archive the message'
+            actions: {
+              type: 'object',
+              properties: {
+                addLabel: {
+                  type: 'boolean',
+                  description: 'Apply the label'
+                },
+                markImportant: {
+                  type: 'boolean',
+                  description: 'Mark as important'
+                },
+                markRead: {
+                  type: 'boolean',
+                  description: 'Mark as read'
+                },
+                archive: {
+                  type: 'boolean',
+                  description: 'Archive the message'
+                }
+              },
+              required: ['addLabel']
             }
           }
         }
       },
-      required: ['email', 'filterId']
-    }
-  },
-  {
-    name: 'delete_workspace_label_filter',
-    category: 'Gmail/Labels',
-    description: `Delete a Gmail label filter.
-    
-    IMPORTANT: Before deleting:
-    1. Verify account access with list_workspace_accounts
-    2. Confirm account if multiple exist
-    3. Verify filter exists
-    4. Confirm deletion intent
-    
-    Note: This action cannot be undone.`,
-    aliases: ['delete_filter', 'remove_filter'],
-    inputSchema: {
-      type: 'object',
-      properties: {
-        email: {
-          type: 'string',
-          description: 'Email address of the Gmail account'
-        },
-        filterId: {
-          type: 'string',
-          description: 'ID of filter to delete'
-        }
-      },
-      required: ['email', 'filterId']
+      required: ['email', 'action']
     }
   }
 ];

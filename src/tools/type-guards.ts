@@ -4,14 +4,9 @@ import {
   SendEmailArgs,
   CreateDraftArgs,
   SendDraftArgs,
-  CreateLabelArgs,
-  UpdateLabelArgs,
-  DeleteLabelArgs,
-  ModifyLabelsArgs,
-  CreateLabelFilterArgs,
-  GetLabelFiltersArgs,
-  UpdateLabelFilterArgs,
-  DeleteLabelFilterArgs
+  ManageLabelParams,
+  ManageLabelAssignmentParams,
+  ManageLabelFilterParams
 } from './types.js';
 
 export function isBaseToolArguments(args: Record<string, unknown>): args is BaseToolArguments {
@@ -71,34 +66,6 @@ export function isSendDraftArgs(args: Record<string, unknown>): args is SendDraf
   return typeof args.email === 'string' && typeof args.draftId === 'string';
 }
 
-export function isCreateLabelArgs(args: Record<string, unknown>): args is CreateLabelArgs {
-  return typeof args.email === 'string' &&
-    typeof args.name === 'string' &&
-    (args.messageListVisibility === undefined || ['show', 'hide'].includes(args.messageListVisibility as string)) &&
-    (args.labelListVisibility === undefined || ['labelShow', 'labelHide', 'labelShowIfUnread'].includes(args.labelListVisibility as string)) &&
-    (args.color === undefined || (
-      typeof args.color === 'object' &&
-      args.color !== null &&
-      typeof (args.color as { textColor: string }).textColor === 'string' &&
-      typeof (args.color as { backgroundColor: string }).backgroundColor === 'string'
-    ));
-}
-
-export function isUpdateLabelArgs(args: Record<string, unknown>): args is UpdateLabelArgs {
-  return isCreateLabelArgs(args) && typeof args.labelId === 'string';
-}
-
-export function isDeleteLabelArgs(args: Record<string, unknown>): args is DeleteLabelArgs {
-  return typeof args.email === 'string' && typeof args.labelId === 'string';
-}
-
-export function isModifyLabelsArgs(args: Record<string, unknown>): args is ModifyLabelsArgs {
-  return typeof args.email === 'string' &&
-    typeof args.messageId === 'string' &&
-    (args.addLabelIds === undefined || (Array.isArray(args.addLabelIds) && args.addLabelIds.every(id => typeof id === 'string'))) &&
-    (args.removeLabelIds === undefined || (Array.isArray(args.removeLabelIds) && args.removeLabelIds.every(id => typeof id === 'string')));
-}
-
 export function assertSendEmailArgs(args: Record<string, unknown>): asserts args is SendEmailArgs {
   if (!isSendEmailArgs(args)) {
     throw new Error('Invalid email parameters. Required: email, to, subject, body');
@@ -117,77 +84,78 @@ export function assertSendDraftArgs(args: Record<string, unknown>): asserts args
   }
 }
 
-export function assertCreateLabelArgs(args: Record<string, unknown>): asserts args is CreateLabelArgs {
-  if (!isCreateLabelArgs(args)) {
-    throw new Error('Invalid label parameters. Required: email, name');
+// Consolidated Label Management Type Guards
+export function isManageLabelParams(args: unknown): args is ManageLabelParams {
+  if (typeof args !== 'object' || args === null) return false;
+  const params = args as Partial<ManageLabelParams>;
+  
+  return typeof params.email === 'string' &&
+    typeof params.action === 'string' &&
+    ['create', 'read', 'update', 'delete'].includes(params.action) &&
+    (params.labelId === undefined || typeof params.labelId === 'string') &&
+    (params.data === undefined || (() => {
+      if (typeof params.data !== 'object' || params.data === null) return false;
+      const data = params.data as {
+        name?: string;
+        messageListVisibility?: string;
+        labelListVisibility?: string;
+      };
+      return (data.name === undefined || typeof data.name === 'string') &&
+        (data.messageListVisibility === undefined || ['show', 'hide'].includes(data.messageListVisibility)) &&
+        (data.labelListVisibility === undefined || ['labelShow', 'labelHide', 'labelShowIfUnread'].includes(data.labelListVisibility));
+    })());
+}
+
+export function isManageLabelAssignmentParams(args: unknown): args is ManageLabelAssignmentParams {
+  if (typeof args !== 'object' || args === null) return false;
+  const params = args as Partial<ManageLabelAssignmentParams>;
+  
+  return typeof params.email === 'string' &&
+    typeof params.action === 'string' &&
+    ['add', 'remove'].includes(params.action) &&
+    typeof params.messageId === 'string' &&
+    Array.isArray(params.labelIds) &&
+    params.labelIds.every(id => typeof id === 'string');
+}
+
+export function isManageLabelFilterParams(args: unknown): args is ManageLabelFilterParams {
+  if (typeof args !== 'object' || args === null) return false;
+  const params = args as Partial<ManageLabelFilterParams>;
+  
+  return typeof params.email === 'string' &&
+    typeof params.action === 'string' &&
+    ['create', 'read', 'update', 'delete'].includes(params.action) &&
+    (params.filterId === undefined || typeof params.filterId === 'string') &&
+    (params.labelId === undefined || typeof params.labelId === 'string') &&
+    (params.data === undefined || (() => {
+      if (typeof params.data !== 'object' || params.data === null) return false;
+      const data = params.data as {
+        criteria?: { [key: string]: unknown };
+        actions?: { addLabel: boolean; markImportant?: boolean; markRead?: boolean; archive?: boolean };
+      };
+      return (data.criteria === undefined || (typeof data.criteria === 'object' && data.criteria !== null)) &&
+        (data.actions === undefined || (
+          typeof data.actions === 'object' &&
+          data.actions !== null &&
+          typeof data.actions.addLabel === 'boolean'
+        ));
+    })());
+}
+
+export function assertManageLabelParams(args: unknown): asserts args is ManageLabelParams {
+  if (!isManageLabelParams(args)) {
+    throw new Error('Invalid label management parameters. Required: email, action');
   }
 }
 
-export function assertUpdateLabelArgs(args: Record<string, unknown>): asserts args is UpdateLabelArgs {
-  if (!isUpdateLabelArgs(args)) {
-    throw new Error('Invalid label update parameters. Required: email, labelId, name');
+export function assertManageLabelAssignmentParams(args: unknown): asserts args is ManageLabelAssignmentParams {
+  if (!isManageLabelAssignmentParams(args)) {
+    throw new Error('Invalid label assignment parameters. Required: email, action, messageId, labelIds');
   }
 }
 
-export function assertDeleteLabelArgs(args: Record<string, unknown>): asserts args is DeleteLabelArgs {
-  if (!isDeleteLabelArgs(args)) {
-    throw new Error('Missing required email or labelId parameter');
-  }
-}
-
-export function assertModifyLabelsArgs(args: Record<string, unknown>): asserts args is ModifyLabelsArgs {
-  if (!isModifyLabelsArgs(args)) {
-    throw new Error('Invalid label modification parameters. Required: email, messageId');
-  }
-}
-
-// Label Filter Type Guards
-export function isCreateLabelFilterArgs(args: Record<string, unknown>): args is CreateLabelFilterArgs {
-  return typeof args.email === 'string' &&
-    typeof args.labelId === 'string' &&
-    typeof args.criteria === 'object' &&
-    args.criteria !== null &&
-    typeof args.actions === 'object' &&
-    args.actions !== null &&
-    typeof (args.actions as { addLabel: boolean }).addLabel === 'boolean';
-}
-
-export function isGetLabelFiltersArgs(args: Record<string, unknown>): args is GetLabelFiltersArgs {
-  return typeof args.email === 'string' &&
-    (args.labelId === undefined || typeof args.labelId === 'string');
-}
-
-export function isUpdateLabelFilterArgs(args: Record<string, unknown>): args is UpdateLabelFilterArgs {
-  return typeof args.email === 'string' &&
-    typeof args.filterId === 'string' &&
-    (args.criteria === undefined || (typeof args.criteria === 'object' && args.criteria !== null)) &&
-    (args.actions === undefined || (typeof args.actions === 'object' && args.actions !== null));
-}
-
-export function isDeleteLabelFilterArgs(args: Record<string, unknown>): args is DeleteLabelFilterArgs {
-  return typeof args.email === 'string' && typeof args.filterId === 'string';
-}
-
-export function assertCreateLabelFilterArgs(args: Record<string, unknown>): asserts args is CreateLabelFilterArgs {
-  if (!isCreateLabelFilterArgs(args)) {
-    throw new Error('Invalid filter parameters. Required: email, labelId, criteria, actions');
-  }
-}
-
-export function assertGetLabelFiltersArgs(args: Record<string, unknown>): asserts args is GetLabelFiltersArgs {
-  if (!isGetLabelFiltersArgs(args)) {
-    throw new Error('Missing required email parameter');
-  }
-}
-
-export function assertUpdateLabelFilterArgs(args: Record<string, unknown>): asserts args is UpdateLabelFilterArgs {
-  if (!isUpdateLabelFilterArgs(args)) {
-    throw new Error('Invalid filter update parameters. Required: email, filterId');
-  }
-}
-
-export function assertDeleteLabelFilterArgs(args: Record<string, unknown>): asserts args is DeleteLabelFilterArgs {
-  if (!isDeleteLabelFilterArgs(args)) {
-    throw new Error('Missing required email or filterId parameter');
+export function assertManageLabelFilterParams(args: unknown): asserts args is ManageLabelFilterParams {
+  if (!isManageLabelFilterParams(args)) {
+    throw new Error('Invalid label filter parameters. Required: email, action');
   }
 }
