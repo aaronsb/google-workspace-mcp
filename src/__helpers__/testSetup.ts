@@ -1,8 +1,30 @@
-import { AccountManager } from '../modules/accounts/manager.js';
-import { GoogleOAuthClient } from '../modules/accounts/oauth.js';
-import { TokenManager } from '../modules/accounts/token.js';
-import { mockTokens } from '../__fixtures__/accounts.js';
 import { gmail_v1 } from 'googleapis';
+import type { AccountManager } from '../modules/accounts/manager.js' with { "resolution-mode": "import" };
+import type { GoogleOAuthClient } from '../modules/accounts/oauth.js' with { "resolution-mode": "import" };
+import type { TokenManager } from '../modules/accounts/token.js' with { "resolution-mode": "import" };
+
+let AccountManagerClass: typeof AccountManager;
+let GoogleOAuthClientClass: typeof GoogleOAuthClient;
+let TokenManagerClass: typeof TokenManager;
+let mockTokens: any;
+
+// Initialize the dynamic imports
+const initializeModules = async () => {
+  const manager = await import('../modules/accounts/manager.js');
+  const oauth = await import('../modules/accounts/oauth.js');
+  const token = await import('../modules/accounts/token.js');
+  const accounts = await import('../__fixtures__/accounts.js');
+
+  AccountManagerClass = manager.AccountManager;
+  GoogleOAuthClientClass = oauth.GoogleOAuthClient;
+  TokenManagerClass = token.TokenManager;
+  mockTokens = accounts.mockTokens;
+};
+
+// Run initialization before tests
+beforeAll(async () => {
+  await initializeModules();
+});
 
 export const mockFileSystem = () => {
   const mockFs = {
@@ -74,14 +96,14 @@ export const mockAccountManager = () => {
     generateAuthUrl: jest.fn().mockResolvedValue('https://mock-auth-url'),
     getTokenFromCode: jest.fn().mockResolvedValue(mockTokens.valid),
     refreshToken: jest.fn(),
-  } as unknown as jest.Mocked<GoogleOAuthClient>;
+  } as unknown as jest.Mocked<typeof GoogleOAuthClient>;
 
   const mockTokenManager = {
     loadToken: jest.fn(),
     saveToken: jest.fn(),
     validateToken: jest.fn().mockResolvedValue({ valid: true, token: mockTokens.valid }),
     deleteToken: jest.fn(),
-  } as unknown as jest.Mocked<TokenManager>;
+  } as unknown as jest.Mocked<typeof TokenManager>;
 
   jest.mock('../modules/accounts/token.js', () => ({
     TokenManager: jest.fn().mockImplementation(() => mockTokenManager),
