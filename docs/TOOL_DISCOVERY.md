@@ -12,6 +12,8 @@ Tools are organized into logical categories for better organization:
   - Email composition and search
 - Gmail/Labels
   - Label creation and management
+  - Label filter creation and management
+  - Message label operations
 - Gmail/Drafts
   - Draft email management
 - Gmail/Settings
@@ -72,17 +74,49 @@ Each tool includes:
 // Any of these work:
 create_workspace_label({
   email: "user@example.com",
-  name: "Important/Projects"
+  name: "Important/Projects",
+  messageListVisibility: "show",
+  labelListVisibility: "labelShow",
+  color: {
+    textColor: "#000000",
+    backgroundColor: "#E7E7E7"
+  }
 })
 
 create_label({
   email: "user@example.com",
   name: "Important/Projects"
 })
+```
 
-create_gmail_label({
+### Creating a Label Filter
+
+```javascript
+// Create a filter to automatically label incoming emails
+create_workspace_label_filter({
   email: "user@example.com",
-  name: "Important/Projects"
+  labelId: "Label_123",
+  criteria: {
+    from: ["team@company.com"],
+    subject: "Project Update",
+    hasAttachment: true
+  },
+  actions: {
+    addLabel: true,
+    markImportant: true
+  }
+})
+```
+
+### Managing Message Labels
+
+```javascript
+// Add/remove labels from a message
+modify_workspace_message_labels({
+  email: "user@example.com",
+  messageId: "msg_123",
+  addLabelIds: ["Label_123"],
+  removeLabelIds: ["UNREAD"]
 })
 ```
 
@@ -94,7 +128,8 @@ send_workspace_email({
   email: "user@example.com",
   to: ["recipient@example.com"],
   subject: "Hello",
-  body: "Message content"
+  body: "Message content",
+  cc: ["cc@example.com"]
 })
 
 send_email({
@@ -111,3 +146,7 @@ send_email({
 - Tool relationship mapping
 - Common usage patterns and workflows
 - Interactive tool discovery
+- Workflow templates for common tasks
+- Error handling best practices
+- Performance optimization guidelines
+- Security and permission management
