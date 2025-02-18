@@ -281,7 +281,7 @@ export class CalendarService {
                                action === 'decline' ? 'declined' : 
                                'tentative';
 
-          // Update response status using the exact format from successful curl implementation
+          // Match the minimal request body from the successful curl implementation
           const { data: updatedEvent } = await calendar.events.patch({
             calendarId: 'primary',
             eventId,
