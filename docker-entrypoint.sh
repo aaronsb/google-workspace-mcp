@@ -7,7 +7,7 @@ log_error() {
 
 # Function to log info messages
 log_info() {
-    echo "[INFO] $1"
+    echo "[INFO] $1" >&2
 }
 
 # Function to safely create a file with proper permissions

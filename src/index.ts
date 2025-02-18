@@ -646,26 +646,28 @@ class GSuiteServer {
 
   async run(): Promise<void> {
     try {
-      // Register scopes for all tools
+      // Initialize server
+      logger.info('Loading API scopes...');
       registerGmailScopes();
       registerCalendarScopes();
       
-      // Initialize all required modules
-      // Order matters: Account module must be initialized first as other modules depend on it
-      await initializeAccountModule();  // Handles OAuth and token management
-      await initializeGmailModule();    // Provides email functionality
-      await initializeCalendarModule(); // Provides calendar operations
+      // Initialize modules in order
+      logger.info('Initializing account module...');
+      await initializeAccountModule();
       
-      // Set up error handler for server
-      this.server.onerror = (error) => {
-        logger.error('Server error:', error);
-        // Don't exit on error, let the server try to recover
-      };
+      logger.info('Initializing Gmail module...');
+      await initializeGmailModule();
       
-      // Connect to transport
+      logger.info('Initializing Calendar module...');
+      await initializeCalendarModule();
+      
+      // Set up error handler
+      this.server.onerror = (error) => logger.error('MCP Error:', error);
+      
+      // Connect transport
       const transport = new StdioServerTransport();
       await this.server.connect(transport);
-      logger.info('Server connected to transport');
+      logger.info('Google Workspace MCP server running on stdio');
     } catch (error) {
       logger.error('Fatal server error:', error);
       throw error;
@@ -686,7 +688,7 @@ process.on('SIGTERM', () => {
 });
 
 // Start with error handling
-server.run().catch((error) => {
-  logger.error('Fatal server error:', error);
+server.run().catch(error => {
+  logger.error('Fatal Error:', error);
   process.exit(1);
 });
