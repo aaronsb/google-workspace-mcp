@@ -14,9 +14,11 @@ export interface ToolScope {
 export class ScopeRegistry {
   private static instance: ScopeRegistry;
   private scopes: Map<string, ToolScope>;
+  private scopeOrder: string[]; // Maintain registration order
 
   private constructor() {
     this.scopes = new Map();
+    this.scopeOrder = [];
   }
 
   static getInstance(): ScopeRegistry {
@@ -28,15 +30,29 @@ export class ScopeRegistry {
 
   /**
    * Register a scope needed by a tool.
+   * If the scope is already registered, it will not be re-registered
+   * but its position in the order will be updated.
    */
   registerScope(tool: string, scope: string) {
-    if (!this.scopes.has(scope)) {
-      this.scopes.set(scope, { scope, tool });
+    // Remove from order if already exists
+    const existingIndex = this.scopeOrder.indexOf(scope);
+    if (existingIndex !== -1) {
+      this.scopeOrder.splice(existingIndex, 1);
     }
+
+    // Add to map and order
+    this.scopes.set(scope, { scope, tool });
+    this.scopeOrder.push(scope);
   }
 
+  /**
+   * Get all registered scopes in their registration order.
+   * This order is important for auth URL generation to ensure
+   * consistent scope presentation to users.
+   */
   getAllScopes(): string[] {
-    return Array.from(this.scopes.keys());
+    // Return scopes in registration order
+    return this.scopeOrder;
   }
 
   getToolScopes(tool: string): string[] {
