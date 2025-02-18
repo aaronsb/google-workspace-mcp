@@ -5,33 +5,59 @@ Thank you for your interest in contributing to the Google Workspace MCP project!
 ## Development Setup
 
 1. Fork and clone the repository
-2. Install dependencies:
+
+2. Build the development Docker image:
    ```bash
-   npm install
+   docker build -t google-workspace-mcp:local .
    ```
-3. Copy configuration examples and set up your environment:
+
+3. Create a local config directory:
    ```bash
-   cp config/accounts.example.json config/accounts.json
-   cp config/gauth.example.json config/gauth.json
+   mkdir -p ~/.mcp/google-workspace-mcp
    ```
-4. Configure your Google API credentials in the config files
+
+4. Run the container with your Google API credentials:
+   ```bash
+   docker run -i --rm \
+     -v ~/.mcp/google-workspace-mcp:/app/config \
+     -e GOOGLE_CLIENT_ID=your_client_id \
+     -e GOOGLE_CLIENT_SECRET=your_client_secret \
+     -e GOOGLE_REDIRECT_URI=urn:ietf:wg:oauth:2.0:oob \
+     google-workspace-mcp:local
+   ```
+
+Note: For local development, you can also mount the source code directory:
+```bash
+docker run -i --rm \
+  -v ~/.mcp/google-workspace-mcp:/app/config \
+  -v $(pwd)/src:/app/src \
+  -e GOOGLE_CLIENT_ID=your_client_id \
+  -e GOOGLE_CLIENT_SECRET=your_client_secret \
+  -e GOOGLE_REDIRECT_URI=urn:ietf:wg:oauth:2.0:oob \
+  google-workspace-mcp:local
+```
 
 ## Development Workflow
 
 1. Create a new branch for your feature/fix:
    ```bash
    git checkout -b feature/your-feature-name
-   ```
-   or
-   ```bash
+   # or
    git checkout -b fix/your-fix-name
    ```
 
 2. Make your changes following our coding standards
 3. Write/update tests as needed
-4. Run tests to ensure everything passes:
+4. Build and test your changes:
    ```bash
-   npm test
+   # Build the development image
+   docker build -t google-workspace-mcp:local .
+
+   # Run tests in container
+   docker run -i --rm \
+     -v $(pwd):/app \
+     google-workspace-mcp:local \
+     npm test
    ```
 5. Commit your changes using conventional commit messages:
    ```

@@ -196,38 +196,51 @@ This approach ensures tests are:
 - Token persistence handling
 
 ## Project Structure
-```
-src/
-├── index.ts                 # MCP server implementation
-├── modules/
-│   ├── accounts/           # Account & auth handling
-│   │   ├── index.ts       # Module entry point
-│   │   ├── manager.ts     # Account management
-│   │   ├── oauth.ts       # OAuth implementation
-│   │   └── token.ts       # Token handling
-│   └── gmail/             # Gmail implementation
-│       ├── index.ts       # Module entry point
-│       ├── service.ts     # Gmail operations
-│       └── types.ts       # Gmail types
-└── scripts/
-    └── setup-google-env.ts # Setup utilities
 
-~/.mcp/google-workspace-mcp/
-├── accounts.json           # Account configs
-└── credentials/           # Token storage
+### Docker Container Structure
+```
+/app/
+├── src/              # Application source code
+│   ├── index.ts     # MCP server implementation
+│   ├── modules/     # Core functionality modules
+│   └── scripts/     # Utility scripts
+├── config/          # Mount point for persistent data
+│   ├── accounts.json     # Account configurations
+│   └── credentials/     # Token storage
+└── Dockerfile       # Container definition
+```
+
+### Local Development Structure
+```
+project/
+├── src/             # Source code (mounted in container)
+├── Dockerfile       # Container definition
+└── docker-entrypoint.sh  # Container startup script
+```
+
+### Host Machine Structure
+```
+~/.mcp/google-workspace-mcp/  # Persistent data directory
+├── accounts.json        # Account configurations
+└── credentials/        # Token storage
 ```
 
 ## Configuration
 
-### Environment Variables
+### Container Environment Variables
 ```
-GOOGLE_CLIENT_ID     - OAuth client ID
-GOOGLE_CLIENT_SECRET - OAuth client secret
-GOOGLE_REDIRECT_URI  - OAuth redirect URI
+GOOGLE_CLIENT_ID      - OAuth client ID
+GOOGLE_CLIENT_SECRET  - OAuth client secret
+GOOGLE_REDIRECT_URI   - OAuth redirect URI (optional)
+```
+
+### Volume Mounts
+```
+~/.mcp/google-workspace-mcp:/app/config  # Persistent data storage
 ```
 
 ### Data Directory Structure
-The server uses a data directory in the user's home folder (`~/.mcp/google-workspace-mcp`) to store:
+The server uses a Docker volume mounted at `/app/config` to store:
 
 1. Account Configuration (accounts.json):
 ```json
