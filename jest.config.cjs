@@ -28,6 +28,6 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/src/__helpers__/testSetup.ts'],
   reporters: [
     'default',
-    '<rootDir>/src/__helpers__/customReporter.ts'
+    '<rootDir>/src/__helpers__/customReporter.js'
   ]
 };
