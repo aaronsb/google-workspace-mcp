@@ -3,9 +3,18 @@ import { gmail_v1 } from 'googleapis';
 import { Label } from '../types.js';
 import { getAccountManager } from '../../../modules/accounts/index.js';
 import { AccountManager } from '../../../modules/accounts/manager.js';
+import logger from '../../../utils/logger.js';
 
 jest.mock('../../../modules/accounts/index.js');
 jest.mock('../../../modules/accounts/manager.js');
+jest.mock('../../../utils/logger.js', () => ({
+  default: {
+    error: jest.fn(),
+    warn: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn()
+  }
+}));
 
 describe('Gmail Label Service', () => {
   let gmailService: GmailService;
