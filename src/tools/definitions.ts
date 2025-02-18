@@ -8,7 +8,7 @@ export const accountTools: ToolMetadata[] = [
     category: 'Account Management',
     description: `List all configured Google workspace accounts and their authentication status.
     
-    IMPORTANT: This tool MUST be called first before any Gmail/Calendar operations to:
+    IMPORTANT: This tool MUST be called first before any other workspace operations to:
     1. Check for existing authenticated accounts
     2. Determine which account to use if multiple exist
     3. Verify required API scopes are authorized
@@ -51,19 +51,7 @@ export const accountTools: ToolMetadata[] = [
     3. You share EXACT auth_url with user - in a clickable URL form! (Important!)
     4. User completes OAuth flow by clicking on the link you furnished them
     5. User provides auth_code back to you
-    6. Complete authentication with auth_code
-    
-    Technical Details:
-    - Auth code format: "4/" followed by alphanumeric characters
-    - Common errors: expired code, invalid format, missing scopes
-    - Response includes: account status and configured scopes
-    
-    Example Usage:
-    1. list_workspace_accounts shows no accounts
-    2. Ask user for email to authenticate
-    3. Start auth flow with provided email
-    4. Share auth URL with user
-    5. Complete flow with returned auth code`,
+    6. Complete authentication with auth_code`,
     aliases: ['auth_account', 'add_account', 'connect_account'],
     inputSchema: {
       type: 'object',
@@ -82,7 +70,7 @@ export const accountTools: ToolMetadata[] = [
         },
         auth_code: {
           type: 'string',
-          description: 'Authorization code from Google OAuth (only needed during initial authentication)'
+          description: 'Authorization code from Google OAuth (for initial authentication)'
         }
       },
       required: ['email']
@@ -140,50 +128,7 @@ export const gmailTools: ToolMetadata[] = [
     - Labels: Case-sensitive, exact match (e.g., "INBOX", "SENT")
     - Wildcards: Use * for partial matches (e.g., "*@domain.com")
     - Operators: OR, -, (), has:attachment, larger:size, newer_than:date
-    - Default maxResults: 10 (increase for broader searches)
-    
-    Response Format:
-    {
-      emails: [{
-        id: string;
-        threadId: string;
-        labelIds: string[];
-        snippet: string;
-        subject: string;
-        from: string;
-        to: string;
-        date: string;
-        body: string;
-        isUnread: boolean;
-        hasAttachment: boolean;
-      }],
-      nextPageToken?: string;
-      resultSummary: {
-        total: number;
-        returned: number;
-        hasMore: boolean;
-        searchCriteria: object;
-      }
-    }
-    
-    Example Flows:
-    1. Simple search:
-       {
-         email: "user@domain.com",
-         search: {
-           from: ["someone@example.com"],
-           subject: "meeting",
-           after: "2024-02-01"
-         }
-       }
-    
-    2. Complex search:
-       {
-         email: "user@domain.com",
-         search: {
-           content: "from:(zoom.us OR *@zoom.us) subject:(meeting OR invite) has:attachment"
-         }
-       }`,
+    - Default maxResults: 10 (increase for broader searches)`,
     aliases: ['search_emails', 'find_emails', 'query_emails'],
     inputSchema: {
       type: 'object',
@@ -264,6 +209,7 @@ export const gmailTools: ToolMetadata[] = [
     description: `Send an email from a Gmail account.
     
     IMPORTANT: Before sending:
+    0. Suggest writing a draft first, then send the draft.
     1. Verify account access with list_workspace_accounts
     2. Confirm sending account if multiple exist
     3. Validate all recipient addresses
@@ -358,7 +304,7 @@ export const gmailTools: ToolMetadata[] = [
     Common Patterns:
     - New Email Draft:
       1. Collect recipient, subject, body
-      2. Save as draft for user review
+      2. Save as draft for user review in their own inbox interface
     
     - Reply Draft:
       1. Verify original message exists
