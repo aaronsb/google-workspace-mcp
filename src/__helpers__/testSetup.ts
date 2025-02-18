@@ -4,16 +4,6 @@ import { TokenManager } from '../modules/accounts/token.js';
 import { mockTokens } from '../__fixtures__/accounts.js';
 import { gmail_v1 } from 'googleapis';
 
-// Mock logger to prevent console.error noise in tests
-jest.mock('../utils/logger.js', () => ({
-  default: {
-    error: jest.fn(),
-    warn: jest.fn(),
-    info: jest.fn(),
-    debug: jest.fn()
-  }
-}));
-
 export const mockFileSystem = () => {
   const mockFs = {
     mkdir: jest.fn().mockResolvedValue(undefined),
