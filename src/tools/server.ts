@@ -7,6 +7,9 @@ import {
   Tool
 } from "@modelcontextprotocol/sdk/types.js";
 
+// Get docker hash from environment
+const DOCKER_HASH = process.env.DOCKER_HASH || 'unknown';
+
 // Import tool definitions and registry
 import { allTools } from './definitions.js';
 import { ToolRegistry } from '../modules/tools/registry.js';
@@ -253,6 +256,7 @@ export class GSuiteServer {
   async run(): Promise<void> {
     try {
       // Initialize server
+      logger.info(`google-workspace-mcp v0.9.0 (docker: ${DOCKER_HASH})`);
       logger.info('Loading API scopes...');
       registerGmailScopes();
       registerCalendarScopes();

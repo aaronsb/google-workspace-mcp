@@ -20,6 +20,10 @@ RUN npm run build
 FROM node:20-slim
 WORKDIR /app
 
+# Set docker hash as environment variable
+ARG DOCKER_HASH=unknown
+ENV DOCKER_HASH=$DOCKER_HASH
+
 # Create necessary directories with proper permissions
 RUN mkdir -p /app/logs /app/config && \
     chown -R 1000:1000 /app && \
