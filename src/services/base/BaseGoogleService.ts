@@ -1,5 +1,5 @@
 import { OAuth2Client } from 'google-auth-library';
-import { McpError, ErrorCode } from '@modelcontextprotocol/sdk';
+import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { getAccountManager } from '../../modules/accounts/index.js';
 
 /**
