@@ -11,7 +11,11 @@ import {
   CreateLabelArgs,
   UpdateLabelArgs,
   DeleteLabelArgs,
-  ModifyLabelsArgs
+  ModifyLabelsArgs,
+  CreateLabelFilterArgs,
+  GetLabelFiltersArgs,
+  UpdateLabelFilterArgs,
+  DeleteLabelFilterArgs
 } from './types.js';
 
 /**
@@ -265,6 +269,97 @@ export async function handleModifyWorkspaceMessageLabels(args: ModifyLabelsArgs)
         text: JSON.stringify({
           status: 'success',
           message: `Successfully modified labels for message ${args.messageId}`
+        }, null, 2)
+      }]
+    };
+  });
+}
+
+/**
+ * Create a new filter for a Gmail label
+ * @param args.email - Gmail account to create filter in
+ * @param args.labelId - ID of the label to apply
+ * @param args.criteria - Filter matching criteria
+ * @param args.actions - Actions to take when filter matches
+ * @returns Created filter details
+ * @throws {McpError} If filter creation fails
+ */
+export async function handleCreateWorkspaceLabelFilter(args: CreateLabelFilterArgs): Promise<McpToolResponse> {
+  const accountManager = getAccountManager();
+  
+  return await accountManager.withTokenRenewal(args.email, async () => {
+    const result = await getGmailService().createLabelFilter(args);
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify(result, null, 2)
+      }]
+    };
+  });
+}
+
+/**
+ * Get filters for a Gmail label
+ * @param args.email - Gmail account to get filters from
+ * @param args.labelId - Optional: get filters for specific label only
+ * @returns List of matching filters
+ * @throws {McpError} If filter retrieval fails
+ */
+export async function handleGetWorkspaceLabelFilters(args: GetLabelFiltersArgs): Promise<McpToolResponse> {
+  const accountManager = getAccountManager();
+  
+  return await accountManager.withTokenRenewal(args.email, async () => {
+    const result = await getGmailService().getLabelFilters(args);
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify(result, null, 2)
+      }]
+    };
+  });
+}
+
+/**
+ * Update an existing Gmail label filter
+ * @param args.email - Gmail account containing the filter
+ * @param args.filterId - ID of filter to update
+ * @param args.criteria - New filter criteria
+ * @param args.actions - New filter actions
+ * @returns Updated filter details
+ * @throws {McpError} If update fails or filter not found
+ */
+export async function handleUpdateWorkspaceLabelFilter(args: UpdateLabelFilterArgs): Promise<McpToolResponse> {
+  const accountManager = getAccountManager();
+  
+  return await accountManager.withTokenRenewal(args.email, async () => {
+    const result = await getGmailService().updateLabelFilter(args);
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify(result, null, 2)
+      }]
+    };
+  });
+}
+
+/**
+ * Delete a Gmail label filter
+ * @param args.email - Gmail account containing the filter
+ * @param args.filterId - ID of filter to delete
+ * @returns Success message
+ * @throws {McpError} If deletion fails or filter not found
+ */
+export async function handleDeleteWorkspaceLabelFilter(args: DeleteLabelFilterArgs): Promise<McpToolResponse> {
+  const accountManager = getAccountManager();
+  
+  return await accountManager.withTokenRenewal(args.email, async () => {
+    await getGmailService().deleteLabelFilter(args);
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          status: 'success',
+          message: `Successfully deleted filter ${args.filterId}`
         }, null, 2)
       }]
     };

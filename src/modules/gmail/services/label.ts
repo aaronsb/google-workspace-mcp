@@ -9,6 +9,11 @@ import {
   ModifyMessageLabelsParams,
   GmailError
 } from '../types.js';
+import {
+  isValidGmailLabelColor,
+  getNearestGmailLabelColor,
+  LABEL_ERROR_MESSAGES
+} from '../constants.js';
 
 export class LabelService {
   private client: gmail_v1.Gmail | null = null;
@@ -76,6 +81,19 @@ export class LabelService {
   async createLabel(params: CreateLabelParams): Promise<Label> {
     this.ensureClient();
     try {
+      // Validate colors if provided
+      if (params.color) {
+        const { textColor, backgroundColor } = params.color;
+        if (!isValidGmailLabelColor(textColor, backgroundColor)) {
+          const suggestedColor = getNearestGmailLabelColor(backgroundColor);
+          throw new GmailError(
+            LABEL_ERROR_MESSAGES.INVALID_COLOR,
+            'COLOR_ERROR',
+            LABEL_ERROR_MESSAGES.COLOR_SUGGESTION(backgroundColor, suggestedColor)
+          );
+        }
+      }
+
       const response = await this.client?.users.labels.create({
         userId: params.email,
         requestBody: {
@@ -129,6 +147,19 @@ export class LabelService {
   async updateLabel(params: UpdateLabelParams): Promise<Label> {
     this.ensureClient();
     try {
+      // Validate colors if provided
+      if (params.color) {
+        const { textColor, backgroundColor } = params.color;
+        if (!isValidGmailLabelColor(textColor, backgroundColor)) {
+          const suggestedColor = getNearestGmailLabelColor(backgroundColor);
+          throw new GmailError(
+            LABEL_ERROR_MESSAGES.INVALID_COLOR,
+            'COLOR_ERROR',
+            LABEL_ERROR_MESSAGES.COLOR_SUGGESTION(backgroundColor, suggestedColor)
+          );
+        }
+      }
+
       const response = await this.client?.users.labels.patch({
         userId: params.email,
         id: params.labelId,

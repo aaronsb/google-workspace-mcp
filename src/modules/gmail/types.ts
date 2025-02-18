@@ -219,6 +219,85 @@ export interface ModifyMessageLabelsParams {
   removeLabelIds?: string[];
 }
 
+/**
+ * Label filter criteria for automatically applying labels to messages
+ */
+export interface LabelFilterCriteria {
+  from?: string[];           // Match sender email addresses
+  to?: string[];            // Match recipient email addresses
+  subject?: string;         // Match text in subject
+  hasWords?: string[];      // Match words in message body
+  doesNotHaveWords?: string[]; // Exclude messages with these words
+  hasAttachment?: boolean;  // Match messages with attachments
+  size?: {
+    operator: 'larger' | 'smaller';
+    size: number;           // Size in bytes
+  };
+}
+
+/**
+ * Actions to take when filter criteria match
+ */
+export interface LabelFilterActions {
+  addLabel: boolean;        // Apply the label
+  markImportant?: boolean;  // Mark as important
+  markRead?: boolean;       // Mark as read
+  archive?: boolean;        // Archive the message
+}
+
+/**
+ * Label filter configuration
+ */
+export interface LabelFilter {
+  id: string;              // Unique filter ID
+  labelId: string;         // ID of the label to apply
+  criteria: LabelFilterCriteria;
+  actions: LabelFilterActions;
+}
+
+/**
+ * Parameters for creating a new label filter
+ */
+export interface CreateLabelFilterParams {
+  email: string;
+  labelId: string;
+  criteria: LabelFilterCriteria;
+  actions: LabelFilterActions;
+}
+
+/**
+ * Parameters for updating an existing label filter
+ */
+export interface UpdateLabelFilterParams {
+  email: string;
+  filterId: string;
+  criteria?: LabelFilterCriteria;
+  actions?: LabelFilterActions;
+}
+
+/**
+ * Parameters for deleting a label filter
+ */
+export interface DeleteLabelFilterParams {
+  email: string;
+  filterId: string;
+}
+
+/**
+ * Parameters for getting label filters
+ */
+export interface GetLabelFiltersParams {
+  email: string;
+  labelId?: string;  // Optional: get filters for specific label
+}
+
+/**
+ * Response for getting label filters
+ */
+export interface GetLabelFiltersResponse {
+  filters: LabelFilter[];
+}
+
 export class GmailError extends Error {
   constructor(
     message: string,

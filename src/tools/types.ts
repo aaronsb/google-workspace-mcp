@@ -197,3 +197,62 @@ export interface ModifyLabelsArgs extends BaseToolArguments {
   addLabelIds?: string[];
   removeLabelIds?: string[];
 }
+
+// Label Filter Types
+/**
+ * Filter criteria for matching emails
+ */
+export interface LabelFilterCriteria {
+  from?: string[];
+  to?: string[];
+  subject?: string;
+  hasWords?: string[];
+  doesNotHaveWords?: string[];
+  hasAttachment?: boolean;
+  size?: {
+    operator: 'larger' | 'smaller';
+    size: number;
+  };
+}
+
+/**
+ * Actions to take when filter matches
+ */
+export interface LabelFilterActions {
+  addLabel: boolean;
+  markImportant?: boolean;
+  markRead?: boolean;
+  archive?: boolean;
+}
+
+/**
+ * Parameters for creating label filters
+ */
+export interface CreateLabelFilterArgs extends BaseToolArguments {
+  labelId: string;
+  criteria: LabelFilterCriteria;
+  actions: LabelFilterActions;
+}
+
+/**
+ * Parameters for getting label filters
+ */
+export interface GetLabelFiltersArgs extends BaseToolArguments {
+  labelId?: string;  // Optional: get filters for specific label
+}
+
+/**
+ * Parameters for updating label filters
+ */
+export interface UpdateLabelFilterArgs extends BaseToolArguments {
+  filterId: string;
+  criteria?: LabelFilterCriteria;
+  actions?: LabelFilterActions;
+}
+
+/**
+ * Parameters for deleting label filters
+ */
+export interface DeleteLabelFilterArgs extends BaseToolArguments {
+  filterId: string;
+}
