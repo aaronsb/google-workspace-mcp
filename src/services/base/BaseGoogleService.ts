@@ -29,7 +29,7 @@ export interface GoogleServiceConfig {
  */
 export abstract class BaseGoogleService<TClient> {
   protected oauth2Client?: OAuth2Client;
-  protected apiClient?: TClient;
+  private apiClients: Map<string, TClient> = new Map();
   private readonly serviceName: string;
 
   constructor(config: GoogleServiceConfig) {
@@ -67,8 +67,9 @@ export abstract class BaseGoogleService<TClient> {
       );
     }
 
-    if (this.apiClient) {
-      return this.apiClient;
+    const existingClient = this.apiClients.get(email);
+    if (existingClient) {
+      return existingClient;
     }
 
     try {
@@ -84,8 +85,9 @@ export abstract class BaseGoogleService<TClient> {
       }
 
       this.oauth2Client.setCredentials(tokenStatus.token);
-      this.apiClient = clientFactory(this.oauth2Client);
-      return this.apiClient;
+      const client = clientFactory(this.oauth2Client);
+      this.apiClients.set(email, client);
+      return client;
     } catch (error) {
       throw this.handleError(error, 'Failed to get authenticated client');
     }
