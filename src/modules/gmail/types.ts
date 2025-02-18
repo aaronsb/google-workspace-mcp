@@ -164,6 +164,61 @@ export interface GmailModuleConfig {
   requiredScopes?: string[];
 }
 
+export interface Label {
+  id: string;
+  name: string;
+  type: 'system' | 'user';
+  messageListVisibility?: 'hide' | 'show';
+  labelListVisibility?: 'labelHide' | 'labelShow' | 'labelShowIfUnread';
+  color?: {
+    textColor: string;
+    backgroundColor: string;
+  };
+}
+
+export interface CreateLabelParams {
+  email: string;
+  name: string;
+  messageListVisibility?: 'hide' | 'show';
+  labelListVisibility?: 'labelHide' | 'labelShow' | 'labelShowIfUnread';
+  color?: {
+    textColor: string;
+    backgroundColor: string;
+  };
+}
+
+export interface UpdateLabelParams {
+  email: string;
+  labelId: string;
+  name?: string;
+  messageListVisibility?: 'hide' | 'show';
+  labelListVisibility?: 'labelHide' | 'labelShow' | 'labelShowIfUnread';
+  color?: {
+    textColor: string;
+    backgroundColor: string;
+  };
+}
+
+export interface DeleteLabelParams {
+  email: string;
+  labelId: string;
+}
+
+export interface GetLabelsParams {
+  email: string;
+}
+
+export interface GetLabelsResponse {
+  labels: Label[];
+}
+
+export interface ModifyMessageLabelsParams {
+  email: string;
+  messageId: string;
+  addLabelIds?: string[];
+  removeLabelIds?: string[];
+}
+
 export class GmailError extends Error {
   constructor(
     message: string,

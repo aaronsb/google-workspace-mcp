@@ -324,6 +324,92 @@ Send an existing draft.
 }
 ```
 
+#### 7. list_workspace_labels
+Get all labels in a Gmail account.
+
+**Request Format**
+```typescript
+{
+  email: string;           // Email address of the Gmail account
+}
+```
+
+**Response Format**
+```typescript
+{
+  labels: [{
+    id: string;           // Label ID
+    name: string;         // Label name
+    type: 'system' | 'user';  // Label type
+    messageListVisibility?: 'hide' | 'show';  // Visibility in message list
+    labelListVisibility?: 'labelHide' | 'labelShow' | 'labelShowIfUnread';  // Visibility in label list
+    color?: {
+      textColor: string;      // Text color (hex)
+      backgroundColor: string; // Background color (hex)
+    };
+  }]
+}
+```
+
+#### 8. create_workspace_label
+Create a new Gmail label.
+
+**Request Format**
+```typescript
+{
+  email: string;           // Email address of the Gmail account
+  name: string;           // Label name
+  messageListVisibility?: 'hide' | 'show';  // Optional visibility in message list
+  labelListVisibility?: 'labelHide' | 'labelShow' | 'labelShowIfUnread';  // Optional visibility in label list
+  color?: {
+    textColor: string;    // Optional text color (hex)
+    backgroundColor: string; // Optional background color (hex)
+  };
+}
+```
+
+#### 9. update_workspace_label
+Update an existing Gmail label.
+
+**Request Format**
+```typescript
+{
+  email: string;           // Email address of the Gmail account
+  labelId: string;        // ID of the label to update
+  name?: string;          // New label name
+  messageListVisibility?: 'hide' | 'show';  // New visibility in message list
+  labelListVisibility?: 'labelHide' | 'labelShow' | 'labelShowIfUnread';  // New visibility in label list
+  color?: {
+    textColor: string;    // New text color (hex)
+    backgroundColor: string; // New background color (hex)
+  };
+}
+```
+
+#### 10. delete_workspace_label
+Delete a Gmail label.
+
+**Request Format**
+```typescript
+{
+  email: string;           // Email address of the Gmail account
+  labelId: string;        // ID of the label to delete
+}
+```
+
+#### 11. modify_message_labels
+Add or remove labels from a Gmail message.
+
+**Request Format**
+```typescript
+{
+  email: string;           // Email address of the Gmail account
+  messageId: string;      // ID of the message to modify
+  addLabelIds?: string[]; // Label IDs to add
+  removeLabelIds?: string[]; // Label IDs to remove
+}
+```
+
 ## Authentication Flow
 
 1. Initial Setup:
@@ -474,7 +560,11 @@ Send an existing draft.
 - `MODULE_NOT_INITIALIZED`: Account module not ready
 
 ### Gmail Errors
-- `FETCH_ERROR`: Failed to get emails
+- `FETCH_ERROR`: Failed to get emails/labels
 - `SEND_ERROR`: Failed to send email
+- `CREATE_ERROR`: Failed to create label
+- `UPDATE_ERROR`: Failed to update label
+- `DELETE_ERROR`: Failed to delete label
+- `MODIFY_ERROR`: Failed to modify message labels
 - `AUTH_REQUIRED`: Gmail authentication needed
 - `MODULE_NOT_INITIALIZED`: Gmail module not ready
