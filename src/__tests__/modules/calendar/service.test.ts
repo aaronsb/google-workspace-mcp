@@ -272,10 +272,10 @@ describe('CalendarService', () => {
       expect(mockCalendarClient.events.patch).toHaveBeenCalledWith({
         calendarId: 'primary',
         eventId: 'event1',
+        sendUpdates: 'all',
         requestBody: {
           attendees: [
-            { email: mockEmail, responseStatus: 'accept' },
-            { email: 'other@example.com', responseStatus: 'accepted' }
+            { email: mockEmail, responseStatus: 'accepted' }
           ]
         }
       });
@@ -299,13 +299,11 @@ describe('CalendarService', () => {
       expect(mockCalendarClient.events.patch).toHaveBeenCalledWith({
         calendarId: 'primary',
         eventId: 'event1',
+        sendUpdates: 'all',
         requestBody: {
-          attendees: expect.arrayContaining([
-            expect.objectContaining({ 
-              email: mockEmail,
-              responseStatus: 'decline'
-            })
-          ])
+          attendees: [
+            { email: mockEmail, responseStatus: 'declined' }
+          ]
         }
       });
 
@@ -334,13 +332,13 @@ describe('CalendarService', () => {
 
       expect(mockCalendarClient.events.insert).toHaveBeenCalledWith({
         calendarId: 'primary',
-        requestBody: expect.objectContaining({
-          summary: expect.stringContaining('Counter-proposal'),
-          description: expect.stringContaining('How about this time instead?'),
+        requestBody: {
+          summary: `Counter-proposal: ${mockEvent.data.summary}`,
+          description: expect.stringContaining('Counter-proposal for original event'),
           start: newTimes[0].start,
           end: newTimes[0].end,
           attendees: mockEvent.data.attendees
-        })
+        }
       });
 
       expect(result).toEqual({
@@ -349,7 +347,10 @@ describe('CalendarService', () => {
         action: 'propose_new_time',
         status: 'proposed',
         htmlLink: expect.any(String),
-        proposedTimes: newTimes
+        proposedTimes: newTimes.map(time => ({
+          start: { dateTime: time.start.dateTime, timeZone: time.start.timeZone || 'UTC' },
+          end: { dateTime: time.end.dateTime, timeZone: time.end.timeZone || 'UTC' }
+        }))
       });
     });
 
@@ -385,12 +386,39 @@ describe('CalendarService', () => {
       });
     });
 
+    it('should set tentative response for an event', async () => {
+      const result = await calendarService.manageEvent({
+        email: mockEmail,
+        eventId: 'event1',
+        action: 'tentative'
+      });
+
+      expect(mockCalendarClient.events.patch).toHaveBeenCalledWith({
+        calendarId: 'primary',
+        eventId: 'event1',
+        sendUpdates: 'all',
+        requestBody: {
+          attendees: [
+            { email: mockEmail, responseStatus: 'tentative' }
+          ]
+        }
+      });
+
+      expect(result).toEqual({
+        success: true,
+        eventId: 'event1',
+        action: 'tentative',
+        status: 'completed',
+        htmlLink: expect.any(String)
+      });
+    });
+
     it('should throw error for invalid action', async () => {
       await expect(calendarService.manageEvent({
         email: mockEmail,
         eventId: 'event1',
         action: 'invalid_action' as any
-      })).rejects.toThrow('Invalid action');
+      })).rejects.toThrow('Supported actions are: accept, decline, tentative, propose_new_time, update_time');
     });
 
     it('should throw error when proposing time without new times', async () => {

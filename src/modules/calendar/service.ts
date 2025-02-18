@@ -369,9 +369,9 @@ export class CalendarService {
 
         default:
           throw new CalendarError(
-            'Invalid action',
+            'Supported actions are: accept, decline, tentative, propose_new_time, update_time',
             'INVALID_ACTION',
-            'Supported actions are: accept, decline, tentative, propose_new_time, update_time'
+            'Invalid action'
           );
       }
     });
