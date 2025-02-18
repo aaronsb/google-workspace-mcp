@@ -5,13 +5,75 @@
 
 A Model Context Protocol (MCP) server that provides authenticated access to Google Workspace APIs, offering comprehensive Gmail and Calendar functionality.
 
-## Quick Start
+## TL;DR Setup
 
-The MCP server is fully self-configuring and only requires three inputs:
+1. Create Google Cloud Project:
+   ```bash
+   # Go to Google Cloud Console
+   https://console.cloud.google.com
+   → Create Project
+   → Enable Gmail API and Calendar API
+   → Configure OAuth consent screen (External)
+   → Create OAuth Desktop Client ID and Secret
+   ```
 
-1. Google OAuth Client ID
-2. Google OAuth Client Secret
-3. Local directory path for storing configuration (recommended: `~/.mcp/google-workspace-mcp`)
+2. Create config directory:
+   ```bash
+   mkdir -p ~/.mcp/google-workspace-mcp
+   ```
+
+3. Add to Cline settings (e.g., `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`):
+   ```json
+   {
+     "mcpServers": {
+       "google-workspace-mcp": {
+         "command": "docker",
+         "args": [
+           "run", "--rm", "-i",
+           "-v", "${HOME}/.mcp/google-workspace-mcp:/app/config",
+           "-e", "GOOGLE_CLIENT_ID",
+           "-e", "GOOGLE_CLIENT_SECRET",
+           "ghcr.io/aaronsb/google-workspace-mcp:latest"
+         ],
+         "env": {
+           "GOOGLE_CLIENT_ID": "YOUR_CLIENT_ID_HERE.apps.googleusercontent.com",
+           "GOOGLE_CLIENT_SECRET": "YOUR_CLIENT_SECRET_HERE"
+         },
+         "autoApprove": [],
+         "disabled": false
+       }
+     }
+   }
+   ```
+
+4. Restart Cline/Claude
+
+5. Just ask the AI to "add my Google account" - it will guide you through the authentication process conversationally.
+
+See [detailed setup guide](#prerequisites) for more information.
+
+## Prerequisites
+
+Before using this MCP server, you must set up your own Google Cloud Project with access to Google Workspace APIs:
+
+1. Create a new project in [Google Cloud Console](https://console.cloud.google.com)
+2. Enable the required APIs:
+   - Gmail API
+   - Google Calendar API
+3. Configure the OAuth consent screen:
+   - Set up as "External"
+   - Add yourself as a test user
+   - Add required scopes for Gmail and Calendar
+4. Create OAuth 2.0 credentials:
+   - Choose "Desktop application" type
+   - Note your Client ID and Client Secret
+   - Use "urn:ietf:wg:oauth:2.0:oob" as the redirect URI (this enables out-of-band authentication)
+
+The MCP server requires:
+1. Your Google OAuth Client ID and Secret from the steps above
+2. Local directory path for storing configuration (recommended: `~/.mcp/google-workspace-mcp`)
+
+Note: This server uses out-of-band (OOB) authentication flow, which means you'll need to manually copy-paste authorization codes during the initial setup of each account.
 
 ### Using with Cline
 
@@ -33,8 +95,8 @@ Add the following configuration to your Cline MCP settings:
         "ghcr.io/aaronsb/google-workspace-mcp:latest"
       ],
       "env": {
-        "GOOGLE_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
-        "GOOGLE_CLIENT_SECRET": "your-client-secret",
+        "GOOGLE_CLIENT_ID": "YOUR_CLIENT_ID_HERE.apps.googleusercontent.com",
+        "GOOGLE_CLIENT_SECRET": "YOUR_CLIENT_SECRET_HERE",
         "GOOGLE_REDIRECT_URI": "urn:ietf:wg:oauth:2.0:oob"
       },
       "autoApprove": [],
@@ -51,8 +113,8 @@ You can also run the container directly:
 ```bash
 docker run -i --rm \
   -v ~/.mcp/google-workspace-mcp:/app/config \
-  -e GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com \
-  -e GOOGLE_CLIENT_SECRET=your-client-secret \
+  -e GOOGLE_CLIENT_ID=YOUR_CLIENT_ID_HERE.apps.googleusercontent.com \
+  -e GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET_HERE \
   -e GOOGLE_REDIRECT_URI=urn:ietf:wg:oauth:2.0:oob \
   ghcr.io/aaronsb/google-workspace-mcp:latest
 ```
@@ -73,8 +135,8 @@ docker build -t google-workspace-mcp:local .
 # Run with required environment variables
 docker run -i --rm \
   -v ~/.mcp/google-workspace-mcp:/app/config \
-  -e GOOGLE_CLIENT_ID=your_client_id \
-  -e GOOGLE_CLIENT_SECRET=your_client_secret \
+  -e GOOGLE_CLIENT_ID=YOUR_CLIENT_ID_HERE \
+  -e GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET_HERE \
   -e GOOGLE_REDIRECT_URI=urn:ietf:wg:oauth:2.0:oob \
   google-workspace-mcp:local
 ```

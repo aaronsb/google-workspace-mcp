@@ -3,6 +3,82 @@
 ## Overview
 This MCP server provides tools for Gmail and Calendar operations along with Google account management. The server handles OAuth authentication, token management, and API interactions with Google Workspace services.
 
+IMPORTANT: Before using this server, you must set up your own Google Cloud Project and obtain OAuth 2.0 credentials. See the Setup Guide section below for detailed instructions.
+
+This server uses out-of-band (OOB) authentication flow, which means:
+- No callback server is required
+- Users manually copy-paste authorization codes
+- The redirect URI must be set to "urn:ietf:wg:oauth:2.0:oob"
+- Each account requires a one-time manual authentication step
+
+## Setup Guide
+
+### 1. Google Cloud Project Setup (Required)
+
+Before using this MCP server, you must:
+
+1. Create a new project in [Google Cloud Console](https://console.cloud.google.com):
+   - Go to console.cloud.google.com
+   - Click "Select a project" → "New Project"
+   - Note your project ID
+
+2. Enable required APIs:
+   - Navigate to "APIs & Services" → "Library"
+   - Search for and enable:
+     * Gmail API
+     * Google Calendar API
+   - Wait for APIs to fully enable
+
+3. Configure OAuth consent screen:
+   - Go to "APIs & Services" → "OAuth consent screen"
+   - Choose "External" user type
+   - Fill in required app information
+   - Add required scopes (see Common Scopes section below)
+   - Add your email as a test user
+   - Save and continue
+
+4. Create OAuth credentials:
+   - Go to "APIs & Services" → "Credentials"
+   - Click "Create Credentials" → "OAuth client ID"
+   - Choose "Desktop application" type
+   - Note your Client ID and Client Secret
+   - Set redirect URI to: urn:ietf:wg:oauth:2.0:oob
+
+### 2. MCP Server Configuration
+
+Configure the server through your MCP settings file (e.g., `cline_mcp_settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "google-workspace-mcp": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-v", "~/.mcp/google-workspace-mcp:/app/config",
+        "-e", "GOOGLE_CLIENT_ID",
+        "-e", "GOOGLE_CLIENT_SECRET",
+        "-e", "GOOGLE_REDIRECT_URI",
+        "ghcr.io/aaronsb/google-workspace-mcp:latest"
+      ],
+      "env": {
+        "GOOGLE_CLIENT_ID": "YOUR_CLIENT_ID_HERE.apps.googleusercontent.com",
+        "GOOGLE_CLIENT_SECRET": "YOUR_CLIENT_SECRET_HERE",
+        "GOOGLE_REDIRECT_URI": "urn:ietf:wg:oauth:2.0:oob"
+      },
+      "autoApprove": [],
+      "disabled": false
+    }
+  }
+}
+```
+
+The server uses a data directory (`~/.mcp/google-workspace-mcp`) to store:
+- `accounts.json`: List of configured Google accounts
+- `credentials/`: Directory containing OAuth tokens for each account
+
 ## Tool Registration Requirements
 
 IMPORTANT: For a tool to be visible to the AI, it must be registered in two places:
@@ -57,7 +133,7 @@ Add and authenticate a Google account for API access.
   category?: string;       // Account category (e.g., work, personal)
   description?: string;    // Account description
   required_scopes: string[]; // Required OAuth scopes
-  auth_code?: string;      // Authorization code (only for initial auth)
+  auth_code?: string;      // Authorization code from OAuth consent screen
 }
 ```
 
@@ -124,7 +200,7 @@ Create a new calendar event.
 ### Gmail Operations
 
 #### 1. search_workspace_emails
-Search emails with advanced filtering capabilities (replaces list_workspace_emails).
+Search emails with advanced filtering capabilities.
 
 **Request Format**
 ```typescript
@@ -140,7 +216,7 @@ Search emails with advanced filtering capabilities (replaces list_workspace_emai
 **Search Query Examples**
 ```
 is:unread                           // Only unread messages
-from:someone@example.com            // Messages from specific sender
+from:sender@example.com             // Messages from specific sender
 after:2024/01/01 before:2024/01/31 // Date range
 has:attachment                      // Messages with attachments
 ```
@@ -248,6 +324,53 @@ Send an existing draft.
 }
 ```
 
+## Authentication Flow
+
+1. Initial Setup:
+   ```typescript
+   // Register account with necessary scopes
+   await use_mcp_tool({
+     server_name: "google-workspace-mcp",
+     tool_name: "authenticate_workspace_account",
+     arguments: {
+       email: "your.email@example.com"
+     }
+   });
+   // → Returns auth_url to complete OAuth
+   ```
+
+2. Complete Auth:
+   ```typescript
+   // Complete OAuth flow with auth code
+   await use_mcp_tool({
+     server_name: "google-workspace-mcp",
+     tool_name: "authenticate_workspace_account",
+     arguments: {
+       email: "your.email@example.com",
+       auth_code: "PASTE_AUTH_CODE_HERE"  // Code from OAuth consent screen
+     }
+   });
+   ```
+
+3. Use Services:
+   ```typescript
+   // Auth errors handled automatically through 401/403 responses
+   await use_mcp_tool({
+     server_name: "google-workspace-mcp",
+     tool_name: "send_workspace_email",
+     arguments: {
+       email: "your.email@example.com",
+       to: ["recipient.email@example.com"],
+       subject: "Test Email",
+       body: "Hello World"
+     }
+   });
+   // If auth fails:
+   // 1. Token refresh attempted automatically
+   // 2. Operation retried after refresh
+   // 3. If refresh fails, auth_url returned for re-auth
+   ```
+
 ## Response Formats
 
 ### Success Response
@@ -320,7 +443,7 @@ Send an existing draft.
 }
 ```
 
-## Error Types
+## Common Scopes
 
 ### Gmail Scopes
 - `https://www.googleapis.com/auth/gmail.readonly` - Read-only access
@@ -329,6 +452,13 @@ Send an existing draft.
 - `https://www.googleapis.com/auth/gmail.compose` - Create/send emails
 - `https://www.googleapis.com/auth/gmail.settings.basic` - Access basic settings
 - `https://www.googleapis.com/auth/gmail.settings.sharing` - Access sharing settings
+
+### Calendar Scopes
+- `https://www.googleapis.com/auth/calendar.readonly` - Read-only access to calendars
+- `https://www.googleapis.com/auth/calendar.events` - Read/write access to events
+- `https://www.googleapis.com/auth/calendar` - Full access to calendars and events
+
+## Error Types
 
 ### Calendar Errors
 - `FETCH_ERROR`: Failed to get calendar events
@@ -348,132 +478,3 @@ Send an existing draft.
 - `SEND_ERROR`: Failed to send email
 - `AUTH_REQUIRED`: Gmail authentication needed
 - `MODULE_NOT_INITIALIZED`: Gmail module not ready
-
-## Setup Guide
-
-### 1. Google Cloud Setup
-
-1. Create Project:
-   ```
-   https://console.cloud.google.com
-   → Select a project → New Project
-   ```
-
-2. Enable APIs:
-   ```
-   APIs & Services → Library
-   → Enable "Gmail API"
-   ```
-
-3. OAuth Screen:
-   ```
-   APIs & Services → OAuth consent screen
-   → External
-   → Add scopes for Gmail
-   → Add test users
-   ```
-
-4. Create Credentials:
-   ```
-   APIs & Services → Credentials
-   → Create Credentials → OAuth client ID
-   → Desktop application
-   ```
-
-### 2. MCP Server Configuration
-
-The server is configured through the MCP settings file (e.g., `cline_mcp_settings.json` for Claude or `claude_desktop_config.json` for the desktop app):
-
-```json
-{
-  "mcpServers": {
-    "google-workspace-mcp": {
-      "command": "docker",
-      "args": [
-        "run",
-        "--rm",
-        "-i",
-        "-v", "~/.mcp/google-workspace-mcp:/app/config",
-        "-e", "GOOGLE_CLIENT_ID",
-        "-e", "GOOGLE_CLIENT_SECRET",
-        "-e", "GOOGLE_REDIRECT_URI",
-        "google-workspace-mcp:local"
-      ],
-      "env": {
-        "GOOGLE_CLIENT_ID": "your-client-id",
-        "GOOGLE_CLIENT_SECRET": "your-client-secret",
-        "GOOGLE_REDIRECT_URI": "urn:ietf:wg:oauth:2.0:oob"
-      }
-    }
-  }
-}
-```
-
-The server uses a data directory in the user's home folder (`~/.mcp/google-workspace-mcp`) to store:
-- `accounts.json`: List of configured Google accounts
-- `credentials/`: Directory containing OAuth tokens for each account
-
-This configuration approach:
-1. Keeps OAuth credentials secure in the MCP configuration
-2. Persists account data and tokens across container restarts
-3. Allows multiple users to maintain separate configurations
-
-## Authentication Flow
-
-1. Initial Setup:
-   ```typescript
-   // Register account with necessary scopes
-   await use_mcp_tool({
-     server_name: "google-workspace-mcp",
-     tool_name: "authenticate_workspace_account",
-     arguments: {
-       email: "user@example.com"
-     }
-   });
-   // → Returns auth_url to complete OAuth
-   ```
-
-2. Complete Auth:
-   ```typescript
-   // Complete OAuth flow with auth code
-   await use_mcp_tool({
-     server_name: "google-workspace-mcp",
-     tool_name: "authenticate_workspace_account",
-     arguments: {
-       email: "user@example.com",
-       auth_code: "4/1AX4XfWh..."  // Code from OAuth
-     }
-   });
-   ```
-
-3. Use Services:
-   ```typescript
-   // Auth errors handled automatically through 401/403 responses
-   await use_mcp_tool({
-     server_name: "google-workspace-mcp",
-     tool_name: "send_workspace_email",
-     arguments: {
-       email: "user@example.com",
-       to: ["recipient@example.com"],
-       subject: "Test",
-       body: "Hello"
-     }
-   });
-   // If auth fails:
-   // 1. Token refresh attempted automatically
-   // 2. Operation retried after refresh
-   // 3. If refresh fails, auth_url returned for re-auth
-   ```
-
-## Common Scopes
-
-### Gmail Scopes
-- `https://www.googleapis.com/auth/gmail.readonly` - Read-only access
-- `https://www.googleapis.com/auth/gmail.send` - Send emails only
-- `https://www.googleapis.com/auth/gmail.modify` - All read/write operations
-- `https://www.googleapis.com/auth/gmail.compose` - Create/send emails
-
-### Calendar Scopes
-- `https://www.googleapis.com/auth/calendar.readonly` - Read-only access to calendars
-- `https://www.googleapis.com/auth/calendar.events` - Read/write access to events
-- `https://www.googleapis.com/auth/calendar` - Full access to calendars and events

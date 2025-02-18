@@ -1,5 +1,12 @@
 # Google Workspace MCP Server Examples
 
+IMPORTANT: Before using these examples, you must set up your own Google Cloud Project with access to Google Workspace APIs. See the [Setup Guide](API.md#setup-guide) for detailed instructions on:
+- Creating a Google Cloud Project
+- Enabling required APIs
+- Configuring the OAuth consent screen
+- Creating OAuth 2.0 credentials
+- Setting up out-of-band authentication
+
 ## Account Management Examples
 
 ### 1. List Workspace Accounts
@@ -7,7 +14,7 @@
 ```typescript
 // List all configured accounts and their status
 const response = await use_mcp_tool({
-  server_name: "gsuite",
+  server_name: "google-workspace-mcp",
   tool_name: "list_workspace_accounts",
   arguments: {}
 });
@@ -15,9 +22,9 @@ const response = await use_mcp_tool({
 // Example response:
 [
   {
-    "email": "user@example.com",
+    "email": "example.user@example.com",
     "category": "work",
-    "description": "Work Google Account",
+    "description": "Example Work Account",
     "auth_status": {
       "has_token": true,
       "scopes": [
@@ -37,10 +44,10 @@ const response = await use_mcp_tool({
 ```typescript
 // Initial authentication request
 const response = await use_mcp_tool({
-  server_name: "gsuite",
+  server_name: "google-workspace-mcp",
   tool_name: "authenticate_workspace_account",
   arguments: {
-    email: "user@example.com",
+    email: "your.email@example.com",
     category: "work",
     description: "Work Google Account",
     required_scopes: [
@@ -65,14 +72,14 @@ const response = await use_mcp_tool({
 
 // Complete authentication with auth code
 const authResponse = await use_mcp_tool({
-  server_name: "gsuite",
+  server_name: "google-workspace-mcp",
   tool_name: "authenticate_workspace_account",
   arguments: {
-    email: "user@example.com",
+    email: "your.email@example.com",
     required_scopes: [
       "https://www.googleapis.com/auth/gmail.readonly"
     ],
-    auth_code: "4/P7q7W91a-oMsCeLvIaQm6bTrgtp7"
+    auth_code: "PASTE_AUTH_CODE_HERE"  // Replace with the actual code from OAuth consent screen
   }
 });
 ```
@@ -82,10 +89,10 @@ const authResponse = await use_mcp_tool({
 ```typescript
 // Request additional scopes for existing account
 const response = await use_mcp_tool({
-  server_name: "gsuite",
+  server_name: "google-workspace-mcp",
   tool_name: "authenticate_workspace_account",
   arguments: {
-    email: "user@example.com",
+    email: "your.email@example.com",
     required_scopes: [
       "https://www.googleapis.com/auth/gmail.readonly",
       "https://www.googleapis.com/auth/drive.readonly" // New scope
@@ -109,7 +116,7 @@ const response = await use_mcp_tool({
 ```typescript
 try {
   const response = await use_mcp_tool({
-    server_name: "gsuite",
+    server_name: "google-workspace-mcp",
     tool_name: "authenticate_workspace_account",
     arguments: {
       email: "invalid-email",
@@ -127,10 +134,10 @@ try {
 ```typescript
 try {
   const response = await use_mcp_tool({
-    server_name: "gsuite",
+    server_name: "google-workspace-mcp",
     tool_name: "authenticate_workspace_account",
     arguments: {
-      email: "unknown@example.com",
+      email: "nonexistent.user@example.com",
       required_scopes: []
     }
   });
@@ -147,13 +154,13 @@ try {
 ```typescript
 // First check existing accounts
 const listResponse = await use_mcp_tool({
-  server_name: "gsuite",
+  server_name: "google-workspace-mcp",
   tool_name: "list_workspace_accounts",
   arguments: {}
 });
 
 // Find account if it exists
-const account = listResponse.find(acc => acc.email === "user@example.com");
+const account = listResponse.find(acc => acc.email === "your.email@example.com");
 
 if (account && account.auth_status.has_token) {
   // Check if we have all required scopes
@@ -169,10 +176,10 @@ if (account && account.auth_status.has_token) {
 
 // Proceed with authentication if needed
 const authResponse = await use_mcp_tool({
-  server_name: "gsuite",
+  server_name: "google-workspace-mcp",
   tool_name: "authenticate_workspace_account",
   arguments: {
-    email: "user@example.com",
+    email: "your.email@example.com",
     required_scopes: requiredScopes
   }
 });
@@ -184,7 +191,7 @@ const authResponse = await use_mcp_tool({
 const authenticateWithRetry = async (email, scopes, retries = 3) => {
   try {
     const response = await use_mcp_tool({
-      server_name: "gsuite",
+      server_name: "google-workspace-mcp",
       tool_name: "authenticate_workspace_account",
       arguments: {
         email,
