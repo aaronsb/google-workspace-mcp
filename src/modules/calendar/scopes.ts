@@ -1,10 +1,12 @@
 import { scopeRegistry } from '../tools/scope-registry.js';
 
 // Define Calendar scopes as constants for reuse and testing
+// Reference: https://developers.google.com/calendar/api/auth
 export const CALENDAR_SCOPES = {
   // Core functionality scopes
-  READONLY: 'https://www.googleapis.com/auth/calendar.readonly',  // Required for reading events
+  READONLY: 'https://www.googleapis.com/auth/calendar.readonly',  // Required for reading calendars and events
   EVENTS: 'https://www.googleapis.com/auth/calendar.events',      // Required for creating/updating events
+  EVENTS_READONLY: 'https://www.googleapis.com/auth/calendar.events.readonly',  // Required for reading events only
   
   // Settings scopes
   SETTINGS_READONLY: 'https://www.googleapis.com/auth/calendar.settings.readonly',  // Required for reading calendar settings
@@ -23,8 +25,9 @@ export const CALENDAR_SCOPES = {
  */
 export function registerCalendarScopes() {
   // Register core functionality scopes first (order matters for auth URL generation)
-  scopeRegistry.registerScope('calendar', CALENDAR_SCOPES.READONLY);   // For reading calendar events
+  scopeRegistry.registerScope('calendar', CALENDAR_SCOPES.READONLY);   // For reading calendars and events
   scopeRegistry.registerScope('calendar', CALENDAR_SCOPES.EVENTS);     // For managing calendar events
+  scopeRegistry.registerScope('calendar', CALENDAR_SCOPES.EVENTS_READONLY);  // For reading events only
   
   // Register settings scopes
   scopeRegistry.registerScope('calendar', CALENDAR_SCOPES.SETTINGS_READONLY);  // For reading calendar settings
