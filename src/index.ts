@@ -375,6 +375,71 @@ class GSuiteServer {
           }
         },
         {
+          name: 'manage_workspace_calendar_event',
+          description: 'Manage calendar event responses and updates including accept/decline, propose new times, and update event times',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              email: {
+                type: 'string',
+                description: 'Email address of the calendar owner'
+              },
+              eventId: {
+                type: 'string',
+                description: 'ID of the event to manage'
+              },
+              action: {
+                type: 'string',
+                enum: ['accept', 'decline', 'tentative', 'propose_new_time', 'update_time'],
+                description: 'Action to perform on the event'
+              },
+              comment: {
+                type: 'string',
+                description: 'Optional comment to include with the response'
+              },
+              newTimes: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    start: {
+                      type: 'object',
+                      properties: {
+                        dateTime: {
+                          type: 'string',
+                          description: 'Start time (ISO date string)'
+                        },
+                        timeZone: {
+                          type: 'string',
+                          description: 'Timezone for start time'
+                        }
+                      },
+                      required: ['dateTime']
+                    },
+                    end: {
+                      type: 'object',
+                      properties: {
+                        dateTime: {
+                          type: 'string',
+                          description: 'End time (ISO date string)'
+                        },
+                        timeZone: {
+                          type: 'string',
+                          description: 'Timezone for end time'
+                        }
+                      },
+                      required: ['dateTime']
+                    }
+                  },
+                  required: ['start', 'end']
+                },
+                description: 'New proposed times for the event'
+              }
+            },
+            required: ['email', 'eventId', 'action']
+          }
+        },
+        {
           name: 'create_workspace_calendar_event',
           description: 'Create a new calendar event',
           inputSchema: {
@@ -592,6 +657,21 @@ class GSuiteServer {
                 content: [{
                   type: 'text',
                   text: JSON.stringify(event, null, 2)
+                }]
+              };
+            });
+          }
+
+          case 'manage_workspace_calendar_event': {
+            const args = request.params.arguments as any;
+            const accountManager = getAccountManager();
+            
+            return await accountManager.withTokenRenewal(args.email, async () => {
+              const result = await getCalendarService().manageEvent(args);
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2)
                 }]
               };
             });

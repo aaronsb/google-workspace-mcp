@@ -25,9 +25,5 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!(googleapis|google-auth-library|@modelcontextprotocol/sdk|zod)/)'
   ],
-  setupFilesAfterEnv: ['<rootDir>/src/__helpers__/testSetup.ts'],
-  reporters: [
-    'default',
-    '<rootDir>/src/__helpers__/customReporter.js'
-  ]
+  setupFilesAfterEnv: ['<rootDir>/src/__helpers__/testSetup.ts']
 };

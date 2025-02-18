@@ -20,6 +20,7 @@ describe('CalendarService', () => {
         list: jest.fn(() => Promise.resolve({ data: {} })),
         get: jest.fn(() => Promise.resolve({ data: {} })),
         insert: jest.fn(() => Promise.resolve({ data: {} })),
+        patch: jest.fn(() => Promise.resolve({ data: {} })),
       },
       calendarList: {
         list: jest.fn(() => Promise.resolve({ data: {} })),
@@ -227,6 +228,177 @@ describe('CalendarService', () => {
       await expect(calendarService.createEvent(mockEventParams))
         .rejects
         .toThrow('Failed to create event');
+    });
+  });
+
+  describe('manageEvent', () => {
+    const mockEvent = {
+      data: {
+        id: 'event1',
+        summary: 'Test Event',
+        start: { dateTime: '2024-01-01T10:00:00Z', timeZone: 'UTC' },
+        end: { dateTime: '2024-01-01T11:00:00Z', timeZone: 'UTC' },
+        attendees: [
+          { email: mockEmail, responseStatus: 'needsAction' },
+          { email: 'other@example.com', responseStatus: 'accepted' }
+        ],
+        htmlLink: 'https://calendar.google.com/event?id=event1'
+      }
+    };
+
+    beforeEach(() => {
+      (mockCalendarClient.events.get as any).mockResolvedValue(mockEvent);
+      (mockCalendarClient.events.patch as any).mockImplementation((params: { requestBody: any }) => 
+        Promise.resolve({ data: { ...mockEvent.data, ...params.requestBody } })
+      );
+      (mockCalendarClient.events.insert as any).mockImplementation((params: { requestBody: any }) => 
+        Promise.resolve({ 
+          data: { 
+            id: 'counter-proposal-1',
+            htmlLink: 'https://calendar.google.com/event?id=counter-proposal-1',
+            ...params.requestBody 
+          }
+        })
+      );
+    });
+
+    it('should accept an event invitation', async () => {
+      const result = await calendarService.manageEvent({
+        email: mockEmail,
+        eventId: 'event1',
+        action: 'accept'
+      });
+
+      expect(mockCalendarClient.events.patch).toHaveBeenCalledWith({
+        calendarId: 'primary',
+        eventId: 'event1',
+        requestBody: {
+          attendees: [
+            { email: mockEmail, responseStatus: 'accept' },
+            { email: 'other@example.com', responseStatus: 'accepted' }
+          ]
+        }
+      });
+
+      expect(result).toEqual({
+        success: true,
+        eventId: 'event1',
+        action: 'accept',
+        status: 'completed',
+        htmlLink: expect.any(String)
+      });
+    });
+
+    it('should decline an event invitation', async () => {
+      const result = await calendarService.manageEvent({
+        email: mockEmail,
+        eventId: 'event1',
+        action: 'decline'
+      });
+
+      expect(mockCalendarClient.events.patch).toHaveBeenCalledWith({
+        calendarId: 'primary',
+        eventId: 'event1',
+        requestBody: {
+          attendees: expect.arrayContaining([
+            expect.objectContaining({ 
+              email: mockEmail,
+              responseStatus: 'decline'
+            })
+          ])
+        }
+      });
+
+      expect(result).toEqual({
+        success: true,
+        eventId: 'event1',
+        action: 'decline',
+        status: 'completed',
+        htmlLink: expect.any(String)
+      });
+    });
+
+    it('should propose new time for an event', async () => {
+      const newTimes = [{
+        start: { dateTime: '2024-01-02T10:00:00Z', timeZone: 'UTC' },
+        end: { dateTime: '2024-01-02T11:00:00Z', timeZone: 'UTC' }
+      }];
+
+      const result = await calendarService.manageEvent({
+        email: mockEmail,
+        eventId: 'event1',
+        action: 'propose_new_time',
+        comment: 'How about this time instead?',
+        newTimes
+      });
+
+      expect(mockCalendarClient.events.insert).toHaveBeenCalledWith({
+        calendarId: 'primary',
+        requestBody: expect.objectContaining({
+          summary: expect.stringContaining('Counter-proposal'),
+          description: expect.stringContaining('How about this time instead?'),
+          start: newTimes[0].start,
+          end: newTimes[0].end,
+          attendees: mockEvent.data.attendees
+        })
+      });
+
+      expect(result).toEqual({
+        success: true,
+        eventId: 'event1',
+        action: 'propose_new_time',
+        status: 'proposed',
+        htmlLink: expect.any(String),
+        proposedTimes: newTimes
+      });
+    });
+
+    it('should update event time', async () => {
+      const newTimes = [{
+        start: { dateTime: '2024-01-02T10:00:00Z', timeZone: 'UTC' },
+        end: { dateTime: '2024-01-02T11:00:00Z', timeZone: 'UTC' }
+      }];
+
+      const result = await calendarService.manageEvent({
+        email: mockEmail,
+        eventId: 'event1',
+        action: 'update_time',
+        newTimes
+      });
+
+      expect(mockCalendarClient.events.patch).toHaveBeenCalledWith({
+        calendarId: 'primary',
+        eventId: 'event1',
+        requestBody: {
+          start: newTimes[0].start,
+          end: newTimes[0].end
+        },
+        sendUpdates: 'all'
+      });
+
+      expect(result).toEqual({
+        success: true,
+        eventId: 'event1',
+        action: 'update_time',
+        status: 'updated',
+        htmlLink: expect.any(String)
+      });
+    });
+
+    it('should throw error for invalid action', async () => {
+      await expect(calendarService.manageEvent({
+        email: mockEmail,
+        eventId: 'event1',
+        action: 'invalid_action' as any
+      })).rejects.toThrow('Invalid action');
+    });
+
+    it('should throw error when proposing time without new times', async () => {
+      await expect(calendarService.manageEvent({
+        email: mockEmail,
+        eventId: 'event1',
+        action: 'propose_new_time'
+      })).rejects.toThrow('No proposed times provided');
     });
   });
 
