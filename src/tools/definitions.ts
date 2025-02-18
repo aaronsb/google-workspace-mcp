@@ -118,26 +118,72 @@ export const gmailTools: ToolMetadata[] = [
     2. If multiple accounts, confirm which account to use
     3. Check required scopes include Gmail read access
     
-    Common Usage Patterns:
-    - Default search: Use minimal filters for initial results
-    - Refined search: Add filters based on user needs
-    - Pagination: Handle nextPageToken for large result sets
+    Search Patterns:
+    1. Simple Search:
+       - Use individual criteria fields (from, to, subject)
+       - Combine multiple conditions with AND logic
+       - Example: from:alice@example.com subject:"meeting"
+    
+    2. Complex Gmail Query:
+       - Use content field for advanced Gmail search syntax
+       - Supports full Gmail search operators
+       - Example: "from:(alice@example.com OR bob@example.com) subject:(meeting OR sync) -in:spam"
+    
+    Common Query Patterns:
+    - Meeting emails: "from:(*@zoom.us OR zoom.us OR calendar-notification@google.com) subject:(meeting OR sync OR invite)"
+    - HR/Admin: "from:(*@workday.com OR *@adp.com) subject:(time off OR PTO OR benefits)"
+    - Team updates: "from:(*@company.com) -from:(notifications@company.com)"
+    - Newsletters: "subject:(newsletter OR digest) from:(*@company.com)"
     
     Search Tips:
     - Date format: YYYY-MM-DD (e.g., "2024-02-18")
     - Labels: Case-sensitive, exact match (e.g., "INBOX", "SENT")
+    - Wildcards: Use * for partial matches (e.g., "*@domain.com")
+    - Operators: OR, -, (), has:attachment, larger:size, newer_than:date
     - Default maxResults: 10 (increase for broader searches)
     
-    Example Flows:
-    1. User asks "check my email":
-       - First call list_workspace_accounts
-       - Use default search with INBOX label
-       - Show recent unread messages first
+    Response Format:
+    {
+      emails: [{
+        id: string;
+        threadId: string;
+        labelIds: string[];
+        snippet: string;
+        subject: string;
+        from: string;
+        to: string;
+        date: string;
+        body: string;
+        isUnread: boolean;
+        hasAttachment: boolean;
+      }],
+      nextPageToken?: string;
+      resultSummary: {
+        total: number;
+        returned: number;
+        hasMore: boolean;
+        searchCriteria: object;
+      }
+    }
     
-    2. User asks "find emails from person@example.com":
-       - Verify account access first
-       - Search with from filter
-       - Include relevant labels`,
+    Example Flows:
+    1. Simple search:
+       {
+         email: "user@domain.com",
+         search: {
+           from: ["someone@example.com"],
+           subject: "meeting",
+           after: "2024-02-01"
+         }
+       }
+    
+    2. Complex search:
+       {
+         email: "user@domain.com",
+         search: {
+           content: "from:(zoom.us OR *@zoom.us) subject:(meeting OR invite) has:attachment"
+         }
+       }`,
     aliases: ['search_emails', 'find_emails', 'query_emails'],
     inputSchema: {
       type: 'object',
@@ -170,7 +216,7 @@ export const gmailTools: ToolMetadata[] = [
             },
             content: {
               type: 'string',
-              description: 'Search in email body text'
+              description: 'Complex Gmail search query with full operator support (e.g., "from:(alice OR bob) subject:(meeting OR sync)")'
             },
             after: {
               type: 'string',
@@ -970,12 +1016,45 @@ export const labelTools: ToolMetadata[] = [
     - Mark as important
     - Mark as read
     - Archive message
+
+    Criteria Format Requirements:
+    1. For simple filters:
+       - from: Array of email addresses
+       - to: Array of email addresses
+       - subject: String for exact match
+       - hasAttachment: Boolean
+
+    2. For complex Gmail queries:
+       - hasWords: Array with single string containing full Gmail query
+       - Example: ["from:(*@domain.com OR other@domain.com) subject:(word1 OR word2)"]
+    
+    Common Query Patterns:
+    - Meeting emails: ["from:(*@zoom.us OR zoom.us OR calendar-notification@google.com) subject:(meeting OR sync OR invite)"]
+    - HR/Admin: ["from:(*@workday.com OR *@adp.com) subject:(time off OR PTO OR benefits)"]
+    - Team updates: ["from:(*@company.com) -from:(notifications@company.com)"]
+    - Newsletters: ["subject:(newsletter OR digest) from:(*@company.com)"]
+    
+    Common Errors:
+    - "Proto field is not repeating" → Convert string to array
+    - "params.criteria.X?.join is not a function" → Make sure field is array
+    - "Invalid JSON payload" → Check field format matches Gmail API
+    
+    Testing Strategy:
+    1. Test search query first:
+       - Use search_workspace_emails with content field
+       - Verify matches expected messages
+    2. Create filter with validated query:
+       - Convert search query to hasWords array
+       - Set appropriate actions
+    3. Verify filter operation:
+       - Check filter was created
+       - Confirm it catches new matching emails
     
     Example Flow:
     1. Check account access
-    2. Verify label exists
-    3. Create filter with criteria
-    4. Confirm filter creation`,
+    2. Test search query
+    3. Create filter with validated criteria
+    4. Confirm filter creation and operation`,
     aliases: ['create_filter', 'add_filter', 'new_label_filter'],
     inputSchema: {
       type: 'object',
@@ -1008,7 +1087,7 @@ export const labelTools: ToolMetadata[] = [
             hasWords: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Match words in message body'
+              description: 'Complex Gmail query strings (e.g., ["from:(*@domain.com) subject:(word1 OR word2)"])'
             },
             doesNotHaveWords: {
               type: 'array',
@@ -1106,11 +1185,44 @@ export const labelTools: ToolMetadata[] = [
     - Change actions
     - Adjust matching rules
     
+    Criteria Format Requirements:
+    1. For simple filters:
+       - from: Array of email addresses
+       - to: Array of email addresses
+       - subject: String for exact match
+       - hasAttachment: Boolean
+
+    2. For complex Gmail queries:
+       - hasWords: Array with single string containing full Gmail query
+       - Example: ["from:(*@domain.com OR other@domain.com) subject:(word1 OR word2)"]
+    
+    Common Query Patterns:
+    - Meeting emails: ["from:(*@zoom.us OR zoom.us OR calendar-notification@google.com) subject:(meeting OR sync OR invite)"]
+    - HR/Admin: ["from:(*@workday.com OR *@adp.com) subject:(time off OR PTO OR benefits)"]
+    - Team updates: ["from:(*@company.com) -from:(notifications@company.com)"]
+    - Newsletters: ["subject:(newsletter OR digest) from:(*@company.com)"]
+    
+    Common Errors:
+    - "Proto field is not repeating" → Convert string to array
+    - "params.criteria.X?.join is not a function" → Make sure field is array
+    - "Invalid JSON payload" → Check field format matches Gmail API
+    
+    Testing Strategy:
+    1. Test search query first:
+       - Use search_workspace_emails with content field
+       - Verify matches expected messages
+    2. Update filter with validated query:
+       - Convert search query to hasWords array
+       - Set appropriate actions
+    3. Verify filter operation:
+       - Check filter was updated
+       - Confirm it catches new matching emails
+    
     Example Flow:
     1. Check account access
-    2. Verify filter exists
-    3. Apply updates
-    4. Confirm changes`,
+    2. Test search query
+    3. Update filter with validated criteria
+    4. Confirm filter changes and operation`,
     aliases: ['update_filter', 'edit_filter', 'modify_filter'],
     inputSchema: {
       type: 'object',
@@ -1143,7 +1255,7 @@ export const labelTools: ToolMetadata[] = [
             hasWords: {
               type: 'array',
               items: { type: 'string' },
-              description: 'Match words in message body'
+              description: 'Complex Gmail query strings (e.g., ["from:(*@domain.com) subject:(word1 OR word2)"])'
             },
             doesNotHaveWords: {
               type: 'array',
