@@ -19,4 +19,9 @@ export function registerGmailScopes() {
     'gmail',
     'https://www.googleapis.com/auth/gmail.modify'
   );
+
+  scopeRegistry.registerScope(
+    'gmail',
+    'https://www.googleapis.com/auth/gmail.labels'
+  );
 }
