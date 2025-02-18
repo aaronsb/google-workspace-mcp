@@ -12,7 +12,7 @@ export const accountTools: Tool[] = [
   },
   {
     name: 'authenticate_workspace_account',
-    description: 'Add and authenticate a Google account for API access. IMPORTANT: When authenticating, always use the exact auth_url from the API response to ensure all OAuth parameters are preserved correctly. REQUIRED: When you get the auth_url, you must share it with the user by providing it in a response. The user will then click it to visit the URL and authorize the app. After authorization, the user will share that response with you.',
+    description: 'Add and authenticate a Google account for API access. IMPORTANT: When authenticating, always use the exact auth_url from the API response to ensure all OAuth parameters are preserved correctly. REQUIRED: When you get the auth_url, you must share it with the user by providing it in a response. The user will then click it to visit the URL and authorize the app. After authorization, the user will share that response with you. The auth_code will be a long string starting with "4/" followed by alphanumeric characters. Common errors include: expired auth_code (must be used quickly), invalid auth_code format, or missing required scopes. The response will include the account status and configured scopes.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -56,7 +56,7 @@ export const accountTools: Tool[] = [
 export const gmailTools: Tool[] = [
   {
     name: 'search_workspace_emails',
-    description: 'Search emails in a Gmail account with advanced filtering capabilities',
+    description: 'Search emails in a Gmail account with advanced filtering capabilities. Date formats should be YYYY-MM-DD (e.g., "2024-02-18"). Label names are case-sensitive and should match Gmail exactly (e.g., "INBOX", "SENT", "IMPORTANT" for system labels). For pagination, use maxResults to limit initial results and handle the nextPageToken in the response if more results exist.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -92,11 +92,11 @@ export const gmailTools: Tool[] = [
             },
             after: {
               type: 'string',
-              description: 'Search emails after this date (YYYY-MM-DD)'
+              description: 'Search emails after this date in YYYY-MM-DD format (e.g., "2024-01-01")'
             },
             before: {
               type: 'string',
-              description: 'Search emails before this date (YYYY-MM-DD)'
+              description: 'Search emails before this date in YYYY-MM-DD format (e.g., "2024-12-31")'
             },
             hasAttachment: {
               type: 'boolean',
@@ -394,7 +394,7 @@ export const calendarTools: Tool[] = [
   },
   {
     name: 'create_workspace_calendar_event',
-    description: 'Create a new calendar event',
+    description: 'Create a new calendar event. Times must be in ISO-8601 format (e.g., "2024-02-18T15:30:00-06:00"). Timezone should be an IANA timezone identifier (e.g., "America/Chicago"). For recurring events, use standard RRULE format (e.g., "RRULE:FREQ=WEEKLY;COUNT=10" for weekly for 10 occurrences). The response will include the created event ID and any scheduling conflicts with attendees.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -415,11 +415,11 @@ export const calendarTools: Tool[] = [
           properties: {
             dateTime: {
               type: 'string',
-              description: 'Event start time (ISO date string)'
+              description: 'Event start time as ISO-8601 string (e.g., "2024-02-18T15:30:00-06:00")'
             },
             timeZone: {
               type: 'string',
-              description: 'Timezone for start time'
+              description: 'IANA timezone identifier (e.g., "America/Chicago", "Europe/London")'
             }
           },
           required: ['dateTime']
@@ -504,7 +504,7 @@ export const labelTools: Tool[] = [
   },
   {
     name: 'create_workspace_label',
-    description: 'Create a new label in a Gmail account',
+    description: 'Create a new label in a Gmail account. Note: System labels (e.g., INBOX, SENT, SPAM) cannot be created or modified. Color values should be hex codes (e.g., textColor: "#000000", backgroundColor: "#FFFFFF"). Nested labels can be created using "/" in the name (e.g., "Work/Projects"). The response will include the created label ID and full label details.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -531,11 +531,11 @@ export const labelTools: Tool[] = [
           properties: {
             textColor: {
               type: 'string',
-              description: 'Text color in hex format'
+              description: 'Text color in hex format (e.g., "#000000" for black)'
             },
             backgroundColor: {
               type: 'string',
-              description: 'Background color in hex format'
+              description: 'Background color in hex format (e.g., "#FFFFFF" for white)'
             }
           }
         }
