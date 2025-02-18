@@ -104,6 +104,11 @@ export class GSuiteServer {
   }
 
   private setupRequestHandlers(): void {
+    // Tools are registered through the ToolRegistry which serves as a single source of truth
+    // for both tool discovery (ListToolsRequestSchema) and execution (CallToolRequestSchema).
+    // Tools only need to be defined once in allTools and the registry handles making them
+    // available to both handlers.
+    
     // List available tools
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       // Get tools with categories organized
