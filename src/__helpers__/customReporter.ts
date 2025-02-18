@@ -1,3 +1,4 @@
+// @ts-nocheck
 const { Reporter } = require('@jest/reporters');
 
 /**
@@ -5,11 +6,7 @@ const { Reporter } = require('@jest/reporters');
  * while maintaining MCP protocol compatibility.
  */
 class CustomReporter {
-  originalStderrWrite: typeof process.stderr.write;
-  isInTestBlock: boolean;
-
   constructor() {
-    // Store original stderr.write
     this.originalStderrWrite = process.stderr.write;
     this.isInTestBlock = false;
   }
@@ -19,14 +16,10 @@ class CustomReporter {
     
     // Override stderr.write during test execution
     const self = this;
-    process.stderr.write = function(
-      buffer: Uint8Array | string,
-      encodingOrCallback?: BufferEncoding | ((err?: Error) => void),
-      callback?: (err?: Error) => void
-    ): boolean {
+    process.stderr.write = function(buffer, encodingOrCallback, callback) {
       // Handle overloads
-      let encoding: BufferEncoding | undefined;
-      let cb: ((err?: Error) => void) | undefined;
+      let encoding;
+      let cb;
       
       if (typeof encodingOrCallback === 'function') {
         cb = encodingOrCallback;
@@ -39,12 +32,12 @@ class CustomReporter {
       // Always allow through:
       // 1. MCP protocol messages
       if (strContent.startsWith('{"jsonrpc":') || strContent.startsWith('{"id":')) {
-        return self.originalStderrWrite.call(process.stderr, buffer, encoding, cb as (err?: Error) => void);
+        return self.originalStderrWrite.call(process.stderr, buffer, encoding, cb);
       }
 
       // 2. Debug mode messages
       if (process.env.DEBUG) {
-        return self.originalStderrWrite.call(process.stderr, buffer, encoding, cb as (err?: Error) => void);
+        return self.originalStderrWrite.call(process.stderr, buffer, encoding, cb);
       }
 
       // 3. Test progress and results
@@ -65,7 +58,7 @@ class CustomReporter {
         /^Time:.*s$/.test(strContent) ||
         strContent.includes('Ran all test suites')
       ) {
-        return self.originalStderrWrite.call(process.stderr, buffer, encoding, cb as (err?: Error) => void);
+        return self.originalStderrWrite.call(process.stderr, buffer, encoding, cb);
       }
 
       // Filter out non-test output (like console.error logs)
