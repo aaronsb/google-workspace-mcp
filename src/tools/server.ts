@@ -51,11 +51,30 @@ import { registerGmailScopes } from '../modules/gmail/scopes.js';
 import { registerCalendarScopes } from '../modules/calendar/scopes.js';
 
 // Import types and type guards
-import { BaseToolArguments, CalendarEventParams } from './types.js';
+import {
+  BaseToolArguments,
+  CalendarEventParams,
+  SendEmailArgs,
+  CreateDraftArgs,
+  SendDraftArgs,
+  CreateLabelArgs,
+  UpdateLabelArgs,
+  DeleteLabelArgs,
+  ModifyLabelsArgs,
+  AuthenticateAccountArgs
+} from './types.js';
+
 import {
   assertBaseToolArguments,
   assertCalendarEventParams,
-  assertEmailEventIdArgs
+  assertEmailEventIdArgs,
+  assertSendEmailArgs,
+  assertCreateDraftArgs,
+  assertSendDraftArgs,
+  assertCreateLabelArgs,
+  assertUpdateLabelArgs,
+  assertDeleteLabelArgs,
+  assertModifyLabelsArgs
 } from './type-guards.js';
 
 export class GSuiteServer {
@@ -96,7 +115,7 @@ export class GSuiteServer {
           case 'list_workspace_accounts':
             return await handleListWorkspaceAccounts();
           case 'authenticate_workspace_account':
-            return await handleAuthenticateWorkspaceAccount(args);
+            return await handleAuthenticateWorkspaceAccount(args as AuthenticateAccountArgs);
           case 'remove_workspace_account':
             assertBaseToolArguments(args);
             return await handleRemoveWorkspaceAccount(args);
@@ -106,25 +125,25 @@ export class GSuiteServer {
             assertBaseToolArguments(args);
             return await handleSearchWorkspaceEmails(args);
           case 'send_workspace_email':
-            assertBaseToolArguments(args);
-            return await handleSendWorkspaceEmail(args);
+            assertSendEmailArgs(args);
+            return await handleSendWorkspaceEmail(args as SendEmailArgs);
           case 'get_workspace_gmail_settings':
             assertBaseToolArguments(args);
             return await handleGetWorkspaceGmailSettings(args);
           case 'create_workspace_draft':
-            assertBaseToolArguments(args);
-            return await handleCreateWorkspaceDraft(args);
+            assertCreateDraftArgs(args);
+            return await handleCreateWorkspaceDraft(args as CreateDraftArgs);
           case 'get_workspace_drafts':
             assertBaseToolArguments(args);
             return await handleGetWorkspaceDrafts(args);
           case 'send_workspace_draft':
-            assertBaseToolArguments(args);
-            return await handleSendWorkspaceDraft(args);
+            assertSendDraftArgs(args);
+            return await handleSendWorkspaceDraft(args as SendDraftArgs);
 
           // Calendar Operations
           case 'list_workspace_calendar_events':
             assertCalendarEventParams(args);
-            return await handleListWorkspaceCalendarEvents(args);
+            return await handleListWorkspaceCalendarEvents(args as CalendarEventParams);
           case 'get_workspace_calendar_event':
             assertEmailEventIdArgs(args);
             return await handleGetWorkspaceCalendarEvent(args);
@@ -143,17 +162,17 @@ export class GSuiteServer {
             assertBaseToolArguments(args);
             return await handleGetWorkspaceLabels(args);
           case 'create_workspace_label':
-            assertBaseToolArguments(args);
-            return await handleCreateWorkspaceLabel(args);
+            assertCreateLabelArgs(args);
+            return await handleCreateWorkspaceLabel(args as CreateLabelArgs);
           case 'update_workspace_label':
-            assertBaseToolArguments(args);
-            return await handleUpdateWorkspaceLabel(args);
+            assertUpdateLabelArgs(args);
+            return await handleUpdateWorkspaceLabel(args as UpdateLabelArgs);
           case 'delete_workspace_label':
-            assertBaseToolArguments(args);
-            return await handleDeleteWorkspaceLabel(args);
+            assertDeleteLabelArgs(args);
+            return await handleDeleteWorkspaceLabel(args as DeleteLabelArgs);
           case 'modify_workspace_message_labels':
-            assertBaseToolArguments(args);
-            return await handleModifyWorkspaceMessageLabels(args);
+            assertModifyLabelsArgs(args);
+            return await handleModifyWorkspaceMessageLabels(args as ModifyLabelsArgs);
 
           default:
             throw new Error(`Unknown tool: ${request.params.name}`);

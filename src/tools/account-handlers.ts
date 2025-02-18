@@ -1,6 +1,11 @@
 import { getAccountManager } from '../modules/accounts/index.js';
-import { McpToolResponse } from './types.js';
+import { McpToolResponse, BaseToolArguments } from './types.js';
 
+/**
+ * Lists all configured Google Workspace accounts and their authentication status
+ * @returns List of accounts with their configuration and auth status
+ * @throws {McpError} If account manager fails to retrieve accounts
+ */
 export async function handleListWorkspaceAccounts(): Promise<McpToolResponse> {
   const accounts = await getAccountManager().listAccounts();
   return {
@@ -11,7 +16,22 @@ export async function handleListWorkspaceAccounts(): Promise<McpToolResponse> {
   };
 }
 
-export async function handleAuthenticateWorkspaceAccount(args: any): Promise<McpToolResponse> {
+export interface AuthenticateAccountArgs extends BaseToolArguments {
+  category?: string;
+  description?: string;
+  auth_code?: string;
+}
+
+/**
+ * Authenticates a Google Workspace account through OAuth2
+ * @param args.email - Email address to authenticate
+ * @param args.category - Optional account category (e.g., 'work', 'personal')
+ * @param args.description - Optional account description
+ * @param args.auth_code - OAuth2 authorization code (required for completing auth)
+ * @returns Auth URL if auth_code not provided, success message if auth completed
+ * @throws {McpError} If validation fails or OAuth flow errors
+ */
+export async function handleAuthenticateWorkspaceAccount(args: AuthenticateAccountArgs): Promise<McpToolResponse> {
   const accountManager = getAccountManager();
 
   // Validate/create account
@@ -54,7 +74,13 @@ export async function handleAuthenticateWorkspaceAccount(args: any): Promise<Mcp
   };
 }
 
-export async function handleRemoveWorkspaceAccount(args: { email: string }): Promise<McpToolResponse> {
+/**
+ * Removes a Google Workspace account and its associated authentication tokens
+ * @param args.email - Email address of the account to remove
+ * @returns Success message if account removed
+ * @throws {McpError} If account removal fails
+ */
+export async function handleRemoveWorkspaceAccount(args: BaseToolArguments): Promise<McpToolResponse> {
   await getAccountManager().removeAccount(args.email);
   
   return {
