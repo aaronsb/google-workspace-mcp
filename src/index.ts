@@ -56,7 +56,7 @@ class GSuiteServer {
       tools: [
         {
           name: 'list_workspace_accounts',
-          description: 'List all configured Google accounts and their authentication status',
+          description: 'List all configured Google workspace accounts and their authentication status',
           inputSchema: {
             type: 'object',
             properties: {}
@@ -515,108 +515,146 @@ class GSuiteServer {
           }
 
           case 'search_workspace_emails': {
-            // Convert the structured search criteria into the format expected by getEmails
             const args = request.params.arguments as any;
-            const params = {
-              email: args.email,
-              search: args.search || {},
-              options: {
-                maxResults: args.maxResults
-              }
-            };
-            const emails = await getGmailService().getEmails(params);
-            return {
-              content: [{
-                type: 'text',
-                text: JSON.stringify(emails, null, 2)
-              }]
-            };
+            const accountManager = getAccountManager();
+            
+            return await accountManager.withTokenRenewal(args.email, async () => {
+              const params = {
+                email: args.email,
+                search: args.search || {},
+                options: {
+                  maxResults: args.maxResults
+                }
+              };
+              const emails = await getGmailService().getEmails(params);
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify(emails, null, 2)
+                }]
+              };
+            });
           }
 
           case 'send_workspace_email': {
-            const result = await getGmailService().sendEmail(request.params.arguments as any);
-            return {
-              content: [{
-                type: 'text',
-                text: JSON.stringify(result, null, 2)
-              }]
-            };
+            const args = request.params.arguments as any;
+            const accountManager = getAccountManager();
+            
+            return await accountManager.withTokenRenewal(args.email, async () => {
+              const result = await getGmailService().sendEmail(args);
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2)
+                }]
+              };
+            });
           }
 
           case 'get_workspace_gmail_settings': {
-            const result = await getGmailService().getWorkspaceGmailSettings(request.params.arguments as any);
-            return {
-              content: [{
-                type: 'text',
-                text: JSON.stringify(result, null, 2)
-              }]
-            };
+            const args = request.params.arguments as any;
+            const accountManager = getAccountManager();
+            
+            return await accountManager.withTokenRenewal(args.email, async () => {
+              const result = await getGmailService().getWorkspaceGmailSettings(args);
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2)
+                }]
+              };
+            });
           }
 
           // Calendar Tool Handlers
           case 'list_workspace_calendar_events': {
-            // Fetch calendar events with support for filtering by date range, query, and max results
-            const events = await getCalendarService().getEvents(request.params.arguments as any);
-            return {
-              content: [{
-                type: 'text',
-                text: JSON.stringify(events, null, 2)
-              }]
-            };
+            const args = request.params.arguments as any;
+            const accountManager = getAccountManager();
+            
+            return await accountManager.withTokenRenewal(args.email, async () => {
+              const events = await getCalendarService().getEvents(args);
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify(events, null, 2)
+                }]
+              };
+            });
           }
 
           case 'get_workspace_calendar_event': {
-            // Get detailed information about a specific calendar event
-            const { email, eventId } = request.params.arguments as { email: string, eventId: string };
-            const event = await getCalendarService().getEvent(email, eventId);
-            return {
-              content: [{
-                type: 'text',
-                text: JSON.stringify(event, null, 2)
-              }]
-            };
+            const args = request.params.arguments as { email: string, eventId: string };
+            const accountManager = getAccountManager();
+            
+            return await accountManager.withTokenRenewal(args.email, async () => {
+              const event = await getCalendarService().getEvent(args.email, args.eventId);
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify(event, null, 2)
+                }]
+              };
+            });
           }
 
           case 'create_workspace_calendar_event': {
-            // Create a new calendar event with optional attendees
-            // Note: This automatically sends email notifications to attendees
-            const event = await getCalendarService().createEvent(request.params.arguments as any);
-            return {
-              content: [{
-                type: 'text',
-                text: JSON.stringify(event, null, 2)
-              }]
-            };
+            const args = request.params.arguments as any;
+            const accountManager = getAccountManager();
+            
+            return await accountManager.withTokenRenewal(args.email, async () => {
+              const event = await getCalendarService().createEvent(args);
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify(event, null, 2)
+                }]
+              };
+            });
           }
 
           case 'create_workspace_draft': {
-            const result = await getGmailService().createDraft(request.params.arguments as any);
-            return {
-              content: [{
-                type: 'text',
-                text: JSON.stringify(result, null, 2)
-              }]
-            };
+            const args = request.params.arguments as any;
+            const accountManager = getAccountManager();
+            
+            return await accountManager.withTokenRenewal(args.email, async () => {
+              const result = await getGmailService().createDraft(args);
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2)
+                }]
+              };
+            });
           }
 
           case 'get_workspace_drafts': {
-            const result = await getGmailService().getDrafts(request.params.arguments as any);
-            return {
-              content: [{
-                type: 'text',
-                text: JSON.stringify(result, null, 2)
-              }]
-            };
+            const args = request.params.arguments as any;
+            const accountManager = getAccountManager();
+            
+            return await accountManager.withTokenRenewal(args.email, async () => {
+              const result = await getGmailService().getDrafts(args);
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2)
+                }]
+              };
+            });
           }
 
           case 'send_workspace_draft': {
-            const result = await getGmailService().sendDraft(request.params.arguments as any);
-            return {
-              content: [{
-                type: 'text',
-                text: JSON.stringify(result, null, 2)
-              }]
-            };
+            const args = request.params.arguments as any;
+            const accountManager = getAccountManager();
+            
+            return await accountManager.withTokenRenewal(args.email, async () => {
+              const result = await getGmailService().sendDraft(args);
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2)
+                }]
+              };
+            });
           }
 
           default:

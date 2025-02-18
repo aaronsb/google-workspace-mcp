@@ -29,19 +29,90 @@ export class AccountManager {
     logger.debug('Listing accounts with auth status');
     const accounts = Array.from(this.accounts.values());
     
-    // Add auth status to each account
+    // Add auth status to each account and attempt auto-renewal if needed
     for (const account of accounts) {
-      const tokenStatus = await this.tokenManager.validateToken(account.email, false);
-      account.auth_status = {
-        valid: tokenStatus.valid,
-        status: tokenStatus.status,
-        reason: tokenStatus.reason,
-        token: tokenStatus.token
-      };
+      const renewalResult = await this.tokenManager.autoRenewToken(account.email);
+      
+      if (renewalResult.success) {
+        account.auth_status = {
+          valid: true,
+          status: renewalResult.status,
+          token: renewalResult.token
+        };
+      } else {
+        // If auto-renewal failed, try to get an auth URL for re-authentication
+        account.auth_status = {
+          valid: false,
+          status: renewalResult.status,
+          reason: renewalResult.reason,
+          authUrl: await this.generateAuthUrl()
+        };
+      }
     }
     
     logger.debug(`Found ${accounts.length} accounts`);
     return accounts;
+  }
+
+  /**
+   * Wrapper for tool operations that handles token renewal
+   * @param email Account email
+   * @param operation Function that performs the actual operation
+   */
+  async withTokenRenewal<T>(
+    email: string,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    try {
+      // Attempt auto-renewal before operation
+      const renewalResult = await this.tokenManager.autoRenewToken(email);
+      if (!renewalResult.success) {
+        if (renewalResult.canRetry) {
+          // If it's a temporary error, let the operation proceed
+          // The 401 handler below will catch and retry if needed
+          logger.warn('Token renewal failed but may be temporary - proceeding with operation');
+        } else {
+          // Only require re-auth if refresh token is invalid/revoked
+          throw new AccountError(
+            'Token renewal failed',
+            'TOKEN_RENEWAL_FAILED',
+            renewalResult.reason || 'Please re-authenticate your account'
+          );
+        }
+      }
+
+      // Perform the operation
+      return await operation();
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === '401') {
+        // If we get a 401 during operation, try one more token renewal
+        logger.warn('Received 401 during operation, attempting final token renewal');
+        const finalRenewal = await this.tokenManager.autoRenewToken(email);
+        
+        if (finalRenewal.success) {
+          // Retry the operation with renewed token
+          return await operation();
+        }
+        
+        // Check if we should trigger full OAuth
+        if (!finalRenewal.canRetry) {
+          // Refresh token is invalid/revoked, need full reauth
+          throw new AccountError(
+            'Authentication failed',
+            'AUTH_REQUIRED',
+            finalRenewal.reason || 'Please re-authenticate your account'
+          );
+        } else {
+          // Temporary error, let caller handle retry
+          throw new AccountError(
+            'Token refresh failed temporarily',
+            'TEMPORARY_AUTH_ERROR',
+            'Please try again later'
+          );
+        }
+      }
+      throw error;
+    }
   }
 
   private validateEmail(email: string): boolean {

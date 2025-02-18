@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { AccountError, TokenStatus } from './types.js';
+import { AccountError, TokenStatus, TokenRenewalResult } from './types.js';
 import { scopeRegistry } from '../tools/scope-registry.js';
 import { GoogleOAuthClient } from './oauth.js';
 import logger from '../../utils/logger.js';
@@ -13,6 +13,7 @@ import logger from '../../utils/logger.js';
 export class TokenManager {
   private readonly credentialsPath: string;
   private oauthClient?: GoogleOAuthClient;
+  private readonly TOKEN_EXPIRY_BUFFER_MS = 5 * 60 * 1000; // 5 minutes buffer
 
   constructor(oauthClient?: GoogleOAuthClient) {
     // Use the mounted config directory for persistent storage
@@ -86,6 +87,111 @@ export class TokenManager {
    * Basic token validation - just checks if token exists and isn't expired.
    * No scope validation - auth issues handled via 401 responses.
    */
+  /**
+   * Attempts to automatically renew a token if it's expired or near expiry
+   * Returns the renewal result and new token if successful
+   */
+  async autoRenewToken(email: string): Promise<TokenRenewalResult> {
+    logger.debug(`Attempting auto-renewal for account: ${email}`);
+    
+    try {
+      const token = await this.loadToken(email);
+      
+      if (!token) {
+        return {
+          success: false,
+          status: 'NO_TOKEN',
+          reason: 'No token found'
+        };
+      }
+
+      if (!token.expiry_date) {
+        return {
+          success: false,
+          status: 'INVALID',
+          reason: 'Invalid token format'
+        };
+      }
+
+      // Check if token is expired or will expire soon
+      const now = Date.now();
+      if (token.expiry_date <= now + this.TOKEN_EXPIRY_BUFFER_MS) {
+        if (!token.refresh_token || !this.oauthClient) {
+          return {
+            success: false,
+            status: 'REFRESH_FAILED',
+            reason: 'No refresh token or OAuth client available'
+          };
+        }
+
+        try {
+          // Attempt to refresh the token
+          const newToken = await this.oauthClient.refreshToken(token.refresh_token);
+          await this.saveToken(email, newToken);
+          logger.info('Token refreshed successfully');
+          return {
+            success: true,
+            status: 'REFRESHED',
+            token: newToken
+          };
+        } catch (error) {
+          // Check if the error indicates an invalid/revoked refresh token
+          const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+          const isRefreshTokenInvalid = 
+            errorMessage.includes('invalid_grant') || 
+            errorMessage.includes('token has been revoked') ||
+            errorMessage.includes('token not found');
+
+          if (!isRefreshTokenInvalid) {
+            // If it's not a refresh token issue, try one more time
+            try {
+              logger.warn('First refresh attempt failed, trying once more');
+              const newToken = await this.oauthClient.refreshToken(token.refresh_token);
+              await this.saveToken(email, newToken);
+              logger.info('Token refreshed successfully on second attempt');
+              return {
+                success: true,
+                status: 'REFRESHED',
+                token: newToken
+              };
+            } catch (secondError) {
+              logger.error('Both refresh attempts failed, but refresh token may still be valid');
+              return {
+                success: false,
+                status: 'REFRESH_FAILED',
+                reason: 'Token refresh failed, temporary error',
+                canRetry: true
+              };
+            }
+          }
+
+          // Refresh token is invalid, need full reauth
+          logger.error('Refresh token is invalid or revoked');
+          return {
+            success: false,
+            status: 'REFRESH_FAILED',
+            reason: 'Refresh token is invalid or revoked',
+            canRetry: false
+          };
+        }
+      }
+
+      // Token is still valid
+      return {
+        success: true,
+        status: 'VALID',
+        token
+      };
+    } catch (error) {
+      logger.error('Token auto-renewal error', error as Error);
+      return {
+        success: false,
+        status: 'ERROR',
+        reason: 'Token auto-renewal failed'
+      };
+    }
+  }
+
   async validateToken(email: string, skipValidationForNew: boolean = false): Promise<TokenStatus> {
     logger.debug(`Validating token for account: ${email}`);
     

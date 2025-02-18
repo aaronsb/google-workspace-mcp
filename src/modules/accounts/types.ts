@@ -27,6 +27,14 @@ export type TokenStatusType =
   | 'EXPIRED'
   | 'ERROR';
 
+export interface TokenRenewalResult {
+  success: boolean;
+  status: TokenStatusType;
+  reason?: string;
+  token?: any;
+  canRetry?: boolean;  // Indicates if a failed refresh can be retried later
+}
+
 export interface TokenStatus {
   valid: boolean;
   status: TokenStatusType;
