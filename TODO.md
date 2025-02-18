@@ -6,36 +6,43 @@
 - [x] Basic email operations
   - [x] List/get messages
   - [x] Send emails
-  - [x] Basic search
+  - [x] Advanced search
 - [x] Advanced features
-  - [x] Get user information
+  - [x] Get user information and settings
   - [x] Advanced search capabilities
     - [x] Search by unread status
-    - [x] Search by sender
+    - [x] Search by sender/recipient
     - [x] Search by date range
     - [x] Search for emails with attachments
+    - [x] Search by labels
+    - [x] Search in spam/trash
   - [x] Email content management
-    - [x] Enhanced getEmails to support direct message ID retrieval and batch fetching
-  - [ ] Draft operations
-    - [ ] create_workspace_draft: Create new drafts with recipients, subject, body, and CC
-    - [ ] delete_workspace_draft: Delete draft emails
-  - [ ] Reply management
-    - [ ] send_workspace_reply: Reply to existing emails (immediate send)
-    - [ ] create_workspace_reply_draft: Save replies as drafts
+    - [x] Enhanced getEmails with batch fetching
+    - [x] CC/BCC support
+  - [x] Draft operations
+    - [x] create_workspace_draft: Create drafts with full recipient options
+    - [x] get_workspace_drafts: List available drafts
+    - [x] send_workspace_draft: Send existing drafts
+  - [x] Reply management
+    - [x] Threading support
+    - [x] Reply-to handling
+    - [x] Message references
   - [ ] Attachment handling
-    - [ ] save_workspace_attachments: Save multiple attachments locally
+    - [ ] Upload attachments
+    - [ ] Download attachments
+    - [ ] MIME type support
 
-### Calendar Module (In Development)
-- [ ] Core functionality
-  - [ ] List calendars
-  - [ ] Get/create events
-  - [ ] Update events
-  - [ ] Delete events
+### Calendar Module (Implemented)
+- [x] Core functionality
+  - [x] List calendar events
+  - [x] Get single events
+  - [x] Create events
+  - [x] Timezone support
 - [ ] Advanced features
   - [ ] Recurring events
+  - [x] Attendee management
   - [ ] Calendar sharing
   - [ ] Free/busy queries
-  - [ ] Meeting scheduling
 
 ## High Priority
 
@@ -43,16 +50,16 @@
 - [x] OAuth 2.0 implementation
 - [x] Token refresh handling
 - [x] Multi-account support
+- [x] Account categorization
 - [ ] Token encryption at rest
 - [ ] Rate limiting
-- [ ] Request logging
 
 ### Error Handling
 - [x] Service-specific errors
 - [x] Resolution guidance
+- [x] Logging system
 - [ ] Retry mechanisms
 - [ ] Circuit breakers
-- [ ] Error reporting
 
 ## Medium Priority
 
@@ -60,14 +67,13 @@
 - [ ] Response caching
 - [ ] Batch operations
 - [ ] Connection pooling
-- [ ] Request queuing
 
 ### Developer Experience
 - [x] Basic documentation
+- [x] TypeScript support
+- [x] Jest testing setup
 - [ ] Integration tests
 - [ ] Example projects
-- [ ] Debug logging
-- [ ] CLI tools
 
 ## Future Considerations
 
@@ -78,13 +84,13 @@
 - [ ] Docs API
 
 ### Infrastructure
+- [x] NPM scripts
 - [ ] Docker support
 - [ ] CI/CD pipeline
 - [ ] Monitoring
-- [ ] Analytics
 
 ### Documentation
+- [x] API documentation
+- [x] Error documentation
 - [ ] Advanced guides
-- [ ] Best practices
-- [ ] Performance tuning
 - [ ] Security hardening
