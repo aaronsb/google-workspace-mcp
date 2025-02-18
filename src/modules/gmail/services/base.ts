@@ -21,13 +21,20 @@ import {
   CreateLabelParams,
   UpdateLabelParams,
   DeleteLabelParams,
-  ModifyMessageLabelsParams
+  ModifyMessageLabelsParams,
+  CreateLabelFilterParams,
+  UpdateLabelFilterParams,
+  DeleteLabelFilterParams,
+  GetLabelFiltersParams,
+  GetLabelFiltersResponse,
+  LabelFilter
 } from '../types.js';
 import { EmailService } from './email.js';
 import { SearchService } from './search.js';
 import { DraftService } from './draft.js';
 import { SettingsService } from './settings.js';
 import { LabelService } from './label.js';
+import { FilterService } from './filter.js';
 
 /**
  * Gmail service implementation extending BaseGoogleService for common auth handling.
@@ -38,6 +45,7 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
   private draftService: DraftService;
   private settingsService: SettingsService;
   private labelService: LabelService;
+  private filterService: FilterService;
   
   constructor(config?: GmailModuleConfig) {
     super({ serviceName: 'Gmail', version: 'v1' });
@@ -48,6 +56,7 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
     this.draftService = new DraftService(this.emailService);
     this.settingsService = new SettingsService();
     this.labelService = new LabelService();
+    this.filterService = new FilterService();
 
   }
 
@@ -70,7 +79,7 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
    * Ensures all services are properly initialized
    */
   private ensureServices() {
-    if (!this.emailService || !this.draftService || !this.settingsService || !this.labelService) {
+    if (!this.emailService || !this.draftService || !this.settingsService || !this.labelService || !this.filterService) {
       throw new GmailError(
         'Gmail services not initialized',
         'SERVICE_ERROR',
@@ -93,6 +102,7 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
         this.draftService.updateClient(client);
         this.settingsService.updateClient(client);
         this.labelService.updateClient(client);
+        this.filterService.updateClient(client);
         
         return client;
       }
@@ -162,5 +172,30 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
     this.ensureServices();
     await this.getGmailClient(params.email);
     return this.labelService.modifyMessageLabels(params);
+  }
+
+  // Label Filter Methods
+  async createLabelFilter(params: CreateLabelFilterParams): Promise<LabelFilter> {
+    this.ensureServices();
+    await this.getGmailClient(params.email);
+    return this.filterService.createFilter(params);
+  }
+
+  async getLabelFilters(params: GetLabelFiltersParams): Promise<GetLabelFiltersResponse> {
+    this.ensureServices();
+    await this.getGmailClient(params.email);
+    return this.filterService.getFilters(params);
+  }
+
+  async updateLabelFilter(params: UpdateLabelFilterParams): Promise<LabelFilter> {
+    this.ensureServices();
+    await this.getGmailClient(params.email);
+    return this.filterService.updateFilter(params);
+  }
+
+  async deleteLabelFilter(params: DeleteLabelFilterParams): Promise<void> {
+    this.ensureServices();
+    await this.getGmailClient(params.email);
+    return this.filterService.deleteFilter(params);
   }
 }

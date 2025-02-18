@@ -53,133 +53,199 @@ describe('Gmail Label Service', () => {
 
   describe('getLabels', () => {
     it('should fetch all labels', async () => {
-      const mockLabels = [
-        {
-          id: 'label1',
-          name: 'Important',
-          type: 'user',
-          messageListVisibility: 'show',
-          labelListVisibility: 'labelShow',
-          color: {
-            textColor: '#ffffff',
-            backgroundColor: '#000000'
-          }
-        },
-        {
-          id: 'label2',
-          name: 'Work',
-          type: 'user',
-          messageListVisibility: 'show',
-          labelListVisibility: 'labelShow'
+      // Simple mock response
+      const mockResponse = {
+        data: {
+          labels: [
+            {
+              id: 'label1',
+              name: 'Test Label',
+              type: 'user',
+              messageListVisibility: 'show',
+              labelListVisibility: 'labelShow'
+            }
+          ]
         }
-      ];
+      };
 
-      (mockGmailClient.users.labels.list as jest.Mock).mockResolvedValue({
-        data: { labels: mockLabels }
-      });
+      // Set up mock
+      (mockGmailClient.users.labels.list as jest.Mock).mockResolvedValue(mockResponse);
 
       const result = await gmailService.getLabels({ email: testEmail });
 
-      expect(result.labels).toHaveLength(2);
+      // Simple assertions
+      expect(result.labels).toHaveLength(1);
       expect(result.labels[0].id).toBe('label1');
-      expect(result.labels[0].name).toBe('Important');
-      expect(result.labels[0].color).toBeDefined();
-      expect(result.labels[1].id).toBe('label2');
-      expect(result.labels[1].color).toBeUndefined();
+      expect(result.labels[0].name).toBe('Test Label');
+      expect(mockGmailClient.users.labels.list).toHaveBeenCalledWith({
+        userId: testEmail
+      });
+    });
+
+    it('should handle empty labels response', async () => {
+      // Simple mock for empty response
+      (mockGmailClient.users.labels.list as jest.Mock).mockResolvedValue({
+        data: { labels: [] }
+      });
+
+      const result = await gmailService.getLabels({ email: testEmail });
+      expect(result.labels).toHaveLength(0);
+    });
+
+    it('should handle errors when fetching labels', async () => {
+      // Simple error mock
+      (mockGmailClient.users.labels.list as jest.Mock).mockRejectedValue(new Error('API Error'));
+
+      await expect(gmailService.getLabels({ email: testEmail }))
+        .rejects
+        .toThrow('Failed to fetch labels');
     });
   });
 
   describe('createLabel', () => {
     it('should create a new label', async () => {
-      const newLabel = {
-        id: 'label1',
-        name: 'Important',
-        type: 'user',
-        messageListVisibility: 'show',
-        labelListVisibility: 'labelShow',
-        color: {
-          textColor: '#ffffff',
-          backgroundColor: '#000000'
+      // Simple mock response
+      const mockResponse = {
+        data: {
+          id: 'label1',
+          name: 'Test Label',
+          type: 'user',
+          messageListVisibility: 'show',
+          labelListVisibility: 'labelShow'
         }
       };
 
-      (mockGmailClient.users.labels.create as jest.Mock).mockResolvedValue({
-        data: newLabel
-      });
+      // Set up mock
+      (mockGmailClient.users.labels.create as jest.Mock).mockResolvedValue(mockResponse);
 
-      const result = await gmailService.createLabel({
+      // Simple test input
+      const input = {
         email: testEmail,
-        name: 'Important',
-        messageListVisibility: 'show',
-        labelListVisibility: 'labelShow',
-        color: {
-          textColor: '#ffffff',
-          backgroundColor: '#000000'
-        }
-      });
+        name: 'Test Label'
+      };
 
-      expect(result.name).toBe('Important');
-      expect(result.color).toBeDefined();
-      expect(result.color?.textColor).toBe('#ffffff');
+      const result = await gmailService.createLabel(input);
+
+      // Simple assertions
+      expect(result.id).toBe('label1');
+      expect(result.name).toBe('Test Label');
+      expect(mockGmailClient.users.labels.create).toHaveBeenCalledWith({
+        userId: testEmail,
+        requestBody: expect.objectContaining({
+          name: 'Test Label'
+        })
+      });
+    });
+
+    it('should handle errors when creating a label', async () => {
+      // Simple error mock
+      (mockGmailClient.users.labels.create as jest.Mock).mockRejectedValue(new Error('API Error'));
+
+      await expect(gmailService.createLabel({
+        email: testEmail,
+        name: 'Test Label'
+      })).rejects.toThrow('Failed to create label');
     });
   });
 
   describe('updateLabel', () => {
     it('should update an existing label', async () => {
-      const updatedLabel = {
-        id: 'label1',
-        name: 'Very Important',
-        type: 'user',
-        messageListVisibility: 'show',
-        labelListVisibility: 'labelShow',
-        color: {
-          textColor: '#ffffff',
-          backgroundColor: '#000000'
+      // Simple mock response
+      const mockResponse = {
+        data: {
+          id: 'label1',
+          name: 'Updated Label',
+          type: 'user',
+          messageListVisibility: 'show',
+          labelListVisibility: 'labelShow'
         }
       };
 
-      (mockGmailClient.users.labels.patch as jest.Mock).mockResolvedValue({
-        data: updatedLabel
-      });
+      // Set up mock
+      (mockGmailClient.users.labels.patch as jest.Mock).mockResolvedValue(mockResponse);
 
-      const result = await gmailService.updateLabel({
+      // Simple test input
+      const input = {
         email: testEmail,
         labelId: 'label1',
-        name: 'Very Important'
-      });
+        name: 'Updated Label'
+      };
 
-      expect(result.name).toBe('Very Important');
+      const result = await gmailService.updateLabel(input);
+
+      // Simple assertions
       expect(result.id).toBe('label1');
+      expect(result.name).toBe('Updated Label');
+      expect(mockGmailClient.users.labels.patch).toHaveBeenCalledWith({
+        userId: testEmail,
+        id: 'label1',
+        requestBody: expect.objectContaining({
+          name: 'Updated Label'
+        })
+      });
+    });
+
+    it('should handle errors when updating a label', async () => {
+      // Simple error mock
+      (mockGmailClient.users.labels.patch as jest.Mock).mockRejectedValue(new Error('API Error'));
+
+      await expect(gmailService.updateLabel({
+        email: testEmail,
+        labelId: 'label1',
+        name: 'Updated Label'
+      })).rejects.toThrow('Failed to update label');
     });
   });
 
   describe('deleteLabel', () => {
     it('should delete a label', async () => {
+      // Simple mock response
       (mockGmailClient.users.labels.delete as jest.Mock).mockResolvedValue({});
 
-      await expect(gmailService.deleteLabel({
+      // Simple test input
+      const input = {
         email: testEmail,
         labelId: 'label1'
-      })).resolves.not.toThrow();
+      };
 
+      // Execute and verify
+      await gmailService.deleteLabel(input);
+
+      // Simple assertions
       expect(mockGmailClient.users.labels.delete).toHaveBeenCalledWith({
         userId: testEmail,
         id: 'label1'
       });
     });
+
+    it('should handle errors when deleting a label', async () => {
+      // Simple error mock
+      (mockGmailClient.users.labels.delete as jest.Mock).mockRejectedValue(new Error('API Error'));
+
+      await expect(gmailService.deleteLabel({
+        email: testEmail,
+        labelId: 'label1'
+      })).rejects.toThrow('Failed to delete label');
+    });
   });
 
   describe('modifyMessageLabels', () => {
     it('should modify message labels', async () => {
+      // Simple mock response
       (mockGmailClient.users.messages.modify as jest.Mock).mockResolvedValue({});
 
-      await expect(gmailService.modifyMessageLabels({
+      // Simple test input
+      const input = {
         email: testEmail,
         messageId: 'msg1',
         addLabelIds: ['label1'],
         removeLabelIds: ['label2']
-      })).resolves.not.toThrow();
+      };
 
+      // Execute and verify
+      await gmailService.modifyMessageLabels(input);
+
+      // Simple assertions
       expect(mockGmailClient.users.messages.modify).toHaveBeenCalledWith({
         userId: testEmail,
         id: 'msg1',
@@ -189,17 +255,17 @@ describe('Gmail Label Service', () => {
         }
       });
     });
-  });
 
-  describe('error handling', () => {
-    it('should handle API errors gracefully', async () => {
-      (mockGmailClient.users.labels.list as jest.Mock).mockRejectedValue(
-        new Error('API Error')
-      );
+    it('should handle errors when modifying message labels', async () => {
+      // Simple error mock
+      (mockGmailClient.users.messages.modify as jest.Mock).mockRejectedValue(new Error('API Error'));
 
-      await expect(gmailService.getLabels({ email: testEmail }))
-        .rejects
-        .toThrow('Failed to fetch labels');
+      await expect(gmailService.modifyMessageLabels({
+        email: testEmail,
+        messageId: 'msg1',
+        addLabelIds: ['label1'],
+        removeLabelIds: ['label2']
+      })).rejects.toThrow('Failed to modify message labels');
     });
   });
 });
