@@ -566,6 +566,7 @@ Add or remove labels from a Gmail message.
 - `https://www.googleapis.com/auth/gmail.readonly` - Read-only access
 - `https://www.googleapis.com/auth/gmail.send` - Send emails only
 - `https://www.googleapis.com/auth/gmail.modify` - All read/write operations
+- `https://www.googleapis.com/auth/gmail.labels` - Manage labels
 - `https://www.googleapis.com/auth/gmail.compose` - Create/send emails
 - `https://www.googleapis.com/auth/gmail.settings.basic` - Access basic settings
 - `https://www.googleapis.com/auth/gmail.settings.sharing` - Access sharing settings
