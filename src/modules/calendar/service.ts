@@ -276,15 +276,23 @@ export class CalendarService {
         case 'accept':
         case 'decline':
         case 'tentative': {
+          // Map our action to the exact responseStatus value Google Calendar expects
+          const responseStatus = action === 'accept' ? 'accepted' : 
+                               action === 'decline' ? 'declined' : 
+                               'tentative';
+
+          // Update response status using the exact format from successful curl implementation
           const { data: updatedEvent } = await calendar.events.patch({
             calendarId: 'primary',
             eventId,
+            sendUpdates: 'all',
             requestBody: {
-              attendees: event.data.attendees?.map(attendee => 
-                attendee.email === email
-                  ? { ...attendee, responseStatus: action }
-                  : attendee
-              )
+              attendees: [
+                {
+                  email,
+                  responseStatus
+                }
+              ]
             }
           });
 
