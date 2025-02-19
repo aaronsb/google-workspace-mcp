@@ -1,9 +1,10 @@
 # Google Workspace MCP Server
 
-[![smithery badge](https://smithery.ai/badge/@aaronsb/google-workspace-mcp)](https://smithery.ai/server/@aaronsb/google-workspace-mcp)
-[![glama badge](https://glama.ai/mcp/servers/0finyxgwlk/badge)](https://glama.ai/mcp/servers/0finyxgwlk)
+![Robot Assistant](https://raw.githubusercontent.com/aaronsb/google-workspace-mcp/main/docs/assets/robot-assistant.webp)
 
-A Model Context Protocol (MCP) server that provides authenticated access to Google Workspace APIs, offering comprehensive Gmail and Calendar functionality.
+Imagine having a tireless digital assistant that seamlessly manages your Google Workspace universe. That's exactly what this Model Context Protocol (MCP) server delivers - a powerful bridge between AI and your digital life. Whether you're drowning in emails, juggling calendar invites, or trying to maintain order in your professional chaos, this tool empowers AI assistants to help you take control.
+
+Want to find that important email from last month? Need to schedule a team meeting while respecting everyone's availability? Looking to organize your inbox with intelligent filters? Your AI assistant can handle it all through this server, making your Google Workspace experience more efficient and intuitive than ever before.
 
 ## TL;DR Setup
 
