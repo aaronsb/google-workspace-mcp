@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.4
+
 # Build stage
 FROM node:20-slim AS builder
 WORKDIR /app
@@ -9,8 +11,8 @@ LABEL org.opencontainers.image.licenses="MIT"
 
 # Install dependencies
 COPY package*.json ./
-RUN npm ci && \
-    npm cache clean --force
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
 # Copy source and build
 COPY . .
@@ -30,8 +32,8 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/docker-entrypoint.sh ./
 
 # Install production dependencies only
-RUN npm ci --only=production && \
-    npm cache clean --force && \
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --only=production && \
     chmod +x build/index.js && \
     chmod +x docker-entrypoint.sh
 
