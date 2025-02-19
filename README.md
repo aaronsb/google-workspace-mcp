@@ -1,6 +1,6 @@
 # Google Workspace MCP Server
 
-![Robot Assistant](https://raw.githubusercontent.com/aaronsb/google-workspace-mcp/main/docs/assets/robot-assistant.webp)
+![Robot Assistant](https://raw.githubusercontent.com/aaronsb/google-workspace-mcp/main/docs/assets/robot-assistant.png)
 
 Imagine having a tireless digital assistant that seamlessly manages your Google Workspace universe. That's exactly what this Model Context Protocol (MCP) server delivers - a powerful bridge between AI and your digital life. Whether you're drowning in emails, juggling calendar invites, or trying to maintain order in your professional chaos, this tool empowers AI assistants to help you take control.
 
