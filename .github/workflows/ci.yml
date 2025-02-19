@@ -22,17 +22,11 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    - name: Create test directories
-      run: |
-        mkdir -p test-config
-        mkdir -p test-workspace/shared/temp
-        chmod -R 750 test-config test-workspace
-
     - name: Run tests
       run: npm test
       env:
-        GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-        GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        GOOGLE_CLIENT_ID: test-id
+        GOOGLE_CLIENT_SECRET: test-secret
         CONFIG_DIR: ./test-config
         WORKSPACE_BASE_PATH: ./test-workspace
 
@@ -57,12 +51,9 @@ jobs:
     - name: Test Docker build
       run: |
         docker build -t google-workspace-mcp:test .
-        mkdir -p test-config test-workspace
         docker run --rm \
-          -v $(pwd)/test-config:/app/config \
-          -v $(pwd)/test-workspace:/app/workspace \
-          -e GOOGLE_CLIENT_ID=test \
-          -e GOOGLE_CLIENT_SECRET=test \
+          -e GOOGLE_CLIENT_ID=test-id \
+          -e GOOGLE_CLIENT_SECRET=test-secret \
           -e LOG_MODE=strict \
           google-workspace-mcp:test --version
 
