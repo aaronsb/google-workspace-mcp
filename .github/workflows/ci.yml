@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Create test directories
+      run: |
+        mkdir -p test-config
+        mkdir -p test-workspace/shared/temp
+        chmod -R 750 test-config test-workspace
+
+    - name: Run tests
+      run: npm test
+      env:
+        GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+        GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        CONFIG_DIR: ./test-config
+        WORKSPACE_BASE_PATH: ./test-workspace
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build
+      run: npm run build
+
+    - name: Test Docker build
+      run: |
+        docker build -t google-workspace-mcp:test .
+        mkdir -p test-config test-workspace
+        docker run --rm \
+          -v $(pwd)/test-config:/app/config \
+          -v $(pwd)/test-workspace:/app/workspace \
+          -e GOOGLE_CLIENT_ID=test \
+          -e GOOGLE_CLIENT_SECRET=test \
+          -e LOG_MODE=strict \
+          google-workspace-mcp:test --version
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run ESLint
+      run: npm run lint

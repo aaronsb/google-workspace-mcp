@@ -20,9 +20,13 @@ Want to find that important email from last month? Need to schedule a team meeti
    → Create OAuth Desktop Client ID and Secret
    ```
 
-2. Create config directory:
+2. Create required directories:
    ```bash
+   # Create config directory
    mkdir -p ~/.mcp/google-workspace-mcp
+   
+   # Create workspace files directory (recommended)
+   mkdir -p ~/Documents/workspace-mcp-files
    ```
 
 3. Add to Cline settings (e.g., `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`):
@@ -36,6 +40,7 @@ Want to find that important email from last month? Need to schedule a team meeti
            "--rm",
            "-i",
            "-v", "/home/aaron/.mcp/google-workspace-mcp:/app/config",
+           "-v", "/home/aaron/Documents/workspace-mcp-files:/app/workspace",
            "-e", "GOOGLE_CLIENT_ID",
            "-e", "GOOGLE_CLIENT_SECRET",
            "-e", "LOG_MODE=strict",
@@ -116,13 +121,38 @@ Add the following configuration to your Cline MCP settings:
 }
 ```
 
+### File Management
+
+The server uses a structured approach to manage files:
+
+```
+~/Documents/workspace-mcp-files/
+├── [email_1@domain.com]/
+│   ├── downloads/        # Files downloaded from Drive
+│   └── uploads/         # Files staged for upload
+├── [email_2@domain.com]/
+│   ├── downloads/
+│   └── uploads/
+└── shared/
+    └── temp/           # Temporary files (cleaned up automatically)
+```
+
+This structure ensures:
+- Clear separation of files by user email
+- Organized storage of downloaded and uploaded files
+- Proper cleanup of temporary files
+- Consistent file management across installations
+
+You can customize the workspace location by setting the `WORKSPACE_BASE_PATH` environment variable.
+
 ### Manual Usage
 
-You can also run the container directly:
+You can run the container directly:
 
 ```bash
 docker run -i --rm \
   -v ~/.mcp/google-workspace-mcp:/app/config \
+  -v ~/Documents/workspace-mcp-files:/app/workspace \
   -e GOOGLE_CLIENT_ID=123456789012-abcdef3gh1jklmn2pqrs4uvw5xyz6789.apps.googleusercontent.com \
   -e GOOGLE_CLIENT_SECRET=GOCSPX-abcdefghijklmnopqrstuvwxyz1234 \
   -e LOG_MODE=strict \
@@ -145,6 +175,7 @@ docker build -t google-workspace-mcp:local .
 # Run with required environment variables
 docker run -i --rm \
   -v ~/.mcp/google-workspace-mcp:/app/config \
+  -v ~/Documents/workspace-mcp-files:/app/workspace \
   -e GOOGLE_CLIENT_ID=123456789012-abcdef3gh1jklmn2pqrs4uvw5xyz6789.apps.googleusercontent.com \
   -e GOOGLE_CLIENT_SECRET=GOCSPX-abcdefghijklmnopqrstuvwxyz1234 \
   -e LOG_MODE=strict \

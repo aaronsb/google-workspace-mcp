@@ -1,8 +1,11 @@
 import { drive_v3, google } from 'googleapis';
+import { GaxiosResponse } from 'gaxios';
 import { GoogleServiceError, BaseGoogleService } from '../../services/base/BaseGoogleService.js';
 import { DriveFile, DriveFileList, DriveOperationResult, FileDownloadOptions, FileListOptions, FileSearchOptions, FileUploadOptions, PermissionOptions } from './types.js';
 import { Readable } from 'stream';
 import { DRIVE_SCOPES } from './scopes.js';
+import { workspaceManager } from '../../utils/workspace.js';
+import fs from 'fs/promises';
 
 export class DriveService extends BaseGoogleService<drive_v3.Drive> {
   constructor() {
@@ -58,9 +61,14 @@ export class DriveService extends BaseGoogleService<drive_v3.Drive> {
         (auth) => google.drive({ version: 'v3', auth })
       );
 
+      // Save content to workspace first
+      const uploadPath = await workspaceManager.getUploadPath(email, options.name);
+      await fs.writeFile(uploadPath, options.content);
+
+      const fileContent = await fs.readFile(uploadPath);
       const media = {
         mimeType: options.mimeType || 'application/octet-stream',
-        body: Readable.from([options.content]),
+        body: Readable.from([fileContent]),
       };
 
       const response = await client.files.create({
@@ -93,11 +101,13 @@ export class DriveService extends BaseGoogleService<drive_v3.Drive> {
         (auth) => google.drive({ version: 'v3', auth })
       );
 
-      // First get file metadata to check mime type
+      // First get file metadata to check mime type and name
       const file = await client.files.get({
         fileId: options.fileId,
-        fields: 'mimeType',
+        fields: 'name,mimeType',
       });
+
+      const fileName = file.data.name || options.fileId;
 
       // Handle Google Workspace files differently
       if (file.data.mimeType?.startsWith('application/vnd.google-apps')) {
@@ -121,29 +131,39 @@ export class DriveService extends BaseGoogleService<drive_v3.Drive> {
           }
         }
 
-        const response = await client.files.export(
-          { fileId: options.fileId, mimeType: exportMimeType },
-          { responseType: 'arraybuffer' }
-        );
+        const response = await client.files.export({
+          fileId: options.fileId,
+          mimeType: exportMimeType
+        }, {
+          responseType: 'arraybuffer'
+        }) as unknown as GaxiosResponse<Uint8Array>;
+
+        const downloadPath = await workspaceManager.getDownloadPath(email, fileName);
+        await fs.writeFile(downloadPath, Buffer.from(response.data));
 
         return {
           success: true,
           data: response.data,
-          mimeType: exportMimeType
+          mimeType: exportMimeType,
+          filePath: downloadPath
         };
       }
 
       // For regular files
       const response = await client.files.get({
         fileId: options.fileId,
-        alt: 'media',
+        alt: 'media'
       }, {
-        responseType: 'arraybuffer',
-      });
+        responseType: 'arraybuffer'
+      }) as unknown as GaxiosResponse<Uint8Array>;
+
+      const downloadPath = await workspaceManager.getDownloadPath(email, fileName);
+      await fs.writeFile(downloadPath, Buffer.from(response.data));
 
       return {
         success: true,
         data: response.data,
+        filePath: downloadPath
       };
     } catch (error) {
       return {

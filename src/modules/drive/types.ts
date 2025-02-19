@@ -43,5 +43,6 @@ export interface DriveOperationResult {
   success: boolean;
   data?: any;
   error?: string;
-  mimeType?: string;  // For downloaded/exported files
+  mimeType?: string;
+  filePath?: string;
 }

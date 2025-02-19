@@ -30,8 +30,13 @@ if [ -z "$GOOGLE_CLIENT_SECRET" ]; then
     exit 1
 fi
 
-# Ensure config directories exist with proper permissions
-for dir in "/app/config" "/app/config/credentials"; do
+# Set default workspace path if not provided
+if [ -z "$WORKSPACE_BASE_PATH" ]; then
+    export WORKSPACE_BASE_PATH="/app/workspace"
+fi
+
+# Ensure required directories exist with proper permissions
+for dir in "/app/config" "/app/config/credentials" "$WORKSPACE_BASE_PATH" "$WORKSPACE_BASE_PATH/shared/temp"; do
     if [ ! -d "$dir" ]; then
         log_info "Creating directory: $dir"
         mkdir -p "$dir" || {
@@ -75,9 +80,10 @@ if [ ! -d "$LOGS_DIR" ]; then
     chmod 750 "$LOGS_DIR" || log_info "Logs directory permissions will be set by Docker volume mount"
 fi
 
-# Set MCP mode environment variable
+# Set environment variables
 export MCP_MODE=true
 export LOG_FILE="/app/logs/google-workspace-mcp.log"
+export WORKSPACE_BASE_PATH="$WORKSPACE_BASE_PATH"
 
 # Execute the main application
 exec node build/index.js
