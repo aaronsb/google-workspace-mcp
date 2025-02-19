@@ -16,19 +16,15 @@ import {
   GetDraftsResponse,
   SendDraftParams,
   Label,
-  GetLabelsParams,
   GetLabelsResponse,
-  CreateLabelParams,
-  UpdateLabelParams,
-  DeleteLabelParams,
-  ModifyMessageLabelsParams,
-  CreateLabelFilterParams,
-  UpdateLabelFilterParams,
-  DeleteLabelFilterParams,
-  GetLabelFiltersParams,
-  GetLabelFiltersResponse,
   LabelFilter
 } from '../types.js';
+
+import {
+  ManageLabelParams,
+  ManageLabelAssignmentParams,
+  ManageLabelFilterParams
+} from './label.js';
 import { EmailService } from './email.js';
 import { SearchService } from './search.js';
 import { DraftService } from './draft.js';
@@ -144,58 +140,22 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
     return this.settingsService.getWorkspaceGmailSettings(params);
   }
 
-  async getLabels(params: GetLabelsParams): Promise<GetLabelsResponse> {
+  // Consolidated Label Management Methods
+  async manageLabel(params: ManageLabelParams): Promise<Label | GetLabelsResponse | void> {
     this.ensureServices();
     await this.getGmailClient(params.email);
-    return this.labelService.getLabels(params);
+    return this.labelService.manageLabel(params);
   }
 
-  async createLabel(params: CreateLabelParams): Promise<Label> {
+  async manageLabelAssignment(params: ManageLabelAssignmentParams): Promise<void> {
     this.ensureServices();
     await this.getGmailClient(params.email);
-    return this.labelService.createLabel(params);
+    return this.labelService.manageLabelAssignment(params);
   }
 
-  async updateLabel(params: UpdateLabelParams): Promise<Label> {
+  async manageLabelFilter(params: ManageLabelFilterParams): Promise<LabelFilter | GetLabelsResponse | void> {
     this.ensureServices();
     await this.getGmailClient(params.email);
-    return this.labelService.updateLabel(params);
-  }
-
-  async deleteLabel(params: DeleteLabelParams): Promise<void> {
-    this.ensureServices();
-    await this.getGmailClient(params.email);
-    return this.labelService.deleteLabel(params);
-  }
-
-  async modifyMessageLabels(params: ModifyMessageLabelsParams): Promise<void> {
-    this.ensureServices();
-    await this.getGmailClient(params.email);
-    return this.labelService.modifyMessageLabels(params);
-  }
-
-  // Label Filter Methods
-  async createLabelFilter(params: CreateLabelFilterParams): Promise<LabelFilter> {
-    this.ensureServices();
-    await this.getGmailClient(params.email);
-    return this.filterService.createFilter(params);
-  }
-
-  async getLabelFilters(params: GetLabelFiltersParams): Promise<GetLabelFiltersResponse> {
-    this.ensureServices();
-    await this.getGmailClient(params.email);
-    return this.filterService.getFilters(params);
-  }
-
-  async updateLabelFilter(params: UpdateLabelFilterParams): Promise<LabelFilter> {
-    this.ensureServices();
-    await this.getGmailClient(params.email);
-    return this.filterService.updateFilter(params);
-  }
-
-  async deleteLabelFilter(params: DeleteLabelFilterParams): Promise<void> {
-    this.ensureServices();
-    await this.getGmailClient(params.email);
-    return this.filterService.deleteFilter(params);
+    return this.labelService.manageLabelFilter(params);
   }
 }

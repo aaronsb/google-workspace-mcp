@@ -7,16 +7,14 @@ import {
   SendEmailArgs,
   CreateDraftArgs,
   ListDraftsArgs,
-  SendDraftArgs,
-  CreateLabelArgs,
-  UpdateLabelArgs,
-  DeleteLabelArgs,
-  ModifyLabelsArgs,
-  CreateLabelFilterArgs,
-  GetLabelFiltersArgs,
-  UpdateLabelFilterArgs,
-  DeleteLabelFilterArgs
+  SendDraftArgs
 } from './types.js';
+
+import {
+  ManageLabelParams,
+  ManageLabelAssignmentParams,
+  ManageLabelFilterParams
+} from '../modules/gmail/types.js';
 
 /**
  * Search emails in a Gmail account with advanced filtering
@@ -162,11 +160,11 @@ export async function handleSendWorkspaceDraft(args: SendDraftArgs): Promise<Mcp
 }
 
 // Label Management Handlers
-export async function handleGetWorkspaceLabels(args: BaseToolArguments): Promise<McpToolResponse> {
+export async function handleManageWorkspaceLabel(args: ManageLabelParams): Promise<McpToolResponse> {
   const accountManager = getAccountManager();
   
   return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getGmailService().getLabels({ email: args.email });
+    const result = await getGmailService().manageLabel(args);
     return {
       content: [{
         type: 'text',
@@ -176,191 +174,32 @@ export async function handleGetWorkspaceLabels(args: BaseToolArguments): Promise
   });
 }
 
-
-/**
- * Create a new Gmail label
- * @param args.email - Gmail account to create label in
- * @param args.name - Label name (use "/" for nesting, e.g. "Work/Projects")
- * @param args.messageListVisibility - Label visibility in message list
- * @param args.labelListVisibility - Label visibility in label list
- * @param args.color - Optional color settings (hex codes)
- * @returns Created label ID and full details
- * @throws {McpError} If label creation fails or name invalid
- */
-export async function handleCreateWorkspaceLabel(args: CreateLabelArgs): Promise<McpToolResponse> {
+export async function handleManageWorkspaceLabelAssignment(args: ManageLabelAssignmentParams): Promise<McpToolResponse> {
   const accountManager = getAccountManager();
   
   return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getGmailService().createLabel(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(result, null, 2)
-      }]
-    };
-  });
-}
-
-
-/**
- * Update an existing Gmail label
- * @param args - Same parameters as CreateLabelArgs plus:
- * @param args.labelId - ID of the label to update
- * @returns Updated label details
- * @throws {McpError} If update fails or label not found
- */
-export async function handleUpdateWorkspaceLabel(args: UpdateLabelArgs): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getGmailService().updateLabel(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(result, null, 2)
-      }]
-    };
-  });
-}
-
-
-/**
- * Delete a Gmail label
- * @param args.email - Gmail account containing the label
- * @param args.labelId - ID of the label to delete
- * @returns Success message
- * @throws {McpError} If deletion fails or label not found
- */
-export async function handleDeleteWorkspaceLabel(args: DeleteLabelArgs): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    await getGmailService().deleteLabel(args);
+    await getGmailService().manageLabelAssignment(args);
     return {
       content: [{
         type: 'text',
         text: JSON.stringify({
           status: 'success',
-          message: `Successfully deleted label ${args.labelId}`
+          message: `Successfully ${args.action === 'add' ? 'added' : 'removed'} labels for message ${args.messageId}`
         }, null, 2)
       }]
     };
   });
 }
 
-
-/**
- * Add or remove labels from a Gmail message
- * @param args.email - Gmail account containing the message
- * @param args.messageId - ID of the message to modify
- * @param args.addLabelIds - Label IDs to add to the message
- * @param args.removeLabelIds - Label IDs to remove from the message
- * @returns Success message
- * @throws {McpError} If modification fails or message not found
- */
-export async function handleModifyWorkspaceMessageLabels(args: ModifyLabelsArgs): Promise<McpToolResponse> {
+export async function handleManageWorkspaceLabelFilter(args: ManageLabelFilterParams): Promise<McpToolResponse> {
   const accountManager = getAccountManager();
   
   return await accountManager.withTokenRenewal(args.email, async () => {
-    await getGmailService().modifyMessageLabels(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          status: 'success',
-          message: `Successfully modified labels for message ${args.messageId}`
-        }, null, 2)
-      }]
-    };
-  });
-}
-
-/**
- * Create a new filter for a Gmail label
- * @param args.email - Gmail account to create filter in
- * @param args.labelId - ID of the label to apply
- * @param args.criteria - Filter matching criteria
- * @param args.actions - Actions to take when filter matches
- * @returns Created filter details
- * @throws {McpError} If filter creation fails
- */
-export async function handleCreateWorkspaceLabelFilter(args: CreateLabelFilterArgs): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getGmailService().createLabelFilter(args);
+    const result = await getGmailService().manageLabelFilter(args);
     return {
       content: [{
         type: 'text',
         text: JSON.stringify(result, null, 2)
-      }]
-    };
-  });
-}
-
-/**
- * Get filters for a Gmail label
- * @param args.email - Gmail account to get filters from
- * @param args.labelId - Optional: get filters for specific label only
- * @returns List of matching filters
- * @throws {McpError} If filter retrieval fails
- */
-export async function handleGetWorkspaceLabelFilters(args: GetLabelFiltersArgs): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getGmailService().getLabelFilters(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(result, null, 2)
-      }]
-    };
-  });
-}
-
-/**
- * Update an existing Gmail label filter
- * @param args.email - Gmail account containing the filter
- * @param args.filterId - ID of filter to update
- * @param args.criteria - New filter criteria
- * @param args.actions - New filter actions
- * @returns Updated filter details
- * @throws {McpError} If update fails or filter not found
- */
-export async function handleUpdateWorkspaceLabelFilter(args: UpdateLabelFilterArgs): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getGmailService().updateLabelFilter(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(result, null, 2)
-      }]
-    };
-  });
-}
-
-/**
- * Delete a Gmail label filter
- * @param args.email - Gmail account containing the filter
- * @param args.filterId - ID of filter to delete
- * @returns Success message
- * @throws {McpError} If deletion fails or filter not found
- */
-export async function handleDeleteWorkspaceLabelFilter(args: DeleteLabelFilterArgs): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    await getGmailService().deleteLabelFilter(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          status: 'success',
-          message: `Successfully deleted filter ${args.filterId}`
-        }, null, 2)
       }]
     };
   });

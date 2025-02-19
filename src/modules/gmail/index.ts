@@ -32,8 +32,8 @@ export function getGmailService(): GmailService {
   return gmailService;
 }
 
+export { GmailService } from './service.js';
 export {
-  GmailService,
   GetEmailsParams,
   SendEmailParams,
   EmailResponse,
@@ -41,5 +41,12 @@ export {
   GetGmailSettingsParams,
   GetGmailSettingsResponse,
   GmailError,
-  GmailModuleConfig
-};
+  GmailModuleConfig,
+  // Label management types
+  ManageLabelParams,
+  ManageLabelAssignmentParams,
+  ManageLabelFilterParams,
+  LabelAction,
+  LabelAssignmentAction,
+  LabelFilterAction
+} from './types.js';

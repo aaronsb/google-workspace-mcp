@@ -256,3 +256,10 @@ export interface UpdateLabelFilterArgs extends BaseToolArguments {
 export interface DeleteLabelFilterArgs extends BaseToolArguments {
   filterId: string;
 }
+
+// Re-export consolidated label management types
+export {
+  ManageLabelParams,
+  ManageLabelAssignmentParams,
+  ManageLabelFilterParams
+} from '../modules/gmail/types.js';

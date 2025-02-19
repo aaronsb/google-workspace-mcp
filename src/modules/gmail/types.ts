@@ -271,8 +271,9 @@ export interface CreateLabelFilterParams {
 export interface UpdateLabelFilterParams {
   email: string;
   filterId: string;
-  criteria?: LabelFilterCriteria;
-  actions?: LabelFilterActions;
+  labelId: string;
+  criteria: LabelFilterCriteria;
+  actions: LabelFilterActions;
 }
 
 /**
@@ -297,6 +298,16 @@ export interface GetLabelFiltersParams {
 export interface GetLabelFiltersResponse {
   filters: LabelFilter[];
 }
+
+// Re-export label management types
+export {
+  LabelAction,
+  LabelAssignmentAction,
+  LabelFilterAction,
+  ManageLabelParams,
+  ManageLabelAssignmentParams,
+  ManageLabelFilterParams
+} from './services/label.js';
 
 export class GmailError extends Error {
   constructor(

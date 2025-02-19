@@ -28,15 +28,9 @@ import {
   handleCreateWorkspaceDraft,
   handleGetWorkspaceDrafts,
   handleSendWorkspaceDraft,
-  handleGetWorkspaceLabels,
-  handleCreateWorkspaceLabel,
-  handleUpdateWorkspaceLabel,
-  handleDeleteWorkspaceLabel,
-  handleModifyWorkspaceMessageLabels,
-  handleCreateWorkspaceLabelFilter,
-  handleGetWorkspaceLabelFilters,
-  handleUpdateWorkspaceLabelFilter,
-  handleDeleteWorkspaceLabelFilter
+  handleManageWorkspaceLabel,
+  handleManageWorkspaceLabelAssignment,
+  handleManageWorkspaceLabelFilter
 } from './gmail-handlers.js';
 
 import {
@@ -66,15 +60,10 @@ import {
   SendEmailArgs,
   CreateDraftArgs,
   SendDraftArgs,
-  CreateLabelArgs,
-  UpdateLabelArgs,
-  DeleteLabelArgs,
-  ModifyLabelsArgs,
   AuthenticateAccountArgs,
-  CreateLabelFilterArgs,
-  GetLabelFiltersArgs,
-  UpdateLabelFilterArgs,
-  DeleteLabelFilterArgs
+  ManageLabelParams,
+  ManageLabelAssignmentParams,
+  ManageLabelFilterParams
 } from './types.js';
 
 import {
@@ -84,14 +73,9 @@ import {
   assertSendEmailArgs,
   assertCreateDraftArgs,
   assertSendDraftArgs,
-  assertCreateLabelArgs,
-  assertUpdateLabelArgs,
-  assertDeleteLabelArgs,
-  assertModifyLabelsArgs,
-  assertCreateLabelFilterArgs,
-  assertGetLabelFiltersArgs,
-  assertUpdateLabelFilterArgs,
-  assertDeleteLabelFilterArgs
+  assertManageLabelParams,
+  assertManageLabelAssignmentParams,
+  assertManageLabelFilterParams
 } from './type-guards.js';
 
 export class GSuiteServer {
@@ -219,35 +203,15 @@ export class GSuiteServer {
             return await handleDeleteWorkspaceCalendarEvent(args);
 
           // Label Management
-          case 'get_workspace_labels':
-            assertBaseToolArguments(args);
-            return await handleGetWorkspaceLabels(args);
-          case 'create_workspace_label':
-            assertCreateLabelArgs(args);
-            return await handleCreateWorkspaceLabel(args as CreateLabelArgs);
-          case 'update_workspace_label':
-            assertUpdateLabelArgs(args);
-            return await handleUpdateWorkspaceLabel(args as UpdateLabelArgs);
-          case 'delete_workspace_label':
-            assertDeleteLabelArgs(args);
-            return await handleDeleteWorkspaceLabel(args as DeleteLabelArgs);
-          case 'modify_workspace_message_labels':
-            assertModifyLabelsArgs(args);
-            return await handleModifyWorkspaceMessageLabels(args as ModifyLabelsArgs);
-            
-          // Label Filter Operations
-          case 'create_workspace_label_filter':
-            assertCreateLabelFilterArgs(args);
-            return await handleCreateWorkspaceLabelFilter(args as CreateLabelFilterArgs);
-          case 'get_workspace_label_filters':
-            assertGetLabelFiltersArgs(args);
-            return await handleGetWorkspaceLabelFilters(args as GetLabelFiltersArgs);
-          case 'update_workspace_label_filter':
-            assertUpdateLabelFilterArgs(args);
-            return await handleUpdateWorkspaceLabelFilter(args as UpdateLabelFilterArgs);
-          case 'delete_workspace_label_filter':
-            assertDeleteLabelFilterArgs(args);
-            return await handleDeleteWorkspaceLabelFilter(args as DeleteLabelFilterArgs);
+          case 'manage_workspace_label':
+            assertManageLabelParams(args);
+            return await handleManageWorkspaceLabel(args);
+          case 'manage_workspace_label_assignment':
+            assertManageLabelAssignmentParams(args);
+            return await handleManageWorkspaceLabelAssignment(args);
+          case 'manage_workspace_label_filter':
+            assertManageLabelFilterParams(args);
+            return await handleManageWorkspaceLabelFilter(args);
 
           default:
             throw new Error(`Unknown tool: ${request.params.name}`);
