@@ -2,9 +2,19 @@ import { DriveService } from '../service.js';
 import { getAccountManager } from '../../accounts/index.js';
 import { DRIVE_SCOPES } from '../scopes.js';
 import { GoogleServiceError } from '../../../services/base/BaseGoogleService.js';
+import { mockFileSystem } from '../../../__helpers__/testSetup.js';
 
 jest.mock('../../accounts/index.js');
 jest.mock('googleapis');
+jest.mock('../../../utils/workspace.js', () => ({
+  workspaceManager: {
+    getUploadPath: jest.fn().mockResolvedValue('/tmp/test-upload.txt'),
+    getDownloadPath: jest.fn().mockResolvedValue('/tmp/test-download.txt'),
+    initializeAccountDirectories: jest.fn().mockResolvedValue(undefined)
+  }
+}));
+
+const { fs } = mockFileSystem();
 
 describe('DriveService', () => {
   const testEmail = 'test@example.com';
@@ -13,6 +23,10 @@ describe('DriveService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+
+    // Mock file system operations
+    fs.writeFile.mockResolvedValue(undefined);
+    fs.readFile.mockResolvedValue(Buffer.from('test content'));
     
     // Mock account manager
     (getAccountManager as jest.Mock).mockReturnValue({
