@@ -70,10 +70,11 @@ Before using this MCP server, you must set up your own Google Cloud Project with
 2. Enable the required APIs:
    - Gmail API
    - Google Calendar API
+   - Google Drive API
 3. Configure the OAuth consent screen:
    - Set up as "External"
    - Add yourself as a test user
-   - Add required scopes for Gmail and Calendar
+   - Add required scopes for Gmail, Calendar, and Drive
 4. Create OAuth 2.0 credentials:
    - Choose "Desktop application" type
    - Note your Client ID and Client Secret
@@ -276,12 +277,68 @@ docker run -i --rm \
   - Delete calendar events
   - Notification options for attendees
 
+### Drive Operations
+
+#### File Management
+- `list_drive_files` (aliases: list_files, get_files, show_files)
+  - List files with optional filtering
+  - Filter by folder
+  - Custom query support
+  - Sorting and pagination
+  - Field selection
+
+- `search_drive_files` (aliases: search_files, find_files, query_files)
+  - Full text search across file content
+  - Filter by MIME type
+  - Filter by folder
+  - Include/exclude trashed files
+  - Advanced query options
+
+- `upload_drive_file` (aliases: upload_file, create_file, add_file)
+  - Upload new files
+  - Set file metadata
+  - Specify parent folders
+  - Support for various file types
+
+- `download_drive_file` (aliases: download_file, get_file_content, fetch_file)
+  - Download any file type
+  - Export Google Workspace files
+  - Format conversion options
+  - Automatic MIME type handling
+
+- `delete_drive_file` (aliases: delete_file, remove_file, trash_file)
+  - Delete files and folders
+  - Clean removal from Drive
+
+#### Folder Operations
+- `create_drive_folder` (aliases: create_folder, new_folder, add_folder)
+  - Create new folders
+  - Nested folder support
+  - Parent folder specification
+  - Folder metadata
+
+#### Permissions
+- `update_drive_permissions` (aliases: share_file, update_sharing, modify_permissions)
+  - Update sharing settings
+  - Multiple permission types:
+    - User permissions
+    - Group permissions
+    - Domain sharing
+    - Public access
+  - Various access roles:
+    - Owner
+    - Organizer
+    - File Organizer
+    - Writer
+    - Commenter
+    - Reader
+  - Discovery settings for public files
+
 See [API Documentation](docs/API.md) for detailed usage.
 
 ## Coming Soon
 
 ### Future Services
-- Drive API integration
 - Admin SDK support
 - Additional Google services
 
