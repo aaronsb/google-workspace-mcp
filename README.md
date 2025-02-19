@@ -29,16 +29,18 @@ A Model Context Protocol (MCP) server that provides authenticated access to Goog
        "google-workspace-mcp": {
          "command": "docker",
          "args": [
-           "run", "--rm", "-i",
-           "-v", "${HOME}/.mcp/google-workspace-mcp:/app/config",
+           "run",
+           "--rm",
+           "-i",
+           "-v", "/home/aaron/.mcp/google-workspace-mcp:/app/config",
            "-e", "GOOGLE_CLIENT_ID",
            "-e", "GOOGLE_CLIENT_SECRET",
+           "-e", "LOG_MODE=strict",
            "ghcr.io/aaronsb/google-workspace-mcp:latest"
          ],
          "env": {
-           "GOOGLE_CLIENT_ID": "YOUR_CLIENT_ID_HERE.apps.googleusercontent.com",
-           "GOOGLE_CLIENT_SECRET": "YOUR_CLIENT_SECRET_HERE",
-           "LOG_MODE": "strict"  // For Claude desktop compatibility
+           "GOOGLE_CLIENT_ID": "123456789012-abcdef3gh1jklmn2pqrs4uvw5xyz6789.apps.googleusercontent.com",
+           "GOOGLE_CLIENT_SECRET": "GOCSPX-abcdefghijklmnopqrstuvwxyz1234"
          },
          "autoApprove": [],
          "disabled": false
@@ -93,16 +95,15 @@ Add the following configuration to your Cline MCP settings:
         "run",
         "--rm",
         "-i",
-        "-v", "${HOME}/.mcp/google-workspace-mcp:/app/config",
+        "-v", "/home/aaron/.mcp/google-workspace-mcp:/app/config",
         "-e", "GOOGLE_CLIENT_ID",
         "-e", "GOOGLE_CLIENT_SECRET",
-        "-e", "GOOGLE_REDIRECT_URI",
+        "-e", "LOG_MODE=strict",
         "ghcr.io/aaronsb/google-workspace-mcp:latest"
       ],
       "env": {
-        "GOOGLE_CLIENT_ID": "YOUR_CLIENT_ID_HERE.apps.googleusercontent.com",
-        "GOOGLE_CLIENT_SECRET": "YOUR_CLIENT_SECRET_HERE",
-        "GOOGLE_REDIRECT_URI": "urn:ietf:wg:oauth:2.0:oob"
+        "GOOGLE_CLIENT_ID": "123456789012-abcdef3gh1jklmn2pqrs4uvw5xyz6789.apps.googleusercontent.com",
+        "GOOGLE_CLIENT_SECRET": "GOCSPX-abcdefghijklmnopqrstuvwxyz1234"
       },
       "autoApprove": [],
       "disabled": false
@@ -118,9 +119,9 @@ You can also run the container directly:
 ```bash
 docker run -i --rm \
   -v ~/.mcp/google-workspace-mcp:/app/config \
-  -e GOOGLE_CLIENT_ID=YOUR_CLIENT_ID_HERE.apps.googleusercontent.com \
-  -e GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET_HERE \
-  -e GOOGLE_REDIRECT_URI=urn:ietf:wg:oauth:2.0:oob \
+  -e GOOGLE_CLIENT_ID=123456789012-abcdef3gh1jklmn2pqrs4uvw5xyz6789.apps.googleusercontent.com \
+  -e GOOGLE_CLIENT_SECRET=GOCSPX-abcdefghijklmnopqrstuvwxyz1234 \
+  -e LOG_MODE=strict \
   ghcr.io/aaronsb/google-workspace-mcp:latest
 ```
 
@@ -140,31 +141,137 @@ docker build -t google-workspace-mcp:local .
 # Run with required environment variables
 docker run -i --rm \
   -v ~/.mcp/google-workspace-mcp:/app/config \
-  -e GOOGLE_CLIENT_ID=YOUR_CLIENT_ID_HERE \
-  -e GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET_HERE \
-  -e GOOGLE_REDIRECT_URI=urn:ietf:wg:oauth:2.0:oob \
+  -e GOOGLE_CLIENT_ID=123456789012-abcdef3gh1jklmn2pqrs4uvw5xyz6789.apps.googleusercontent.com \
+  -e GOOGLE_CLIENT_SECRET=GOCSPX-abcdefghijklmnopqrstuvwxyz1234 \
+  -e LOG_MODE=strict \
   google-workspace-mcp:local
 ```
 
 ## Available Tools
 
 ### Account Management
-- `list_workspace_accounts`: List all configured Google accounts and their authentication status
-- `authenticate_workspace_account`: Add and authenticate a Google account for API access
-- `remove_workspace_account`: Remove a Google account and delete its associated authentication tokens
+- `list_workspace_accounts` (aliases: list_accounts, get_accounts, show_accounts)
+  - List all configured Google accounts and authentication status
+  - Must be called first before other operations
+  - Validates required API scopes
+  - Handles multiple account selection
+
+- `authenticate_workspace_account` (aliases: auth_account, add_account, connect_account)
+  - Add and authenticate Google accounts for API access
+  - Supports account categorization (work, personal)
+  - Handles OAuth flow with user interaction
+  - Manages token refresh automatically
+
+- `remove_workspace_account` (aliases: delete_account, disconnect_account, remove_account)
+  - Remove Google accounts and associated tokens
+  - Clean up stored credentials
 
 ### Gmail Operations
-- `search_workspace_emails`: Search emails with advanced filtering (by sender, recipient, subject, content, date, labels, etc.)
-- `send_workspace_email`: Send emails with support for CC/BCC recipients
-- `get_workspace_gmail_settings`: Get Gmail settings and profile information
-- `create_workspace_draft`: Create new email drafts with support for replies and threading
-- `get_workspace_drafts`: Get a list of email drafts
-- `send_workspace_draft`: Send an existing draft
+
+#### Messages and Search
+- `search_workspace_emails` (aliases: search_emails, find_emails, query_emails)
+  - Advanced email filtering capabilities:
+    - Sender/recipient filtering
+    - Subject and content search
+    - Date range filtering
+    - Attachment presence
+    - Label-based filtering
+    - Complex Gmail query syntax support
+  - Common search patterns for:
+    - Meeting emails
+    - HR/Admin communications
+    - Team updates
+    - Newsletters
+
+- `send_workspace_email` (aliases: send_email, send_mail, create_email)
+  - Send emails with full formatting
+  - Support for CC/BCC recipients
+  - Attachment handling
+  - Email threading support
+
+#### Settings and Configuration
+- `get_workspace_gmail_settings` (aliases: get_gmail_settings, gmail_settings, get_mail_settings)
+  - Access account settings
+  - Language preferences
+  - Signature configuration
+  - Vacation responder status
+  - Filter and forwarding rules
+
+#### Draft Management
+- `manage_workspace_draft` (aliases: manage_draft, draft_operation, handle_draft)
+  - Complete draft CRUD operations:
+    - Create new drafts
+    - Read existing drafts
+    - Update draft content
+    - Delete drafts
+    - Send drafts
+  - Support for:
+    - New email drafts
+    - Reply drafts with threading
+    - Draft modifications
+    - Draft sending
+
+#### Label Management
+- `manage_workspace_label` (aliases: manage_label, label_operation, handle_label)
+  - Full label CRUD operations
+  - Support for nested labels
+  - Custom color configuration
+  - Visibility settings
+
+- `manage_workspace_label_assignment` (aliases: assign_label, modify_message_labels, change_message_labels)
+  - Apply/remove labels from messages
+  - Batch label modifications
+  - System label updates
+
+- `manage_workspace_label_filter` (aliases: manage_filter, handle_filter, filter_operation)
+  - Create and manage label filters
+  - Complex filtering criteria:
+    - Sender/recipient patterns
+    - Subject/content matching
+    - Attachment presence
+    - Message size rules
+  - Automated actions:
+    - Label application
+    - Importance marking
+    - Read status
+    - Archiving
 
 ### Calendar Operations
-- `list_workspace_calendar_events`: Get calendar events with optional filtering by date range and search terms
-- `get_workspace_calendar_event`: Get detailed information about a specific calendar event
-- `create_workspace_calendar_event`: Create new calendar events with optional attendees
+
+#### Event Management
+- `list_workspace_calendar_events` (aliases: list_events, get_events, show_events)
+  - List calendar events with filtering
+  - Date range specification
+  - Text search within events
+  - Customizable result limits
+
+- `get_workspace_calendar_event` (aliases: get_event, view_event, show_event)
+  - Detailed event information
+  - Attendee status
+  - Event settings
+
+- `manage_workspace_calendar_event` (aliases: manage_event, update_event, respond_to_event)
+  - Event response management:
+    - Accept/Decline invitations
+    - Mark as tentative
+    - Propose new times
+    - Update event times
+  - Comment support
+  - Time zone handling
+
+- `create_workspace_calendar_event` (aliases: create_event, new_event, schedule_event)
+  - Create new calendar events
+  - Support for:
+    - Single events
+    - Recurring events (RRULE format)
+    - Multiple attendees
+    - Time zone specification
+    - Event description
+    - Conflict checking
+
+- `delete_workspace_calendar_event` (aliases: delete_event, remove_event, cancel_event)
+  - Delete calendar events
+  - Notification options for attendees
 
 See [API Documentation](docs/API.md) for detailed usage.
 
