@@ -292,103 +292,33 @@ export const gmailTools: ToolMetadata[] = [
     }
   },
   {
-    name: 'create_workspace_draft',
+    name: 'manage_workspace_draft',
     category: 'Gmail/Drafts',
-    description: `Create a new email draft, with support for both new emails and replies.
+    description: `Manage Gmail drafts with CRUD operations and sending.
     
-    IMPORTANT: Before creating drafts:
-    1. Verify account access with list_workspace_accounts
-    2. Confirm account choice if multiple exist
-    3. Gather all required content
-    
-    Common Patterns:
-    - New Email Draft:
-      1. Collect recipient, subject, body
-      2. Save as draft for user review in their own inbox interface
-    
-    - Reply Draft:
-      1. Verify original message exists
-      2. Include proper threading info
-      3. Maintain conversation context
-    
-    Example Flow:
-    1. User requests draft creation
-    2. Check account access
-    3. Collect email details
-    4. Create draft
-    5. Confirm draft saved successfully`,
-    aliases: ['create_draft', 'new_draft', 'save_draft'],
-    inputSchema: {
-      type: 'object',
-      properties: {
-        email: {
-          type: 'string',
-          description: 'Email address of the Gmail account'
-        },
-        to: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'List of recipient email addresses'
-        },
-        subject: {
-          type: 'string',
-          description: 'Email subject'
-        },
-        body: {
-          type: 'string',
-          description: 'Email body content'
-        },
-        cc: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'List of CC recipient email addresses'
-        },
-        bcc: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'List of BCC recipient email addresses'
-        },
-        replyToMessageId: {
-          type: 'string',
-          description: 'Message ID to reply to (for creating reply drafts)'
-        },
-        threadId: {
-          type: 'string',
-          description: 'Thread ID for the email (optional for replies)'
-        },
-        references: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Reference message IDs for email threading'
-        },
-        inReplyTo: {
-          type: 'string',
-          description: 'Message ID being replied to (for email threading)'
-        }
-      },
-      required: ['email', 'to', 'subject', 'body']
-    }
-  },
-  {
-    name: 'get_workspace_drafts',
-    category: 'Gmail/Drafts',
-    description: `Get a list of email drafts.
-    
-    IMPORTANT: Before listing drafts:
+    IMPORTANT: Before any operation:
     1. Verify account access with list_workspace_accounts
     2. Confirm account if multiple exist
+    3. Validate required data for operation
     
-    Common Uses:
-    - Show pending drafts
-    - Find specific draft
-    - Check draft status
+    Operations:
+    - create: Create a new draft
+    - read: Get a specific draft or list all drafts
+    - update: Modify an existing draft
+    - delete: Remove a draft
+    - send: Send an existing draft
     
-    Response includes:
-    - Draft IDs
-    - Recipients
-    - Subjects
-    - Last modified time`,
-    aliases: ['list_drafts', 'show_drafts', 'view_drafts'],
+    Features:
+    - New email drafts
+    - Reply drafts with threading
+    - Draft modifications
+    - Draft sending
+    
+    Example Flow:
+    1. Check account access
+    2. Perform desired operation
+    3. Confirm success`,
+    aliases: ['manage_draft', 'draft_operation', 'handle_draft'],
     inputSchema: {
       type: 'object',
       properties: {
@@ -396,36 +326,62 @@ export const gmailTools: ToolMetadata[] = [
           type: 'string',
           description: 'Email address of the Gmail account'
         },
-        maxResults: {
-          type: 'number',
-          description: 'Maximum number of drafts to return (default: 10)'
-        },
-        pageToken: {
+        action: {
           type: 'string',
-          description: 'Page token for pagination'
-        }
-      },
-      required: ['email']
-    }
-  },
-  {
-    name: 'send_workspace_draft',
-    category: 'Gmail/Drafts',
-    description: 'Send an existing draft',
-    aliases: ['send_draft', 'publish_draft'],
-    inputSchema: {
-      type: 'object',
-      properties: {
-        email: {
-          type: 'string',
-          description: 'Email address of the Gmail account'
+          enum: ['create', 'read', 'update', 'delete', 'send'],
+          description: 'Operation to perform'
         },
         draftId: {
           type: 'string',
-          description: 'ID of the draft to send'
+          description: 'Draft ID (required for read/update/delete/send)'
+        },
+        data: {
+          type: 'object',
+          properties: {
+            to: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'List of recipient email addresses'
+            },
+            subject: {
+              type: 'string',
+              description: 'Email subject'
+            },
+            body: {
+              type: 'string',
+              description: 'Email body content'
+            },
+            cc: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'List of CC recipient email addresses'
+            },
+            bcc: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'List of BCC recipient email addresses'
+            },
+            replyToMessageId: {
+              type: 'string',
+              description: 'Message ID to reply to (for creating reply drafts)'
+            },
+            threadId: {
+              type: 'string',
+              description: 'Thread ID for the email (optional for replies)'
+            },
+            references: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Reference message IDs for email threading'
+            },
+            inReplyTo: {
+              type: 'string',
+              description: 'Message ID being replied to (for email threading)'
+            }
+          }
         }
       },
-      required: ['email', 'draftId']
+      required: ['email', 'action']
     }
   }
 ];

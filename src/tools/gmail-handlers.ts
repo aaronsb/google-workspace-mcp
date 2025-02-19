@@ -4,16 +4,14 @@ import {
   McpToolResponse,
   GmailSearchParams,
   BaseToolArguments,
-  SendEmailArgs,
-  CreateDraftArgs,
-  ListDraftsArgs,
-  SendDraftArgs
+  SendEmailArgs
 } from './types.js';
 
 import {
   ManageLabelParams,
   ManageLabelAssignmentParams,
-  ManageLabelFilterParams
+  ManageLabelFilterParams,
+  ManageDraftParams
 } from '../modules/gmail/types.js';
 
 /**
@@ -91,65 +89,19 @@ export async function handleGetWorkspaceGmailSettings(args: BaseToolArguments): 
 
 
 /**
- * Create a new email draft
- * @param args - Same parameters as SendEmailArgs plus:
- * @param args.replyToMessageId - Optional message ID to reply to
- * @param args.threadId - Optional thread ID for the draft
- * @param args.references - Optional message IDs for email threading
- * @param args.inReplyTo - Optional message ID being replied to
- * @returns Draft ID and other draft metadata
- * @throws {McpError} If draft creation fails
+ * Manage Gmail drafts with CRUD operations and sending
+ * @param args.email - Gmail account to manage drafts for
+ * @param args.action - Operation to perform (create/read/update/delete/send)
+ * @param args.draftId - Draft ID for operations other than create
+ * @param args.data - Draft content for create/update operations
+ * @returns Operation result (varies by action)
+ * @throws {McpError} If operation fails
  */
-export async function handleCreateWorkspaceDraft(args: CreateDraftArgs): Promise<McpToolResponse> {
+export async function handleManageWorkspaceDraft(args: ManageDraftParams): Promise<McpToolResponse> {
   const accountManager = getAccountManager();
   
   return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getGmailService().createDraft(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(result, null, 2)
-      }]
-    };
-  });
-}
-
-
-/**
- * Get list of email drafts
- * @param args.email - Gmail account to get drafts from
- * @param args.maxResults - Maximum number of drafts to return
- * @param args.pageToken - Token for getting next page of results
- * @returns List of draft messages with metadata
- * @throws {McpError} If drafts retrieval fails
- */
-export async function handleGetWorkspaceDrafts(args: ListDraftsArgs): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getGmailService().getDrafts(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(result, null, 2)
-      }]
-    };
-  });
-}
-
-
-/**
- * Send an existing draft
- * @param args.email - Gmail account containing the draft
- * @param args.draftId - ID of the draft to send
- * @returns Message ID and thread ID of sent email
- * @throws {McpError} If sending fails or draft not found
- */
-export async function handleSendWorkspaceDraft(args: SendDraftArgs): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getGmailService().sendDraft(args);
+    const result = await getGmailService().manageDraft(args);
     return {
       content: [{
         type: 'text',

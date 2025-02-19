@@ -309,6 +309,12 @@ export {
   ManageLabelFilterParams
 } from './services/label.js';
 
+// Re-export draft management types
+export {
+  DraftAction,
+  ManageDraftParams
+} from './services/draft.js';
+
 export class GmailError extends Error {
   constructor(
     message: string,
