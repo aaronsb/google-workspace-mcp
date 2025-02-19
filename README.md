@@ -8,6 +8,8 @@ Want to find that important email from last month? Need to schedule a team meeti
 
 ## TL;DR Setup
 
+> **Note**: For AI assistants like Cline, see [llms-install.md](llms-install.md) for specialized installation guidance.
+
 1. Create Google Cloud Project:
    ```bash
    # Go to Google Cloud Console
