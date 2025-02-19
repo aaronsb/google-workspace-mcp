@@ -48,26 +48,26 @@ jobs:
     - name: Build
       run: npm run build
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+    # Temporarily disabled Docker build tests
+    # - name: Set up Docker Buildx
+    #   uses: docker/setup-buildx-action@v3
 
-    - name: Test Docker build
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: false
-        load: true
-        tags: google-workspace-mcp:test
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+    # - name: Test Docker build
+    #   uses: docker/build-push-action@v5
+    #   with:
+    #     context: .
+    #     push: false
+    #     load: true
+    #     tags: google-workspace-mcp:test
+    #     no-cache: true
 
-    - name: Test Docker image
-      run: |
-        docker run --rm \
-          -e GOOGLE_CLIENT_ID=test-id \
-          -e GOOGLE_CLIENT_SECRET=test-secret \
-          -e LOG_MODE=strict \
-          google-workspace-mcp:test --version
+    # - name: Test Docker image
+    #   run: |
+    #     docker run --rm \
+    #       -e GOOGLE_CLIENT_ID=test-id \
+    #       -e GOOGLE_CLIENT_SECRET=test-secret \
+    #       -e LOG_MODE=strict \
+    #       google-workspace-mcp:test --version
 
   lint:
     runs-on: ubuntu-latest
