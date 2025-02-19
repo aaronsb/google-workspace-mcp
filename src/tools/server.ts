@@ -25,9 +25,7 @@ import {
   handleSearchWorkspaceEmails,
   handleSendWorkspaceEmail,
   handleGetWorkspaceGmailSettings,
-  handleCreateWorkspaceDraft,
-  handleGetWorkspaceDrafts,
-  handleSendWorkspaceDraft,
+  handleManageWorkspaceDraft,
   handleManageWorkspaceLabel,
   handleManageWorkspaceLabelAssignment,
   handleManageWorkspaceLabelFilter
@@ -58,12 +56,11 @@ import {
   BaseToolArguments,
   CalendarEventParams,
   SendEmailArgs,
-  CreateDraftArgs,
-  SendDraftArgs,
   AuthenticateAccountArgs,
   ManageLabelParams,
   ManageLabelAssignmentParams,
-  ManageLabelFilterParams
+  ManageLabelFilterParams,
+  ManageDraftParams
 } from './types.js';
 
 import {
@@ -71,8 +68,7 @@ import {
   assertCalendarEventParams,
   assertEmailEventIdArgs,
   assertSendEmailArgs,
-  assertCreateDraftArgs,
-  assertSendDraftArgs,
+  assertManageDraftParams,
   assertManageLabelParams,
   assertManageLabelAssignmentParams,
   assertManageLabelFilterParams
@@ -175,15 +171,9 @@ export class GSuiteServer {
           case 'get_workspace_gmail_settings':
             assertBaseToolArguments(args);
             return await handleGetWorkspaceGmailSettings(args);
-          case 'create_workspace_draft':
-            assertCreateDraftArgs(args);
-            return await handleCreateWorkspaceDraft(args as CreateDraftArgs);
-          case 'get_workspace_drafts':
-            assertBaseToolArguments(args);
-            return await handleGetWorkspaceDrafts(args);
-          case 'send_workspace_draft':
-            assertSendDraftArgs(args);
-            return await handleSendWorkspaceDraft(args as SendDraftArgs);
+          case 'manage_workspace_draft':
+            assertManageDraftParams(args);
+            return await handleManageWorkspaceDraft(args as ManageDraftParams);
 
           // Calendar Operations
           case 'list_workspace_calendar_events':

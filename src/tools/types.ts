@@ -95,31 +95,6 @@ export interface EmailContent {
  */
 export interface SendEmailArgs extends BaseToolArguments, EmailContent {}
 
-/**
- * Parameters for creating draft emails
- */
-export interface CreateDraftArgs extends SendEmailArgs {
-  replyToMessageId?: string;
-  threadId?: string;
-  references?: string[];
-  inReplyTo?: string;
-}
-
-/**
- * Parameters for listing drafts
- */
-export interface ListDraftsArgs extends BaseToolArguments {
-  maxResults?: number;
-  pageToken?: string;
-}
-
-/**
- * Parameters for sending drafts
- */
-export interface SendDraftArgs extends BaseToolArguments {
-  draftId: string;
-}
-
 // Calendar Types
 /**
  * Parameters for listing calendar events

@@ -4,10 +4,7 @@ import {
   McpToolResponse,
   GmailSearchParams,
   BaseToolArguments,
-  SendEmailArgs,
-  CreateDraftArgs,
-  ListDraftsArgs,
-  SendDraftArgs
+  SendEmailArgs
 } from './types.js';
 
 import {

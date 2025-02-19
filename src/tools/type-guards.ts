@@ -2,11 +2,11 @@ import {
   BaseToolArguments,
   CalendarEventParams,
   SendEmailArgs,
-  CreateDraftArgs,
-  SendDraftArgs,
   ManageLabelParams,
   ManageLabelAssignmentParams,
-  ManageLabelFilterParams
+  ManageLabelFilterParams,
+  ManageDraftParams,
+  DraftAction
 } from './types.js';
 
 export function isBaseToolArguments(args: Record<string, unknown>): args is BaseToolArguments {
@@ -54,33 +54,49 @@ export function isSendEmailArgs(args: Record<string, unknown>): args is SendEmai
     (args.bcc === undefined || (Array.isArray(args.bcc) && args.bcc.every(bcc => typeof bcc === 'string')));
 }
 
-export function isCreateDraftArgs(args: Record<string, unknown>): args is CreateDraftArgs {
-  return isSendEmailArgs(args) &&
-    (args.replyToMessageId === undefined || typeof args.replyToMessageId === 'string') &&
-    (args.threadId === undefined || typeof args.threadId === 'string') &&
-    (args.references === undefined || (Array.isArray(args.references) && args.references.every(ref => typeof ref === 'string'))) &&
-    (args.inReplyTo === undefined || typeof args.inReplyTo === 'string');
-}
-
-export function isSendDraftArgs(args: Record<string, unknown>): args is SendDraftArgs {
-  return typeof args.email === 'string' && typeof args.draftId === 'string';
-}
-
 export function assertSendEmailArgs(args: Record<string, unknown>): asserts args is SendEmailArgs {
   if (!isSendEmailArgs(args)) {
     throw new Error('Invalid email parameters. Required: email, to, subject, body');
   }
 }
 
-export function assertCreateDraftArgs(args: Record<string, unknown>): asserts args is CreateDraftArgs {
-  if (!isCreateDraftArgs(args)) {
-    throw new Error('Invalid draft parameters. Required: email, to, subject, body');
-  }
+// Consolidated Draft Management Type Guards
+export function isManageDraftParams(args: unknown): args is ManageDraftParams {
+  if (typeof args !== 'object' || args === null) return false;
+  const params = args as Partial<ManageDraftParams>;
+  
+  return typeof params.email === 'string' &&
+    typeof params.action === 'string' &&
+    ['create', 'read', 'update', 'delete', 'send'].includes(params.action) &&
+    (params.draftId === undefined || typeof params.draftId === 'string') &&
+    (params.data === undefined || (() => {
+      if (typeof params.data !== 'object' || params.data === null) return false;
+      const data = params.data as {
+        to?: string[];
+        subject?: string;
+        body?: string;
+        cc?: string[];
+        bcc?: string[];
+        replyToMessageId?: string;
+        threadId?: string;
+        references?: string[];
+        inReplyTo?: string;
+      };
+      return (data.to === undefined || (Array.isArray(data.to) && data.to.every(to => typeof to === 'string'))) &&
+        (data.subject === undefined || typeof data.subject === 'string') &&
+        (data.body === undefined || typeof data.body === 'string') &&
+        (data.cc === undefined || (Array.isArray(data.cc) && data.cc.every(cc => typeof cc === 'string'))) &&
+        (data.bcc === undefined || (Array.isArray(data.bcc) && data.bcc.every(bcc => typeof bcc === 'string'))) &&
+        (data.replyToMessageId === undefined || typeof data.replyToMessageId === 'string') &&
+        (data.threadId === undefined || typeof data.threadId === 'string') &&
+        (data.references === undefined || (Array.isArray(data.references) && data.references.every(ref => typeof ref === 'string'))) &&
+        (data.inReplyTo === undefined || typeof data.inReplyTo === 'string');
+    })());
 }
 
-export function assertSendDraftArgs(args: Record<string, unknown>): asserts args is SendDraftArgs {
-  if (!isSendDraftArgs(args)) {
-    throw new Error('Missing required email or draftId parameter');
+export function assertManageDraftParams(args: unknown): asserts args is ManageDraftParams {
+  if (!isManageDraftParams(args)) {
+    throw new Error('Invalid draft management parameters. Required: email, action');
   }
 }
 
