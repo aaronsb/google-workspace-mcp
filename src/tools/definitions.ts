@@ -950,10 +950,368 @@ export const labelTools: ToolMetadata[] = [
   }
 ];
 
+// Drive Tools
+export const driveTools: ToolMetadata[] = [
+  {
+    name: 'list_drive_files',
+    category: 'Drive/Files',
+    description: `List files in a Google Drive account with optional filtering.
+    
+    IMPORTANT: Before listing files:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm account if multiple exist
+    3. Check Drive read permissions
+    
+    Common Usage Patterns:
+    - List all files: No options needed
+    - List folder contents: Provide folderId
+    - Custom queries: Use query parameter
+    
+    Example Flow:
+    1. Check account access
+    2. Apply any filters
+    3. Return file list with metadata`,
+    aliases: ['list_files', 'get_files', 'show_files'],
+    inputSchema: {
+      type: 'object',
+      properties: {
+        email: {
+          type: 'string',
+          description: 'Email address of the Drive account'
+        },
+        options: {
+          type: 'object',
+          properties: {
+            folderId: {
+              type: 'string',
+              description: 'Optional folder ID to list contents of'
+            },
+            query: {
+              type: 'string',
+              description: 'Custom query string for filtering'
+            },
+            pageSize: {
+              type: 'number',
+              description: 'Maximum number of files to return'
+            },
+            orderBy: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Sort order fields'
+            },
+            fields: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Fields to include in response'
+            }
+          }
+        }
+      },
+      required: ['email']
+    }
+  },
+  {
+    name: 'search_drive_files',
+    category: 'Drive/Files',
+    description: `Search for files in Google Drive with advanced filtering.
+    
+    IMPORTANT: Before searching:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm account if multiple exist
+    3. Check Drive read permissions
+    
+    Search Capabilities:
+    - Full text search across file content
+    - Filter by MIME type
+    - Filter by folder
+    - Include/exclude trashed files
+    
+    Example Flow:
+    1. Check account access
+    2. Apply search criteria
+    3. Return matching files`,
+    aliases: ['search_files', 'find_files', 'query_files'],
+    inputSchema: {
+      type: 'object',
+      properties: {
+        email: {
+          type: 'string',
+          description: 'Email address of the Drive account'
+        },
+        options: {
+          type: 'object',
+          properties: {
+            fullText: {
+              type: 'string',
+              description: 'Full text search query'
+            },
+            mimeType: {
+              type: 'string',
+              description: 'Filter by MIME type'
+            },
+            folderId: {
+              type: 'string',
+              description: 'Filter by parent folder ID'
+            },
+            trashed: {
+              type: 'boolean',
+              description: 'Include trashed files'
+            },
+            query: {
+              type: 'string',
+              description: 'Additional query string'
+            },
+            pageSize: {
+              type: 'number',
+              description: 'Maximum number of files to return'
+            }
+          }
+        }
+      },
+      required: ['email', 'options']
+    }
+  },
+  {
+    name: 'upload_drive_file',
+    category: 'Drive/Files',
+    description: `Upload a file to Google Drive.
+    
+    IMPORTANT: Before uploading:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm account if multiple exist
+    3. Check Drive write permissions
+    
+    Features:
+    - Specify file name and type
+    - Place in specific folder
+    - Set file metadata
+    
+    Example Flow:
+    1. Check account access
+    2. Validate file data
+    3. Upload and return file info`,
+    aliases: ['upload_file', 'create_file', 'add_file'],
+    inputSchema: {
+      type: 'object',
+      properties: {
+        email: {
+          type: 'string',
+          description: 'Email address of the Drive account'
+        },
+        options: {
+          type: 'object',
+          properties: {
+            name: {
+              type: 'string',
+              description: 'Name for the uploaded file'
+            },
+            content: {
+              type: 'string',
+              description: 'File content (string or base64)'
+            },
+            mimeType: {
+              type: 'string',
+              description: 'MIME type of the file'
+            },
+            parents: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Parent folder IDs'
+            }
+          },
+          required: ['name', 'content']
+        }
+      },
+      required: ['email', 'options']
+    }
+  },
+  {
+    name: 'download_drive_file',
+    category: 'Drive/Files',
+    description: `Download a file from Google Drive.
+    
+    IMPORTANT: Before downloading:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm account if multiple exist
+    3. Check Drive read permissions
+    
+    Features:
+    - Download any file type
+    - Export Google Workspace files
+    - Specify export format
+    
+    Example Flow:
+    1. Check account access
+    2. Validate file exists
+    3. Download and return content`,
+    aliases: ['download_file', 'get_file_content', 'fetch_file'],
+    inputSchema: {
+      type: 'object',
+      properties: {
+        email: {
+          type: 'string',
+          description: 'Email address of the Drive account'
+        },
+        fileId: {
+          type: 'string',
+          description: 'ID of the file to download'
+        },
+        mimeType: {
+          type: 'string',
+          description: 'Optional MIME type for export format'
+        }
+      },
+      required: ['email', 'fileId']
+    }
+  },
+  {
+    name: 'create_drive_folder',
+    category: 'Drive/Folders',
+    description: `Create a new folder in Google Drive.
+    
+    IMPORTANT: Before creating:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm account if multiple exist
+    3. Check Drive write permissions
+    
+    Features:
+    - Create in root or subfolder
+    - Set folder metadata
+    
+    Example Flow:
+    1. Check account access
+    2. Validate folder name
+    3. Create and return folder info`,
+    aliases: ['create_folder', 'new_folder', 'add_folder'],
+    inputSchema: {
+      type: 'object',
+      properties: {
+        email: {
+          type: 'string',
+          description: 'Email address of the Drive account'
+        },
+        name: {
+          type: 'string',
+          description: 'Name for the new folder'
+        },
+        parentId: {
+          type: 'string',
+          description: 'Optional parent folder ID'
+        }
+      },
+      required: ['email', 'name']
+    }
+  },
+  {
+    name: 'update_drive_permissions',
+    category: 'Drive/Permissions',
+    description: `Update sharing permissions for a Drive file or folder.
+    
+    IMPORTANT: Before updating:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm account if multiple exist
+    3. Check Drive sharing permissions
+    
+    Permission Types:
+    - User: Share with specific email
+    - Group: Share with Google Group
+    - Domain: Share with entire domain
+    - Anyone: Public sharing
+    
+    Roles:
+    - owner: Full ownership rights
+    - organizer: Organizational rights
+    - fileOrganizer: File organization rights
+    - writer: Edit access
+    - commenter: Comment access
+    - reader: View access
+    
+    Example Flow:
+    1. Check account access
+    2. Validate permission details
+    3. Update and return result`,
+    aliases: ['share_file', 'update_sharing', 'modify_permissions'],
+    inputSchema: {
+      type: 'object',
+      properties: {
+        email: {
+          type: 'string',
+          description: 'Email address of the Drive account'
+        },
+        options: {
+          type: 'object',
+          properties: {
+            fileId: {
+              type: 'string',
+              description: 'ID of file/folder to update'
+            },
+            role: {
+              type: 'string',
+              enum: ['owner', 'organizer', 'fileOrganizer', 'writer', 'commenter', 'reader'],
+              description: 'Permission role to grant'
+            },
+            type: {
+              type: 'string',
+              enum: ['user', 'group', 'domain', 'anyone'],
+              description: 'Type of permission'
+            },
+            emailAddress: {
+              type: 'string',
+              description: 'Email address for user/group sharing'
+            },
+            domain: {
+              type: 'string',
+              description: 'Domain for domain sharing'
+            },
+            allowFileDiscovery: {
+              type: 'boolean',
+              description: 'Allow file discovery for anyone sharing'
+            }
+          },
+          required: ['fileId', 'role', 'type']
+        }
+      },
+      required: ['email', 'options']
+    }
+  },
+  {
+    name: 'delete_drive_file',
+    category: 'Drive/Files',
+    description: `Delete a file or folder from Google Drive.
+    
+    IMPORTANT: Before deleting:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm account if multiple exist
+    3. Check Drive write permissions
+    4. Confirm deletion is intended
+    
+    Example Flow:
+    1. Check account access
+    2. Validate file exists
+    3. Delete and confirm`,
+    aliases: ['delete_file', 'remove_file', 'trash_file'],
+    inputSchema: {
+      type: 'object',
+      properties: {
+        email: {
+          type: 'string',
+          description: 'Email address of the Drive account'
+        },
+        fileId: {
+          type: 'string',
+          description: 'ID of the file/folder to delete'
+        }
+      },
+      required: ['email', 'fileId']
+    }
+  }
+];
+
 // Export all tools combined
 export const allTools: ToolMetadata[] = [
   ...accountTools,
   ...gmailTools,
   ...calendarTools,
-  ...labelTools
+  ...labelTools,
+  ...driveTools
 ];
