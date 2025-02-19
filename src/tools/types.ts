@@ -257,9 +257,11 @@ export interface DeleteLabelFilterArgs extends BaseToolArguments {
   filterId: string;
 }
 
-// Re-export consolidated label management types
+// Re-export consolidated management types
 export {
   ManageLabelParams,
   ManageLabelAssignmentParams,
-  ManageLabelFilterParams
+  ManageLabelFilterParams,
+  ManageDraftParams,
+  DraftAction
 } from '../modules/gmail/types.js';

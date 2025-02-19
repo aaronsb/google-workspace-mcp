@@ -25,6 +25,7 @@ import {
   ManageLabelAssignmentParams,
   ManageLabelFilterParams
 } from './label.js';
+import { ManageDraftParams } from './draft.js';
 import { EmailService } from './email.js';
 import { SearchService } from './search.js';
 import { DraftService } from './draft.js';
@@ -116,22 +117,10 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
     return this.emailService.sendEmail(params);
   }
 
-  async createDraft(params: DraftEmailParams): Promise<DraftResponse> {
+  async manageDraft(params: ManageDraftParams): Promise<DraftResponse | GetDraftsResponse | SendEmailResponse | void> {
     this.ensureServices();
     await this.getGmailClient(params.email);
-    return this.draftService.createDraft(params);
-  }
-
-  async getDrafts(params: GetDraftsParams): Promise<GetDraftsResponse> {
-    this.ensureServices();
-    await this.getGmailClient(params.email);
-    return this.draftService.getDrafts(params);
-  }
-
-  async sendDraft(params: SendDraftParams): Promise<SendEmailResponse> {
-    this.ensureServices();
-    await this.getGmailClient(params.email);
-    return this.draftService.sendDraft(params);
+    return this.draftService.manageDraft(params);
   }
 
   async getWorkspaceGmailSettings(params: GetGmailSettingsParams): Promise<GetGmailSettingsResponse> {
