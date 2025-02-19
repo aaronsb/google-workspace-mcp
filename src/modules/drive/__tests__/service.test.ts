@@ -4,29 +4,14 @@ import { DRIVE_SCOPES } from '../scopes.js';
 import { GoogleServiceError } from '../../../services/base/BaseGoogleService.js';
 
 jest.mock('../../accounts/index.js');
-jest.mock('googleapis', () => ({
-  google: {
-    drive: jest.fn(() => ({
-      files: {
-        list: jest.fn(),
-        create: jest.fn(),
-        get: jest.fn(),
-        delete: jest.fn(),
-        export: jest.fn()
-      },
-      permissions: {
-        create: jest.fn()
-      }
-    }))
-  }
-}));
+jest.mock('googleapis');
 
 describe('DriveService', () => {
   const testEmail = 'test@example.com';
   let service: DriveService;
   let mockDrive: any;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
     
     // Mock account manager
@@ -35,14 +20,17 @@ describe('DriveService', () => {
         valid: true,
         token: { access_token: 'test-token' },
         requiredScopes: Object.values(DRIVE_SCOPES)
+      }),
+      getAuthClient: jest.fn().mockResolvedValue({
+        setCredentials: jest.fn()
       })
     });
 
-    // Get mock drive instance
     const { google } = require('googleapis');
     mockDrive = google.drive();
-    
     service = new DriveService();
+    // Wait for initialization
+    await new Promise(resolve => setTimeout(resolve, 0));
   });
 
   describe('listFiles', () => {

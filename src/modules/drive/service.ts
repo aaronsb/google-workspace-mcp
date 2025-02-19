@@ -10,6 +10,9 @@ export class DriveService extends BaseGoogleService<drive_v3.Drive> {
       serviceName: 'Google Drive',
       version: 'v3'
     });
+    this.initialize().catch(error => {
+      throw this.handleError(error, 'Failed to initialize Drive service');
+    });
   }
 
   async listFiles(email: string, options: FileListOptions = {}): Promise<DriveOperationResult> {
