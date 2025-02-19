@@ -24,11 +24,6 @@ WORKDIR /app
 ARG DOCKER_HASH=unknown
 ENV DOCKER_HASH=$DOCKER_HASH
 
-# Create necessary directories with proper permissions
-RUN mkdir -p /app/logs /app/config /app/workspace && \
-    chown -R 1000:1000 /app && \
-    chmod 750 /app/logs /app/config /app/workspace
-
 # Copy only necessary files from builder
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/package*.json ./

@@ -2,9 +2,13 @@
 
 ![Robot Assistant](https://raw.githubusercontent.com/aaronsb/google-workspace-mcp/main/docs/assets/robot-assistant.png)
 
-Imagine having a tireless digital assistant that seamlessly manages your Google Workspace universe. That's exactly what this Model Context Protocol (MCP) server delivers - a powerful bridge between AI and your digital life. Whether you're drowning in emails, juggling calendar invites, or trying to maintain order in your professional chaos, this tool empowers AI assistants to help you take control.
+This Model Context Protocol (MCP) server puts you in control of your Google Workspace. Once you connect your account - a simple, secure process that takes just a minute - you're ready to go. Behind the scenes, it keeps your connection safe and active, so you can focus on getting things done instead of managing logins and permissions.
 
-Want to find that important email from last month? Need to schedule a team meeting while respecting everyone's availability? Looking to organize your inbox with intelligent filters? Your AI assistant can handle it all through this server, making your Google Workspace experience more efficient and intuitive than ever before.
+Take command of your Gmail inbox in ways you never thought possible. Want that proposal from last quarter? Found in seconds. Drowning in newsletters? They'll sort themselves into folders automatically. Need to track responses to an important thread? Labels and filters do the work for you. From drafting the perfect email to managing conversations with your team, everything just clicks into place.
+
+Your calendar becomes a trusted ally in the daily juggle. No more double-booked meetings or timezone confusion. Planning a team sync? It spots the perfect time slots. Running a recurring workshop? Set it up once, and you're done. Even when plans change, finding new times that work for everyone is quick and painless. The days of endless "when are you free?" emails are over.
+
+Turn Google Drive from a file dump into your digital command center. Every document finds its place, every folder tells a story. Share files with exactly the right people - no more "who can edit this?" confusion. Looking for that presentation from last week's meeting? Search not just names, but what's inside your files. Whether you're organizing a small project or managing a mountain of documents, everything stays right where you need it.
 
 ## TL;DR Setup
 
@@ -20,16 +24,7 @@ Want to find that important email from last month? Need to schedule a team meeti
    → Create OAuth Desktop Client ID and Secret
    ```
 
-2. Create required directories:
-   ```bash
-   # Create config directory
-   mkdir -p ~/.mcp/google-workspace-mcp
-   
-   # Create workspace files directory (recommended)
-   mkdir -p ~/Documents/workspace-mcp-files
-   ```
-
-3. Add to Cline settings (e.g., `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`):
+2. Add to Cline settings (e.g., `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`):
    ```json
    {
      "mcpServers": {
@@ -123,7 +118,7 @@ Add the following configuration to your Cline MCP settings:
 
 ### File Management
 
-The server uses a structured approach to manage files:
+The server automatically manages files in a structured way:
 
 ```
 ~/Documents/workspace-mcp-files/
@@ -137,11 +132,11 @@ The server uses a structured approach to manage files:
     └── temp/           # Temporary files (cleaned up automatically)
 ```
 
-This structure ensures:
-- Clear separation of files by user email
-- Organized storage of downloaded and uploaded files
-- Proper cleanup of temporary files
-- Consistent file management across installations
+The WorkspaceManager creates and maintains this structure automatically:
+- Creates directories as needed when files are downloaded/uploaded
+- Organizes files by user email
+- Handles temporary file cleanup
+- Maintains proper permissions
 
 You can customize the workspace location by setting the `WORKSPACE_BASE_PATH` environment variable.
 
