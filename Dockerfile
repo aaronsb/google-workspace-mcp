@@ -31,13 +31,15 @@ COPY --from=builder /app/build ./build
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/docker-entrypoint.sh ./
 
-# Install production dependencies only
+# Install production dependencies only and set up directories
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --only=production && \
     chmod +x build/index.js && \
-    chmod +x docker-entrypoint.sh
+    chmod +x docker-entrypoint.sh && \
+    mkdir -p /app/logs && \
+    chown -R 1000:1000 /app
 
 # Switch to host user's UID
-USER 1000
+USER 1000:1000
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
