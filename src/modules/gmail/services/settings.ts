@@ -61,31 +61,28 @@ export class SettingsService {
           historyId: profile.historyId ?? ''
         },
         settings: {
+          language: {
+            displayLanguage: language.displayLanguage || 'en'
+          },
           autoForwarding: {
             enabled: Boolean(autoForwarding.enabled),
-            emailAddress: autoForwarding.emailAddress || undefined,
-            disposition: autoForwarding.disposition || undefined
+            emailAddress: autoForwarding.emailAddress || undefined
           },
           imap: {
             enabled: Boolean(imap.enabled),
             autoExpunge: imap.autoExpunge ?? undefined,
-            expungeBehavior: imap.expungeBehavior ?? undefined,
-            maxFolderSize: imap.maxFolderSize ?? undefined
-          },
-          language: {
-            displayLanguage: language.displayLanguage || 'en'
+            expungeBehavior: imap.expungeBehavior ?? undefined
           },
           pop: {
             enabled: Boolean(pop.accessWindow !== null),
-            accessWindow: pop.accessWindow || undefined,
-            disposition: pop.disposition || undefined
+            accessWindow: pop.accessWindow || undefined
           },
           vacationResponder: {
             enabled: Boolean(vacation.enableAutoReply),
             startTime: vacation.startTime || undefined,
             endTime: vacation.endTime || undefined,
-            message: (vacation.responseBodyHtml || vacation.responseBodyPlainText) || undefined,
-            responseSubject: vacation.responseSubject || undefined
+            responseSubject: vacation.responseSubject || undefined,
+            message: (vacation.responseBodyHtml || vacation.responseBodyPlainText) || undefined
           }
         }
       };

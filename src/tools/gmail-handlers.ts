@@ -83,7 +83,7 @@ export async function searchEmails(params: SearchEmailsParams) {
   validateEmail(email);
 
   try {
-    return await emailService.getEmails(email, { search, options, messageIds });
+    return await emailService.getEmails({ email, search, options, messageIds });
   } catch (error) {
     throw new McpError(
       ErrorCode.InternalError,
@@ -130,6 +130,7 @@ export async function sendEmail(params: SendEmailRequestParams) {
 
   try {
     const emailParams: SendEmailParams = {
+      email,
       to,
       subject,
       body,
@@ -144,7 +145,7 @@ export async function sendEmail(params: SendEmailRequestParams) {
       }))
     };
 
-    return await emailService.sendEmail(email, emailParams);
+    return await emailService.sendEmail(emailParams);
   } catch (error) {
     throw new McpError(
       ErrorCode.InternalError,
