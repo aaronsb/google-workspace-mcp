@@ -55,3 +55,8 @@ export class GmailService {
 
 export { GmailError } from './types.js';
 export { DraftService } from './services/draft.js';
+
+export async function initializeGmailModule(): Promise<void> {
+  const service = new GmailService();
+  await service.initialize();
+}

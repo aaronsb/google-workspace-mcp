@@ -5,9 +5,11 @@ import { AttachmentService } from '../../attachments/service.js';
 import { DriveService } from '../../drive/service.js';
 import { ATTACHMENT_FOLDERS } from '../../attachments/types.js';
 
+export type DraftAction = 'create' | 'read' | 'update' | 'delete' | 'send';
+
 export interface ManageDraftParams {
   email: string;
-  action: 'create' | 'read' | 'update' | 'delete' | 'send';
+  action: DraftAction;
   draftId?: string;
   data?: DraftData;
 }

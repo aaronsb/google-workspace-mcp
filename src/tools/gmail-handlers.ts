@@ -3,6 +3,13 @@ import { DriveService } from '../modules/drive/service.js';
 import { AttachmentService } from '../modules/attachments/service.js';
 import { SearchService } from '../modules/gmail/services/search.js';
 import { EmailService } from '../modules/gmail/services/email.js';
+import { SettingsService } from '../modules/gmail/services/settings.js';
+import { LabelService } from '../modules/gmail/services/label.js';
+import {
+  ManageLabelParams,
+  ManageLabelAssignmentParams,
+  ManageLabelFilterParams
+} from '../modules/gmail/services/label.js';
 import { validateEmail } from '../utils/account.js';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { SendEmailParams } from '../modules/gmail/types.js';
@@ -69,8 +76,10 @@ const driveService = new DriveService();
 const attachmentService = new AttachmentService(driveService);
 const searchService = new SearchService();
 const emailService = new EmailService(searchService, attachmentService, driveService);
+const settingsService = new SettingsService();
+const labelService = new LabelService();
 
-export async function searchEmails(params: SearchEmailsParams) {
+export async function handleSearchWorkspaceEmails(params: SearchEmailsParams) {
   const { email, search = {}, options = {}, messageIds } = params;
 
   if (!email) {
@@ -92,7 +101,7 @@ export async function searchEmails(params: SearchEmailsParams) {
   }
 }
 
-export async function sendEmail(params: SendEmailRequestParams) {
+export async function handleSendWorkspaceEmail(params: SendEmailRequestParams) {
   const { email, to, subject, body, cc, bcc, attachments } = params;
 
   if (!email) {
@@ -154,7 +163,29 @@ export async function sendEmail(params: SendEmailRequestParams) {
   }
 }
 
-export async function manageDraft(params: ManageDraftParams) {
+export async function handleGetWorkspaceGmailSettings(params: { email: string }) {
+  const { email } = params;
+
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email address is required'
+    );
+  }
+
+  validateEmail(email);
+
+  try {
+    return await settingsService.getWorkspaceGmailSettings({ email });
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to get Gmail settings: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+export async function handleManageWorkspaceDraft(params: ManageDraftParams) {
   const { email, action, draftId, data } = params;
 
   if (!email) {
@@ -248,6 +279,72 @@ export async function manageDraft(params: ManageDraftParams) {
     throw new McpError(
       ErrorCode.InternalError,
       `Failed to manage draft: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+export async function handleManageWorkspaceLabel(params: ManageLabelParams) {
+  const { email } = params;
+
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email address is required'
+    );
+  }
+
+  validateEmail(email);
+
+  try {
+    return await labelService.manageLabel(params);
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to manage label: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+export async function handleManageWorkspaceLabelAssignment(params: ManageLabelAssignmentParams) {
+  const { email } = params;
+
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email address is required'
+    );
+  }
+
+  validateEmail(email);
+
+  try {
+    return await labelService.manageLabelAssignment(params);
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to manage label assignment: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+export async function handleManageWorkspaceLabelFilter(params: ManageLabelFilterParams) {
+  const { email } = params;
+
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email address is required'
+    );
+  }
+
+  validateEmail(email);
+
+  try {
+    return await labelService.manageLabelFilter(params);
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to manage label filter: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
 }

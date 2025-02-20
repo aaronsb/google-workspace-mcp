@@ -20,7 +20,7 @@ const calendarService = new CalendarService({
   ]
 });
 
-export async function listCalendarEvents(params: any) {
+export async function handleListWorkspaceCalendarEvents(params: any) {
   const { email, query, maxResults, timeMin, timeMax } = params;
 
   if (!email) {
@@ -49,7 +49,7 @@ export async function listCalendarEvents(params: any) {
   }
 }
 
-export async function getCalendarEvent(params: any) {
+export async function handleGetWorkspaceCalendarEvent(params: any) {
   const { email, eventId } = params;
 
   if (!email) {
@@ -79,7 +79,7 @@ export async function getCalendarEvent(params: any) {
   }
 }
 
-export async function createCalendarEvent(params: any) {
+export async function handleCreateWorkspaceCalendarEvent(params: any) {
   const { email, summary, description, start, end, attendees, attachments } = params;
 
   if (!email) {
@@ -146,7 +146,7 @@ export async function createCalendarEvent(params: any) {
   }
 }
 
-export async function manageCalendarEvent(params: any) {
+export async function handleManageWorkspaceCalendarEvent(params: any) {
   const { email, eventId, action, comment, newTimes } = params;
 
   if (!email) {
@@ -189,7 +189,7 @@ export async function manageCalendarEvent(params: any) {
   }
 }
 
-export async function deleteCalendarEvent(params: any) {
+export async function handleDeleteWorkspaceCalendarEvent(params: any) {
   const { email, eventId, sendUpdates } = params;
 
   if (!email) {

@@ -313,7 +313,10 @@ export interface DeleteLabelFilterArgs extends BaseToolArguments {
 export {
   ManageLabelParams,
   ManageLabelAssignmentParams,
-  ManageLabelFilterParams,
+  ManageLabelFilterParams
+} from '../modules/gmail/services/label.js';
+
+export {
   ManageDraftParams,
   DraftAction
-} from '../modules/gmail/types.js';
+} from '../modules/gmail/services/draft.js';
