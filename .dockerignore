@@ -1,30 +1,78 @@
 # Version control
 .git
 .gitignore
+.github
 
 # Dependencies
 node_modules
+npm-debug.log*
+.npm
+.npmrc
 
 # Development files
 .vscode
 .idea
 *.log
 logs
+coverage
+.nyc_output
+*.tsbuildinfo
+
+# Documentation and markdown
 *.md
 !README.md
+docs
+cline_docs
+ARCHITECTURE.md
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+LICENSE
+SECURITY.md
+TODO.md
 
 # Test files
 __tests__
 __fixtures__
 __helpers__
+__mocks__
 *.test.*
+*.spec.*
 jest.config.*
 jest.setup.*
+test
+tests
 
-# Configuration
+# Configuration and build files
+.eslintrc*
+.prettierrc*
+.editorconfig
+*.config.js
+*.config.cjs
+*.config.mjs
 config/*
 !config/*.example.json
 
-# Documentation
-docs
-cline_docs
+# Source maps
+*.map
+
+# Build artifacts
+dist
+build
+coverage
+.nyc_output
+
+# Environment files
+.env*
+.dockerenv
+
+# Docker
+.docker
+docker-compose*
+Dockerfile*
+.dockerignore
+
+# Temporary files
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

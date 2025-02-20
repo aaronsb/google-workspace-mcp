@@ -39,6 +39,16 @@ import {
   handleDeleteWorkspaceCalendarEvent
 } from './calendar-handlers.js';
 
+import {
+  handleListDriveFiles,
+  handleSearchDriveFiles,
+  handleUploadDriveFile,
+  handleDownloadDriveFile,
+  handleCreateDriveFolder,
+  handleUpdateDrivePermissions,
+  handleDeleteDriveFile
+} from './drive-handlers.js';
+
 // Import error types
 import { AccountError } from '../modules/accounts/types.js';
 import { GmailError } from '../modules/gmail/types.js';
@@ -48,8 +58,10 @@ import { CalendarError } from '../modules/calendar/types.js';
 import { initializeAccountModule } from '../modules/accounts/index.js';
 import { initializeGmailModule } from '../modules/gmail/index.js';
 import { initializeCalendarModule } from '../modules/calendar/index.js';
+import { initializeDriveModule } from '../modules/drive/index.js';
 import { registerGmailScopes } from '../modules/gmail/scopes.js';
 import { registerCalendarScopes } from '../modules/calendar/scopes.js';
+import { registerDriveScopes } from '../modules/drive/scopes.js';
 
 // Import types and type guards
 import {
@@ -71,7 +83,14 @@ import {
   assertManageDraftParams,
   assertManageLabelParams,
   assertManageLabelAssignmentParams,
-  assertManageLabelFilterParams
+  assertManageLabelFilterParams,
+  assertDriveFileListArgs,
+  assertDriveSearchArgs,
+  assertDriveUploadArgs,
+  assertDriveDownloadArgs,
+  assertDriveFolderArgs,
+  assertDrivePermissionArgs,
+  assertDriveDeleteArgs
 } from './type-guards.js';
 
 export class GSuiteServer {
@@ -203,6 +222,29 @@ export class GSuiteServer {
             assertManageLabelFilterParams(args);
             return await handleManageWorkspaceLabelFilter(args);
 
+          // Drive Operations
+          case 'list_drive_files':
+            assertDriveFileListArgs(args);
+            return await handleListDriveFiles(args);
+          case 'search_drive_files':
+            assertDriveSearchArgs(args);
+            return await handleSearchDriveFiles(args);
+          case 'upload_drive_file':
+            assertDriveUploadArgs(args);
+            return await handleUploadDriveFile(args);
+          case 'download_drive_file':
+            assertDriveDownloadArgs(args);
+            return await handleDownloadDriveFile(args);
+          case 'create_drive_folder':
+            assertDriveFolderArgs(args);
+            return await handleCreateDriveFolder(args);
+          case 'update_drive_permissions':
+            assertDrivePermissionArgs(args);
+            return await handleUpdateDrivePermissions(args);
+          case 'delete_drive_file':
+            assertDriveDeleteArgs(args);
+            return await handleDeleteDriveFile(args);
+
           default:
             throw new Error(`Unknown tool: ${request.params.name}`);
         }
@@ -240,6 +282,7 @@ export class GSuiteServer {
       logger.info('Loading API scopes...');
       registerGmailScopes();
       registerCalendarScopes();
+      registerDriveScopes();
       
       // Initialize modules in order
       logger.info('Initializing account module...');
@@ -250,6 +293,9 @@ export class GSuiteServer {
       
       logger.info('Initializing Calendar module...');
       await initializeCalendarModule();
+
+      logger.info('Initializing Drive module...');
+      await initializeDriveModule();
       
       // Set up error handler
       this.server.onerror = (error) => console.error('MCP Error:', error);

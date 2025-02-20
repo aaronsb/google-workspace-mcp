@@ -1,212 +1,211 @@
-# Google Workspace MCP Server Examples
+# Google Workspace MCP Examples
 
-IMPORTANT: Before using these examples, you must set up your own Google Cloud Project with access to Google Workspace APIs. See the [Setup Guide](API.md#setup-guide) for detailed instructions on:
-- Creating a Google Cloud Project
-- Enabling required APIs
-- Configuring the OAuth consent screen
-- Creating OAuth 2.0 credentials
-- Setting up out-of-band authentication
+This document provides examples of using the Google Workspace MCP tools.
 
-## Account Management Examples
-
-### 1. List Workspace Accounts
+## Account Management
 
 ```typescript
-// List all configured accounts and their status
-const response = await use_mcp_tool({
-  server_name: "google-workspace-mcp",
-  tool_name: "list_workspace_accounts",
-  arguments: {}
+// List configured accounts
+const accounts = await mcp.callTool('list_workspace_accounts', {});
+
+// Authenticate a new account
+const auth = await mcp.callTool('authenticate_workspace_account', {
+  email: 'user@example.com'
 });
 
-// Example response:
-[
-  {
-    "email": "example.user@example.com",
-    "category": "work",
-    "description": "Example Work Account",
-    "auth_status": {
-      "has_token": true,
-      "scopes": [
-        "https://www.googleapis.com/auth/gmail.readonly",
-        "https://www.googleapis.com/auth/drive.readonly"
-      ],
-      "expires": 1737845044927
-    }
-  }
-]
-```
-
-## Authentication Flow Examples
-
-### 1. First-time Account Authentication
-
-```typescript
-// Initial authentication request
-const response = await use_mcp_tool({
-  server_name: "google-workspace-mcp",
-  tool_name: "authenticate_workspace_account",
-  arguments: {
-    email: "your.email@example.com",
-    category: "work",
-    description: "Work Google Account",
-    required_scopes: [
-      "https://www.googleapis.com/auth/gmail.readonly"
-    ]
-  }
-});
-
-// Response will include auth URL and instructions
-{
-  status: "auth_required",
-  auth_url: "https://accounts.google.com/o/oauth2/...",
-  message: "Please complete authentication:",
-  instructions: [
-    "1. Click the authorization URL below to open Google sign-in",
-    "2. Sign in with your Google account",
-    "3. Allow the requested permissions",
-    "4. Copy the authorization code shown",
-    "5. Run this request again with the auth_code parameter set to the code you copied"
-  ].join("\n")
-}
-
-// Complete authentication with auth code
-const authResponse = await use_mcp_tool({
-  server_name: "google-workspace-mcp",
-  tool_name: "authenticate_workspace_account",
-  arguments: {
-    email: "your.email@example.com",
-    required_scopes: [
-      "https://www.googleapis.com/auth/gmail.readonly"
-    ],
-    auth_code: "PASTE_AUTH_CODE_HERE"  // Replace with the actual code from OAuth consent screen
-  }
+// Remove an account
+await mcp.callTool('remove_workspace_account', {
+  email: 'user@example.com'
 });
 ```
 
-### 2. Adding New Scopes
+## Gmail Operations
+
+### Messages
 
 ```typescript
-// Request additional scopes for existing account
-const response = await use_mcp_tool({
-  server_name: "google-workspace-mcp",
-  tool_name: "authenticate_workspace_account",
-  arguments: {
-    email: "your.email@example.com",
-    required_scopes: [
-      "https://www.googleapis.com/auth/gmail.readonly",
-      "https://www.googleapis.com/auth/drive.readonly" // New scope
-    ]
+// Search emails
+const emails = await mcp.callTool('search_workspace_emails', {
+  email: 'user@example.com',
+  search: {
+    from: 'sender@example.com',
+    subject: 'Important Meeting',
+    after: '2024-01-01'
   }
 });
 
-// If new scopes require re-authentication:
-{
-  status: "auth_required",
-  auth_url: "https://accounts.google.com/o/oauth2/...",
-  message: "Additional permissions required. Please complete authentication:",
-  instructions: "..."
-}
-```
-
-## Error Handling Examples
-
-### 1. Handle Invalid Email
-
-```typescript
-try {
-  const response = await use_mcp_tool({
-    server_name: "google-workspace-mcp",
-    tool_name: "authenticate_workspace_account",
-    arguments: {
-      email: "invalid-email",
-      required_scopes: []
-    }
-  });
-} catch (error) {
-  // Handle INVALID_EMAIL error
-  console.error("Invalid email format:", error.resolution);
-}
-```
-
-### 2. Handle Account Not Found
-
-```typescript
-try {
-  const response = await use_mcp_tool({
-    server_name: "google-workspace-mcp",
-    tool_name: "authenticate_workspace_account",
-    arguments: {
-      email: "nonexistent.user@example.com",
-      required_scopes: []
-    }
-  });
-} catch (error) {
-  // Handle ACCOUNT_NOT_FOUND error
-  console.error("Account not found:", error.resolution);
-}
-```
-
-## Best Practices Examples
-
-### 1. Check Account Status Before Authentication
-
-```typescript
-// First check existing accounts
-const listResponse = await use_mcp_tool({
-  server_name: "google-workspace-mcp",
-  tool_name: "list_workspace_accounts",
-  arguments: {}
-});
-
-// Find account if it exists
-const account = listResponse.find(acc => acc.email === "your.email@example.com");
-
-if (account && account.auth_status.has_token) {
-  // Check if we have all required scopes
-  const hasAllScopes = requiredScopes.every(
-    scope => account.auth_status.scopes.includes(scope)
-  );
-  
-  if (hasAllScopes) {
-    console.log("Account already authenticated with required scopes");
-    return;
-  }
-}
-
-// Proceed with authentication if needed
-const authResponse = await use_mcp_tool({
-  server_name: "google-workspace-mcp",
-  tool_name: "authenticate_workspace_account",
-  arguments: {
-    email: "your.email@example.com",
-    required_scopes: requiredScopes
-  }
+// Send email
+await mcp.callTool('send_workspace_email', {
+  email: 'user@example.com',
+  to: ['recipient@example.com'],
+  subject: 'Hello',
+  body: 'Message content'
 });
 ```
 
-### 2. Error Handling with Retry
+### Labels
 
 ```typescript
-const authenticateWithRetry = async (email, scopes, retries = 3) => {
-  try {
-    const response = await use_mcp_tool({
-      server_name: "google-workspace-mcp",
-      tool_name: "authenticate_workspace_account",
-      arguments: {
-        email,
-        required_scopes: scopes
-      }
-    });
-    return response;
-  } catch (error) {
-    if (retries > 0 && error.status === "error") {
-      // Retry on certain errors
-      if (["TOKEN_SAVE_ERROR", "TOKEN_LOAD_ERROR"].includes(error.code)) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return authenticateWithRetry(email, scopes, retries - 1);
-      }
-    }
-    throw error;
+// Create label
+await mcp.callTool('manage_workspace_label', {
+  email: 'user@example.com',
+  action: 'create',
+  data: {
+    name: 'Projects/Active',
+    labelListVisibility: 'labelShow',
+    messageListVisibility: 'show'
   }
-};
+});
+
+// Apply label to message
+await mcp.callTool('manage_workspace_label_assignment', {
+  email: 'user@example.com',
+  action: 'add',
+  messageId: 'msg123',
+  labelIds: ['label123']
+});
+```
+
+### Drafts
+
+```typescript
+// Create draft
+const draft = await mcp.callTool('manage_workspace_draft', {
+  email: 'user@example.com',
+  action: 'create',
+  data: {
+    to: ['recipient@example.com'],
+    subject: 'Draft Message',
+    body: 'Draft content'
+  }
+});
+
+// Send draft
+await mcp.callTool('manage_workspace_draft', {
+  email: 'user@example.com',
+  action: 'send',
+  draftId: draft.id
+});
+```
+
+## Calendar Operations
+
+### Events
+
+```typescript
+// List calendar events
+const events = await mcp.callTool('list_workspace_calendar_events', {
+  email: 'user@example.com',
+  timeMin: '2024-02-01T00:00:00Z',
+  timeMax: '2024-02-28T23:59:59Z'
+});
+
+// Create event
+await mcp.callTool('create_workspace_calendar_event', {
+  email: 'user@example.com',
+  summary: 'Team Meeting',
+  start: {
+    dateTime: '2024-02-20T10:00:00-06:00',
+    timeZone: 'America/Chicago'
+  },
+  end: {
+    dateTime: '2024-02-20T11:00:00-06:00',
+    timeZone: 'America/Chicago'
+  },
+  attendees: [
+    { email: 'teammate@example.com' }
+  ]
+});
+
+// Respond to event
+await mcp.callTool('manage_workspace_calendar_event', {
+  email: 'user@example.com',
+  eventId: 'evt123',
+  action: 'accept',
+  comment: 'Looking forward to it!'
+});
+```
+
+## Drive Operations
+
+### File Management
+
+```typescript
+// List files
+const files = await mcp.callTool('list_drive_files', {
+  email: 'user@example.com',
+  options: {
+    folderId: 'folder123',
+    pageSize: 100
+  }
+});
+
+// Search files
+const searchResults = await mcp.callTool('search_drive_files', {
+  email: 'user@example.com',
+  options: {
+    fullText: 'project proposal',
+    mimeType: 'application/pdf'
+  }
+});
+
+// Upload file
+const uploadedFile = await mcp.callTool('upload_drive_file', {
+  email: 'user@example.com',
+  options: {
+    name: 'document.pdf',
+    content: 'base64_encoded_content',
+    mimeType: 'application/pdf',
+    parents: ['folder123']
+  }
+});
+
+// Download file
+const fileContent = await mcp.callTool('download_drive_file', {
+  email: 'user@example.com',
+  fileId: 'file123',
+  mimeType: 'application/pdf'  // For Google Workspace files
+});
+
+// Delete file
+await mcp.callTool('delete_drive_file', {
+  email: 'user@example.com',
+  fileId: 'file123'
+});
+```
+
+### Folder Operations
+
+```typescript
+// Create folder
+const folder = await mcp.callTool('create_drive_folder', {
+  email: 'user@example.com',
+  name: 'Project Documents',
+  parentId: 'parent123'  // Optional
+});
+```
+
+### Permissions
+
+```typescript
+// Update file permissions
+await mcp.callTool('update_drive_permissions', {
+  email: 'user@example.com',
+  options: {
+    fileId: 'file123',
+    role: 'writer',
+    type: 'user',
+    emailAddress: 'collaborator@example.com'
+  }
+});
+
+// Share with domain
+await mcp.callTool('update_drive_permissions', {
+  email: 'user@example.com',
+  options: {
+    fileId: 'file123',
+    role: 'reader',
+    type: 'domain',
+    domain: 'example.com'
+  }
+});

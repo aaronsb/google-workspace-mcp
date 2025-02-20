@@ -2,9 +2,13 @@
 
 ![Robot Assistant](https://raw.githubusercontent.com/aaronsb/google-workspace-mcp/main/docs/assets/robot-assistant.png)
 
-Imagine having a tireless digital assistant that seamlessly manages your Google Workspace universe. That's exactly what this Model Context Protocol (MCP) server delivers - a powerful bridge between AI and your digital life. Whether you're drowning in emails, juggling calendar invites, or trying to maintain order in your professional chaos, this tool empowers AI assistants to help you take control.
+This Model Context Protocol (MCP) server puts you in control of your Google Workspace. Once you connect your account - a simple, secure process that takes just a minute - you're ready to go. Behind the scenes, it keeps your connection safe and active, so you can focus on getting things done instead of managing logins and permissions.
 
-Want to find that important email from last month? Need to schedule a team meeting while respecting everyone's availability? Looking to organize your inbox with intelligent filters? Your AI assistant can handle it all through this server, making your Google Workspace experience more efficient and intuitive than ever before.
+Take command of your Gmail inbox in ways you never thought possible. Want that proposal from last quarter? Found in seconds. Drowning in newsletters? They'll sort themselves into folders automatically. Need to track responses to an important thread? Labels and filters do the work for you. From drafting the perfect email to managing conversations with your team, everything just clicks into place.
+
+Your calendar becomes a trusted ally in the daily juggle. No more double-booked meetings or timezone confusion. Planning a team sync? It spots the perfect time slots. Running a recurring workshop? Set it up once, and you're done. Even when plans change, finding new times that work for everyone is quick and painless. The days of endless "when are you free?" emails are over.
+
+Turn Google Drive from a file dump into your digital command center. Every document finds its place, every folder tells a story. Share files with exactly the right people - no more "who can edit this?" confusion. Looking for that presentation from last week's meeting? Search not just names, but what's inside your files. Whether you're organizing a small project or managing a mountain of documents, everything stays right where you need it.
 
 ## TL;DR Setup
 
@@ -20,12 +24,7 @@ Want to find that important email from last month? Need to schedule a team meeti
    → Create OAuth Desktop Client ID and Secret
    ```
 
-2. Create config directory:
-   ```bash
-   mkdir -p ~/.mcp/google-workspace-mcp
-   ```
-
-3. Add to Cline settings (e.g., `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`):
+2. Add to Cline settings (e.g., `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`):
    ```json
    {
      "mcpServers": {
@@ -36,6 +35,7 @@ Want to find that important email from last month? Need to schedule a team meeti
            "--rm",
            "-i",
            "-v", "/home/aaron/.mcp/google-workspace-mcp:/app/config",
+           "-v", "/home/aaron/Documents/workspace-mcp-files:/app/workspace",
            "-e", "GOOGLE_CLIENT_ID",
            "-e", "GOOGLE_CLIENT_SECRET",
            "-e", "LOG_MODE=strict",
@@ -70,10 +70,11 @@ Before using this MCP server, you must set up your own Google Cloud Project with
 2. Enable the required APIs:
    - Gmail API
    - Google Calendar API
+   - Google Drive API
 3. Configure the OAuth consent screen:
    - Set up as "External"
    - Add yourself as a test user
-   - Add required scopes for Gmail and Calendar
+   - Add required scopes for Gmail, Calendar, and Drive
 4. Create OAuth 2.0 credentials:
    - Choose "Desktop application" type
    - Note your Client ID and Client Secret
@@ -115,13 +116,38 @@ Add the following configuration to your Cline MCP settings:
 }
 ```
 
+### File Management
+
+The server automatically manages files in a structured way:
+
+```
+~/Documents/workspace-mcp-files/
+├── [email_1@domain.com]/
+│   ├── downloads/        # Files downloaded from Drive
+│   └── uploads/         # Files staged for upload
+├── [email_2@domain.com]/
+│   ├── downloads/
+│   └── uploads/
+└── shared/
+    └── temp/           # Temporary files (cleaned up automatically)
+```
+
+The WorkspaceManager creates and maintains this structure automatically:
+- Creates directories as needed when files are downloaded/uploaded
+- Organizes files by user email
+- Handles temporary file cleanup
+- Maintains proper permissions
+
+You can customize the workspace location by setting the `WORKSPACE_BASE_PATH` environment variable.
+
 ### Manual Usage
 
-You can also run the container directly:
+You can run the container directly:
 
 ```bash
 docker run -i --rm \
   -v ~/.mcp/google-workspace-mcp:/app/config \
+  -v ~/Documents/workspace-mcp-files:/app/workspace \
   -e GOOGLE_CLIENT_ID=123456789012-abcdef3gh1jklmn2pqrs4uvw5xyz6789.apps.googleusercontent.com \
   -e GOOGLE_CLIENT_SECRET=GOCSPX-abcdefghijklmnopqrstuvwxyz1234 \
   -e LOG_MODE=strict \
@@ -144,6 +170,7 @@ docker build -t google-workspace-mcp:local .
 # Run with required environment variables
 docker run -i --rm \
   -v ~/.mcp/google-workspace-mcp:/app/config \
+  -v ~/Documents/workspace-mcp-files:/app/workspace \
   -e GOOGLE_CLIENT_ID=123456789012-abcdef3gh1jklmn2pqrs4uvw5xyz6789.apps.googleusercontent.com \
   -e GOOGLE_CLIENT_SECRET=GOCSPX-abcdefghijklmnopqrstuvwxyz1234 \
   -e LOG_MODE=strict \
@@ -276,12 +303,68 @@ docker run -i --rm \
   - Delete calendar events
   - Notification options for attendees
 
+### Drive Operations
+
+#### File Management
+- `list_drive_files` (aliases: list_files, get_files, show_files)
+  - List files with optional filtering
+  - Filter by folder
+  - Custom query support
+  - Sorting and pagination
+  - Field selection
+
+- `search_drive_files` (aliases: search_files, find_files, query_files)
+  - Full text search across file content
+  - Filter by MIME type
+  - Filter by folder
+  - Include/exclude trashed files
+  - Advanced query options
+
+- `upload_drive_file` (aliases: upload_file, create_file, add_file)
+  - Upload new files
+  - Set file metadata
+  - Specify parent folders
+  - Support for various file types
+
+- `download_drive_file` (aliases: download_file, get_file_content, fetch_file)
+  - Download any file type
+  - Export Google Workspace files
+  - Format conversion options
+  - Automatic MIME type handling
+
+- `delete_drive_file` (aliases: delete_file, remove_file, trash_file)
+  - Delete files and folders
+  - Clean removal from Drive
+
+#### Folder Operations
+- `create_drive_folder` (aliases: create_folder, new_folder, add_folder)
+  - Create new folders
+  - Nested folder support
+  - Parent folder specification
+  - Folder metadata
+
+#### Permissions
+- `update_drive_permissions` (aliases: share_file, update_sharing, modify_permissions)
+  - Update sharing settings
+  - Multiple permission types:
+    - User permissions
+    - Group permissions
+    - Domain sharing
+    - Public access
+  - Various access roles:
+    - Owner
+    - Organizer
+    - File Organizer
+    - Writer
+    - Commenter
+    - Reader
+  - Discovery settings for public files
+
 See [API Documentation](docs/API.md) for detailed usage.
 
 ## Coming Soon
 
 ### Future Services
-- Drive API integration
 - Admin SDK support
 - Additional Google services
 

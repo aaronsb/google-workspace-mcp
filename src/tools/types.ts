@@ -129,6 +129,83 @@ export interface CalendarEventAttendee {
   email: string;
 }
 
+// Drive Types
+/**
+ * Parameters for listing Drive files
+ */
+export interface DriveFileListArgs extends BaseToolArguments {
+  options?: {
+    folderId?: string;
+    query?: string;
+    pageSize?: number;
+    orderBy?: string[];
+    fields?: string[];
+  };
+}
+
+/**
+ * Parameters for searching Drive files
+ */
+export interface DriveSearchArgs extends BaseToolArguments {
+  options: {
+    fullText?: string;
+    mimeType?: string;
+    folderId?: string;
+    trashed?: boolean;
+    query?: string;
+    pageSize?: number;
+  };
+}
+
+/**
+ * Parameters for uploading files to Drive
+ */
+export interface DriveUploadArgs extends BaseToolArguments {
+  options: {
+    name: string;
+    content: string;
+    mimeType?: string;
+    parents?: string[];
+  };
+}
+
+/**
+ * Parameters for downloading files from Drive
+ */
+export interface DriveDownloadArgs extends BaseToolArguments {
+  fileId: string;
+  mimeType?: string;
+}
+
+/**
+ * Parameters for creating Drive folders
+ */
+export interface DriveFolderArgs extends BaseToolArguments {
+  name: string;
+  parentId?: string;
+}
+
+/**
+ * Parameters for updating Drive permissions
+ */
+export interface DrivePermissionArgs extends BaseToolArguments {
+  options: {
+    fileId: string;
+    role: 'owner' | 'organizer' | 'fileOrganizer' | 'writer' | 'commenter' | 'reader';
+    type: 'user' | 'group' | 'domain' | 'anyone';
+    emailAddress?: string;
+    domain?: string;
+    allowFileDiscovery?: boolean;
+  };
+}
+
+/**
+ * Parameters for deleting Drive files
+ */
+export interface DriveDeleteArgs extends BaseToolArguments {
+  fileId: string;
+}
+
 // Label Types
 /**
  * Color settings for Gmail labels
