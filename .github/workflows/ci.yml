@@ -65,8 +65,12 @@ jobs:
         load: false
         tags: google-workspace-mcp:test
         platforms: linux/amd64,linux/arm64
-        cache-from: type=gha,scope=${{ github.ref_name }}-${{ matrix.platform }}
-        cache-to: type=gha,mode=min,scope=${{ github.ref_name }}-${{ matrix.platform }}
+        cache-from: |
+          type=gha,scope=${{ github.ref_name }}-amd64
+          type=gha,scope=${{ github.ref_name }}-arm64
+        cache-to: |
+          type=gha,mode=min,scope=${{ github.ref_name }}-amd64
+          type=gha,mode=min,scope=${{ github.ref_name }}-arm64
         outputs: type=image,name=google-workspace-mcp:test
 
   lint:
