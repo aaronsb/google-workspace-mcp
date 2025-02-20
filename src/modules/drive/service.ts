@@ -1,13 +1,13 @@
-import { drive_v3, google } from 'googleapis';
-import { GaxiosResponse } from 'gaxios';
+import { google } from 'googleapis';
 import { BaseGoogleService } from '../../services/base/BaseGoogleService.js';
 import { DriveOperationResult, FileDownloadOptions, FileListOptions, FileSearchOptions, FileUploadOptions, PermissionOptions } from './types.js';
 import { Readable } from 'stream';
 import { DRIVE_SCOPES } from './scopes.js';
 import { workspaceManager } from '../../utils/workspace.js';
 import fs from 'fs/promises';
+import { GaxiosResponse } from 'gaxios';
 
-export class DriveService extends BaseGoogleService<drive_v3.Drive> {
+export class DriveService extends BaseGoogleService<ReturnType<typeof google.drive>> {
   private initialized = false;
 
   constructor() {

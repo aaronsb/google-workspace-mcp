@@ -1,20 +1,21 @@
+import { driveService } from '../../services/drive/index.js';
 import { DriveService } from './service.js';
-import { registerDriveScopes } from './scopes.js';
 import { DriveOperationResult } from './types.js';
 
 // Export types and service
 export * from './types.js';
 export * from './scopes.js';
+export { DriveService };
 
-// Singleton instance
-let driveService: DriveService | undefined;
+// Get singleton instance
+let serviceInstance: DriveService | undefined;
 
 export async function getDriveService(): Promise<DriveService> {
-  if (!driveService) {
-    driveService = new DriveService();
-    await driveService.ensureInitialized();
+  if (!serviceInstance) {
+    serviceInstance = driveService;
+    await serviceInstance.ensureInitialized();
   }
-  return driveService;
+  return serviceInstance;
 }
 
 // Initialize module
