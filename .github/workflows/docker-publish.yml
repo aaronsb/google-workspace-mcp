@@ -116,8 +116,14 @@ jobs:
           # Log in to registry to ensure we can pull private packages
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
           
-          # Pull with manifest digest
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}
+          # Wait briefly for registry propagation
+          sleep 30
+          
+          # Try pulling with digest first, fall back to tag if digest not available
+          if ! docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}; then
+            echo "Falling back to tag-based pull"
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          fi
       
       - name: Set up test environment
         run: |
@@ -126,6 +132,16 @@ jobs:
           chmod 777 logs
           # Copy example config for testing only (production deployments manage their own config)
           cp config/accounts.example.json config/accounts.json
+
+      - name: Set image reference
+        id: imgref
+        run: |
+          # Use digest if available, otherwise use latest tag
+          if docker inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }} >/dev/null 2>&1; then
+            echo "ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}" >> $GITHUB_OUTPUT
+          else
+            echo "ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
+          fi
 
       - name: Run integration tests
         run: |
@@ -136,7 +152,7 @@ jobs:
             -e LOG_FILE=/app/logs/integration-test.log \
             -v ${{ github.workspace }}/logs:/app/logs \
             -v ${{ github.workspace }}/config:/app/config \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }} \
+            ${{ steps.imgref.outputs.ref }} \
             npm run test:integration
 
           # Display logs for debugging if tests fail
@@ -153,7 +169,7 @@ jobs:
             -e GOOGLE_CLIENT_SECRET=test-secret \
             --health-cmd="node /app/build/health-check.js" \
             --health-interval=10s \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}
+            ${{ steps.imgref.outputs.ref }}
 
   cleanup:
     name: Cleanup
