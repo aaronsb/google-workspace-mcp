@@ -1,30 +1,64 @@
 # Version control
 .git
 .gitignore
+.github
 
 # Dependencies
 node_modules
+package-lock.json
+npm-debug.log*
 
 # Development files
 .vscode
 .idea
 *.log
 logs
+coverage
+.nyc_output
+*.tsbuildinfo
+
+# Documentation and markdown
 *.md
 !README.md
+docs
+cline_docs
+ARCHITECTURE.md
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+LICENSE
+SECURITY.md
+TODO.md
 
 # Test files
 __tests__
 __fixtures__
 __helpers__
+__mocks__
 *.test.*
+*.spec.*
 jest.config.*
 jest.setup.*
+test
+tests
 
-# Configuration
+# Configuration and build files
+.eslintrc*
+.prettierrc*
+.editorconfig
+tsconfig.json
+*.config.js
+*.config.cjs
+*.config.mjs
 config/*
 !config/*.example.json
 
-# Documentation
-docs
-cline_docs
+# Source maps
+*.map
+
+# Build artifacts
+dist
+coverage
+.nyc_output
+
+# Environment files
+.env*
