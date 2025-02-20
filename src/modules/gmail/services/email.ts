@@ -1,5 +1,4 @@
-import { google } from 'googleapis';
-import { OAuth2Client } from 'google-auth-library';
+import { google, gmail_v1 } from 'googleapis';
 import {
   EmailResponse,
   GetEmailsParams,
@@ -7,14 +6,20 @@ import {
   SendEmailParams,
   SendEmailResponse,
   ThreadInfo,
-  GmailError,
-  SearchCriteria
+  GmailError
 } from '../types.js';
 import { SearchService } from './search.js';
+import { AttachmentService } from '../../attachments/service.js';
+import { ATTACHMENT_FOLDERS, AttachmentSource, AttachmentMetadata } from '../../attachments/types.js';
+import { DriveService } from '../../drive/service.js';
+
+type GmailMessage = gmail_v1.Schema$Message;
 
 export class EmailService {
   constructor(
     private searchService: SearchService,
+    private attachmentService: AttachmentService,
+    private driveService: DriveService,
     private gmailClient?: ReturnType<typeof google.gmail>
   ) {}
 
@@ -82,9 +87,59 @@ export class EmailService {
   }
 
   /**
+   * Process email attachments and store in Drive
+   */
+  private async processEmailAttachments(
+    email: string,
+    message: GmailMessage,
+    isIncoming: boolean
+  ): Promise<AttachmentMetadata[]> {
+    const attachments: AttachmentMetadata[] = [];
+    
+    if (!message.payload?.parts) {
+      return attachments;
+    }
+
+    for (const part of message.payload.parts) {
+      if (part.filename && part.body?.attachmentId) {
+        // Get attachment content
+        const client = this.ensureClient();
+        const attachment = await client.users.messages.attachments.get({
+          userId: 'me',
+          messageId: message.id!,
+          id: part.body.attachmentId
+        });
+
+        if (attachment.data.data) {
+          // Process attachment and store in Drive
+          const result = await this.attachmentService.processAttachment(
+            email,
+            {
+              type: 'local',
+              content: attachment.data.data,
+              metadata: {
+                name: part.filename,
+                mimeType: part.mimeType || 'application/octet-stream',
+                size: parseInt(String(part.body.size || '0'))
+              }
+            },
+            isIncoming ? ATTACHMENT_FOLDERS.INCOMING : ATTACHMENT_FOLDERS.OUTGOING
+          );
+
+          if (result.success && result.attachment) {
+            attachments.push(result.attachment);
+          }
+        }
+      }
+    }
+
+    return attachments;
+  }
+
+  /**
    * Enhanced getEmails method with support for advanced search criteria and options
    */
-  async getEmails({ search = {}, options = {}, messageIds }: GetEmailsParams): Promise<GetEmailsResponse> {
+  async getEmails({ email, search = {}, options = {}, messageIds }: GetEmailsParams): Promise<GetEmailsResponse> {
     try {
       const maxResults = options.maxResults || 10;
       
@@ -152,6 +207,12 @@ export class EmailService {
             }
           }
 
+          // Process attachments if present
+          const hasAttachments = email.payload?.parts?.some(part => part.filename && part.filename.length > 0) || false;
+          const attachments = hasAttachments ? 
+            await this.processEmailAttachments(String(email.id), email, true) : 
+            undefined;
+
           const response: EmailResponse = {
             id: email.id!,
             threadId: email.threadId!,
@@ -164,7 +225,8 @@ export class EmailService {
             body,
             headers: options.includeHeaders ? this.extractHeaders(headers) : undefined,
             isUnread: email.labelIds?.includes('UNREAD') || false,
-            hasAttachment: email.payload?.parts?.some(part => part.filename && part.filename.length > 0) || false
+            hasAttachment: hasAttachments,
+            attachments
           };
 
           return response;
@@ -206,22 +268,86 @@ export class EmailService {
     }
   }
 
-  async sendEmail({ to, subject, body, cc = [], bcc = [] }: SendEmailParams): Promise<SendEmailResponse> {
+  async sendEmail({ email, to, subject, body, cc = [], bcc = [], attachments = [] }: SendEmailParams): Promise<SendEmailResponse> {
     try {
-      // Construct email
-      const message = [
-        'Content-Type: text/plain; charset="UTF-8"\n',
+      // Process attachments first
+      const processedAttachments = [];
+      for (const attachment of attachments) {
+        const source: AttachmentSource = attachment.driveFileId ? 
+          {
+            type: 'drive',
+            fileId: attachment.driveFileId,
+            metadata: {
+              name: attachment.name,
+              mimeType: attachment.mimeType,
+              size: attachment.size
+            }
+          } : 
+          {
+            type: 'local',
+            content: attachment.content!,
+            metadata: {
+              name: attachment.name,
+              mimeType: attachment.mimeType,
+              size: attachment.size
+            }
+          };
+
+        const result = await this.attachmentService.processAttachment(
+          email,
+          source,
+          ATTACHMENT_FOLDERS.OUTGOING
+        );
+
+        if (result.success && result.attachment) {
+          processedAttachments.push(result.attachment);
+        }
+      }
+
+      // Construct email with attachments
+      const boundary = `boundary_${Date.now()}`;
+      const messageParts = [
         'MIME-Version: 1.0\n',
-        'Content-Transfer-Encoding: 7bit\n',
+        `Content-Type: multipart/mixed; boundary="${boundary}"\n`,
         `To: ${to.join(', ')}\n`,
         cc.length > 0 ? `Cc: ${cc.join(', ')}\n` : '',
         bcc.length > 0 ? `Bcc: ${bcc.join(', ')}\n` : '',
         `Subject: ${subject}\n\n`,
+        `--${boundary}\n`,
+        'Content-Type: text/plain; charset="UTF-8"\n',
+        'Content-Transfer-Encoding: 7bit\n\n',
         body,
-      ].join('');
+        '\n'
+      ];
+
+      // Add attachments
+      for (const attachment of processedAttachments) {
+        const fileResult = await this.attachmentService.downloadAttachment(email, attachment.id);
+        if (fileResult.success && fileResult.attachment) {
+          // Get attachment content from Drive
+          const attachmentContent = await this.driveService.downloadFile(email, {
+            fileId: attachment.id
+          });
+          if (!attachmentContent.success) {
+            continue;
+          }
+          const content = Buffer.from(attachmentContent.data);
+          messageParts.push(
+            `--${boundary}\n`,
+            `Content-Type: ${attachment.mimeType}\n`,
+            'Content-Transfer-Encoding: base64\n',
+            `Content-Disposition: attachment; filename="${attachment.name}"\n\n`,
+            content.toString('base64'),
+            '\n'
+          );
+        }
+      }
+
+      messageParts.push(`--${boundary}--`);
+      const fullMessage = messageParts.join('');
 
       // Encode the email in base64
-      const encodedMessage = Buffer.from(message)
+      const encodedMessage = Buffer.from(fullMessage)
         .toString('base64')
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
@@ -236,11 +362,17 @@ export class EmailService {
         },
       });
 
-      return {
+      const response: SendEmailResponse = {
         messageId: data.id!,
         threadId: data.threadId!,
-        labelIds: data.labelIds || undefined,
+        labelIds: data.labelIds || undefined
       };
+
+      if (processedAttachments.length > 0) {
+        response.attachments = processedAttachments;
+      }
+
+      return response;
     } catch (error) {
       if (error instanceof GmailError) {
         throw error;

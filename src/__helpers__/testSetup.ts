@@ -3,9 +3,9 @@ import type { AccountManager } from '../modules/accounts/manager.js' with { "res
 import type { GoogleOAuthClient } from '../modules/accounts/oauth.js' with { "resolution-mode": "import" };
 import type { TokenManager } from '../modules/accounts/token.js' with { "resolution-mode": "import" };
 
-let AccountManagerClass: typeof AccountManager;
-let GoogleOAuthClientClass: typeof GoogleOAuthClient;
-let TokenManagerClass: typeof TokenManager;
+let _AccountManagerClass: typeof AccountManager;
+let _GoogleOAuthClientClass: typeof GoogleOAuthClient;
+let _TokenManagerClass: typeof TokenManager;
 let mockTokens: any;
 
 // Initialize the dynamic imports
@@ -15,9 +15,9 @@ const initializeModules = async () => {
   const token = await import('../modules/accounts/token.js');
   const accounts = await import('../__fixtures__/accounts.js');
 
-  AccountManagerClass = manager.AccountManager;
-  GoogleOAuthClientClass = oauth.GoogleOAuthClient;
-  TokenManagerClass = token.TokenManager;
+  _AccountManagerClass = manager.AccountManager;
+  _GoogleOAuthClientClass = oauth.GoogleOAuthClient;
+  _TokenManagerClass = token.TokenManager;
   mockTokens = accounts.mockTokens;
 };
 

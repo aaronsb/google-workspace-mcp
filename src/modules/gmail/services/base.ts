@@ -3,18 +3,14 @@ import { BaseGoogleService } from '../../../services/base/BaseGoogleService.js';
 import {
   GetEmailsParams,
   SendEmailParams,
-  EmailResponse,
   SendEmailResponse,
   GetGmailSettingsParams,
   GetGmailSettingsResponse,
   GmailError,
   GmailModuleConfig,
   GetEmailsResponse,
-  DraftEmailParams,
   DraftResponse,
-  GetDraftsParams,
   GetDraftsResponse,
-  SendDraftParams,
   Label,
   GetLabelsResponse,
   LabelFilter
@@ -32,6 +28,8 @@ import { DraftService } from './draft.js';
 import { SettingsService } from './settings.js';
 import { LabelService } from './label.js';
 import { FilterService } from './filter.js';
+import { AttachmentService } from '../../attachments/service.js';
+import { DriveService } from '../../drive/service.js';
 
 /**
  * Gmail service implementation extending BaseGoogleService for common auth handling.
@@ -49,8 +47,10 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
     
     // Initialize core services in dependency order
     this.searchService = new SearchService();
-    this.emailService = new EmailService(this.searchService);
-    this.draftService = new DraftService(this.emailService);
+    const driveService = new DriveService();
+    const attachmentService = new AttachmentService(driveService);
+    this.emailService = new EmailService(this.searchService, attachmentService, driveService);
+    this.draftService = new DraftService(driveService);
     this.settingsService = new SettingsService();
     this.labelService = new LabelService();
     this.filterService = new FilterService();

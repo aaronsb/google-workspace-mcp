@@ -1,5 +1,4 @@
 import { google } from 'googleapis';
-import { OAuth2Client } from 'google-auth-library';
 import {
   GetGmailSettingsParams,
   GetGmailSettingsResponse,
@@ -61,32 +60,55 @@ export class SettingsService {
           historyId: profile.historyId ?? ''
         },
         settings: {
-          autoForwarding: {
-            enabled: Boolean(autoForwarding.enabled),
-            emailAddress: autoForwarding.emailAddress || undefined,
-            disposition: autoForwarding.disposition || undefined
-          },
-          imap: {
-            enabled: Boolean(imap.enabled),
-            autoExpunge: imap.autoExpunge ?? undefined,
-            expungeBehavior: imap.expungeBehavior ?? undefined,
-            maxFolderSize: imap.maxFolderSize ?? undefined
-          },
-          language: {
-            displayLanguage: language.displayLanguage || 'en'
-          },
-          pop: {
-            enabled: Boolean(pop.accessWindow !== null),
-            accessWindow: pop.accessWindow || undefined,
-            disposition: pop.disposition || undefined
-          },
-          vacationResponder: {
-            enabled: Boolean(vacation.enableAutoReply),
-            startTime: vacation.startTime || undefined,
-            endTime: vacation.endTime || undefined,
-            message: (vacation.responseBodyHtml || vacation.responseBodyPlainText) || undefined,
-            responseSubject: vacation.responseSubject || undefined
-          }
+          ...(language?.displayLanguage && {
+            language: {
+              displayLanguage: language.displayLanguage
+            }
+          }),
+          ...(autoForwarding && {
+            autoForwarding: {
+              enabled: Boolean(autoForwarding.enabled),
+              ...(autoForwarding.emailAddress && {
+                emailAddress: autoForwarding.emailAddress
+              })
+            }
+          }),
+          ...(imap && {
+            imap: {
+              enabled: Boolean(imap.enabled),
+              ...(typeof imap.autoExpunge === 'boolean' && {
+                autoExpunge: imap.autoExpunge
+              }),
+              ...(imap.expungeBehavior && {
+                expungeBehavior: imap.expungeBehavior
+              })
+            }
+          }),
+          ...(pop && {
+            pop: {
+              enabled: Boolean(pop.accessWindow),
+              ...(pop.accessWindow && {
+                accessWindow: pop.accessWindow
+              })
+            }
+          }),
+          ...(vacation && {
+            vacationResponder: {
+              enabled: Boolean(vacation.enableAutoReply),
+              ...(vacation.startTime && {
+                startTime: vacation.startTime
+              }),
+              ...(vacation.endTime && {
+                endTime: vacation.endTime
+              }),
+              ...(vacation.responseSubject && {
+                responseSubject: vacation.responseSubject
+              }),
+              ...((vacation.responseBodyHtml || vacation.responseBodyPlainText) && {
+                message: vacation.responseBodyHtml ?? vacation.responseBodyPlainText ?? ''
+              })
+            }
+          })
         }
       };
 

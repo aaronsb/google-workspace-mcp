@@ -1,158 +1,350 @@
-import { getAccountManager } from '../modules/accounts/index.js';
-import { getGmailService } from '../modules/gmail/index.js';
-import {
-  McpToolResponse,
-  GmailSearchParams,
-  BaseToolArguments,
-  SendEmailArgs
-} from './types.js';
-
+import { GmailService } from '../modules/gmail/index.js';
+import { DriveService } from '../modules/drive/service.js';
+import { AttachmentService } from '../modules/attachments/service.js';
+import { SearchService } from '../modules/gmail/services/search.js';
+import { EmailService } from '../modules/gmail/services/email.js';
+import { SettingsService } from '../modules/gmail/services/settings.js';
+import { LabelService } from '../modules/gmail/services/label.js';
 import {
   ManageLabelParams,
   ManageLabelAssignmentParams,
-  ManageLabelFilterParams,
-  ManageDraftParams
-} from '../modules/gmail/types.js';
+  ManageLabelFilterParams
+} from '../modules/gmail/services/label.js';
+import { validateEmail } from '../utils/account.js';
+import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
+import { SendEmailParams } from '../modules/gmail/types.js';
 
-/**
- * Search emails in a Gmail account with advanced filtering
- * @param args.email - Gmail account to search
- * @param args.search - Search criteria (from, to, subject, dates, etc.)
- * @param args.maxResults - Maximum number of results to return
- * @returns Filtered list of emails matching search criteria
- * @throws {McpError} If search fails or token renewal fails
- */
-export async function handleSearchWorkspaceEmails(args: GmailSearchParams): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const params: GmailSearchParams = {
-      email: args.email,
-      search: args.search || {},
-      options: args.options || {}
-    };
-    const emails = await getGmailService().getEmails(params);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(emails, null, 2)
-      }]
-    };
-  });
+interface Attachment {
+  driveFileId?: string;
+  content?: string;
+  name: string;
+  mimeType: string;
+  size?: number;
 }
 
-
-/**
- * Send an email from a Gmail account
- * @param args.email - Sender's Gmail address
- * @param args.to - Recipient email addresses
- * @param args.subject - Email subject
- * @param args.body - Email content (supports HTML)
- * @param args.cc - Optional CC recipients
- * @param args.bcc - Optional BCC recipients
- * @returns Message ID and thread ID of sent email
- * @throws {McpError} If sending fails or token renewal fails
- */
-export async function handleSendWorkspaceEmail(args: SendEmailArgs): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getGmailService().sendEmail(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(result, null, 2)
-      }]
-    };
-  });
+interface SearchEmailsParams {
+  email: string;
+  search?: {
+    from?: string | string[];
+    to?: string | string[];
+    subject?: string;
+    after?: string;
+    before?: string;
+    hasAttachment?: boolean;
+    labels?: string[];
+    excludeLabels?: string[];
+    includeSpam?: boolean;
+    isUnread?: boolean;
+  };
+  options?: {
+    maxResults?: number;
+    pageToken?: string;
+    format?: 'full' | 'metadata' | 'minimal';
+    includeHeaders?: boolean;
+    threadedView?: boolean;
+    sortOrder?: 'asc' | 'desc';
+  };
+  messageIds?: string[];
 }
 
-/**
- * Get Gmail settings and profile information
- * @param args.email - Gmail account to get settings for
- * @returns Account settings including filters, forwarding, IMAP/POP settings
- * @throws {McpError} If settings retrieval fails
- */
-export async function handleGetWorkspaceGmailSettings(args: BaseToolArguments): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getGmailService().getWorkspaceGmailSettings(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(result, null, 2)
-      }]
-    };
-  });
+interface SendEmailRequestParams {
+  email: string;
+  to: string[];
+  subject: string;
+  body: string;
+  cc?: string[];
+  bcc?: string[];
+  attachments?: Attachment[];
 }
 
-
-/**
- * Manage Gmail drafts with CRUD operations and sending
- * @param args.email - Gmail account to manage drafts for
- * @param args.action - Operation to perform (create/read/update/delete/send)
- * @param args.draftId - Draft ID for operations other than create
- * @param args.data - Draft content for create/update operations
- * @returns Operation result (varies by action)
- * @throws {McpError} If operation fails
- */
-export async function handleManageWorkspaceDraft(args: ManageDraftParams): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getGmailService().manageDraft(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(result, null, 2)
-      }]
-    };
-  });
+interface ManageDraftParams {
+  email: string;
+  action: 'create' | 'read' | 'update' | 'delete' | 'send';
+  draftId?: string;
+  data?: {
+    to: string[];
+    subject: string;
+    body: string;
+    cc?: string[];
+    bcc?: string[];
+    attachments?: Attachment[];
+  };
 }
 
-// Label Management Handlers
-export async function handleManageWorkspaceLabel(args: ManageLabelParams): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getGmailService().manageLabel(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(result, null, 2)
-      }]
-    };
-  });
+const gmailService = new GmailService();
+const driveService = new DriveService();
+const attachmentService = new AttachmentService(driveService);
+const searchService = new SearchService();
+const emailService = new EmailService(searchService, attachmentService, driveService);
+const settingsService = new SettingsService();
+const labelService = new LabelService();
+
+export async function handleSearchWorkspaceEmails(params: SearchEmailsParams) {
+  const { email, search = {}, options = {}, messageIds } = params;
+
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email address is required'
+    );
+  }
+
+  validateEmail(email);
+
+  try {
+    return await emailService.getEmails({ email, search, options, messageIds });
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to search emails: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
 }
 
-export async function handleManageWorkspaceLabelAssignment(args: ManageLabelAssignmentParams): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    await getGmailService().manageLabelAssignment(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          status: 'success',
-          message: `Successfully ${args.action === 'add' ? 'added' : 'removed'} labels for message ${args.messageId}`
-        }, null, 2)
-      }]
+export async function handleSendWorkspaceEmail(params: SendEmailRequestParams) {
+  const { email, to, subject, body, cc, bcc, attachments } = params;
+
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Sender email address is required'
+    );
+  }
+
+  if (!to || !Array.isArray(to) || to.length === 0) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'At least one recipient email address is required'
+    );
+  }
+
+  if (!subject) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email subject is required'
+    );
+  }
+
+  if (!body) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email body is required'
+    );
+  }
+
+  validateEmail(email);
+  to.forEach(validateEmail);
+  if (cc) cc.forEach(validateEmail);
+  if (bcc) bcc.forEach(validateEmail);
+
+  try {
+    const emailParams: SendEmailParams = {
+      email,
+      to,
+      subject,
+      body,
+      cc,
+      bcc,
+      attachments: attachments?.map(attachment => ({
+        driveFileId: attachment.driveFileId,
+        content: attachment.content,
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+        size: attachment.size
+      }))
     };
-  });
+
+    return await emailService.sendEmail(emailParams);
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
 }
 
-export async function handleManageWorkspaceLabelFilter(args: ManageLabelFilterParams): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getGmailService().manageLabelFilter(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(result, null, 2)
-      }]
-    };
-  });
+export async function handleGetWorkspaceGmailSettings(params: { email: string }) {
+  const { email } = params;
+
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email address is required'
+    );
+  }
+
+  validateEmail(email);
+
+  try {
+    return await settingsService.getWorkspaceGmailSettings({ email });
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to get Gmail settings: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+export async function handleManageWorkspaceDraft(params: ManageDraftParams) {
+  const { email, action, draftId, data } = params;
+
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email address is required'
+    );
+  }
+
+  if (!action) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Action is required'
+    );
+  }
+
+  validateEmail(email);
+
+  try {
+    const draftService = gmailService.getDraftService();
+    await draftService.initialize();
+
+    switch (action) {
+      case 'create':
+        if (!data) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            'Draft data is required for create action'
+          );
+        }
+        return await draftService.createDraft(email, {
+          ...data,
+          attachments: data.attachments?.map(attachment => ({
+            driveFileId: attachment.driveFileId,
+            content: attachment.content,
+            name: attachment.name,
+            mimeType: attachment.mimeType,
+            size: attachment.size
+          }))
+        });
+
+      case 'read':
+        if (!draftId) {
+          return await draftService.listDrafts(email);
+        }
+        return await draftService.getDraft(email, draftId);
+
+      case 'update':
+        if (!draftId || !data) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            'Draft ID and data are required for update action'
+          );
+        }
+        return await draftService.updateDraft(email, draftId, {
+          ...data,
+          attachments: data.attachments?.map(attachment => ({
+            driveFileId: attachment.driveFileId,
+            content: attachment.content,
+            name: attachment.name,
+            mimeType: attachment.mimeType,
+            size: attachment.size
+          }))
+        });
+
+      case 'delete':
+        if (!draftId) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            'Draft ID is required for delete action'
+          );
+        }
+        return await draftService.deleteDraft(email, draftId);
+
+      case 'send':
+        if (!draftId) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            'Draft ID is required for send action'
+          );
+        }
+        return await draftService.sendDraft(email, draftId);
+
+      default:
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          'Invalid action. Supported actions are: create, read, update, delete, send'
+        );
+    }
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to manage draft: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+export async function handleManageWorkspaceLabel(params: ManageLabelParams) {
+  const { email } = params;
+
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email address is required'
+    );
+  }
+
+  validateEmail(email);
+
+  try {
+    return await labelService.manageLabel(params);
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to manage label: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+export async function handleManageWorkspaceLabelAssignment(params: ManageLabelAssignmentParams) {
+  const { email } = params;
+
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email address is required'
+    );
+  }
+
+  validateEmail(email);
+
+  try {
+    return await labelService.manageLabelAssignment(params);
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to manage label assignment: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+export async function handleManageWorkspaceLabelFilter(params: ManageLabelFilterParams) {
+  const { email } = params;
+
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email address is required'
+    );
+  }
+
+  validateEmail(email);
+
+  try {
+    return await labelService.manageLabelFilter(params);
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to manage label filter: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
 }

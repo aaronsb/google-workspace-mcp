@@ -1,7 +1,7 @@
 import { drive_v3, google } from 'googleapis';
 import { GaxiosResponse } from 'gaxios';
-import { GoogleServiceError, BaseGoogleService } from '../../services/base/BaseGoogleService.js';
-import { DriveFile, DriveFileList, DriveOperationResult, FileDownloadOptions, FileListOptions, FileSearchOptions, FileUploadOptions, PermissionOptions } from './types.js';
+import { BaseGoogleService } from '../../services/base/BaseGoogleService.js';
+import { DriveOperationResult, FileDownloadOptions, FileListOptions, FileSearchOptions, FileUploadOptions, PermissionOptions } from './types.js';
 import { Readable } from 'stream';
 import { DRIVE_SCOPES } from './scopes.js';
 import { workspaceManager } from '../../utils/workspace.js';

@@ -1,5 +1,3 @@
-import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-
 /**
  * Simple registry to collect OAuth scopes needed by tools.
  * Scopes are gathered at startup and used for initial auth only.

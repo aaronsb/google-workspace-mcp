@@ -1,7 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { AccountError, TokenStatus, TokenRenewalResult } from './types.js';
-import { scopeRegistry } from '../tools/scope-registry.js';
 import { GoogleOAuthClient } from './oauth.js';
 import logger from '../../utils/logger.js';
 

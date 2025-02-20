@@ -65,15 +65,16 @@ import { registerDriveScopes } from '../modules/drive/scopes.js';
 
 // Import types and type guards
 import {
-  BaseToolArguments,
   CalendarEventParams,
   SendEmailArgs,
   AuthenticateAccountArgs,
-  ManageLabelParams,
-  ManageLabelAssignmentParams,
-  ManageLabelFilterParams,
   ManageDraftParams
 } from './types.js';
+import {
+  ManageLabelParams,
+  ManageLabelAssignmentParams,
+  ManageLabelFilterParams
+} from '../modules/gmail/services/label.js';
 
 import {
   assertBaseToolArguments,
@@ -214,13 +215,13 @@ export class GSuiteServer {
           // Label Management
           case 'manage_workspace_label':
             assertManageLabelParams(args);
-            return await handleManageWorkspaceLabel(args);
+            return await handleManageWorkspaceLabel(args as unknown as ManageLabelParams);
           case 'manage_workspace_label_assignment':
             assertManageLabelAssignmentParams(args);
-            return await handleManageWorkspaceLabelAssignment(args);
+            return await handleManageWorkspaceLabelAssignment(args as unknown as ManageLabelAssignmentParams);
           case 'manage_workspace_label_filter':
             assertManageLabelFilterParams(args);
-            return await handleManageWorkspaceLabelFilter(args);
+            return await handleManageWorkspaceLabelFilter(args as unknown as ManageLabelFilterParams);
 
           // Drive Operations
           case 'list_drive_files':
@@ -261,10 +262,15 @@ export class GSuiteServer {
 
   private formatErrorResponse(error: unknown) {
     if (error instanceof AccountError || error instanceof GmailError || error instanceof CalendarError) {
+      const details = error instanceof GmailError ? error.details :
+                     error instanceof AccountError ? error.resolution :
+                     error instanceof CalendarError ? error.message :
+                     'Please try again or contact support if the issue persists';
+      
       return {
         status: 'error',
         error: error.message,
-        resolution: error.resolution
+        resolution: details
       };
     }
 
