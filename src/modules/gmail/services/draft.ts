@@ -1,5 +1,5 @@
+
 import { google } from 'googleapis';
-import { OAuth2Client } from 'google-auth-library';
 import { GmailError } from '../types.js';
 import { AttachmentService } from '../../attachments/service.js';
 import { DriveService } from '../../drive/service.js';
@@ -135,10 +135,10 @@ export class DraftService {
       });
 
       return {
-        id: draft.id!,
+        id: draft.id || '',
         message: {
-          id: draft.message?.id!,
-          threadId: draft.message?.threadId!,
+          id: draft.message?.id || '',
+          threadId: draft.message?.threadId || '',
           labelIds: draft.message?.labelIds || []
         },
         updated: new Date().toISOString(),
@@ -161,12 +161,24 @@ export class DraftService {
       });
 
       // Get full details for each draft
-      const drafts = await Promise.all((data.drafts || []).map(draft => 
-        this.getDraft(email, draft.id!)
-      ));
+      const drafts = await Promise.all((data.drafts || [])
+        .filter((draft): draft is { id: string } => typeof draft.id === 'string')
+        .map(async draft => {
+          try {
+            return await this.getDraft(email, draft.id);
+          } catch (error) {
+            // Log error but continue with other drafts
+            console.error(`Failed to get draft ${draft.id}:`, error);
+            return null;
+          }
+        })
+      );
+
+      // Filter out any failed draft fetches
+      const successfulDrafts = drafts.filter((draft): draft is NonNullable<typeof draft> => draft !== null);
 
       return {
-        drafts,
+        drafts: successfulDrafts,
         nextPageToken: data.nextPageToken || undefined,
         resultSizeEstimate: data.resultSizeEstimate || 0
       };
@@ -188,12 +200,20 @@ export class DraftService {
         format: 'full'
       });
 
+      if (!data.id || !data.message?.id || !data.message?.threadId) {
+        throw new GmailError(
+          'Invalid response from Gmail API',
+          'GET_ERROR',
+          'Message ID or Thread ID is missing'
+        );
+      }
+
       return {
-        id: data.id!,
+        id: data.id,
         message: {
-          id: data.message?.id!,
-          threadId: data.message?.threadId!,
-          labelIds: data.message?.labelIds || []
+          id: data.message.id,
+          threadId: data.message.threadId,
+          labelIds: data.message.labelIds || []
         },
         updated: new Date().toISOString() // Gmail API doesn't provide updated time, using current time
       };
@@ -284,10 +304,10 @@ export class DraftService {
       });
 
       return {
-        id: draft.id!,
+        id: draft.id || '',
         message: {
-          id: draft.message?.id!,
-          threadId: draft.message?.threadId!,
+          id: draft.message?.id || '',
+          threadId: draft.message?.threadId || '',
           labelIds: draft.message?.labelIds || []
         },
         updated: new Date().toISOString(),
@@ -385,9 +405,17 @@ export class DraftService {
         }
       });
 
+      if (!data.id || !data.threadId) {
+        throw new GmailError(
+          'Invalid response from Gmail API',
+          'SEND_ERROR',
+          'Message ID or Thread ID is missing'
+        );
+      }
+      
       return {
-        messageId: data.id!,
-        threadId: data.threadId!,
+        messageId: data.id,
+        threadId: data.threadId,
         labelIds: data.labelIds || undefined
       };
     } catch (error) {

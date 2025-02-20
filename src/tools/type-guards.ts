@@ -6,7 +6,6 @@ import {
   ManageLabelAssignmentParams,
   ManageLabelFilterParams,
   ManageDraftParams,
-  DraftAction,
   DriveFileListArgs,
   DriveSearchArgs,
   DriveUploadArgs,
@@ -230,7 +229,7 @@ export function isManageLabelAssignmentParams(args: unknown): args is ManageLabe
     ['add', 'remove'].includes(params.action) &&
     typeof params.messageId === 'string' &&
     Array.isArray(params.labelIds) &&
-    params.labelIds.every(id => typeof id === 'string');
+    params.labelIds.every((id: unknown) => typeof id === 'string');
 }
 
 export function assertManageLabelAssignmentParams(args: unknown): asserts args is ManageLabelAssignmentParams {

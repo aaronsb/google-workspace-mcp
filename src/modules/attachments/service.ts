@@ -1,5 +1,4 @@
 import { DriveService } from '../drive/service.js';
-import { workspaceManager } from '../../utils/workspace.js';
 import {
   AttachmentMetadata,
   AttachmentResult,
@@ -8,7 +7,7 @@ import {
   AttachmentValidationResult,
   ATTACHMENT_FOLDERS
 } from './types.js';
-import fs from 'fs/promises';
+import _fs from 'fs/promises';
 import path from 'path';
 
 const DEFAULT_CONFIG: AttachmentServiceConfig = {

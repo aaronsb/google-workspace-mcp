@@ -1,4 +1,3 @@
-import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { ToolMetadata } from "../modules/tools/registry.js";
 
 // Account Management Tools

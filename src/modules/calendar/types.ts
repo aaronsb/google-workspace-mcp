@@ -5,12 +5,6 @@ export interface CalendarModuleConfig {
   allowedAttachmentTypes?: string[];
 }
 
-export interface CalendarError {
-  message: string;
-  code: string;
-  details?: string;
-}
-
 export interface EventTime {
   dateTime: string;
   timeZone?: string;
@@ -93,7 +87,7 @@ export interface ManageEventResponse {
   }[];
 }
 
-export class CalendarError extends Error {
+export class CalendarError extends Error implements CalendarError {
   code: string;
   details?: string;
 

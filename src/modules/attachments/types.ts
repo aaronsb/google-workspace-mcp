@@ -1,5 +1,3 @@
-import { DriveFile } from '../drive/types.js';
-
 export interface AttachmentMetadata {
   id: string;           // Drive file ID
   name: string;         // Original filename

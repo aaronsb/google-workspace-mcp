@@ -1,11 +1,9 @@
 import { CalendarService } from '../modules/calendar/service.js';
 import { DriveService } from '../modules/drive/service.js';
-import { AttachmentService } from '../modules/attachments/service.js';
 import { validateEmail } from '../utils/account.js';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 
-const driveService = new DriveService();
-const attachmentService = new AttachmentService(driveService);
+const _driveService = new DriveService();
 const calendarService = new CalendarService({
   maxAttachmentSize: 10 * 1024 * 1024, // 10MB
   allowedAttachmentTypes: [

@@ -3,18 +3,14 @@ import { BaseGoogleService } from '../../../services/base/BaseGoogleService.js';
 import {
   GetEmailsParams,
   SendEmailParams,
-  EmailResponse,
   SendEmailResponse,
   GetGmailSettingsParams,
   GetGmailSettingsResponse,
   GmailError,
   GmailModuleConfig,
   GetEmailsResponse,
-  DraftEmailParams,
   DraftResponse,
-  GetDraftsParams,
   GetDraftsResponse,
-  SendDraftParams,
   Label,
   GetLabelsResponse,
   LabelFilter

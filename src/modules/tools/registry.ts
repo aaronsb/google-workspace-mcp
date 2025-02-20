@@ -1,5 +1,4 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
-import logger from '../../utils/logger.js';
 
 export interface ToolMetadata extends Tool {
   category: string;

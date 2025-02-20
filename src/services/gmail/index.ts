@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { BaseGoogleService, GoogleServiceError } from '../base/BaseGoogleService.js';
+import { BaseGoogleService } from '../base/BaseGoogleService.js';
 import {
   GetEmailsParams,
   SendEmailParams,
@@ -332,40 +332,63 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
 
       return {
         profile: {
-          emailAddress: profile.emailAddress || '',
-          messagesTotal: profile.messagesTotal || 0,
-          threadsTotal: profile.threadsTotal || 0,
-          historyId: profile.historyId || ''
+          emailAddress: profile.emailAddress ?? '',
+          messagesTotal: typeof profile.messagesTotal === 'number' ? profile.messagesTotal : 0,
+          threadsTotal: typeof profile.threadsTotal === 'number' ? profile.threadsTotal : 0,
+          historyId: profile.historyId ?? ''
         },
         settings: {
-          autoForwarding: {
-            enabled: Boolean(autoForwarding.enabled),
-            emailAddress: nullSafeString(autoForwarding.emailAddress),
-            disposition: nullSafeString(autoForwarding.disposition)
-          },
-          imap: {
-            enabled: Boolean(imap.enabled),
-            autoExpunge: imap.autoExpunge === null ? undefined : imap.autoExpunge,
-            expungeBehavior: nullSafeString(imap.expungeBehavior),
-            maxFolderSize: imap.maxFolderSize === null ? undefined : imap.maxFolderSize
-          },
-          language: {
-            displayLanguage: language.displayLanguage || 'en'
-          },
-          pop: {
-            enabled: Boolean(pop.accessWindow !== null),
-            accessWindow: nullSafeString(pop.accessWindow),
-            disposition: nullSafeString(pop.disposition)
-          },
-          vacationResponder: {
-            enabled: Boolean(vacation.enableAutoReply),
-            startTime: nullSafeString(vacation.startTime),
-            endTime: nullSafeString(vacation.endTime),
-            message: nullSafeString(vacation.responseBodyHtml) || nullSafeString(vacation.responseBodyPlainText),
-            responseSubject: nullSafeString(vacation.responseSubject)
-          }
+          ...(language?.displayLanguage && {
+            language: {
+              displayLanguage: language.displayLanguage
+            }
+          }),
+          ...(autoForwarding && {
+            autoForwarding: {
+              enabled: Boolean(autoForwarding.enabled),
+              ...(autoForwarding.emailAddress && {
+                emailAddress: autoForwarding.emailAddress
+              })
+            }
+          }),
+          ...(imap && {
+            imap: {
+              enabled: Boolean(imap.enabled),
+              ...(typeof imap.autoExpunge === 'boolean' && {
+                autoExpunge: imap.autoExpunge
+              }),
+              ...(imap.expungeBehavior && {
+                expungeBehavior: imap.expungeBehavior
+              })
+            }
+          }),
+          ...(pop && {
+            pop: {
+              enabled: Boolean(pop.accessWindow),
+              ...(pop.accessWindow && {
+                accessWindow: pop.accessWindow
+              })
+            }
+          }),
+          ...(vacation && {
+            vacationResponder: {
+              enabled: Boolean(vacation.enableAutoReply),
+              ...(vacation.startTime && {
+                startTime: vacation.startTime
+              }),
+              ...(vacation.endTime && {
+                endTime: vacation.endTime
+              }),
+              ...(vacation.responseSubject && {
+                responseSubject: vacation.responseSubject
+              }),
+              ...((vacation.responseBodyHtml || vacation.responseBodyPlainText) && {
+                message: vacation.responseBodyHtml ?? vacation.responseBodyPlainText ?? ''
+              })
+            }
+          })
         }
-      };
+      } as GetGmailSettingsResponse;
     } catch (error) {
       throw this.handleError(error, 'Failed to get Gmail settings');
     }

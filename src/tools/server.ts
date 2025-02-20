@@ -65,13 +65,9 @@ import { registerDriveScopes } from '../modules/drive/scopes.js';
 
 // Import types and type guards
 import {
-  BaseToolArguments,
   CalendarEventParams,
   SendEmailArgs,
   AuthenticateAccountArgs,
-  ManageLabelParams,
-  ManageLabelAssignmentParams,
-  ManageLabelFilterParams,
   ManageDraftParams
 } from './types.js';
 

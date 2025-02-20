@@ -199,12 +199,6 @@ export interface GmailModuleConfig {
   scopes: string[];
 }
 
-export interface GmailError {
-  message: string;
-  code: string;
-  details?: string;
-}
-
 export interface SearchCriteria {
   from?: string | string[];
   to?: string | string[];
@@ -291,7 +285,7 @@ export interface SendEmailResponse {
   attachments?: AttachmentMetadata[];
 }
 
-export class GmailError extends Error {
+export class GmailError extends Error implements GmailError {
   code: string;
   details?: string;
 

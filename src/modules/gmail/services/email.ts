@@ -1,5 +1,4 @@
 import { google, gmail_v1 } from 'googleapis';
-import { OAuth2Client } from 'google-auth-library';
 import {
   EmailResponse,
   GetEmailsParams,
@@ -7,8 +6,7 @@ import {
   SendEmailParams,
   SendEmailResponse,
   ThreadInfo,
-  GmailError,
-  SearchCriteria
+  GmailError
 } from '../types.js';
 import { SearchService } from './search.js';
 import { AttachmentService } from '../../attachments/service.js';

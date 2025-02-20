@@ -256,6 +256,7 @@ describe('GmailService', () => {
             id: 'draft-1',
             message: { 
               id: 'msg-1',
+              threadId: 'thread-1',
               internalDate: '1643673600000'
             }
           }
