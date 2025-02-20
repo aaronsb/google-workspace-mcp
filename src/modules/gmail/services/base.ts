@@ -41,20 +41,22 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
   private settingsService: SettingsService;
   private labelService: LabelService;
   private filterService: FilterService;
+  private driveService: DriveService;
+  private attachmentService: AttachmentService;
+  private initialized = false;
   
   constructor(config?: GmailModuleConfig) {
     super({ serviceName: 'Gmail', version: 'v1' });
     
     // Initialize core services in dependency order
+    this.driveService = new DriveService();
+    this.attachmentService = new AttachmentService(this.driveService);
     this.searchService = new SearchService();
-    const driveService = new DriveService();
-    const attachmentService = new AttachmentService(driveService);
-    this.emailService = new EmailService(this.searchService, attachmentService, driveService);
-    this.draftService = new DraftService(driveService);
+    this.emailService = new EmailService(this.searchService, this.attachmentService, this.driveService);
+    this.draftService = new DraftService(this.driveService);
     this.settingsService = new SettingsService();
     this.labelService = new LabelService();
     this.filterService = new FilterService();
-
   }
 
   /**
@@ -63,6 +65,8 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
   public async init(): Promise<void> {
     try {
       await this.initialize();
+      await this.driveService.ensureInitialized();
+      this.initialized = true;
     } catch (error) {
       throw new GmailError(
         'Failed to initialize Gmail service',
@@ -75,12 +79,12 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
   /**
    * Ensures all services are properly initialized
    */
-  private ensureServices() {
-    if (!this.emailService || !this.draftService || !this.settingsService || !this.labelService || !this.filterService) {
+  private ensureInitialized() {
+    if (!this.initialized) {
       throw new GmailError(
-        'Gmail services not initialized',
-        'SERVICE_ERROR',
-        'Please ensure the service is initialized'
+        'Gmail service not initialized',
+        'INIT_ERROR',
+        'Please call init() before using the service'
       );
     }
   }
@@ -89,6 +93,8 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
    * Gets an authenticated Gmail client for the specified account.
    */
   private async getGmailClient(email: string) {
+    this.ensureInitialized();
+    
     return this.getAuthenticatedClient(
       email,
       (auth) => {
@@ -112,38 +118,32 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
   }
 
   async sendEmail(params: SendEmailParams): Promise<SendEmailResponse> {
-    this.ensureServices();
     await this.getGmailClient(params.email);
     return this.emailService.sendEmail(params);
   }
 
   async manageDraft(params: ManageDraftParams): Promise<DraftResponse | GetDraftsResponse | SendEmailResponse | void> {
-    this.ensureServices();
     await this.getGmailClient(params.email);
     return this.draftService.manageDraft(params);
   }
 
   async getWorkspaceGmailSettings(params: GetGmailSettingsParams): Promise<GetGmailSettingsResponse> {
-    this.ensureServices();
     await this.getGmailClient(params.email);
     return this.settingsService.getWorkspaceGmailSettings(params);
   }
 
   // Consolidated Label Management Methods
   async manageLabel(params: ManageLabelParams): Promise<Label | GetLabelsResponse | void> {
-    this.ensureServices();
     await this.getGmailClient(params.email);
     return this.labelService.manageLabel(params);
   }
 
   async manageLabelAssignment(params: ManageLabelAssignmentParams): Promise<void> {
-    this.ensureServices();
     await this.getGmailClient(params.email);
     return this.labelService.manageLabelAssignment(params);
   }
 
   async manageLabelFilter(params: ManageLabelFilterParams): Promise<LabelFilter | GetLabelsResponse | void> {
-    this.ensureServices();
     await this.getGmailClient(params.email);
     return this.labelService.manageLabelFilter(params);
   }
