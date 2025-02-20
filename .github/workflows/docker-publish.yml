@@ -119,18 +119,23 @@ jobs:
           # Pull with manifest digest
           docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}
       
+      - name: Set up test environment
+        run: |
+          # Create test directories with correct permissions
+          mkdir -p logs config
+          chmod 777 logs
+          # Copy example config for testing only (production deployments manage their own config)
+          cp config/accounts.example.json config/accounts.json
+
       - name: Run integration tests
         run: |
-          # Create log directory with correct permissions
-          mkdir -p logs
-          chmod 777 logs
-
-          # Run tests with log directory mounted
+          # Run tests with test directories mounted
           docker run -i \
             -e GOOGLE_CLIENT_ID=test-client-id \
             -e GOOGLE_CLIENT_SECRET=test-secret \
             -e LOG_FILE=/app/logs/integration-test.log \
             -v ${{ github.workspace }}/logs:/app/logs \
+            -v ${{ github.workspace }}/config:/app/config \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }} \
             npm run test:integration
 
