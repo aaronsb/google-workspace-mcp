@@ -1,9 +1,25 @@
 # Google Workspace MCP API Reference
 
-## Account Management
+IMPORTANT: Before using any workspace operations, you MUST call list_workspace_accounts first to:
+1. Check for existing authenticated accounts
+2. Determine which account to use if multiple exist
+3. Verify required API scopes are authorized
+
+## Account Management (Required First)
 
 ### list_workspace_accounts
 List all configured Google workspace accounts and their authentication status.
+
+This tool MUST be called first before any other workspace operations. It serves as the foundation for all account-based operations by:
+1. Checking for existing authenticated accounts
+2. Determining which account to use if multiple exist
+3. Verifying required API scopes are authorized
+
+Common Response Patterns:
+- Valid account exists → Proceed with requested operation
+- Multiple accounts exist → Ask user which to use
+- Token expired → Proceed normally (auto-refresh occurs)
+- No accounts exist → Start authentication flow
 
 **Input Schema**: Empty object `{}`
 
@@ -11,6 +27,15 @@ List all configured Google workspace accounts and their authentication status.
 
 ### authenticate_workspace_account
 Add and authenticate a Google account for API access.
+
+IMPORTANT: Only use this tool if list_workspace_accounts shows:
+1. No existing accounts, OR
+2. When using the account it seems to lack necessary auth scopes.
+
+To prevent wasted time, DO NOT use this tool:
+- Without checking list_workspace_accounts first
+- When token is just expired (auto-refresh handles this)
+- To re-authenticate an already valid account
 
 **Input Schema**:
 ```typescript
@@ -34,8 +59,22 @@ Remove a Google account and delete associated tokens.
 
 ## Gmail Operations
 
+IMPORTANT: All Gmail operations require prior verification of account access using list_workspace_accounts.
+
 ### search_workspace_emails
 Search emails with advanced filtering.
+
+Common Query Patterns:
+- Meeting emails: "from:(*@zoom.us OR zoom.us OR calendar-notification@google.com) subject:(meeting OR sync OR invite)"
+- HR/Admin: "from:(*@workday.com OR *@adp.com) subject:(time off OR PTO OR benefits)"
+- Team updates: "from:(*@company.com) -from:(notifications@company.com)"
+- Newsletters: "subject:(newsletter OR digest) from:(*@company.com)"
+
+Search Tips:
+- Date format: YYYY-MM-DD (e.g., "2024-02-18")
+- Labels: Case-sensitive, exact match (e.g., "INBOX", "SENT")
+- Wildcards: Use * for partial matches (e.g., "*@domain.com")
+- Operators: OR, -, (), has:attachment, larger:size, newer_than:date
 
 **Input Schema**:
 ```typescript
@@ -96,8 +135,26 @@ Manage email drafts.
 
 ## Calendar Operations
 
+IMPORTANT: All Calendar operations require prior verification of account access using list_workspace_accounts.
+
 ### list_workspace_calendar_events
 List calendar events.
+
+Common Usage Patterns:
+- Default view: Current week's events
+- Specific range: Use timeMin/timeMax
+- Search: Use query for text search
+
+Example Flows:
+1. User asks "check my calendar":
+   - Verify account access
+   - Show current week by default
+   - Include upcoming events
+
+2. User asks "find meetings about project":
+   - Check account access
+   - Search with relevant query
+   - Focus on recent/upcoming events
 
 **Input Schema**:
 ```typescript
@@ -136,8 +193,20 @@ Create a calendar event.
 
 ## Drive Operations
 
+IMPORTANT: All Drive operations require prior verification of account access using list_workspace_accounts.
+
 ### list_drive_files
 List files in Google Drive.
+
+Common Usage Patterns:
+- List all files: No options needed
+- List folder contents: Provide folderId
+- Custom queries: Use query parameter
+
+Example Flow:
+1. Check account access
+2. Apply any filters
+3. Return file list with metadata
 
 **Input Schema**:
 ```typescript

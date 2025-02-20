@@ -4,22 +4,50 @@ The Google Workspace MCP server provides several features to make tools more dis
 
 ## Tool Categories
 
-Tools are organized into logical categories for better organization:
+Tools are organized into logical categories with clear dependencies:
 
-- Account Management
-  - Authentication and account management tools
-- Gmail/Messages
-  - Email composition and search
-- Gmail/Labels
-  - Label creation and management
-  - Label filter creation and management
-  - Message label operations
-- Gmail/Drafts
-  - Draft email management
-- Gmail/Settings
-  - Gmail settings and configuration
-- Calendar/Events
-  - Calendar event management
+### Account Management (Required First)
+- Authentication and account management
+  - list_workspace_accounts (foundation for all operations)
+  - authenticate_workspace_account
+  - remove_workspace_account
+
+### Gmail Management
+- Messages
+  - search_workspace_emails
+  - send_workspace_email
+  - get_workspace_gmail_settings
+  - manage_workspace_draft
+- Labels
+  - manage_workspace_label
+  - manage_workspace_label_assignment
+  - manage_workspace_label_filter
+
+### Calendar Management
+- Events
+  - list_workspace_calendar_events
+  - get_workspace_calendar_event
+  - manage_workspace_calendar_event
+  - create_workspace_calendar_event
+  - delete_workspace_calendar_event
+
+### Drive Management
+- Files
+  - list_drive_files
+  - search_drive_files
+  - upload_drive_file
+  - download_drive_file
+- Folders
+  - create_drive_folder
+- Permissions
+  - update_drive_permissions
+- Operations
+  - delete_drive_file
+
+IMPORTANT: The list_workspace_accounts tool MUST be called before any other workspace operations to:
+1. Check for existing authenticated accounts
+2. Determine which account to use if multiple exist
+3. Verify required API scopes are authorized
 
 ## Tool Aliases
 
