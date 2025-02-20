@@ -53,7 +53,7 @@ describe('Gmail Label Service', () => {
     (gmailService as any).getGmailClient = jest.fn().mockResolvedValue(mockClient);
 
     // Initialize the service and update label service client
-    await gmailService.init();
+    await gmailService.initialize();
     (gmailService as any).labelService.updateClient(mockClient);
   });
 
