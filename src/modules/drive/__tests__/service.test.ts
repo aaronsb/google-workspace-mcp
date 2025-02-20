@@ -41,7 +41,20 @@ describe('DriveService', () => {
     });
 
     const { google } = require('googleapis');
-    mockDrive = google.drive();
+    mockDrive = {
+      files: {
+        list: jest.fn(),
+        create: jest.fn(),
+        get: jest.fn(),
+        delete: jest.fn(),
+        export: jest.fn()
+      },
+      permissions: {
+        create: jest.fn()
+      }
+    };
+    google.drive.mockReturnValue(mockDrive);
+    
     service = new DriveService();
     // Wait for initialization
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -82,7 +95,8 @@ describe('DriveService', () => {
         data: {
           id: '1',
           name: 'test.txt',
-          mimeType: 'text/plain'
+          mimeType: 'text/plain',
+          webViewLink: 'https://drive.google.com/file/d/1'
         }
       };
 
@@ -90,12 +104,31 @@ describe('DriveService', () => {
 
       const result = await service.uploadFile(testEmail, {
         name: 'test.txt',
-        content: 'test content'
+        content: 'test content',
+        mimeType: 'text/plain'
       });
 
       expect(result.success).toBe(true);
       expect(result.data).toEqual(mockResponse.data);
-      expect(mockDrive.files.create).toHaveBeenCalled();
+      expect(mockDrive.files.create).toHaveBeenCalledWith(expect.objectContaining({
+        requestBody: {
+          name: 'test.txt',
+          mimeType: 'text/plain'
+        },
+        fields: 'id, name, mimeType, webViewLink'
+      }));
+    });
+
+    it('should handle upload errors', async () => {
+      mockDrive.files.create.mockRejectedValue(new Error('Upload failed'));
+
+      const result = await service.uploadFile(testEmail, {
+        name: 'test.txt',
+        content: 'test content'
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Upload failed');
     });
   });
 
@@ -103,35 +136,38 @@ describe('DriveService', () => {
     it('should download regular file successfully', async () => {
       const mockMetadata = {
         data: {
+          name: 'test.txt',
           mimeType: 'text/plain'
         }
       };
 
       const mockContent = {
-        data: 'file content'
+        data: Buffer.from('file content')
       };
 
       mockDrive.files.get
-        .mockResolvedValueOnce(mockMetadata)
-        .mockResolvedValueOnce(mockContent);
+        .mockResolvedValueOnce(mockMetadata) // First call for metadata
+        .mockResolvedValueOnce(mockContent); // Second call for content
 
       const result = await service.downloadFile(testEmail, {
         fileId: '1'
       });
 
       expect(result.success).toBe(true);
-      expect(result.data).toBe(mockContent.data);
+      expect(Buffer.isBuffer(result.data)).toBe(true);
+      expect(result.filePath).toBeDefined();
     });
 
     it('should handle Google Workspace files', async () => {
       const mockMetadata = {
         data: {
+          name: 'test.doc',
           mimeType: 'application/vnd.google-apps.document'
         }
       };
 
       const mockContent = {
-        data: 'exported content'
+        data: Buffer.from('exported content')
       };
 
       mockDrive.files.get.mockResolvedValue(mockMetadata);
@@ -142,32 +178,86 @@ describe('DriveService', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.data).toBe(mockContent.data);
+      expect(Buffer.isBuffer(result.data)).toBe(true);
       expect(result.mimeType).toBe('text/markdown');
+      expect(result.filePath).toBeDefined();
+    });
+
+    it('should handle download errors', async () => {
+      mockDrive.files.get.mockRejectedValue(new Error('Download failed'));
+
+      const result = await service.downloadFile(testEmail, {
+        fileId: '1'
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Download failed');
     });
   });
 
-  describe('createFolder', () => {
-    it('should create folder successfully', async () => {
+  describe('searchFiles', () => {
+    it('should search files successfully', async () => {
       const mockResponse = {
         data: {
-          id: '1',
-          name: 'Test Folder',
-          mimeType: 'application/vnd.google-apps.folder'
+          files: [
+            { 
+              id: '1', 
+              name: 'test.txt',
+              mimeType: 'text/plain',
+              modifiedTime: '2024-02-19T12:00:00Z',
+              size: '1024'
+            }
+          ]
         }
       };
 
-      mockDrive.files.create.mockResolvedValue(mockResponse);
+      mockDrive.files.list.mockResolvedValue(mockResponse);
 
-      const result = await service.createFolder(testEmail, 'Test Folder');
+      const result = await service.searchFiles(testEmail, {
+        fullText: 'test',
+        mimeType: 'text/plain',
+        trashed: false
+      });
 
       expect(result.success).toBe(true);
       expect(result.data).toEqual(mockResponse.data);
-      expect(mockDrive.files.create).toHaveBeenCalledWith(expect.objectContaining({
-        requestBody: {
-          name: 'Test Folder',
-          mimeType: 'application/vnd.google-apps.folder'
+      expect(mockDrive.files.list).toHaveBeenCalledWith(expect.objectContaining({
+        q: "fullText contains 'test' and mimeType = 'text/plain' and trashed = false",
+        fields: 'files(id, name, mimeType, modifiedTime, size)'
+      }));
+    });
+
+    it('should handle search errors', async () => {
+      mockDrive.files.list.mockRejectedValue(new Error('Search failed'));
+
+      const result = await service.searchFiles(testEmail, {
+        fullText: 'test'
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Search failed');
+    });
+
+    it('should handle folder-specific search', async () => {
+      const mockResponse = {
+        data: {
+          files: [
+            { id: '1', name: 'test.txt' }
+          ]
         }
+      };
+
+      mockDrive.files.list.mockResolvedValue(mockResponse);
+
+      const result = await service.searchFiles(testEmail, {
+        folderId: 'folder123',
+        query: "name contains 'test'"
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(mockResponse.data);
+      expect(mockDrive.files.list).toHaveBeenCalledWith(expect.objectContaining({
+        q: "'folder123' in parents and name contains 'test'"
       }));
     });
   });
@@ -193,7 +283,28 @@ describe('DriveService', () => {
 
       expect(result.success).toBe(true);
       expect(result.data).toEqual(mockResponse.data);
-      expect(mockDrive.permissions.create).toHaveBeenCalled();
+      expect(mockDrive.permissions.create).toHaveBeenCalledWith({
+        fileId: '1',
+        requestBody: {
+          role: 'reader',
+          type: 'user',
+          emailAddress: 'user@example.com'
+        }
+      });
+    });
+
+    it('should handle permission update errors', async () => {
+      mockDrive.permissions.create.mockRejectedValue(new Error('Permission update failed'));
+
+      const result = await service.updatePermissions(testEmail, {
+        fileId: '1',
+        type: 'user',
+        role: 'reader',
+        emailAddress: 'user@example.com'
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Permission update failed');
     });
   });
 
@@ -207,6 +318,52 @@ describe('DriveService', () => {
       expect(mockDrive.files.delete).toHaveBeenCalledWith({
         fileId: '1'
       });
+    });
+
+    it('should handle delete errors', async () => {
+      mockDrive.files.delete.mockRejectedValue(new Error('Delete failed'));
+
+      const result = await service.deleteFile(testEmail, '1');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Delete failed');
+    });
+  });
+
+  describe('createFolder', () => {
+    it('should create folder successfully', async () => {
+      const mockResponse = {
+        data: {
+          id: '1',
+          name: 'Test Folder',
+          mimeType: 'application/vnd.google-apps.folder',
+          webViewLink: 'https://drive.google.com/drive/folders/1'
+        }
+      };
+
+      mockDrive.files.create.mockResolvedValue(mockResponse);
+
+      const result = await service.createFolder(testEmail, 'Test Folder', 'parent123');
+
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual(mockResponse.data);
+      expect(mockDrive.files.create).toHaveBeenCalledWith({
+        requestBody: {
+          name: 'Test Folder',
+          mimeType: 'application/vnd.google-apps.folder',
+          parents: ['parent123']
+        },
+        fields: 'id, name, mimeType, webViewLink'
+      });
+    });
+
+    it('should handle folder creation errors', async () => {
+      mockDrive.files.create.mockRejectedValue(new Error('Folder creation failed'));
+
+      const result = await service.createFolder(testEmail, 'Test Folder');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Folder creation failed');
     });
   });
 });
