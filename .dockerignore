@@ -44,7 +44,6 @@ tests
 .eslintrc*
 .prettierrc*
 .editorconfig
-tsconfig.json
 *.config.js
 *.config.cjs
 *.config.mjs
