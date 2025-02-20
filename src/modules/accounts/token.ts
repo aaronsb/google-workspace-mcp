@@ -233,11 +233,12 @@ export class TokenManager {
             const newToken = await this.oauthClient.refreshToken(token.refresh_token);
             await this.saveToken(email, newToken);
             logger.info('Token refreshed successfully');
-            return {
-              valid: true,
-              status: 'REFRESHED',
-              token: newToken
-            };
+      return {
+        valid: true,
+        status: 'REFRESHED',
+        token: newToken,
+        requiredScopes: newToken.scope ? newToken.scope.split(' ') : undefined
+      };
           } catch (error) {
             logger.error('Token refresh failed', error as Error);
             return {
@@ -259,7 +260,8 @@ export class TokenManager {
       return {
         valid: true,
         status: 'VALID',
-        token
+        token,
+        requiredScopes: token.scope ? token.scope.split(' ') : undefined
       };
     } catch (error) {
       logger.error('Token validation error', error as Error);

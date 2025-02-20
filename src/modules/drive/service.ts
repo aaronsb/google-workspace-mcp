@@ -20,7 +20,7 @@ export class DriveService extends BaseGoogleService<drive_v3.Drive> {
 
   async listFiles(email: string, options: FileListOptions = {}): Promise<DriveOperationResult> {
     try {
-      await this.validateScopes(email, [DRIVE_SCOPES.READONLY]);
+      await this.validateScopes(email, [DRIVE_SCOPES.FILE]);
       const client = await this.getAuthenticatedClient(
         email,
         (auth) => google.drive({ version: 'v3', auth })
@@ -95,7 +95,7 @@ export class DriveService extends BaseGoogleService<drive_v3.Drive> {
 
   async downloadFile(email: string, options: FileDownloadOptions): Promise<DriveOperationResult> {
     try {
-      await this.validateScopes(email, [DRIVE_SCOPES.READONLY]);
+      await this.validateScopes(email, [DRIVE_SCOPES.FILE]);
       const client = await this.getAuthenticatedClient(
         email,
         (auth) => google.drive({ version: 'v3', auth })
@@ -204,7 +204,7 @@ export class DriveService extends BaseGoogleService<drive_v3.Drive> {
 
   async searchFiles(email: string, options: FileSearchOptions): Promise<DriveOperationResult> {
     try {
-      await this.validateScopes(email, [DRIVE_SCOPES.READONLY]);
+      await this.validateScopes(email, [DRIVE_SCOPES.FILE]);
       const client = await this.getAuthenticatedClient(
         email,
         (auth) => google.drive({ version: 'v3', auth })
