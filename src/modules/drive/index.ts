@@ -9,17 +9,18 @@ export * from './scopes.js';
 // Singleton instance
 let driveService: DriveService | undefined;
 
-export function getDriveService(): DriveService {
+export async function getDriveService(): Promise<DriveService> {
   if (!driveService) {
     driveService = new DriveService();
+    await driveService.ensureInitialized();
   }
   return driveService;
 }
 
 // Initialize module
 export async function initializeDriveModule(): Promise<void> {
-  // Get service instance (creates if not exists)
-  getDriveService();
+  const service = await getDriveService();
+  await service.ensureInitialized();
 }
 
 // Helper to handle errors consistently

@@ -45,7 +45,8 @@ export async function handleListDriveFiles(args: DriveFileListArgs): Promise<Mcp
   const accountManager = getAccountManager();
   
   return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getDriveService().listFiles(args.email, args.options || {});
+    const driveService = await getDriveService();
+    const result = await driveService.listFiles(args.email, args.options || {});
     return {
       content: [{
         type: 'text',
@@ -59,7 +60,8 @@ export async function handleSearchDriveFiles(args: DriveSearchArgs): Promise<Mcp
   const accountManager = getAccountManager();
   
   return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getDriveService().searchFiles(args.email, args.options);
+    const driveService = await getDriveService();
+    const result = await driveService.searchFiles(args.email, args.options);
     return {
       content: [{
         type: 'text',
@@ -80,7 +82,8 @@ export async function handleUploadDriveFile(args: DriveUploadArgs): Promise<McpT
   const accountManager = getAccountManager();
   
   return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getDriveService().uploadFile(args.email, args.options);
+    const driveService = await getDriveService();
+    const result = await driveService.uploadFile(args.email, args.options);
     return {
       content: [{
         type: 'text',
@@ -98,7 +101,8 @@ export async function handleDownloadDriveFile(args: DriveDownloadArgs): Promise<
   const accountManager = getAccountManager();
   
   return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getDriveService().downloadFile(args.email, {
+    const driveService = await getDriveService();
+    const result = await driveService.downloadFile(args.email, {
       fileId: args.fileId,
       mimeType: args.mimeType
     });
@@ -119,7 +123,8 @@ export async function handleCreateDriveFolder(args: DriveFolderArgs): Promise<Mc
   const accountManager = getAccountManager();
   
   return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getDriveService().createFolder(args.email, args.name, args.parentId);
+    const driveService = await getDriveService();
+    const result = await driveService.createFolder(args.email, args.name, args.parentId);
     return {
       content: [{
         type: 'text',
@@ -143,7 +148,8 @@ export async function handleUpdateDrivePermissions(args: DrivePermissionArgs): P
   const accountManager = getAccountManager();
   
   return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getDriveService().updatePermissions(args.email, args.options);
+    const driveService = await getDriveService();
+    const result = await driveService.updatePermissions(args.email, args.options);
     return {
       content: [{
         type: 'text',
@@ -161,7 +167,8 @@ export async function handleDeleteDriveFile(args: DriveDeleteArgs): Promise<McpT
   const accountManager = getAccountManager();
   
   return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getDriveService().deleteFile(args.email, args.fileId);
+    const driveService = await getDriveService();
+    const result = await driveService.deleteFile(args.email, args.fileId);
     return {
       content: [{
         type: 'text',

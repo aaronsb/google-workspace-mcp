@@ -17,7 +17,7 @@ export class DriveService extends BaseGoogleService<drive_v3.Drive> {
     });
   }
 
-  private async ensureInitialized(): Promise<void> {
+  public async ensureInitialized(): Promise<void> {
     if (!this.initialized) {
       try {
         await this.initialize();
