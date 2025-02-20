@@ -17,20 +17,43 @@ export class DriveService extends BaseGoogleService<ReturnType<typeof google.dri
     });
   }
 
+  /**
+   * Initialize the Drive service and all dependencies
+   */
+  public async initialize(): Promise<void> {
+    try {
+      await super.initialize();
+      this.initialized = true;
+    } catch (error) {
+      throw this.handleError(error, 'Failed to initialize Drive service');
+    }
+  }
+
+  /**
+   * Ensure the Drive service is initialized
+   */
   public async ensureInitialized(): Promise<void> {
     if (!this.initialized) {
-      try {
-        await this.initialize();
-        this.initialized = true;
-      } catch (error) {
-        throw this.handleError(error, 'Failed to initialize Drive service');
-      }
+      await this.initialize();
+    }
+  }
+
+  /**
+   * Check if the service is initialized
+   */
+  private checkInitialized(): void {
+    if (!this.initialized) {
+      throw this.handleError(
+        new Error('Drive service not initialized'),
+        'Please ensure the service is initialized before use'
+      );
     }
   }
 
   async listFiles(email: string, options: FileListOptions = {}): Promise<DriveOperationResult> {
     try {
       await this.ensureInitialized();
+      this.checkInitialized();
       await this.validateScopes(email, [DRIVE_SCOPES.FILE]);
       const client = await this.getAuthenticatedClient(
         email,

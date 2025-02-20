@@ -60,11 +60,11 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
   }
 
   /**
-   * Initialize the Gmail service
+   * Initialize the Gmail service and all dependencies
    */
-  public async init(): Promise<void> {
+  public async initialize(): Promise<void> {
     try {
-      await this.initialize();
+      await super.initialize();
       await this.driveService.ensureInitialized();
       this.initialized = true;
     } catch (error) {
@@ -79,7 +79,7 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
   /**
    * Ensures all services are properly initialized
    */
-  private ensureInitialized() {
+  private checkInitialized() {
     if (!this.initialized) {
       throw new GmailError(
         'Gmail service not initialized',
@@ -93,7 +93,9 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
    * Gets an authenticated Gmail client for the specified account.
    */
   private async getGmailClient(email: string) {
-    this.ensureInitialized();
+    if (!this.initialized) {
+      await this.initialize();
+    }
     
     return this.getAuthenticatedClient(
       email,
