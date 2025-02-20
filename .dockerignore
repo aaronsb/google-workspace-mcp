@@ -6,6 +6,8 @@
 # Dependencies
 node_modules
 npm-debug.log*
+.npm
+.npmrc
 
 # Development files
 .vscode
@@ -55,8 +57,22 @@ config/*
 
 # Build artifacts
 dist
+build
 coverage
 .nyc_output
 
 # Environment files
 .env*
+.dockerenv
+
+# Docker
+.docker
+docker-compose*
+Dockerfile*
+.dockerignore
+
+# Temporary files
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

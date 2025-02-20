@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.4
 
 # Build stage
-FROM node:20-slim AS builder
+FROM --platform=$BUILDPLATFORM node:20-slim AS builder
 WORKDIR /app
 
 # Add metadata
@@ -9,17 +9,18 @@ LABEL org.opencontainers.image.source="https://github.com/aaronsb/google-workspa
 LABEL org.opencontainers.image.description="Google Workspace MCP Server"
 LABEL org.opencontainers.image.licenses="MIT"
 
-# Install dependencies
+# Install dependencies first (better layer caching)
 COPY package*.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm ci --prefer-offline --no-audit --no-fund
 
 # Copy source and build
 COPY . .
-RUN npm run build
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm run build
 
 # Production stage
-FROM node:20-slim
+FROM node:20-slim AS production
 WORKDIR /app
 
 # Set docker hash as environment variable
@@ -31,15 +32,15 @@ COPY --from=builder /app/build ./build
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/docker-entrypoint.sh ./
 
-# Install production dependencies only and set up directories
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --only=production && \
+# Install production dependencies and set up directories
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm ci --prefer-offline --no-audit --no-fund --omit=dev && \
     chmod +x build/index.js && \
     chmod +x docker-entrypoint.sh && \
     mkdir -p /app/logs && \
     chown -R 1000:1000 /app
 
-# Switch to host user's UID
+# Switch to non-root user
 USER 1000:1000
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
