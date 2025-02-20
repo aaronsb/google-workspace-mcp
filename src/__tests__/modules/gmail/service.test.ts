@@ -60,7 +60,7 @@ describe('GmailService', () => {
       // Verify
       expect(result).toEqual({
         messageId: 'sent-msg-1',
-        threadId: 'thread1',
+        threadId: 'thread-1',
         labelIds: ['SENT'],
       });
     });
