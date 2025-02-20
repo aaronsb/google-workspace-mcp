@@ -7,12 +7,19 @@ import { GmailError } from './types.js';
 
 export class GmailService {
   private oauth2Client!: OAuth2Client;
-  private driveService: DriveService;
-  private draftService: DraftService;
+  private driveService?: DriveService;
+  private draftService?: DraftService;
+  private initialized = false;
 
-  constructor() {
-    this.driveService = new DriveService();
-    this.draftService = new DraftService(this.driveService);
+  constructor() {}
+
+  private async ensureInitialized(): Promise<void> {
+    if (!this.initialized) {
+      await this.initialize();
+      this.driveService = new DriveService();
+      this.draftService = new DraftService(this.driveService);
+      this.initialized = true;
+    }
   }
 
   async initialize(): Promise<void> {
@@ -21,6 +28,7 @@ export class GmailService {
   }
 
   private async getGmailClient(email: string) {
+    await this.ensureInitialized();
     const accountManager = getAccountManager();
     try {
       const tokenStatus = await accountManager.validateToken(email);
@@ -34,6 +42,13 @@ export class GmailService {
 
       this.oauth2Client.setCredentials(tokenStatus.token);
       const client = google.gmail({ version: 'v1', auth: this.oauth2Client });
+      if (!this.draftService) {
+        throw new GmailError(
+          'Gmail service not initialized',
+          'SERVICE_ERROR',
+          'Please ensure the service is initialized before using Gmail client'
+        );
+      }
       this.draftService.updateClient(client);
       return client;
     } catch (error) {
@@ -49,6 +64,13 @@ export class GmailService {
   }
 
   getDraftService(): DraftService {
+    if (!this.draftService) {
+      throw new GmailError(
+        'Gmail service not initialized',
+        'SERVICE_ERROR',
+        'Please ensure the service is initialized before accessing drafts'
+      );
+    }
     return this.draftService;
   }
 }

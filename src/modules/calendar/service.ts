@@ -23,15 +23,25 @@ type EventAttachment = calendar_v3.Schema$EventAttachment;
  */
 export class CalendarService {
   private oauth2Client!: OAuth2Client;
-  private attachmentService: AttachmentService;
-  private driveService: DriveService;
+  private attachmentService?: AttachmentService;
+  private driveService?: DriveService;
+  private initialized = false;
+  private config?: CalendarModuleConfig;
 
   constructor(config?: CalendarModuleConfig) {
-    this.driveService = new DriveService();
-    this.attachmentService = new AttachmentService(this.driveService, {
-      maxSizeBytes: config?.maxAttachmentSize,
-      allowedMimeTypes: config?.allowedAttachmentTypes
-    });
+    this.config = config;
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    if (!this.initialized) {
+      await this.initialize();
+      this.driveService = new DriveService();
+      this.attachmentService = new AttachmentService(this.driveService, {
+        maxSizeBytes: this.config?.maxAttachmentSize,
+        allowedMimeTypes: this.config?.allowedAttachmentTypes
+      });
+      this.initialized = true;
+    }
   }
 
   /**
@@ -46,6 +56,7 @@ export class CalendarService {
    * Get an authenticated Google Calendar API client
    */
   private async getCalendarClient(email: string) {
+    await this.ensureInitialized();
     const accountManager = getAccountManager();
     try {
       const tokenStatus = await accountManager.validateToken(email);
@@ -97,6 +108,13 @@ export class CalendarService {
     email: string,
     attachments: EventAttachment[]
   ): Promise<AttachmentMetadata[]> {
+    if (!this.driveService || !this.attachmentService) {
+      throw new CalendarError(
+        'Calendar service not initialized',
+        'SERVICE_ERROR',
+        'Please ensure the service is initialized before processing attachments'
+      );
+    }
     const processedAttachments: AttachmentMetadata[] = [];
 
     for (const attachment of attachments) {
@@ -279,6 +297,13 @@ export class CalendarService {
             }
           };
 
+        if (!this.attachmentService) {
+          throw new CalendarError(
+            'Calendar service not initialized',
+            'SERVICE_ERROR',
+            'Please ensure the service is initialized before processing attachments'
+          );
+        }
         const result = await this.attachmentService.processAttachment(
           email,
           source,
