@@ -1,84 +1,222 @@
-import { getAccountManager } from '../modules/accounts/index.js';
-import { getCalendarService } from '../modules/calendar/index.js';
-import { google } from 'googleapis';
-import { McpToolResponse, CalendarEventParams } from './types.js';
+import { CalendarService } from '../modules/calendar/service.js';
+import { DriveService } from '../modules/drive/service.js';
+import { AttachmentService } from '../modules/attachments/service.js';
+import { validateEmail } from '../utils/account.js';
+import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 
-export async function handleListWorkspaceCalendarEvents(args: CalendarEventParams): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const events = await getCalendarService().getEvents(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(events, null, 2)
-      }]
-    };
-  });
-}
+const driveService = new DriveService();
+const attachmentService = new AttachmentService(driveService);
+const calendarService = new CalendarService({
+  maxAttachmentSize: 10 * 1024 * 1024, // 10MB
+  allowedAttachmentTypes: [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'image/jpeg',
+    'image/png',
+    'text/plain'
+  ]
+});
 
-export async function handleGetWorkspaceCalendarEvent(args: { email: string, eventId: string }): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const event = await getCalendarService().getEvent(args.email, args.eventId);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(event, null, 2)
-      }]
-    };
-  });
-}
+export async function listCalendarEvents(params: any) {
+  const { email, query, maxResults, timeMin, timeMax } = params;
 
-export async function handleManageWorkspaceCalendarEvent(args: any): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const result = await getCalendarService().manageEvent(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(result, null, 2)
-      }]
-    };
-  });
-}
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email address is required'
+    );
+  }
 
-export async function handleCreateWorkspaceCalendarEvent(args: any): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const event = await getCalendarService().createEvent(args);
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify(event, null, 2)
-      }]
-    };
-  });
-}
+  validateEmail(email);
 
-export async function handleDeleteWorkspaceCalendarEvent(args: any): Promise<McpToolResponse> {
-  const accountManager = getAccountManager();
-  
-  return await accountManager.withTokenRenewal(args.email, async () => {
-    const authClient = await accountManager.getAuthClient();
-    const calendar = google.calendar({ version: 'v3', auth: authClient });
-    await calendar.events.delete({
-      calendarId: 'primary',
-      eventId: args.eventId,
-      sendUpdates: args.sendUpdates || 'all'
+  try {
+    await calendarService.initialize();
+    return await calendarService.getEvents({
+      email,
+      query,
+      maxResults,
+      timeMin,
+      timeMax
     });
-    
-    return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          status: 'success',
-          message: `Successfully deleted event ${args.eventId}`
-        }, null, 2)
-      }]
-    };
-  });
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to list calendar events: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+export async function getCalendarEvent(params: any) {
+  const { email, eventId } = params;
+
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email address is required'
+    );
+  }
+
+  if (!eventId) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Event ID is required'
+    );
+  }
+
+  validateEmail(email);
+
+  try {
+    await calendarService.initialize();
+    return await calendarService.getEvent(email, eventId);
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to get calendar event: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+export async function createCalendarEvent(params: any) {
+  const { email, summary, description, start, end, attendees, attachments } = params;
+
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email address is required'
+    );
+  }
+
+  if (!summary) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Event summary is required'
+    );
+  }
+
+  if (!start || !start.dateTime) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Event start time is required'
+    );
+  }
+
+  if (!end || !end.dateTime) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Event end time is required'
+    );
+  }
+
+  validateEmail(email);
+  if (attendees) {
+    attendees.forEach((attendee: { email: string }) => validateEmail(attendee.email));
+  }
+
+  try {
+    await calendarService.initialize();
+    return await calendarService.createEvent({
+      email,
+      summary,
+      description,
+      start,
+      end,
+      attendees,
+      attachments: attachments?.map((attachment: {
+        driveFileId?: string;
+        content?: string;
+        name: string;
+        mimeType: string;
+        size?: number;
+      }) => ({
+        driveFileId: attachment.driveFileId,
+        content: attachment.content,
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+        size: attachment.size
+      }))
+    });
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to create calendar event: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+export async function manageCalendarEvent(params: any) {
+  const { email, eventId, action, comment, newTimes } = params;
+
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email address is required'
+    );
+  }
+
+  if (!eventId) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Event ID is required'
+    );
+  }
+
+  if (!action) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Action is required'
+    );
+  }
+
+  validateEmail(email);
+
+  try {
+    await calendarService.initialize();
+    return await calendarService.manageEvent({
+      email,
+      eventId,
+      action,
+      comment,
+      newTimes
+    });
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to manage calendar event: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+export async function deleteCalendarEvent(params: any) {
+  const { email, eventId, sendUpdates } = params;
+
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email address is required'
+    );
+  }
+
+  if (!eventId) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Event ID is required'
+    );
+  }
+
+  validateEmail(email);
+
+  try {
+    await calendarService.initialize();
+    return await calendarService.deleteEvent(email, eventId, sendUpdates);
+  } catch (error) {
+    throw new McpError(
+      ErrorCode.InternalError,
+      `Failed to delete calendar event: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
 }

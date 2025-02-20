@@ -1,4 +1,4 @@
-import { google } from 'googleapis';
+import { google, calendar_v3 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import { getAccountManager } from '../accounts/index.js';
 import {
@@ -11,29 +11,31 @@ import {
   ManageEventParams,
   ManageEventResponse
 } from './types.js';
+import { AttachmentService } from '../attachments/service.js';
+import { DriveService } from '../drive/service.js';
+import { ATTACHMENT_FOLDERS, AttachmentSource, AttachmentMetadata } from '../attachments/types.js';
+
+type CalendarEvent = calendar_v3.Schema$Event;
+type EventAttachment = calendar_v3.Schema$EventAttachment;
 
 /**
  * Google Calendar Service Implementation
- * 
- * This service provides core calendar functionality including:
- * - Event retrieval with search and filtering
- * - Single event lookup
- * - Event creation with attendee management
- * 
- * The implementation follows the same pattern as GmailService for consistency,
- * using the Google Calendar API v3 for all operations.
  */
 export class CalendarService {
   private oauth2Client!: OAuth2Client;
+  private attachmentService: AttachmentService;
+  private driveService: DriveService;
 
   constructor(config?: CalendarModuleConfig) {
-    // No longer need to store scopes as they're managed by the registry
+    this.driveService = new DriveService();
+    this.attachmentService = new AttachmentService(this.driveService, {
+      maxSizeBytes: config?.maxAttachmentSize,
+      allowedMimeTypes: config?.allowedAttachmentTypes
+    });
   }
 
   /**
    * Initialize the Calendar service
-   * Must be called before using any calendar operations
-   * Sets up OAuth client using the account manager
    */
   async initialize(): Promise<void> {
     const accountManager = getAccountManager();
@@ -76,7 +78,6 @@ export class CalendarService {
     try {
       return await operation();
     } catch (error: any) {
-      // Handle 401/403 errors by attempting token refresh
       if (error.code === 401 || error.code === 403) {
         const accountManager = getAccountManager();
         const tokenStatus = await accountManager.validateToken(email);
@@ -90,22 +91,88 @@ export class CalendarService {
   }
 
   /**
+   * Process event attachments and store in Drive
+   */
+  private async processEventAttachments(
+    email: string,
+    attachments: EventAttachment[]
+  ): Promise<AttachmentMetadata[]> {
+    const processedAttachments: AttachmentMetadata[] = [];
+
+    for (const attachment of attachments) {
+      if (!attachment.fileId) continue;
+
+      // Get file metadata from Drive
+      const fileResult = await this.driveService.downloadFile(email, {
+        fileId: attachment.fileId
+      });
+
+      if (!fileResult.success) continue;
+
+      const result = await this.attachmentService.processAttachment(
+        email,
+        {
+          type: 'drive',
+          fileId: attachment.fileId,
+          metadata: {
+            name: attachment.title || 'untitled',
+            mimeType: attachment.mimeType || 'application/octet-stream',
+            size: fileResult.data ? Buffer.from(fileResult.data).length : 0
+          }
+        },
+        ATTACHMENT_FOLDERS.EVENT_FILES
+      );
+
+      if (result.success && result.attachment) {
+        processedAttachments.push(result.attachment);
+      }
+    }
+
+    return processedAttachments;
+  }
+
+  /**
+   * Map Calendar event to EventResponse
+   */
+  private async mapEventResponse(email: string, event: CalendarEvent): Promise<EventResponse> {
+    let attachments: AttachmentMetadata[] | undefined;
+    
+    if (event.attachments && event.attachments.length > 0) {
+      attachments = await this.processEventAttachments(email, event.attachments);
+    }
+
+    return {
+      id: event.id!,
+      summary: event.summary || '',
+      description: event.description || undefined,
+      start: {
+        dateTime: event.start?.dateTime || event.start?.date || '',
+        timeZone: event.start?.timeZone || 'UTC'
+      },
+      end: {
+        dateTime: event.end?.dateTime || event.end?.date || '',
+        timeZone: event.end?.timeZone || 'UTC'
+      },
+      attendees: event.attendees?.map(attendee => ({
+        email: attendee.email!,
+        responseStatus: attendee.responseStatus || undefined
+      })),
+      organizer: event.organizer ? {
+        email: event.organizer.email!,
+        self: event.organizer.self || false
+      } : undefined,
+      attachments: attachments?.length ? attachments : undefined
+    };
+  }
+
+  /**
    * Retrieve calendar events with optional filtering
-   * 
-   * @param params.email - Email address of the calendar owner
-   * @param params.query - Optional text search within events
-   * @param params.maxResults - Maximum number of events to return (default: 10)
-   * @param params.timeMin - Start of time range to search
-   * @param params.timeMax - End of time range to search
-   * @returns Array of calendar events matching the criteria
-   * @throws CalendarError on API errors or authentication issues
    */
   async getEvents({ email, query, maxResults = 10, timeMin, timeMax }: GetEventsParams): Promise<EventResponse[]> {
     const calendar = await this.getCalendarClient(email);
 
     return this.handleCalendarOperation(email, async () => {
-      // Prepare search parameters
-      const params: any = {
+      const params: calendar_v3.Params$Resource$Events$List = {
         calendarId: 'primary',
         maxResults,
         singleEvents: true,
@@ -148,45 +215,18 @@ export class CalendarService {
         }
       }
 
-      // List events matching criteria
       const { data } = await calendar.events.list(params);
 
       if (!data.items || data.items.length === 0) {
         return [];
       }
 
-      // Map response to our EventResponse type
-      return data.items.map(event => ({
-        id: event.id!,
-        summary: event.summary || '',
-        description: event.description || undefined,
-        start: {
-          dateTime: event.start?.dateTime || event.start?.date || '',
-          timeZone: event.start?.timeZone || 'UTC'
-        },
-        end: {
-          dateTime: event.end?.dateTime || event.end?.date || '',
-          timeZone: event.end?.timeZone || 'UTC'
-        },
-        attendees: event.attendees?.map(attendee => ({
-          email: attendee.email!,
-          responseStatus: attendee.responseStatus || undefined
-        })),
-        organizer: event.organizer ? {
-          email: event.organizer.email!,
-          self: event.organizer.self || false
-        } : undefined
-      }));
+      return Promise.all(data.items.map(event => this.mapEventResponse(email, event)));
     });
   }
 
   /**
    * Retrieve a single calendar event by ID
-   * 
-   * @param email - Email address of the calendar owner
-   * @param eventId - Unique identifier of the event to retrieve
-   * @returns Detailed event information
-   * @throws CalendarError if event not found or on API errors
    */
   async getEvent(email: string, eventId: string): Promise<EventResponse> {
     const calendar = await this.getCalendarClient(email);
@@ -205,60 +245,103 @@ export class CalendarService {
         );
       }
 
-      return {
-        id: event.id!,
-        summary: event.summary || '',
-        description: event.description || undefined,
-        start: {
-          dateTime: event.start?.dateTime || event.start?.date || '',
-          timeZone: event.start?.timeZone || 'UTC'
-        },
-        end: {
-          dateTime: event.end?.dateTime || event.end?.date || '',
-          timeZone: event.end?.timeZone || 'UTC'
-        },
-        attendees: event.attendees?.map(attendee => ({
-          email: attendee.email!,
-          responseStatus: attendee.responseStatus || undefined
-        })),
-        organizer: event.organizer ? {
-          email: event.organizer.email!,
-          self: event.organizer.self || false
-        } : undefined
-      };
+      return this.mapEventResponse(email, event);
     });
   }
 
   /**
    * Create a new calendar event
-   * 
-   * @param params.email - Email address of the calendar owner
-   * @param params.summary - Event title
-   * @param params.description - Optional event description
-   * @param params.start - Event start time and timezone
-   * @param params.end - Event end time and timezone
-   * @param params.attendees - Optional list of event attendees
-   * @returns Created event details including view link
-   * @throws CalendarError on creation failure or API errors
-   * 
-   * Note: This method automatically sends email notifications to attendees
    */
+  async createEvent({ email, summary, description, start, end, attendees, attachments = [] }: CreateEventParams): Promise<CreateEventResponse> {
+    const calendar = await this.getCalendarClient(email);
+
+    return this.handleCalendarOperation(email, async () => {
+      // Process attachments first
+      const processedAttachments: EventAttachment[] = [];
+      for (const attachment of attachments) {
+        const source: AttachmentSource = attachment.driveFileId ? 
+          {
+            type: 'drive',
+            fileId: attachment.driveFileId,
+            metadata: {
+              name: attachment.name,
+              mimeType: attachment.mimeType,
+              size: attachment.size
+            }
+          } : 
+          {
+            type: 'local',
+            content: attachment.content!,
+            metadata: {
+              name: attachment.name,
+              mimeType: attachment.mimeType,
+              size: attachment.size
+            }
+          };
+
+        const result = await this.attachmentService.processAttachment(
+          email,
+          source,
+          ATTACHMENT_FOLDERS.EVENT_FILES
+        );
+
+        if (result.success && result.attachment) {
+          processedAttachments.push({
+            fileId: result.attachment.id,
+            title: result.attachment.name,
+            mimeType: result.attachment.mimeType
+          });
+        }
+      }
+
+      const eventData: calendar_v3.Schema$Event = {
+        summary,
+        description,
+        start,
+        end,
+        attendees: attendees?.map(attendee => ({ email: attendee.email })),
+        attachments: processedAttachments.length > 0 ? processedAttachments : undefined
+      };
+
+      const { data: event } = await calendar.events.insert({
+        calendarId: 'primary',
+        requestBody: eventData,
+        sendUpdates: 'all'
+      });
+
+      if (!event.id || !event.summary) {
+        throw new CalendarError(
+          'Failed to create event',
+          'CREATE_ERROR',
+          'Event creation response was incomplete'
+        );
+      }
+
+      const attachmentMetadata = processedAttachments.length > 0 ? 
+        processedAttachments.map(a => ({
+          id: a.fileId!,
+          name: a.title!,
+          mimeType: a.mimeType!,
+          size: 0 // Size not available from Calendar API
+        })) : 
+        undefined;
+
+      return {
+        id: event.id,
+        summary: event.summary,
+        htmlLink: event.htmlLink || '',
+        attachments: attachmentMetadata
+      };
+    });
+  }
+
   /**
    * Manage calendar event responses and updates
-   * 
-   * @param params.email - Email address of the calendar owner
-   * @param params.eventId - ID of the event to manage
-   * @param params.action - Action to perform (accept/decline/tentative/propose_new_time/update_time)
-   * @param params.comment - Optional comment to include with the response
-   * @param params.newTimes - Optional array of proposed new times
-   * @returns Response with action status and updated event details
-   * @throws CalendarError on action failure or API errors
    */
   async manageEvent({ email, eventId, action, comment, newTimes }: ManageEventParams): Promise<ManageEventResponse> {
     const calendar = await this.getCalendarClient(email);
 
     return this.handleCalendarOperation(email, async () => {
-      // First get the event to check current state and permissions
       const event = await calendar.events.get({
         calendarId: 'primary',
         eventId
@@ -276,12 +359,10 @@ export class CalendarService {
         case 'accept':
         case 'decline':
         case 'tentative': {
-          // Map our action to the exact responseStatus value Google Calendar expects
           const responseStatus = action === 'accept' ? 'accepted' : 
                                action === 'decline' ? 'declined' : 
                                'tentative';
 
-          // Match the minimal request body from the successful curl implementation
           const { data: updatedEvent } = await calendar.events.patch({
             calendarId: 'primary',
             eventId,
@@ -314,7 +395,6 @@ export class CalendarService {
             );
           }
 
-          // Create a new event as a counter-proposal
           const counterProposal = await calendar.events.insert({
             calendarId: 'primary',
             requestBody: {
@@ -377,37 +457,18 @@ export class CalendarService {
     });
   }
 
-  async createEvent({ email, summary, description, start, end, attendees }: CreateEventParams): Promise<CreateEventResponse> {
+  /**
+   * Delete a calendar event
+   */
+  async deleteEvent(email: string, eventId: string, sendUpdates: 'all' | 'externalOnly' | 'none' = 'all'): Promise<void> {
     const calendar = await this.getCalendarClient(email);
 
     return this.handleCalendarOperation(email, async () => {
-      const eventData = {
-        summary,
-        description,
-        start,
-        end,
-        attendees: attendees?.map(attendee => ({ email: attendee.email }))
-      };
-
-      const { data: event } = await calendar.events.insert({
+      await calendar.events.delete({
         calendarId: 'primary',
-        requestBody: eventData,
-        sendUpdates: 'all'  // Send emails to attendees
+        eventId,
+        sendUpdates
       });
-
-      if (!event.id || !event.summary) {
-        throw new CalendarError(
-          'Failed to create event',
-          'CREATE_ERROR',
-          'Event creation response was incomplete'
-        );
-      }
-
-      return {
-        id: event.id,
-        summary: event.summary,
-        htmlLink: event.htmlLink || ''
-      };
     });
   }
 }

@@ -1,418 +1,321 @@
-import { gmail_v1 } from 'googleapis';
-import {
-  DraftEmailParams,
-  DraftResponse,
-  GetDraftsParams,
-  GetDraftsResponse,
-  SendDraftParams,
-  SendEmailResponse,
-  GmailError
-} from '../types.js';
-import { EmailService } from './email.js';
+import { google } from 'googleapis';
+import { OAuth2Client } from 'google-auth-library';
+import { GmailError } from '../types.js';
+import { AttachmentService } from '../../attachments/service.js';
+import { DriveService } from '../../drive/service.js';
+import { ATTACHMENT_FOLDERS } from '../../attachments/types.js';
 
-export type DraftAction = 'create' | 'read' | 'update' | 'delete' | 'send';
-
-export interface ManageDraftParams {
-  action: DraftAction;
-  email: string;
-  draftId?: string;
-  data?: {
-    to: string[];
-    subject: string;
-    body: string;
-    cc?: string[];
-    bcc?: string[];
-    replyToMessageId?: string;
-    threadId?: string;
-    references?: string[];
-    inReplyTo?: string;
-  };
+export interface DraftData {
+  to: string[];
+  subject: string;
+  body: string;
+  cc?: string[];
+  bcc?: string[];
+  attachments?: {
+    driveFileId?: string;
+    content?: string;
+    name: string;
+    mimeType: string;
+    size?: number;
+  }[];
 }
 
 export class DraftService {
-  private client: gmail_v1.Gmail | null = null;
+  private gmailClient?: ReturnType<typeof google.gmail>;
+  private attachmentService: AttachmentService;
 
-  constructor(private emailService: EmailService) {}
-
-  updateClient(client: gmail_v1.Gmail) {
-    this.client = client;
+  constructor(
+    private driveService: DriveService
+  ) {
+    this.attachmentService = new AttachmentService(driveService);
   }
 
-  private ensureClient(): gmail_v1.Gmail {
-    if (!this.client) {
+  async initialize(): Promise<void> {
+    // Initialization will be handled by Gmail service
+  }
+
+  updateClient(client: ReturnType<typeof google.gmail>) {
+    this.gmailClient = client;
+  }
+
+  private ensureClient(): ReturnType<typeof google.gmail> {
+    if (!this.gmailClient) {
       throw new GmailError(
         'Gmail client not initialized',
         'CLIENT_ERROR',
         'Please ensure the service is initialized'
       );
     }
-    return this.client;
+    return this.gmailClient;
   }
 
-  async manageDraft(params: ManageDraftParams): Promise<DraftResponse | GetDraftsResponse | SendEmailResponse | void> {
-    this.ensureClient();
-
-    switch (params.action) {
-      case 'create':
-        if (!params.data?.to || !params.data.subject || !params.data.body) {
-          throw new GmailError(
-            'Missing required draft data',
-            'VALIDATION_ERROR',
-            'Please provide to, subject, and body for draft creation'
-          );
-        }
-        return this.createDraft({
-          email: params.email,
-          to: params.data.to,
-          subject: params.data.subject,
-          body: params.data.body,
-          cc: params.data.cc,
-          bcc: params.data.bcc,
-          replyToMessageId: params.data.replyToMessageId,
-          threadId: params.data.threadId,
-          references: params.data.references,
-          inReplyTo: params.data.inReplyTo
-        });
-
-      case 'read':
-        if (params.draftId) {
-          return this.getDraft(params.email, params.draftId);
-        }
-        return this.getDrafts({ email: params.email });
-
-      case 'update':
-        if (!params.draftId) {
-          throw new GmailError(
-            'Draft ID is required for update',
-            'VALIDATION_ERROR',
-            'Please provide a draft ID'
-          );
-        }
-        if (!params.data) {
-          throw new GmailError(
-            'No update data provided',
-            'VALIDATION_ERROR',
-            'Please provide data to update'
-          );
-        }
-        if (!params.data.to || !params.data.subject || !params.data.body) {
-          throw new GmailError(
-            'Missing required draft data',
-            'VALIDATION_ERROR',
-            'Please provide to, subject, and body for draft update'
-          );
-        }
-        return this.updateDraft({
-          email: params.email,
-          draftId: params.draftId,
-          to: params.data.to,
-          subject: params.data.subject,
-          body: params.data.body,
-          cc: params.data.cc,
-          bcc: params.data.bcc,
-          replyToMessageId: params.data.replyToMessageId,
-          threadId: params.data.threadId,
-          references: params.data.references,
-          inReplyTo: params.data.inReplyTo
-        });
-
-      case 'delete':
-        if (!params.draftId) {
-          throw new GmailError(
-            'Draft ID is required for deletion',
-            'VALIDATION_ERROR',
-            'Please provide a draft ID'
-          );
-        }
-        return this.deleteDraft(params.email, params.draftId);
-
-      case 'send':
-        if (!params.draftId) {
-          throw new GmailError(
-            'Draft ID is required for sending',
-            'VALIDATION_ERROR',
-            'Please provide a draft ID'
-          );
-        }
-        return this.sendDraft({
-          email: params.email,
-          draftId: params.draftId
-        });
-
-      default:
-        throw new GmailError(
-          'Invalid draft action',
-          'VALIDATION_ERROR',
-          `Action ${params.action} is not supported`
-        );
-    }
-  }
-
-  private async createDraft(params: DraftEmailParams): Promise<DraftResponse> {
+  async createDraft(email: string, data: DraftData) {
     try {
-      // If this is a reply, get the original message to properly set up headers
-      let originalMessage;
-      if (params.replyToMessageId) {
-        const response = await this.emailService.getEmails({
-          email: params.email,
-          messageIds: [params.replyToMessageId],
-          options: { includeHeaders: true }
-        });
-        originalMessage = response.emails[0];
-        
-        // If not explicitly provided, use headers from original message
-        if (!params.threadId) params.threadId = originalMessage.threadId;
-        if (!params.inReplyTo) params.inReplyTo = params.replyToMessageId;
-        if (!params.references || params.references.length === 0) {
-          const existingRefs = originalMessage.headers?.['References'];
-          if (existingRefs) {
-            params.references = existingRefs.split(/\s+/);
+      const client = this.ensureClient();
+
+      // Process attachments first
+      const processedAttachments = [];
+      if (data.attachments) {
+        for (const attachment of data.attachments) {
+          const result = await this.attachmentService.processAttachment(
+            email,
+            {
+              type: attachment.driveFileId ? 'drive' : 'local',
+              fileId: attachment.driveFileId,
+              content: attachment.content,
+              metadata: {
+                name: attachment.name,
+                mimeType: attachment.mimeType,
+                size: attachment.size || 0
+              }
+            },
+            ATTACHMENT_FOLDERS.OUTGOING
+          );
+
+          if (result.success && result.attachment) {
+            processedAttachments.push(result.attachment);
           }
-          params.references = [...(params.references || []), params.replyToMessageId];
         }
       }
 
-      const message = this.constructEmailMessage(params);
-      const encodedMessage = this.encodeMessage(message);
+      // Construct email with attachments
+      const boundary = `boundary_${Date.now()}`;
+      const messageParts = [
+        'MIME-Version: 1.0\n',
+        `Content-Type: multipart/mixed; boundary="${boundary}"\n`,
+        `To: ${data.to.join(', ')}\n`,
+        data.cc?.length ? `Cc: ${data.cc.join(', ')}\n` : '',
+        data.bcc?.length ? `Bcc: ${data.bcc.join(', ')}\n` : '',
+        `Subject: ${data.subject}\n\n`,
+        `--${boundary}\n`,
+        'Content-Type: text/plain; charset="UTF-8"\n',
+        'Content-Transfer-Encoding: 7bit\n\n',
+        data.body,
+        '\n'
+      ];
 
-      const client = this.ensureClient();
-      const { data } = await client.users.drafts.create({
+      // Add attachments
+      for (const attachment of processedAttachments) {
+        const fileResult = await this.driveService.downloadFile(email, {
+          fileId: attachment.id
+        });
+        if (fileResult.success) {
+          const content = Buffer.from(fileResult.data);
+          messageParts.push(
+            `--${boundary}\n`,
+            `Content-Type: ${attachment.mimeType}\n`,
+            'Content-Transfer-Encoding: base64\n',
+            `Content-Disposition: attachment; filename="${attachment.name}"\n\n`,
+            content.toString('base64'),
+            '\n'
+          );
+        }
+      }
+
+      messageParts.push(`--${boundary}--`);
+      const fullMessage = messageParts.join('');
+
+      // Create draft
+      const { data: draft } = await client.users.drafts.create({
         userId: 'me',
         requestBody: {
           message: {
-            raw: encodedMessage,
-            threadId: params.threadId
-          },
-        },
-      });
-
-      if (!data.id || !data.message) {
-        throw new GmailError(
-          'Invalid draft response',
-          'DRAFT_ERROR',
-          'Draft creation failed due to invalid response'
-        );
-      }
-
-      const messageResponse = await this.emailService.getEmails({
-        email: params.email,
-        messageIds: [data.message.id!],
+            raw: Buffer.from(fullMessage).toString('base64')
+          }
+        }
       });
 
       return {
-        id: data.id,
-        message: messageResponse.emails[0],
-        updated: new Date().toISOString(),
+        id: draft.id!,
+        message: {
+          id: draft.message?.id,
+          threadId: draft.message?.threadId,
+          labelIds: draft.message?.labelIds
+        },
+        attachments: processedAttachments
       };
     } catch (error) {
-      if (error instanceof GmailError) {
-        throw error;
-      }
       throw new GmailError(
         'Failed to create draft',
-        'DRAFT_ERROR',
-        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        'CREATE_ERROR',
+        error instanceof Error ? error.message : 'Unknown error'
       );
     }
   }
 
-  private async getDraft(email: string, draftId: string): Promise<DraftResponse> {
+  async listDrafts(email: string) {
+    try {
+      const client = this.ensureClient();
+      const { data } = await client.users.drafts.list({
+        userId: 'me'
+      });
+
+      return {
+        drafts: data.drafts || [],
+        nextPageToken: data.nextPageToken
+      };
+    } catch (error) {
+      throw new GmailError(
+        'Failed to list drafts',
+        'LIST_ERROR',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
+  }
+
+  async getDraft(email: string, draftId: string) {
     try {
       const client = this.ensureClient();
       const { data } = await client.users.drafts.get({
         userId: 'me',
         id: draftId,
-        format: 'full',
+        format: 'full'
       });
 
-      if (!data.message?.id) {
-        throw new GmailError(
-          'Invalid draft data',
-          'DRAFT_ERROR',
-          'Draft retrieval failed due to missing message'
-        );
-      }
-
-      const messageResponse = await this.emailService.getEmails({
-        email,
-        messageIds: [data.message.id],
-      });
-
-      return {
-        id: data.id!,
-        message: messageResponse.emails[0],
-        updated: data.message.internalDate
-          ? new Date(parseInt(data.message.internalDate)).toISOString()
-          : new Date().toISOString(),
-      };
+      return data;
     } catch (error) {
-      if (error instanceof GmailError) {
-        throw error;
-      }
       throw new GmailError(
         'Failed to get draft',
-        'DRAFT_ERROR',
-        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        'GET_ERROR',
+        error instanceof Error ? error.message : 'Unknown error'
       );
     }
   }
 
-  private async getDrafts(params: GetDraftsParams): Promise<GetDraftsResponse> {
+  async updateDraft(email: string, draftId: string, data: DraftData) {
     try {
       const client = this.ensureClient();
-      const { data } = await client.users.drafts.list({
-        userId: 'me',
-        maxResults: params.maxResults,
-        pageToken: params.pageToken,
-      });
 
-      if (!data.drafts) {
-        return {
-          drafts: [],
-          resultSizeEstimate: 0,
-        };
+      // Process attachments first
+      const processedAttachments = [];
+      if (data.attachments) {
+        for (const attachment of data.attachments) {
+          const result = await this.attachmentService.processAttachment(
+            email,
+            {
+              type: attachment.driveFileId ? 'drive' : 'local',
+              fileId: attachment.driveFileId,
+              content: attachment.content,
+              metadata: {
+                name: attachment.name,
+                mimeType: attachment.mimeType,
+                size: attachment.size || 0
+              }
+            },
+            ATTACHMENT_FOLDERS.OUTGOING
+          );
+
+          if (result.success && result.attachment) {
+            processedAttachments.push(result.attachment);
+          }
+        }
       }
 
-      const drafts = await Promise.all(
-        data.drafts.map(draft => this.getDraft(params.email, draft.id!))
-      );
+      // Construct updated email
+      const boundary = `boundary_${Date.now()}`;
+      const messageParts = [
+        'MIME-Version: 1.0\n',
+        `Content-Type: multipart/mixed; boundary="${boundary}"\n`,
+        `To: ${data.to.join(', ')}\n`,
+        data.cc?.length ? `Cc: ${data.cc.join(', ')}\n` : '',
+        data.bcc?.length ? `Bcc: ${data.bcc.join(', ')}\n` : '',
+        `Subject: ${data.subject}\n\n`,
+        `--${boundary}\n`,
+        'Content-Type: text/plain; charset="UTF-8"\n',
+        'Content-Transfer-Encoding: 7bit\n\n',
+        data.body,
+        '\n'
+      ];
 
-      return {
-        drafts,
-        nextPageToken: data.nextPageToken || undefined,
-        resultSizeEstimate: data.resultSizeEstimate || 0,
-      };
-    } catch (error) {
-      if (error instanceof GmailError) {
-        throw error;
+      // Add attachments
+      for (const attachment of processedAttachments) {
+        const fileResult = await this.driveService.downloadFile(email, {
+          fileId: attachment.id
+        });
+        if (fileResult.success) {
+          const content = Buffer.from(fileResult.data);
+          messageParts.push(
+            `--${boundary}\n`,
+            `Content-Type: ${attachment.mimeType}\n`,
+            'Content-Transfer-Encoding: base64\n',
+            `Content-Disposition: attachment; filename="${attachment.name}"\n\n`,
+            content.toString('base64'),
+            '\n'
+          );
+        }
       }
-      throw new GmailError(
-        'Failed to get drafts',
-        'DRAFT_ERROR',
-        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
 
-  private async updateDraft(params: DraftEmailParams & { draftId: string }): Promise<DraftResponse> {
-    try {
-      const message = this.constructEmailMessage(params);
-      const encodedMessage = this.encodeMessage(message);
+      messageParts.push(`--${boundary}--`);
+      const fullMessage = messageParts.join('');
 
-      const client = this.ensureClient();
-      const { data } = await client.users.drafts.update({
+      // Update draft
+      const { data: draft } = await client.users.drafts.update({
         userId: 'me',
-        id: params.draftId,
+        id: draftId,
         requestBody: {
           message: {
-            raw: encodedMessage,
-            threadId: params.threadId
-          },
-        },
-      });
-
-      if (!data.id || !data.message) {
-        throw new GmailError(
-          'Invalid draft response',
-          'DRAFT_ERROR',
-          'Draft update failed due to invalid response'
-        );
-      }
-
-      const messageResponse = await this.emailService.getEmails({
-        email: params.email,
-        messageIds: [data.message.id!],
+            raw: Buffer.from(fullMessage).toString('base64')
+          }
+        }
       });
 
       return {
-        id: data.id,
-        message: messageResponse.emails[0],
-        updated: new Date().toISOString(),
+        id: draft.id!,
+        message: {
+          id: draft.message?.id,
+          threadId: draft.message?.threadId,
+          labelIds: draft.message?.labelIds
+        },
+        attachments: processedAttachments
       };
     } catch (error) {
-      if (error instanceof GmailError) {
-        throw error;
-      }
       throw new GmailError(
         'Failed to update draft',
-        'DRAFT_ERROR',
-        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        'UPDATE_ERROR',
+        error instanceof Error ? error.message : 'Unknown error'
       );
     }
   }
 
-  private async deleteDraft(email: string, draftId: string): Promise<void> {
+  async deleteDraft(email: string, draftId: string) {
     try {
       const client = this.ensureClient();
       await client.users.drafts.delete({
         userId: 'me',
-        id: draftId,
+        id: draftId
       });
+
+      return { success: true };
     } catch (error) {
-      if (error instanceof GmailError) {
-        throw error;
-      }
       throw new GmailError(
         'Failed to delete draft',
-        'DRAFT_ERROR',
-        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        'DELETE_ERROR',
+        error instanceof Error ? error.message : 'Unknown error'
       );
     }
   }
 
-  private async sendDraft(params: SendDraftParams): Promise<SendEmailResponse> {
+  async sendDraft(email: string, draftId: string) {
     try {
       const client = this.ensureClient();
       const { data } = await client.users.drafts.send({
         userId: 'me',
         requestBody: {
-          id: params.draftId,
-        },
+          id: draftId
+        }
       });
 
       return {
         messageId: data.id!,
         threadId: data.threadId!,
-        labelIds: data.labelIds || undefined,
+        labelIds: data.labelIds
       };
     } catch (error) {
-      if (error instanceof GmailError) {
-        throw error;
-      }
       throw new GmailError(
         'Failed to send draft',
-        'DRAFT_ERROR',
-        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        'SEND_ERROR',
+        error instanceof Error ? error.message : 'Unknown error'
       );
     }
-  }
-
-  private constructEmailMessage(params: DraftEmailParams): string {
-    const headers = [
-      'Content-Type: text/plain; charset="UTF-8"',
-      'MIME-Version: 1.0',
-      'Content-Transfer-Encoding: 7bit',
-      `To: ${params.to.join(', ')}`,
-      params.cc?.length ? `Cc: ${params.cc.join(', ')}` : '',
-      params.bcc?.length ? `Bcc: ${params.bcc.join(', ')}` : '',
-      `Subject: ${params.subject}`,
-      params.threadId ? `Thread-ID: ${params.threadId}` : '',
-      params.inReplyTo ? `In-Reply-To: ${params.inReplyTo}` : '',
-      params.references?.length ? `References: ${params.references.join(' ')}` : '',
-    ].filter(Boolean);
-
-    return [
-      ...headers,
-      '',  // Empty line between headers and body
-      params.body
-    ].join('\n');
-  }
-
-  private encodeMessage(message: string): string {
-    return Buffer.from(message)
-      .toString('base64')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
   }
 }
