@@ -30,7 +30,7 @@ async function initializeServices() {
   }
   if (!calendarService) {
     calendarService = new CalendarService(CALENDAR_CONFIG);
-    await calendarService.initialize();
+    await calendarService.ensureInitialized();
   }
 }
 

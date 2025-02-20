@@ -32,31 +32,58 @@ export class CalendarService {
     this.config = config;
   }
 
-  private async ensureInitialized(): Promise<void> {
-    if (!this.initialized) {
-      await this.initialize();
+  /**
+   * Initialize the Calendar service and all dependencies
+   */
+  public async initialize(): Promise<void> {
+    try {
+      const accountManager = getAccountManager();
+      this.oauth2Client = await accountManager.getAuthClient();
       this.driveService = new DriveService();
+      await this.driveService.ensureInitialized();
       this.attachmentService = new AttachmentService(this.driveService, {
         maxSizeBytes: this.config?.maxAttachmentSize,
         allowedMimeTypes: this.config?.allowedAttachmentTypes
       });
       this.initialized = true;
+    } catch (error) {
+      throw new CalendarError(
+        'Failed to initialize Calendar service',
+        'INIT_ERROR',
+        error instanceof Error ? error.message : 'Unknown error'
+      );
     }
   }
 
   /**
-   * Initialize the Calendar service
+   * Ensure the Calendar service is initialized
    */
-  async initialize(): Promise<void> {
-    const accountManager = getAccountManager();
-    this.oauth2Client = await accountManager.getAuthClient();
+  public async ensureInitialized(): Promise<void> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+  }
+
+  /**
+   * Check if the service is initialized
+   */
+  private checkInitialized(): void {
+    if (!this.initialized) {
+      throw new CalendarError(
+        'Calendar service not initialized',
+        'INIT_ERROR',
+        'Please ensure the service is initialized before use'
+      );
+    }
   }
 
   /**
    * Get an authenticated Google Calendar API client
    */
   private async getCalendarClient(email: string) {
-    await this.ensureInitialized();
+    if (!this.initialized) {
+      await this.initialize();
+    }
     const accountManager = getAccountManager();
     try {
       const tokenStatus = await accountManager.validateToken(email);
