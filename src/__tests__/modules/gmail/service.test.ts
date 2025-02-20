@@ -48,7 +48,7 @@ describe('GmailService', () => {
     (getAccountManager as jest.Mock).mockReturnValue(mockAccountManager);
 
     gmailService = new GmailService();
-    await gmailService.init();
+    await gmailService.initialize();
 
     // Mock the base service's getAuthenticatedClient method
     (gmailService as any).getAuthenticatedClient = jest.fn().mockResolvedValue(mockGmailClient);
