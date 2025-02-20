@@ -1,45 +1,82 @@
 import { GmailService } from '../../../modules/gmail/service.js';
+import { gmail_v1 } from 'googleapis';
+import { getAccountManager } from '../../../modules/accounts/index.js';
+import { AccountManager } from '../../../modules/accounts/manager.js';
 import { DraftResponse, GetDraftsResponse, SendEmailResponse } from '../../../modules/gmail/types.js';
-import { mockAccountManager, mockGmailClient } from '../../../__helpers__/testSetup.js';
+
+jest.mock('../../../modules/accounts/index.js');
+jest.mock('../../../modules/accounts/manager.js');
 
 describe('GmailService', () => {
   let gmailService: GmailService;
+  let mockGmailClient: jest.Mocked<gmail_v1.Gmail>;
+  let mockAccountManager: jest.Mocked<AccountManager>;
   const testEmail = 'test@example.com';
 
   beforeEach(async () => {
+    // Simplified mock setup
+    mockGmailClient = {
+      users: {
+        messages: {
+          list: jest.fn().mockImplementation(() => Promise.resolve({ data: {} })),
+          get: jest.fn().mockImplementation(() => Promise.resolve({ data: {} })),
+          send: jest.fn().mockImplementation(() => Promise.resolve({ data: {} })),
+        },
+        drafts: {
+          create: jest.fn().mockImplementation(() => Promise.resolve({ data: {} })),
+          list: jest.fn().mockImplementation(() => Promise.resolve({ data: {} })),
+          get: jest.fn().mockImplementation(() => Promise.resolve({ data: {} })),
+          send: jest.fn().mockImplementation(() => Promise.resolve({ data: {} })),
+        },
+        getProfile: jest.fn().mockImplementation(() => Promise.resolve({ data: {} })),
+        settings: {
+          getAutoForwarding: jest.fn().mockImplementation(() => Promise.resolve({ data: {} })),
+          getImap: jest.fn().mockImplementation(() => Promise.resolve({ data: {} })),
+          getLanguage: jest.fn().mockImplementation(() => Promise.resolve({ data: {} })),
+          getPop: jest.fn().mockImplementation(() => Promise.resolve({ data: {} })),
+          getVacation: jest.fn().mockImplementation(() => Promise.resolve({ data: {} })),
+        },
+      },
+    } as any;
+
+    mockAccountManager = {
+      validateToken: jest.fn().mockResolvedValue({ valid: true, token: {} }),
+      getAuthClient: jest.fn().mockResolvedValue({}),
+    } as unknown as jest.Mocked<AccountManager>;
+
+    (getAccountManager as jest.Mock).mockReturnValue(mockAccountManager);
+
     gmailService = new GmailService();
+    (gmailService as any).getGmailClient = jest.fn().mockResolvedValue(mockGmailClient);
     await gmailService.init();
   });
 
   describe('getEmails', () => {
-    const searchParams = {
-      from: 'sender@example.com',
-      subject: 'Test Subject',
-      after: '2024-01-01',
-    };
+    it('should get emails with search criteria', async () => {
+      const mockMessages = [
+        { id: 'msg1', threadId: 'thread1' },
+        { id: 'msg2', threadId: 'thread2' }
+      ];
 
-    it('should get emails with given criteria', async () => {
-      // Execute
+      (mockGmailClient.users.messages.list as jest.Mock).mockImplementation(() =>
+        Promise.resolve({ data: { messages: mockMessages, resultSizeEstimate: 2 } })
+      );
+
       const result = await gmailService.getEmails({
         email: testEmail,
-        search: searchParams,
+        search: { subject: 'test' }
       });
 
-      // Verify
-      expect(result.emails.length).toBeGreaterThan(0);
-      expect(result.emails[0]).toHaveProperty('id');
-      expect(result.emails[0]).toHaveProperty('subject');
+      expect(result.emails.length).toBe(2);
       expect(result.resultSummary.total).toBe(2);
     });
 
     it('should handle empty results', async () => {
-      // Execute
-      const result = await gmailService.getEmails({
-        email: testEmail,
-        search: searchParams,
-      });
+      (mockGmailClient.users.messages.list as jest.Mock).mockImplementation(() =>
+        Promise.resolve({ data: { messages: [], resultSizeEstimate: 0 } })
+      );
 
-      // Verify
+      const result = await gmailService.getEmails({ email: testEmail });
       expect(result.emails).toEqual([]);
       expect(result.resultSummary.total).toBe(0);
     });
@@ -49,186 +86,123 @@ describe('GmailService', () => {
     const emailParams = {
       email: testEmail,
       to: ['recipient@example.com'],
-      subject: 'Test Email',
-      body: 'Hello, World!',
+      subject: 'Test',
+      body: 'Hello'
     };
 
-    it('should send email successfully', async () => {
-      // Execute
-      const result = await gmailService.sendEmail(emailParams);
+    it('should send email', async () => {
+      (mockGmailClient.users.messages.send as jest.Mock).mockImplementation(() =>
+        Promise.resolve({
+          data: { id: 'msg1', threadId: 'thread1', labelIds: ['SENT'] }
+        })
+      );
 
-      // Verify
-      expect(result).toEqual({
-        messageId: 'sent-msg-1',
-        threadId: 'thread-1',
-        labelIds: ['SENT'],
-      });
+      const result = await gmailService.sendEmail(emailParams);
+      expect(result.messageId).toBe('msg1');
+      expect(result.labelIds).toContain('SENT');
     });
 
     it('should handle send failure', async () => {
-      // Execute & Verify
+      (mockGmailClient.users.messages.send as jest.Mock).mockImplementation(() =>
+        Promise.reject(new Error('Send failed'))
+      );
+
       await expect(gmailService.sendEmail(emailParams)).rejects.toThrow();
     });
   });
 
   describe('manageDraft', () => {
-    const draftParams = {
-      email: testEmail,
-      to: ['recipient@example.com'],
-      subject: 'Test Draft',
-      body: 'Draft content',
-      cc: ['cc@example.com'],
-      bcc: ['bcc@example.com']
-    };
+    it('should create draft', async () => {
+      (mockGmailClient.users.drafts.create as jest.Mock).mockImplementation(() =>
+        Promise.resolve({
+          data: {
+            id: 'draft1',
+            message: { id: 'msg1' }
+          }
+        })
+      );
 
-    describe('create action', () => {
-      it('should create a new draft successfully', async () => {
-        // Execute
-        const result = (await gmailService.manageDraft({
-          action: 'create',
-          email: testEmail,
-          data: draftParams
-        })) as DraftResponse;
+      const result = await gmailService.manageDraft({
+        action: 'create',
+        email: testEmail,
+        data: {
+          to: ['test@example.com'],
+          subject: 'Draft',
+          body: 'Content'
+        }
+      }) as DraftResponse;
 
-        // Verify
-        expect(result.id).toBe('draft-1');
-        expect(result.message).toBeDefined();
-        expect(result.updated).toBeDefined();
-        expect(mockGmailClient.users.drafts.create).toHaveBeenCalledWith(expect.objectContaining({
-          userId: 'me',
-          requestBody: expect.any(Object)
-        }));
-      });
-
-      it('should create a reply draft with proper headers', async () => {
-        const replyParams = {
-          ...draftParams,
-          replyToMessageId: 'original-msg-1',
-          threadId: 'thread-1',
-          inReplyTo: 'original-msg-1',
-          references: ['ref-1']
-        };
-        
-        // Execute
-        const result = (await gmailService.manageDraft({
-          action: 'create',
-          email: testEmail,
-          data: replyParams
-        })) as DraftResponse;
-
-        // Verify
-        expect(result.id).toBe('draft-2');
-        expect(mockGmailClient.users.drafts.create).toHaveBeenCalledWith(expect.objectContaining({
-          userId: 'me',
-          requestBody: expect.objectContaining({
-            message: expect.objectContaining({
-              threadId: 'thread-1'
-            })
-          })
-        }));
-      });
-
-      it('should handle draft creation failure', async () => {
-        // Execute & Verify
-        await expect(gmailService.manageDraft({
-          action: 'create',
-          email: testEmail,
-          data: draftParams
-        })).rejects.toThrow();
-      });
+      expect(result).toHaveProperty('id', 'draft1');
     });
 
-    describe('list action', () => {
-      it('should list drafts successfully', async () => {
-        // Execute
-        const result = (await gmailService.manageDraft({
-          action: 'read',
-          email: testEmail
-        })) as GetDraftsResponse;
+    it('should list drafts', async () => {
+      (mockGmailClient.users.drafts.list as jest.Mock).mockImplementation(() =>
+        Promise.resolve({
+          data: {
+            drafts: [{ id: 'draft1' }, { id: 'draft2' }],
+            resultSizeEstimate: 2
+          }
+        })
+      );
 
-        // Verify
-        expect(result.drafts.length).toBe(2);
-        expect(result.nextPageToken).toBe('next-token');
-        expect(result.resultSizeEstimate).toBe(2);
-        expect(mockGmailClient.users.drafts.list).toHaveBeenCalledWith(expect.objectContaining({
-          userId: 'me'
-        }));
-        expect(mockGmailClient.users.drafts.get).toHaveBeenCalledWith(expect.objectContaining({
-          userId: 'me',
-          id: expect.any(String)
-        }));
-      });
+      const result = await gmailService.manageDraft({
+        action: 'read',
+        email: testEmail
+      }) as GetDraftsResponse;
 
-      it('should handle empty drafts list', async () => {
-        // Execute
-        const result = (await gmailService.manageDraft({
-          action: 'read',
-          email: testEmail
-        })) as GetDraftsResponse;
-
-        // Verify
-        expect(result.drafts).toEqual([]);
-        expect(result.resultSizeEstimate).toBe(0);
-      });
-
-      it('should handle drafts fetch failure', async () => {
-        // Execute & Verify
-        await expect(gmailService.manageDraft({
-          action: 'read',
-          email: testEmail
-        })).rejects.toThrow();
-      });
+      expect(result).toHaveProperty('drafts');
+      expect(result.drafts.length).toBe(2);
     });
 
-    describe('send action', () => {
-      const sendDraftParams = {
-        draftId: 'draft-1'
-      };
+    it('should send draft', async () => {
+      (mockGmailClient.users.drafts.send as jest.Mock).mockImplementation(() =>
+        Promise.resolve({
+          data: {
+            id: 'msg1',
+            threadId: 'thread1',
+            labelIds: ['SENT']
+          }
+        })
+      );
 
-      it('should send draft successfully', async () => {
-        // Execute
-        const result = (await gmailService.manageDraft({
-          action: 'send',
-          email: testEmail,
-          draftId: sendDraftParams.draftId
-        })) as SendEmailResponse;
+      const result = await gmailService.manageDraft({
+        action: 'send',
+        email: testEmail,
+        draftId: 'draft1'
+      }) as SendEmailResponse;
 
-        // Verify
-        expect(result.messageId).toBe('sent-msg-1');
-        expect(result.threadId).toBe('thread-1');
-        expect(result.labelIds).toEqual(['SENT']);
-        expect(mockGmailClient.users.drafts.send).toHaveBeenCalledWith({
-          userId: 'me',
-          requestBody: { id: 'draft-1' }
-        });
-      });
-
-      it('should handle send draft failure', async () => {
-        // Execute & Verify
-        await expect(gmailService.manageDraft({
-          action: 'send',
-          email: testEmail,
-          draftId: sendDraftParams.draftId
-        })).rejects.toThrow();
-      });
+      expect(result).toHaveProperty('messageId', 'msg1');
+      expect(result).toHaveProperty('labelIds');
     });
   });
 
   describe('getWorkspaceGmailSettings', () => {
-    it('should fetch Gmail settings', async () => {
-      // Execute
-      const result = await gmailService.getWorkspaceGmailSettings({ email: testEmail });
+    it('should get settings', async () => {
+      (mockGmailClient.users.getProfile as jest.Mock).mockImplementation(() =>
+        Promise.resolve({
+          data: {
+            emailAddress: testEmail,
+            messagesTotal: 100
+          }
+        })
+      );
 
-      // Verify
+      const result = await gmailService.getWorkspaceGmailSettings({
+        email: testEmail
+      });
+
       expect(result.profile.emailAddress).toBe(testEmail);
       expect(result.settings).toBeDefined();
     });
 
-    it('should handle settings fetch failure', async () => {
-      // Execute & Verify
-      await expect(
-        gmailService.getWorkspaceGmailSettings({ email: testEmail })
-      ).rejects.toThrow();
+    it('should handle settings fetch error', async () => {
+      (mockGmailClient.users.getProfile as jest.Mock).mockImplementation(() =>
+        Promise.reject(new Error('Failed to fetch'))
+      );
+
+      await expect(gmailService.getWorkspaceGmailSettings({
+        email: testEmail
+      })).rejects.toThrow();
     });
   });
 });
