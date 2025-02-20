@@ -3,8 +3,11 @@ import { DriveService } from '../modules/drive/service.js';
 import { validateEmail } from '../utils/account.js';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 
-const _driveService = new DriveService();
-const calendarService = new CalendarService({
+// Singleton instances
+let driveService: DriveService;
+let calendarService: CalendarService;
+
+const CALENDAR_CONFIG = {
   maxAttachmentSize: 10 * 1024 * 1024, // 10MB
   allowedAttachmentTypes: [
     'application/pdf',
@@ -18,9 +21,21 @@ const calendarService = new CalendarService({
     'image/png',
     'text/plain'
   ]
-});
+};
+
+// Initialize services lazily
+async function initializeServices() {
+  if (!driveService) {
+    driveService = new DriveService();
+  }
+  if (!calendarService) {
+    calendarService = new CalendarService(CALENDAR_CONFIG);
+    await calendarService.initialize();
+  }
+}
 
 export async function handleListWorkspaceCalendarEvents(params: any) {
+  await initializeServices();
   const { email, query, maxResults, timeMin, timeMax } = params;
 
   if (!email) {
@@ -33,7 +48,6 @@ export async function handleListWorkspaceCalendarEvents(params: any) {
   validateEmail(email);
 
   try {
-    await calendarService.initialize();
     return await calendarService.getEvents({
       email,
       query,
@@ -50,6 +64,7 @@ export async function handleListWorkspaceCalendarEvents(params: any) {
 }
 
 export async function handleGetWorkspaceCalendarEvent(params: any) {
+  await initializeServices();
   const { email, eventId } = params;
 
   if (!email) {
@@ -69,7 +84,6 @@ export async function handleGetWorkspaceCalendarEvent(params: any) {
   validateEmail(email);
 
   try {
-    await calendarService.initialize();
     return await calendarService.getEvent(email, eventId);
   } catch (error) {
     throw new McpError(
@@ -80,6 +94,7 @@ export async function handleGetWorkspaceCalendarEvent(params: any) {
 }
 
 export async function handleCreateWorkspaceCalendarEvent(params: any) {
+  await initializeServices();
   const { email, summary, description, start, end, attendees, attachments } = params;
 
   if (!email) {
@@ -116,7 +131,6 @@ export async function handleCreateWorkspaceCalendarEvent(params: any) {
   }
 
   try {
-    await calendarService.initialize();
     return await calendarService.createEvent({
       email,
       summary,
@@ -147,6 +161,7 @@ export async function handleCreateWorkspaceCalendarEvent(params: any) {
 }
 
 export async function handleManageWorkspaceCalendarEvent(params: any) {
+  await initializeServices();
   const { email, eventId, action, comment, newTimes } = params;
 
   if (!email) {
@@ -173,7 +188,6 @@ export async function handleManageWorkspaceCalendarEvent(params: any) {
   validateEmail(email);
 
   try {
-    await calendarService.initialize();
     return await calendarService.manageEvent({
       email,
       eventId,
@@ -190,6 +204,7 @@ export async function handleManageWorkspaceCalendarEvent(params: any) {
 }
 
 export async function handleDeleteWorkspaceCalendarEvent(params: any) {
+  await initializeServices();
   const { email, eventId, sendUpdates } = params;
 
   if (!email) {
@@ -209,7 +224,6 @@ export async function handleDeleteWorkspaceCalendarEvent(params: any) {
   validateEmail(email);
 
   try {
-    await calendarService.initialize();
     return await calendarService.deleteEvent(email, eventId, sendUpdates);
   } catch (error) {
     throw new McpError(

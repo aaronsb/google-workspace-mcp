@@ -8,18 +8,29 @@ import { workspaceManager } from '../../utils/workspace.js';
 import fs from 'fs/promises';
 
 export class DriveService extends BaseGoogleService<drive_v3.Drive> {
+  private initialized = false;
+
   constructor() {
     super({
       serviceName: 'Google Drive',
       version: 'v3'
     });
-    this.initialize().catch(error => {
-      throw this.handleError(error, 'Failed to initialize Drive service');
-    });
+  }
+
+  public async ensureInitialized(): Promise<void> {
+    if (!this.initialized) {
+      try {
+        await this.initialize();
+        this.initialized = true;
+      } catch (error) {
+        throw this.handleError(error, 'Failed to initialize Drive service');
+      }
+    }
   }
 
   async listFiles(email: string, options: FileListOptions = {}): Promise<DriveOperationResult> {
     try {
+      await this.ensureInitialized();
       await this.validateScopes(email, [DRIVE_SCOPES.FILE]);
       const client = await this.getAuthenticatedClient(
         email,
@@ -55,6 +66,7 @@ export class DriveService extends BaseGoogleService<drive_v3.Drive> {
 
   async uploadFile(email: string, options: FileUploadOptions): Promise<DriveOperationResult> {
     try {
+      await this.ensureInitialized();
       await this.validateScopes(email, [DRIVE_SCOPES.FILE]);
       const client = await this.getAuthenticatedClient(
         email,
@@ -95,6 +107,7 @@ export class DriveService extends BaseGoogleService<drive_v3.Drive> {
 
   async downloadFile(email: string, options: FileDownloadOptions): Promise<DriveOperationResult> {
     try {
+      await this.ensureInitialized();
       await this.validateScopes(email, [DRIVE_SCOPES.FILE]);
       const client = await this.getAuthenticatedClient(
         email,
@@ -175,6 +188,7 @@ export class DriveService extends BaseGoogleService<drive_v3.Drive> {
 
   async createFolder(email: string, name: string, parentId?: string): Promise<DriveOperationResult> {
     try {
+      await this.ensureInitialized();
       await this.validateScopes(email, [DRIVE_SCOPES.FILE]);
       const client = await this.getAuthenticatedClient(
         email,
@@ -204,6 +218,7 @@ export class DriveService extends BaseGoogleService<drive_v3.Drive> {
 
   async searchFiles(email: string, options: FileSearchOptions): Promise<DriveOperationResult> {
     try {
+      await this.ensureInitialized();
       await this.validateScopes(email, [DRIVE_SCOPES.FILE]);
       const client = await this.getAuthenticatedClient(
         email,
@@ -250,6 +265,7 @@ export class DriveService extends BaseGoogleService<drive_v3.Drive> {
 
   async updatePermissions(email: string, options: PermissionOptions): Promise<DriveOperationResult> {
     try {
+      await this.ensureInitialized();
       await this.validateScopes(email, [DRIVE_SCOPES.FILE]);
       const client = await this.getAuthenticatedClient(
         email,
@@ -281,6 +297,7 @@ export class DriveService extends BaseGoogleService<drive_v3.Drive> {
 
   async deleteFile(email: string, fileId: string): Promise<DriveOperationResult> {
     try {
+      await this.ensureInitialized();
       await this.validateScopes(email, [DRIVE_SCOPES.FILE]);
       const client = await this.getAuthenticatedClient(
         email,

@@ -71,15 +71,43 @@ interface ManageDraftParams {
   };
 }
 
-const gmailService = new GmailService();
-const driveService = new DriveService();
-const attachmentService = new AttachmentService(driveService);
-const searchService = new SearchService();
-const emailService = new EmailService(searchService, attachmentService, driveService);
-const settingsService = new SettingsService();
-const labelService = new LabelService();
+// Singleton instances
+let gmailService: GmailService;
+let driveService: DriveService;
+let attachmentService: AttachmentService;
+let searchService: SearchService;
+let emailService: EmailService;
+let settingsService: SettingsService;
+let labelService: LabelService;
+
+// Initialize services lazily
+async function initializeServices() {
+  if (!driveService) {
+    driveService = new DriveService();
+  }
+  if (!attachmentService) {
+    attachmentService = new AttachmentService(driveService);
+  }
+  if (!searchService) {
+    searchService = new SearchService();
+  }
+  if (!emailService) {
+    emailService = new EmailService(searchService, attachmentService, driveService);
+  }
+  if (!settingsService) {
+    settingsService = new SettingsService();
+  }
+  if (!labelService) {
+    labelService = new LabelService();
+  }
+  if (!gmailService) {
+    gmailService = new GmailService();
+    await gmailService.initialize();
+  }
+}
 
 export async function handleSearchWorkspaceEmails(params: SearchEmailsParams) {
+  await initializeServices();
   const { email, search = {}, options = {}, messageIds } = params;
 
   if (!email) {
@@ -102,6 +130,7 @@ export async function handleSearchWorkspaceEmails(params: SearchEmailsParams) {
 }
 
 export async function handleSendWorkspaceEmail(params: SendEmailRequestParams) {
+  await initializeServices();
   const { email, to, subject, body, cc, bcc, attachments } = params;
 
   if (!email) {
@@ -164,6 +193,7 @@ export async function handleSendWorkspaceEmail(params: SendEmailRequestParams) {
 }
 
 export async function handleGetWorkspaceGmailSettings(params: { email: string }) {
+  await initializeServices();
   const { email } = params;
 
   if (!email) {
@@ -186,6 +216,7 @@ export async function handleGetWorkspaceGmailSettings(params: { email: string })
 }
 
 export async function handleManageWorkspaceDraft(params: ManageDraftParams) {
+  await initializeServices();
   const { email, action, draftId, data } = params;
 
   if (!email) {
@@ -284,6 +315,7 @@ export async function handleManageWorkspaceDraft(params: ManageDraftParams) {
 }
 
 export async function handleManageWorkspaceLabel(params: ManageLabelParams) {
+  await initializeServices();
   const { email } = params;
 
   if (!email) {
@@ -306,6 +338,7 @@ export async function handleManageWorkspaceLabel(params: ManageLabelParams) {
 }
 
 export async function handleManageWorkspaceLabelAssignment(params: ManageLabelAssignmentParams) {
+  await initializeServices();
   const { email } = params;
 
   if (!email) {
@@ -328,6 +361,7 @@ export async function handleManageWorkspaceLabelAssignment(params: ManageLabelAs
 }
 
 export async function handleManageWorkspaceLabelFilter(params: ManageLabelFilterParams) {
+  await initializeServices();
   const { email } = params;
 
   if (!email) {

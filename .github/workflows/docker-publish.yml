@@ -2,7 +2,7 @@ name: Test, Build and Deploy
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, fix/* ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
@@ -92,7 +92,7 @@ jobs:
   integration-test:
     needs: build-and-deploy
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     
     steps:
       - name: Checkout repository
@@ -107,8 +107,28 @@ jobs:
       - name: Get image digest
         id: image
         run: |
-          # Extract digest from metadata
-          DIGEST=$(docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest --format '{{json .}}' | jq -r '.manifest.digest')
+          # Wait for image to be available (with timeout)
+          MAX_ATTEMPTS=6
+          ATTEMPT=1
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT to verify image availability..."
+            if curl -s -f -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                "https://ghcr.io/v2/${{ github.repository }}/manifests/latest" > /dev/null; then
+              break
+            fi
+            if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+              echo "Image not available after maximum attempts"
+              exit 1
+            fi
+            ATTEMPT=$((ATTEMPT + 1))
+            sleep 30
+          done
+          
+          # Get digest using API
+          DIGEST=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://ghcr.io/v2/${{ github.repository }}/manifests/latest" \
+            -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+            | jq -r '.config.digest')
           echo "digest=$DIGEST" >> $GITHUB_OUTPUT
 
       - name: Pull container
@@ -116,22 +136,47 @@ jobs:
           # Log in to registry to ensure we can pull private packages
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
           
-          # Pull with manifest digest
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}
+          # Pull with explicit error handling
+          if ! docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}; then
+            echo "Failed to pull by digest, attempting tag pull..."
+            if ! docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest; then
+              echo "Failed to pull image by tag. Current images:"
+              docker images
+              echo "Registry contents:"
+              curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                "https://ghcr.io/v2/${{ github.repository }}/tags/list"
+              exit 1
+            fi
+          fi
       
+      - name: Set up test environment
+        run: |
+          # Create test directories with correct permissions
+          mkdir -p logs config
+          chmod 777 logs
+          # Copy example config for testing only (production deployments manage their own config)
+          cp config/accounts.example.json config/accounts.json
+
+      - name: Set image reference
+        id: imgref
+        run: |
+          # Use digest if available, otherwise use latest tag
+          if docker inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }} >/dev/null 2>&1; then
+            echo "ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}" >> $GITHUB_OUTPUT
+          else
+            echo "ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run integration tests
         run: |
-          # Create log directory with correct permissions
-          mkdir -p logs
-          chmod 777 logs
-
-          # Run tests with log directory mounted
+          # Run tests with test directories mounted
           docker run -i \
             -e GOOGLE_CLIENT_ID=test-client-id \
             -e GOOGLE_CLIENT_SECRET=test-secret \
             -e LOG_FILE=/app/logs/integration-test.log \
             -v ${{ github.workspace }}/logs:/app/logs \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }} \
+            -v ${{ github.workspace }}/config:/app/config \
+            ${{ steps.imgref.outputs.ref }} \
             npm run test:integration
 
           # Display logs for debugging if tests fail
@@ -148,7 +193,7 @@ jobs:
             -e GOOGLE_CLIENT_SECRET=test-secret \
             --health-cmd="node /app/build/health-check.js" \
             --health-interval=10s \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}
+            ${{ steps.imgref.outputs.ref }}
 
   cleanup:
     name: Cleanup

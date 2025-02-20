@@ -142,6 +142,8 @@ You can customize the workspace location by setting the `WORKSPACE_BASE_PATH` en
 
 ### Manual Usage
 
+> **Important**: The server requires an `accounts.json` file in the mounted config directory. For first-time setup, copy `accounts.example.json` to `accounts.json` in your config directory before starting the container.
+
 You can run the container directly:
 
 ```bash
@@ -413,6 +415,9 @@ npm test path/to/test.ts
 
 # Run tests with coverage
 npm test -- --coverage
+
+# CI builds run all tests with coverage reporting
+npm run test:ci
 ```
 
 ## Best Practices
