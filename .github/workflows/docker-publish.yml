@@ -92,7 +92,7 @@ jobs:
   integration-test:
     needs: build-and-deploy
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     
     steps:
       - name: Checkout repository
