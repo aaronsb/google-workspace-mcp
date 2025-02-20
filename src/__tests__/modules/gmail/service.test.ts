@@ -42,13 +42,26 @@ describe('GmailService', () => {
     mockAccountManager = {
       validateToken: jest.fn().mockResolvedValue({ valid: true, token: {} }),
       getAuthClient: jest.fn().mockResolvedValue({}),
+      withTokenRenewal: jest.fn().mockImplementation((email, operation) => operation()),
     } as unknown as jest.Mocked<AccountManager>;
 
     (getAccountManager as jest.Mock).mockReturnValue(mockAccountManager);
 
     gmailService = new GmailService();
-    (gmailService as any).getGmailClient = jest.fn().mockResolvedValue(mockGmailClient);
     await gmailService.init();
+
+    // Mock the base service's getAuthenticatedClient method
+    (gmailService as any).getAuthenticatedClient = jest.fn().mockResolvedValue(mockGmailClient);
+
+    // Mock all internal services
+    (gmailService as any).emailService.gmailClient = mockGmailClient;
+    (gmailService as any).emailService.getAuthenticatedClient = jest.fn().mockResolvedValue(mockGmailClient);
+    
+    (gmailService as any).draftService.gmailClient = mockGmailClient;
+    (gmailService as any).draftService.getAuthenticatedClient = jest.fn().mockResolvedValue(mockGmailClient);
+    
+    (gmailService as any).settingsService.gmailClient = mockGmailClient;
+    (gmailService as any).settingsService.getAuthenticatedClient = jest.fn().mockResolvedValue(mockGmailClient);
   });
 
   describe('getEmails', () => {
@@ -136,14 +149,41 @@ describe('GmailService', () => {
     });
 
     it('should list drafts', async () => {
+      // Mock the list call to return draft IDs
       (mockGmailClient.users.drafts.list as jest.Mock).mockImplementation(() =>
         Promise.resolve({
           data: {
-            drafts: [{ id: 'draft1' }, { id: 'draft2' }],
+            drafts: [
+              { id: 'draft1' },
+              { id: 'draft2' }
+            ],
             resultSizeEstimate: 2
           }
         })
       );
+
+      // Mock the get call for each draft
+      (mockGmailClient.users.drafts.get as jest.Mock)
+        .mockImplementationOnce(() => Promise.resolve({
+          data: {
+            id: 'draft1',
+            message: {
+              id: 'msg1',
+              threadId: 'thread1',
+              labelIds: ['DRAFT']
+            }
+          }
+        }))
+        .mockImplementationOnce(() => Promise.resolve({
+          data: {
+            id: 'draft2',
+            message: {
+              id: 'msg2',
+              threadId: 'thread2',
+              labelIds: ['DRAFT']
+            }
+          }
+        }));
 
       const result = await gmailService.manageDraft({
         action: 'read',
@@ -152,6 +192,8 @@ describe('GmailService', () => {
 
       expect(result).toHaveProperty('drafts');
       expect(result.drafts.length).toBe(2);
+      expect(result.drafts[0]).toHaveProperty('id', 'draft1');
+      expect(result.drafts[1]).toHaveProperty('id', 'draft2');
     });
 
     it('should send draft', async () => {
