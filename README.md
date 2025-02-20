@@ -413,6 +413,9 @@ npm test path/to/test.ts
 
 # Run tests with coverage
 npm test -- --coverage
+
+# CI builds run all tests with coverage reporting
+npm run test:ci
 ```
 
 ## Best Practices
