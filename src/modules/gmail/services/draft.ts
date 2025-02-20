@@ -5,12 +5,20 @@ import { AttachmentService } from '../../attachments/service.js';
 import { DriveService } from '../../drive/service.js';
 import { ATTACHMENT_FOLDERS } from '../../attachments/types.js';
 
+export interface ManageDraftParams {
+  email: string;
+  action: 'create' | 'read' | 'update' | 'delete' | 'send';
+  draftId?: string;
+  data?: DraftData;
+}
+
 export interface DraftData {
   to: string[];
   subject: string;
   body: string;
   cc?: string[];
   bcc?: string[];
+  threadId?: string; // For reply drafts
   attachments?: {
     driveFileId?: string;
     content?: string;
@@ -115,12 +123,13 @@ export class DraftService {
       messageParts.push(`--${boundary}--`);
       const fullMessage = messageParts.join('');
 
-      // Create draft
+      // Create draft with threadId if it's a reply
       const { data: draft } = await client.users.drafts.create({
         userId: 'me',
         requestBody: {
           message: {
-            raw: Buffer.from(fullMessage).toString('base64')
+            raw: Buffer.from(fullMessage).toString('base64'),
+            threadId: data.threadId // Include threadId for replies
           }
         }
       });
@@ -128,10 +137,11 @@ export class DraftService {
       return {
         id: draft.id!,
         message: {
-          id: draft.message?.id,
-          threadId: draft.message?.threadId,
-          labelIds: draft.message?.labelIds
+          id: draft.message?.id!,
+          threadId: draft.message?.threadId!,
+          labelIds: draft.message?.labelIds || []
         },
+        updated: new Date().toISOString(),
         attachments: processedAttachments
       };
     } catch (error) {
@@ -150,9 +160,15 @@ export class DraftService {
         userId: 'me'
       });
 
+      // Get full details for each draft
+      const drafts = await Promise.all((data.drafts || []).map(draft => 
+        this.getDraft(email, draft.id!)
+      ));
+
       return {
-        drafts: data.drafts || [],
-        nextPageToken: data.nextPageToken
+        drafts,
+        nextPageToken: data.nextPageToken || undefined,
+        resultSizeEstimate: data.resultSizeEstimate || 0
       };
     } catch (error) {
       throw new GmailError(
@@ -172,7 +188,15 @@ export class DraftService {
         format: 'full'
       });
 
-      return data;
+      return {
+        id: data.id!,
+        message: {
+          id: data.message?.id!,
+          threadId: data.message?.threadId!,
+          labelIds: data.message?.labelIds || []
+        },
+        updated: new Date().toISOString() // Gmail API doesn't provide updated time, using current time
+      };
     } catch (error) {
       throw new GmailError(
         'Failed to get draft',
@@ -262,10 +286,11 @@ export class DraftService {
       return {
         id: draft.id!,
         message: {
-          id: draft.message?.id,
-          threadId: draft.message?.threadId,
-          labelIds: draft.message?.labelIds
+          id: draft.message?.id!,
+          threadId: draft.message?.threadId!,
+          labelIds: draft.message?.labelIds || []
         },
+        updated: new Date().toISOString(),
         attachments: processedAttachments
       };
     } catch (error) {
@@ -285,13 +310,68 @@ export class DraftService {
         id: draftId
       });
 
-      return { success: true };
+      return;
     } catch (error) {
       throw new GmailError(
         'Failed to delete draft',
         'DELETE_ERROR',
         error instanceof Error ? error.message : 'Unknown error'
       );
+    }
+  }
+
+  async manageDraft(params: ManageDraftParams) {
+    const { email, action, draftId, data } = params;
+
+    switch (action) {
+      case 'create':
+        if (!data) {
+          throw new GmailError(
+            'Draft data is required for create action',
+            'INVALID_PARAMS'
+          );
+        }
+        return this.createDraft(email, data);
+
+      case 'read':
+        if (!draftId) {
+          return this.listDrafts(email);
+        }
+        return this.getDraft(email, draftId);
+
+      case 'update':
+        if (!draftId || !data) {
+          throw new GmailError(
+            'Draft ID and data are required for update action',
+            'INVALID_PARAMS'
+          );
+        }
+        return this.updateDraft(email, draftId, data);
+
+      case 'delete':
+        if (!draftId) {
+          throw new GmailError(
+            'Draft ID is required for delete action',
+            'INVALID_PARAMS'
+          );
+        }
+        return this.deleteDraft(email, draftId);
+
+      case 'send':
+        if (!draftId) {
+          throw new GmailError(
+            'Draft ID is required for send action',
+            'INVALID_PARAMS'
+          );
+        }
+        return this.sendDraft(email, draftId);
+
+      default:
+        throw new GmailError(
+          'Invalid action',
+          'INVALID_PARAMS',
+          'Supported actions are: create, read, update, delete, send'
+        );
     }
   }
 
@@ -308,7 +388,7 @@ export class DraftService {
       return {
         messageId: data.id!,
         threadId: data.threadId!,
-        labelIds: data.labelIds
+        labelIds: data.labelIds || undefined
       };
     } catch (error) {
       throw new GmailError(

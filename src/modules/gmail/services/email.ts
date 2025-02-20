@@ -141,7 +141,7 @@ export class EmailService {
   /**
    * Enhanced getEmails method with support for advanced search criteria and options
    */
-  async getEmails(email: string, { search = {}, options = {}, messageIds }: GetEmailsParams): Promise<GetEmailsResponse> {
+  async getEmails({ email, search = {}, options = {}, messageIds }: GetEmailsParams): Promise<GetEmailsResponse> {
     try {
       const maxResults = options.maxResults || 10;
       
@@ -270,7 +270,7 @@ export class EmailService {
     }
   }
 
-  async sendEmail(email: string, { to, subject, body, cc = [], bcc = [], attachments = [] }: SendEmailParams): Promise<SendEmailResponse> {
+  async sendEmail({ email, to, subject, body, cc = [], bcc = [], attachments = [] }: SendEmailParams): Promise<SendEmailResponse> {
     try {
       // Process attachments first
       const processedAttachments = [];
@@ -364,12 +364,17 @@ export class EmailService {
         },
       });
 
-      return {
+      const response: SendEmailResponse = {
         messageId: data.id!,
         threadId: data.threadId!,
-        labelIds: data.labelIds || undefined,
-        attachments: processedAttachments
+        labelIds: data.labelIds || undefined
       };
+
+      if (processedAttachments.length > 0) {
+        response.attachments = processedAttachments;
+      }
+
+      return response;
     } catch (error) {
       if (error instanceof GmailError) {
         throw error;
