@@ -15,30 +15,75 @@ This principle helps prevent goal misgeneralization, where AI systems might othe
 
 ## System Overview
 
-The Google Services MCP Server implements a modular architecture focused on Gmail functionality with planned expansion to other Google services. The system is built around core modules that handle authentication, account management, and service-specific operations.
+The Google Workspace MCP Server implements a modular architecture with comprehensive support for Gmail, Calendar, and Drive services. The system is built around core modules that handle authentication, account management, and service-specific operations.
 
 ```mermaid
-graph TD
-    MCP[MCP Server] --> AM[Account Module]
-    subgraph AccountModule[Account Module]
-        OC[OAuth Client]
-        TM[Token Manager]
+graph TB
+    subgraph "Google Workspace MCP Tools"
+        AM[Account Management]
+        GM[Gmail Management]
+        CM[Calendar Management]
+        DM[Drive Management]
+        
+        subgraph "Account Tools"
+            AM --> LA[list_workspace_accounts]
+            AM --> AA[authenticate_workspace_account]
+            AM --> RA[remove_workspace_account]
+        end
+        
+        subgraph "Gmail Tools"
+            GM --> SE[search_workspace_emails]
+            GM --> SWE[send_workspace_email]
+            GM --> GS[get_workspace_gmail_settings]
+            GM --> MD[manage_workspace_draft]
+            
+            subgraph "Label Management"
+                LM[Label Tools]
+                LM --> ML[manage_workspace_label]
+                LM --> MLA[manage_workspace_label_assignment]
+                LM --> MLF[manage_workspace_label_filter]
+            end
+        end
+        
+        subgraph "Calendar Tools"
+            CM --> LCE[list_workspace_calendar_events]
+            CM --> GCE[get_workspace_calendar_event]
+            CM --> MCE[manage_workspace_calendar_event]
+            CM --> CCE[create_workspace_calendar_event]
+            CM --> DCE[delete_workspace_calendar_event]
+        end
+        
+        subgraph "Drive Tools"
+            DM --> LDF[list_drive_files]
+            DM --> SDF[search_drive_files]
+            DM --> UDF[upload_drive_file]
+            DM --> DDF[download_drive_file]
+            DM --> CDF[create_drive_folder]
+            DM --> UDP[update_drive_permissions]
+            DM --> DEL[delete_drive_file]
+        end
     end
-    AM --> SM[Service Modules]
-    subgraph ServiceModules[Service Modules]
-        GM[Gmail Module]
-        CM["Calendar Module
-        (Planned)"]
-    end
+
+    %% Service Dependencies
+    LA -.->|Required First| SE
+    LA -.->|Required First| CM
+    LA -.->|Required First| DM
+    AA -.->|Auth Flow| LA
 ```
 
-## Core Components (Current Implementation)
+Key characteristics:
+- Authentication-first architecture with list_workspace_accounts as the foundation
+- Comprehensive service modules for Gmail, Calendar, and Drive
+- Integrated label management within Gmail
+- Rich tool sets for each service domain
+
+## Core Components
 
 ### 1. Scope Registry (src/modules/tools/scope-registry.ts)
-- Simple scope collection system
+- Simple scope collection system for OAuth
 - Gathers required scopes at startup
-- Used only for initial auth setup
-- No runtime validation - handled by API responses
+- Used for initial auth setup and validation
+- Handles runtime scope verification
 
 ### 2. MCP Server (src/index.ts)
 - Registers and manages available tools
@@ -61,13 +106,34 @@ graph TD
   - Handles account persistence
   - Validates account status
 
-### 4. Gmail Module (src/modules/gmail/*)
-- Implements email operations:
-  - List and fetch emails
-  - Send emails
-  - Handle Gmail-specific errors
+### 4. Service Modules
+#### Gmail Module (src/modules/gmail/*)
+- Comprehensive email operations:
+  - Email search and sending
+  - Draft management
+  - Label and filter control
+  - Settings configuration
 - Manages Gmail API integration
 - Handles Gmail authentication scopes
+
+#### Calendar Module (src/modules/calendar/*)
+- Complete calendar operations:
+  - Event listing and search
+  - Event creation and management
+  - Event response handling
+  - Recurring event support
+- Manages Calendar API integration
+- Handles calendar permissions
+
+#### Drive Module (src/modules/drive/*)
+- Full file management capabilities:
+  - File listing and search
+  - Upload and download
+  - Folder management
+  - Permission control
+  - File operations (create, update, delete)
+- Manages Drive API integration
+- Handles file system operations
 
 ## Data Flows
 
@@ -265,18 +331,11 @@ The server uses a Docker volume mounted at `/app/config` to store:
 - Tokens are stored securely with appropriate permissions
 - Each token file is named using the account's email address
 
-## Planned Extensions
+## Future Extensions
 
-### Calendar Module (In Development)
-- Event management
-- Calendar operations
-- Meeting scheduling
-- Availability checking
-
-### Future Services
-- Drive API integration
-- Admin SDK support
-- Additional Google services
+### Planned Services
+- Admin SDK support for workspace management
+- Additional Google Workspace integrations
 
 ### Planned Features
 - Rate limiting
