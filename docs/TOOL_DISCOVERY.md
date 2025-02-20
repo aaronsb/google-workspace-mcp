@@ -4,22 +4,106 @@ The Google Workspace MCP server provides several features to make tools more dis
 
 ## Tool Categories
 
-Tools are organized into logical categories for better organization:
+Tools are organized into logical categories for better organization. IMPORTANT: The list_workspace_accounts tool must be called before using any other tools to verify account access and authorization.
 
 - Account Management
   - Authentication and account management tools
-- Gmail/Messages
-  - Email composition and search
-- Gmail/Labels
-  - Label creation and management
-  - Label filter creation and management
-  - Message label operations
-- Gmail/Drafts
-  - Draft email management
-- Gmail/Settings
-  - Gmail settings and configuration
-- Calendar/Events
-  - Calendar event management
+  - Core tools for account lifecycle management
+  - Required for all other operations
+
+- Gmail Management
+  - Messages
+    - Email search and composition
+    - Email settings and configuration
+  - Drafts
+    - Draft email creation and management
+    - Reply drafts and threading
+  - Labels
+    - Label creation and management
+    - Label filter creation and rules
+    - Message label assignments
+  - Settings
+    - Account settings and preferences
+    - Profile configuration
+
+- Calendar Management
+  - Events
+    - Event listing and search
+    - Event creation and management
+    - Event responses and updates
+    - Recurring event support
+    - Calendar viewing and scheduling
+
+- Drive Management
+  - Files
+    - File listing and search
+    - Upload and download operations
+    - File content management
+  - Folders
+    - Folder creation and organization
+    - Directory structure management
+  - Permissions
+    - Sharing settings management
+    - Access control and visibility
+    - Collaboration settings
+
+## Tool Dependencies
+
+```mermaid
+graph TD
+    LA[list_workspace_accounts] --> |Required First| GM[Gmail Tools]
+    LA --> |Required First| CM[Calendar Tools]
+    LA --> |Required First| DM[Drive Tools]
+    
+    AA[authenticate_workspace_account] --> |Auth Flow| LA
+    
+    subgraph "Tool Prerequisites"
+        LA
+        AA
+        RA[remove_workspace_account]
+    end
+    
+    subgraph "Service Operations"
+        GM
+        CM
+        DM
+    end
+```
+
+### Critical Workflows
+
+1. Account Verification (Required First)
+```javascript
+// Always start with account verification
+list_workspace_accounts()
+// Then proceed with service-specific operations
+```
+
+2. Authentication Flow
+```javascript
+// Only if list_workspace_accounts shows no valid account
+authenticate_workspace_account({
+  email: "user@example.com"
+})
+// Wait for user to complete OAuth
+// Then proceed with operations
+```
+
+3. Service Operations
+```javascript
+// After account verification:
+// Gmail operations
+search_workspace_emails({...})
+send_workspace_email({...})
+
+// Calendar operations
+list_workspace_calendar_events({...})
+create_workspace_calendar_event({...})
+
+// Drive operations
+list_drive_files({...})
+upload_drive_file({...})
+```
 
 ## Tool Aliases
 

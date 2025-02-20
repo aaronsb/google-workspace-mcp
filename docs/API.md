@@ -1,16 +1,27 @@
 # Google Workspace MCP API Reference
 
-## Account Management
+IMPORTANT: Before using any service operations, you MUST call list_workspace_accounts first to:
+1. Check for existing authenticated accounts
+2. Determine which account to use if multiple exist
+3. Verify required API scopes are authorized
+
+## Account Management (Required First)
 
 ### list_workspace_accounts
-List all configured Google workspace accounts and their authentication status.
+List all configured Google workspace accounts and their authentication status. This tool MUST be called first before any other workspace operations.
 
 **Input Schema**: Empty object `{}`
 
 **Output**: Array of account objects with authentication status
 
+**Common Response Patterns**:
+- Valid account exists → Proceed with requested operation
+- Multiple accounts exist → Ask user which to use
+- Token expired → Proceed normally (auto-refresh occurs)
+- No accounts exist → Start authentication flow
+
 ### authenticate_workspace_account
-Add and authenticate a Google account for API access.
+Add and authenticate a Google account for API access. Only use this tool if list_workspace_accounts shows no existing accounts or when using the account it seems to lack necessary auth scopes.
 
 **Input Schema**:
 ```typescript
@@ -33,6 +44,11 @@ Remove a Google account and delete associated tokens.
 ```
 
 ## Gmail Operations
+
+IMPORTANT: Before any Gmail operation:
+1. Call list_workspace_accounts to verify account access
+2. Confirm account if multiple exist
+3. Check required scopes include Gmail access
 
 ### search_workspace_emails
 Search emails with advanced filtering.
@@ -61,6 +77,13 @@ Search emails with advanced filtering.
 ### send_workspace_email
 Send an email.
 
+**Best Practices**:
+1. Suggest writing a draft first, then send the draft
+2. Verify account access with list_workspace_accounts
+3. Confirm sending account if multiple exist
+4. Validate all recipient addresses
+5. Check content for completeness
+
 **Input Schema**:
 ```typescript
 {
@@ -74,7 +97,20 @@ Send an email.
 ```
 
 ### manage_workspace_draft
-Manage email drafts.
+Manage email drafts with CRUD operations and sending.
+
+**Operations**:
+- create: Create a new draft
+- read: Get a specific draft or list all drafts
+- update: Modify an existing draft
+- delete: Remove a draft
+- send: Send an existing draft
+
+**Features**:
+- New email drafts
+- Reply drafts with threading
+- Draft modifications
+- Draft sending
 
 **Input Schema**:
 ```typescript
@@ -96,6 +132,11 @@ Manage email drafts.
 
 ## Calendar Operations
 
+IMPORTANT: Before any Calendar operation:
+1. Verify account access with list_workspace_accounts
+2. Confirm calendar account if multiple exist
+3. Check calendar access permissions
+
 ### list_workspace_calendar_events
 List calendar events.
 
@@ -112,6 +153,22 @@ List calendar events.
 
 ### create_workspace_calendar_event
 Create a calendar event.
+
+**Required Formats**:
+- Times: ISO-8601 (e.g., "2024-02-18T15:30:00-06:00")
+- Timezone: IANA identifier (e.g., "America/Chicago")
+- Recurrence: RRULE format (e.g., "RRULE:FREQ=WEEKLY;COUNT=10")
+
+**Common Patterns**:
+1. Single Event:
+   - Collect title, time, attendees
+   - Check for conflicts
+   - Create and confirm
+
+2. Recurring Event:
+   - Validate recurrence pattern
+   - Check series conflicts
+   - Create with RRULE
 
 **Input Schema**:
 ```typescript
@@ -135,6 +192,11 @@ Create a calendar event.
 ```
 
 ## Drive Operations
+
+IMPORTANT: Before any Drive operation:
+1. Verify account access with list_workspace_accounts
+2. Confirm account if multiple exist
+3. Check Drive permissions
 
 ### list_drive_files
 List files in Google Drive.
@@ -216,6 +278,20 @@ Create a new folder.
 ### update_drive_permissions
 Update file/folder sharing settings.
 
+**Permission Types**:
+- User: Share with specific email
+- Group: Share with Google Group
+- Domain: Share with entire domain
+- Anyone: Public sharing
+
+**Roles**:
+- owner: Full ownership rights
+- organizer: Organizational rights
+- fileOrganizer: File organization rights
+- writer: Edit access
+- commenter: Comment access
+- reader: View access
+
 **Input Schema**:
 ```typescript
 {
@@ -244,6 +320,20 @@ Delete a file or folder.
 ```
 
 ## Label Management
+
+IMPORTANT: Before any Label operation:
+1. Verify account access with list_workspace_accounts
+2. Confirm Gmail account if multiple exist
+3. Check label management permissions
+
+**Label Features**:
+- Nested labels: Use "/" (e.g., "Work/Projects")
+- Custom colors: Hex codes (e.g., "#000000")
+- Visibility options: Show/hide in lists
+
+**Limitations**:
+- Cannot create/modify system labels (INBOX, SENT, SPAM)
+- Label names must be unique
 
 ### manage_workspace_label
 Manage Gmail labels.
