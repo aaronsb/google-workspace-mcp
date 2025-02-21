@@ -1,4 +1,19 @@
-import { AttachmentMetadata } from '../attachments/types.js';
+export interface BaseGmailAttachment {
+  id: string;          // Gmail attachment ID
+  name: string;        // Filename
+  mimeType: string;    // MIME type
+  size: number;        // Size in bytes
+}
+
+export interface IncomingGmailAttachment extends BaseGmailAttachment {
+  content?: string;    // Base64 content when retrieved
+}
+
+export interface OutgoingGmailAttachment extends BaseGmailAttachment {
+  content: string;     // Base64 content required when sending
+}
+
+export type GmailAttachment = IncomingGmailAttachment | OutgoingGmailAttachment;
 
 export interface Label {
   id: string;
@@ -226,7 +241,7 @@ export interface EmailResponse {
   headers?: { [key: string]: string };
   isUnread: boolean;
   hasAttachment: boolean;
-  attachments?: AttachmentMetadata[];
+  attachments?: IncomingGmailAttachment[];
 }
 
 export interface ThreadInfo {
@@ -269,20 +284,14 @@ export interface SendEmailParams {
   body: string;
   cc?: string[];
   bcc?: string[];
-  attachments?: {
-    driveFileId?: string;  // For existing Drive files
-    content?: string;      // Base64 content for new files
-    name: string;
-    mimeType: string;
-    size?: number;
-  }[];
+  attachments?: OutgoingGmailAttachment[];
 }
 
 export interface SendEmailResponse {
   messageId: string;
   threadId: string;
   labelIds?: string[];
-  attachments?: AttachmentMetadata[];
+  attachments?: GmailAttachment[];
 }
 
 export class GmailError extends Error implements GmailError {

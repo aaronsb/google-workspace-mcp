@@ -6,20 +6,19 @@ import {
   SendEmailParams,
   SendEmailResponse,
   ThreadInfo,
-  GmailError
+  GmailError,
+  IncomingGmailAttachment,
+  OutgoingGmailAttachment
 } from '../types.js';
 import { SearchService } from './search.js';
-import { AttachmentService } from '../../attachments/service.js';
-import { ATTACHMENT_FOLDERS, AttachmentSource, AttachmentMetadata } from '../../attachments/types.js';
-import { DriveService } from '../../drive/service.js';
+import { GmailAttachmentService } from './attachment.js';
 
 type GmailMessage = gmail_v1.Schema$Message;
 
 export class EmailService {
   constructor(
     private searchService: SearchService,
-    private attachmentService: AttachmentService,
-    private driveService: DriveService,
+    private attachmentService: GmailAttachmentService,
     private gmailClient?: ReturnType<typeof google.gmail>
   ) {}
 
@@ -87,14 +86,10 @@ export class EmailService {
   }
 
   /**
-   * Process email attachments and store in Drive
+   * Get attachment metadata from message parts
    */
-  private async processEmailAttachments(
-    email: string,
-    message: GmailMessage,
-    isIncoming: boolean
-  ): Promise<AttachmentMetadata[]> {
-    const attachments: AttachmentMetadata[] = [];
+  private getAttachmentMetadata(message: GmailMessage): IncomingGmailAttachment[] {
+    const attachments: IncomingGmailAttachment[] = [];
     
     if (!message.payload?.parts) {
       return attachments;
@@ -102,34 +97,12 @@ export class EmailService {
 
     for (const part of message.payload.parts) {
       if (part.filename && part.body?.attachmentId) {
-        // Get attachment content
-        const client = this.ensureClient();
-        const attachment = await client.users.messages.attachments.get({
-          userId: 'me',
-          messageId: message.id!,
-          id: part.body.attachmentId
+        attachments.push({
+          id: part.body.attachmentId,
+          name: part.filename,
+          mimeType: part.mimeType || 'application/octet-stream',
+          size: parseInt(String(part.body.size || '0'))
         });
-
-        if (attachment.data.data) {
-          // Process attachment and store in Drive
-          const result = await this.attachmentService.processAttachment(
-            email,
-            {
-              type: 'local',
-              content: attachment.data.data,
-              metadata: {
-                name: part.filename,
-                mimeType: part.mimeType || 'application/octet-stream',
-                size: parseInt(String(part.body.size || '0'))
-              }
-            },
-            isIncoming ? ATTACHMENT_FOLDERS.INCOMING : ATTACHMENT_FOLDERS.OUTGOING
-          );
-
-          if (result.success && result.attachment) {
-            attachments.push(result.attachment);
-          }
-        }
       }
     }
 
@@ -207,10 +180,10 @@ export class EmailService {
             }
           }
 
-          // Process attachments if present
+          // Get attachment metadata if present
           const hasAttachments = email.payload?.parts?.some(part => part.filename && part.filename.length > 0) || false;
           const attachments = hasAttachments ? 
-            await this.processEmailAttachments(String(email.id), email, true) : 
+            this.getAttachmentMetadata(email) : 
             undefined;
 
           const response: EmailResponse = {
@@ -270,39 +243,18 @@ export class EmailService {
 
   async sendEmail({ email, to, subject, body, cc = [], bcc = [], attachments = [] }: SendEmailParams): Promise<SendEmailResponse> {
     try {
-      // Process attachments first
-      const processedAttachments = [];
-      for (const attachment of attachments) {
-        const source: AttachmentSource = attachment.driveFileId ? 
-          {
-            type: 'drive',
-            fileId: attachment.driveFileId,
-            metadata: {
-              name: attachment.name,
-              mimeType: attachment.mimeType,
-              size: attachment.size
-            }
-          } : 
-          {
-            type: 'local',
-            content: attachment.content!,
-            metadata: {
-              name: attachment.name,
-              mimeType: attachment.mimeType,
-              size: attachment.size
-            }
-          };
-
-        const result = await this.attachmentService.processAttachment(
-          email,
-          source,
-          ATTACHMENT_FOLDERS.OUTGOING
-        );
-
-        if (result.success && result.attachment) {
-          processedAttachments.push(result.attachment);
-        }
-      }
+      // Validate and prepare attachments for sending
+      const processedAttachments = attachments?.map(attachment => {
+        this.attachmentService.validateAttachment(attachment);
+        const prepared = this.attachmentService.prepareAttachment(attachment);
+        return {
+          id: attachment.id,
+          name: prepared.filename,
+          mimeType: prepared.mimeType,
+          size: attachment.size,
+          content: prepared.content
+        } as OutgoingGmailAttachment;
+      }) || [];
 
       // Construct email with attachments
       const boundary = `boundary_${Date.now()}`;
@@ -320,27 +272,16 @@ export class EmailService {
         '\n'
       ];
 
-      // Add attachments
+      // Add attachments directly from content
       for (const attachment of processedAttachments) {
-        const fileResult = await this.attachmentService.downloadAttachment(email, attachment.id);
-        if (fileResult.success && fileResult.attachment) {
-          // Get attachment content from Drive
-          const attachmentContent = await this.driveService.downloadFile(email, {
-            fileId: attachment.id
-          });
-          if (!attachmentContent.success) {
-            continue;
-          }
-          const content = Buffer.from(attachmentContent.data);
-          messageParts.push(
-            `--${boundary}\n`,
-            `Content-Type: ${attachment.mimeType}\n`,
-            'Content-Transfer-Encoding: base64\n',
-            `Content-Disposition: attachment; filename="${attachment.name}"\n\n`,
-            content.toString('base64'),
-            '\n'
-          );
-        }
+        messageParts.push(
+          `--${boundary}\n`,
+          `Content-Type: ${attachment.mimeType}\n`,
+          'Content-Transfer-Encoding: base64\n',
+          `Content-Disposition: attachment; filename="${attachment.name}"\n\n`,
+          attachment.content,
+          '\n'
+        );
       }
 
       messageParts.push(`--${boundary}--`);

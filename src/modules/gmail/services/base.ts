@@ -28,8 +28,7 @@ import { DraftService } from './draft.js';
 import { SettingsService } from './settings.js';
 import { LabelService } from './label.js';
 import { FilterService } from './filter.js';
-import { AttachmentService } from '../../attachments/service.js';
-import { DriveService } from '../../drive/service.js';
+import { GmailAttachmentService } from './attachment.js';
 
 /**
  * Gmail service implementation extending BaseGoogleService for common auth handling.
@@ -41,31 +40,26 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
   private settingsService: SettingsService;
   private labelService: LabelService;
   private filterService: FilterService;
-  private driveService: DriveService;
-  private attachmentService: AttachmentService;
   private initialized = false;
   
   constructor(config?: GmailModuleConfig) {
     super({ serviceName: 'Gmail', version: 'v1' });
     
-    // Initialize core services in dependency order
-    this.driveService = new DriveService();
-    this.attachmentService = new AttachmentService(this.driveService);
     this.searchService = new SearchService();
-    this.emailService = new EmailService(this.searchService, this.attachmentService, this.driveService);
-    this.draftService = new DraftService(this.driveService);
+    const attachmentService = new GmailAttachmentService();
+    this.emailService = new EmailService(this.searchService, attachmentService);
+    this.draftService = new DraftService(attachmentService);
     this.settingsService = new SettingsService();
     this.labelService = new LabelService();
     this.filterService = new FilterService();
   }
 
   /**
-   * Initialize the Gmail service and all dependencies
+   * Initialize the Gmail service
    */
   public async initialize(): Promise<void> {
     try {
       await super.initialize();
-      await this.driveService.ensureInitialized();
       this.initialized = true;
     } catch (error) {
       throw new GmailError(

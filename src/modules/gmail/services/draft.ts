@@ -1,9 +1,11 @@
 
 import { google } from 'googleapis';
-import { GmailError } from '../types.js';
-import { AttachmentService } from '../../attachments/service.js';
-import { DriveService } from '../../drive/service.js';
-import { ATTACHMENT_FOLDERS } from '../../attachments/types.js';
+import { 
+  GmailError, 
+  OutgoingGmailAttachment,
+  IncomingGmailAttachment 
+} from '../types.js';
+import { GmailAttachmentService } from './attachment.js';
 
 export type DraftAction = 'create' | 'read' | 'update' | 'delete' | 'send';
 
@@ -21,24 +23,12 @@ export interface DraftData {
   cc?: string[];
   bcc?: string[];
   threadId?: string; // For reply drafts
-  attachments?: {
-    driveFileId?: string;
-    content?: string;
-    name: string;
-    mimeType: string;
-    size?: number;
-  }[];
+  attachments?: OutgoingGmailAttachment[];
 }
 
 export class DraftService {
   private gmailClient?: ReturnType<typeof google.gmail>;
-  private attachmentService: AttachmentService;
-
-  constructor(
-    private driveService: DriveService
-  ) {
-    this.attachmentService = new AttachmentService(driveService);
-  }
+  constructor(private attachmentService: GmailAttachmentService) {}
 
   async initialize(): Promise<void> {
     // Initialization will be handled by Gmail service
@@ -63,30 +53,11 @@ export class DraftService {
     try {
       const client = this.ensureClient();
 
-      // Process attachments first
-      const processedAttachments = [];
-      if (data.attachments) {
-        for (const attachment of data.attachments) {
-          const result = await this.attachmentService.processAttachment(
-            email,
-            {
-              type: attachment.driveFileId ? 'drive' : 'local',
-              fileId: attachment.driveFileId,
-              content: attachment.content,
-              metadata: {
-                name: attachment.name,
-                mimeType: attachment.mimeType,
-                size: attachment.size || 0
-              }
-            },
-            ATTACHMENT_FOLDERS.OUTGOING
-          );
-
-          if (result.success && result.attachment) {
-            processedAttachments.push(result.attachment);
-          }
-        }
-      }
+      // Validate and prepare attachments
+      const processedAttachments = data.attachments?.map(attachment => {
+        this.attachmentService.validateAttachment(attachment);
+        return this.attachmentService.prepareAttachment(attachment);
+      }) || [];
 
       // Construct email with attachments
       const boundary = `boundary_${Date.now()}`;
@@ -106,20 +77,14 @@ export class DraftService {
 
       // Add attachments
       for (const attachment of processedAttachments) {
-        const fileResult = await this.driveService.downloadFile(email, {
-          fileId: attachment.id
-        });
-        if (fileResult.success) {
-          const content = Buffer.from(fileResult.data);
-          messageParts.push(
-            `--${boundary}\n`,
-            `Content-Type: ${attachment.mimeType}\n`,
-            'Content-Transfer-Encoding: base64\n',
-            `Content-Disposition: attachment; filename="${attachment.name}"\n\n`,
-            content.toString('base64'),
-            '\n'
-          );
-        }
+        messageParts.push(
+          `--${boundary}\n`,
+          `Content-Type: ${attachment.mimeType}\n`,
+          'Content-Transfer-Encoding: base64\n',
+          `Content-Disposition: attachment; filename="${attachment.filename}"\n\n`,
+            attachment.content.toString(),
+          '\n'
+        );
       }
 
       messageParts.push(`--${boundary}--`);
@@ -144,7 +109,7 @@ export class DraftService {
           labelIds: draft.message?.labelIds || []
         },
         updated: new Date().toISOString(),
-        attachments: processedAttachments
+        attachments: data.attachments
       };
     } catch (error) {
       throw new GmailError(
@@ -232,30 +197,11 @@ export class DraftService {
     try {
       const client = this.ensureClient();
 
-      // Process attachments first
-      const processedAttachments = [];
-      if (data.attachments) {
-        for (const attachment of data.attachments) {
-          const result = await this.attachmentService.processAttachment(
-            email,
-            {
-              type: attachment.driveFileId ? 'drive' : 'local',
-              fileId: attachment.driveFileId,
-              content: attachment.content,
-              metadata: {
-                name: attachment.name,
-                mimeType: attachment.mimeType,
-                size: attachment.size || 0
-              }
-            },
-            ATTACHMENT_FOLDERS.OUTGOING
-          );
-
-          if (result.success && result.attachment) {
-            processedAttachments.push(result.attachment);
-          }
-        }
-      }
+      // Validate and prepare attachments
+      const processedAttachments = data.attachments?.map(attachment => {
+        this.attachmentService.validateAttachment(attachment);
+        return this.attachmentService.prepareAttachment(attachment);
+      }) || [];
 
       // Construct updated email
       const boundary = `boundary_${Date.now()}`;
@@ -275,20 +221,14 @@ export class DraftService {
 
       // Add attachments
       for (const attachment of processedAttachments) {
-        const fileResult = await this.driveService.downloadFile(email, {
-          fileId: attachment.id
-        });
-        if (fileResult.success) {
-          const content = Buffer.from(fileResult.data);
-          messageParts.push(
-            `--${boundary}\n`,
-            `Content-Type: ${attachment.mimeType}\n`,
-            'Content-Transfer-Encoding: base64\n',
-            `Content-Disposition: attachment; filename="${attachment.name}"\n\n`,
-            content.toString('base64'),
-            '\n'
-          );
-        }
+        messageParts.push(
+          `--${boundary}\n`,
+          `Content-Type: ${attachment.mimeType}\n`,
+          'Content-Transfer-Encoding: base64\n',
+          `Content-Disposition: attachment; filename="${attachment.filename}"\n\n`,
+          attachment.content,
+          '\n'
+        );
       }
 
       messageParts.push(`--${boundary}--`);
@@ -313,7 +253,7 @@ export class DraftService {
           labelIds: draft.message?.labelIds || []
         },
         updated: new Date().toISOString(),
-        attachments: processedAttachments
+        attachments: data.attachments
       };
     } catch (error) {
       throw new GmailError(

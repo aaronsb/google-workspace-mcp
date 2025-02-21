@@ -54,14 +54,8 @@ import { AccountError } from '../modules/accounts/types.js';
 import { GmailError } from '../modules/gmail/types.js';
 import { CalendarError } from '../modules/calendar/types.js';
 
-// Import initialization functions
-import { initializeAccountModule } from '../modules/accounts/index.js';
-import { initializeGmailModule } from '../modules/gmail/index.js';
-import { initializeCalendarModule } from '../modules/calendar/index.js';
-import { initializeDriveModule } from '../modules/drive/index.js';
-import { registerGmailScopes } from '../modules/gmail/scopes.js';
-import { registerCalendarScopes } from '../modules/calendar/scopes.js';
-import { registerDriveScopes } from '../modules/drive/scopes.js';
+// Import service initializer
+import { initializeAllServices } from '../utils/service-initializer.js';
 
 // Import types and type guards
 import {
@@ -170,85 +164,117 @@ export class GSuiteServer {
           throw new Error(errorMessage);
         }
         
+        let result;
         // Use the canonical tool name for the switch
         switch (tool.name) {
           // Account Management
           case 'list_workspace_accounts':
-            return await handleListWorkspaceAccounts();
+            result = await handleListWorkspaceAccounts();
+            break;
           case 'authenticate_workspace_account':
-            return await handleAuthenticateWorkspaceAccount(args as AuthenticateAccountArgs);
+            result = await handleAuthenticateWorkspaceAccount(args as AuthenticateAccountArgs);
+            break;
           case 'remove_workspace_account':
             assertBaseToolArguments(args);
-            return await handleRemoveWorkspaceAccount(args);
+            result = await handleRemoveWorkspaceAccount(args);
+            break;
 
           // Gmail Operations
           case 'search_workspace_emails':
             assertBaseToolArguments(args);
-            return await handleSearchWorkspaceEmails(args);
+            result = await handleSearchWorkspaceEmails(args);
+            break;
           case 'send_workspace_email':
             assertSendEmailArgs(args);
-            return await handleSendWorkspaceEmail(args as SendEmailArgs);
+            result = await handleSendWorkspaceEmail(args as SendEmailArgs);
+            break;
           case 'get_workspace_gmail_settings':
             assertBaseToolArguments(args);
-            return await handleGetWorkspaceGmailSettings(args);
+            result = await handleGetWorkspaceGmailSettings(args);
+            break;
           case 'manage_workspace_draft':
             assertManageDraftParams(args);
-            return await handleManageWorkspaceDraft(args as ManageDraftParams);
+            result = await handleManageWorkspaceDraft(args as ManageDraftParams);
+            break;
 
           // Calendar Operations
           case 'list_workspace_calendar_events':
             assertCalendarEventParams(args);
-            return await handleListWorkspaceCalendarEvents(args as CalendarEventParams);
+            result = await handleListWorkspaceCalendarEvents(args as CalendarEventParams);
+            break;
           case 'get_workspace_calendar_event':
             assertEmailEventIdArgs(args);
-            return await handleGetWorkspaceCalendarEvent(args);
+            result = await handleGetWorkspaceCalendarEvent(args);
+            break;
           case 'manage_workspace_calendar_event':
             assertBaseToolArguments(args);
-            return await handleManageWorkspaceCalendarEvent(args);
+            result = await handleManageWorkspaceCalendarEvent(args);
+            break;
           case 'create_workspace_calendar_event':
             assertBaseToolArguments(args);
-            return await handleCreateWorkspaceCalendarEvent(args);
+            result = await handleCreateWorkspaceCalendarEvent(args);
+            break;
           case 'delete_workspace_calendar_event':
             assertEmailEventIdArgs(args);
-            return await handleDeleteWorkspaceCalendarEvent(args);
+            result = await handleDeleteWorkspaceCalendarEvent(args);
+            break;
 
           // Label Management
           case 'manage_workspace_label':
             assertManageLabelParams(args);
-            return await handleManageWorkspaceLabel(args as unknown as ManageLabelParams);
+            result = await handleManageWorkspaceLabel(args as unknown as ManageLabelParams);
+            break;
           case 'manage_workspace_label_assignment':
             assertManageLabelAssignmentParams(args);
-            return await handleManageWorkspaceLabelAssignment(args as unknown as ManageLabelAssignmentParams);
+            result = await handleManageWorkspaceLabelAssignment(args as unknown as ManageLabelAssignmentParams);
+            break;
           case 'manage_workspace_label_filter':
             assertManageLabelFilterParams(args);
-            return await handleManageWorkspaceLabelFilter(args as unknown as ManageLabelFilterParams);
+            result = await handleManageWorkspaceLabelFilter(args as unknown as ManageLabelFilterParams);
+            break;
 
           // Drive Operations
           case 'list_drive_files':
             assertDriveFileListArgs(args);
-            return await handleListDriveFiles(args);
+            result = await handleListDriveFiles(args);
+            break;
           case 'search_drive_files':
             assertDriveSearchArgs(args);
-            return await handleSearchDriveFiles(args);
+            result = await handleSearchDriveFiles(args);
+            break;
           case 'upload_drive_file':
             assertDriveUploadArgs(args);
-            return await handleUploadDriveFile(args);
+            result = await handleUploadDriveFile(args);
+            break;
           case 'download_drive_file':
             assertDriveDownloadArgs(args);
-            return await handleDownloadDriveFile(args);
+            result = await handleDownloadDriveFile(args);
+            break;
           case 'create_drive_folder':
             assertDriveFolderArgs(args);
-            return await handleCreateDriveFolder(args);
+            result = await handleCreateDriveFolder(args);
+            break;
           case 'update_drive_permissions':
             assertDrivePermissionArgs(args);
-            return await handleUpdateDrivePermissions(args);
+            result = await handleUpdateDrivePermissions(args);
+            break;
           case 'delete_drive_file':
             assertDriveDeleteArgs(args);
-            return await handleDeleteDriveFile(args);
+            result = await handleDeleteDriveFile(args);
+            break;
 
           default:
             throw new Error(`Unknown tool: ${request.params.name}`);
         }
+
+        // Wrap result in McpToolResponse format
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(result, null, 2)
+          }],
+          _meta: {}
+        };
       } catch (error) {
         const response = this.formatErrorResponse(error);
         return {
@@ -285,23 +311,9 @@ export class GSuiteServer {
     try {
       // Initialize server
       logger.info(`google-workspace-mcp v0.9.0 (docker: ${DOCKER_HASH})`);
-      logger.info('Loading API scopes...');
-      registerGmailScopes();
-      registerCalendarScopes();
-      registerDriveScopes();
       
-      // Initialize modules in order
-      logger.info('Initializing account module...');
-      await initializeAccountModule();
-      
-      logger.info('Initializing Gmail module...');
-      await initializeGmailModule();
-      
-      logger.info('Initializing Calendar module...');
-      await initializeCalendarModule();
-
-      logger.info('Initializing Drive module...');
-      await initializeDriveModule();
+      // Initialize all services
+      await initializeAllServices();
       
       // Set up error handler
       this.server.onerror = (error) => console.error('MCP Error:', error);

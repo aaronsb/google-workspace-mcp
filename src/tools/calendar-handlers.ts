@@ -2,10 +2,12 @@ import { CalendarService } from '../modules/calendar/service.js';
 import { DriveService } from '../modules/drive/service.js';
 import { validateEmail } from '../utils/account.js';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
+import { getAccountManager } from '../modules/accounts/index.js';
 
 // Singleton instances
 let driveService: DriveService;
 let calendarService: CalendarService;
+let accountManager: ReturnType<typeof getAccountManager>;
 
 const CALENDAR_CONFIG = {
   maxAttachmentSize: 10 * 1024 * 1024, // 10MB
@@ -32,6 +34,9 @@ async function initializeServices() {
     calendarService = new CalendarService(CALENDAR_CONFIG);
     await calendarService.ensureInitialized();
   }
+  if (!accountManager) {
+    accountManager = getAccountManager();
+  }
 }
 
 export async function handleListWorkspaceCalendarEvents(params: any) {
@@ -47,20 +52,22 @@ export async function handleListWorkspaceCalendarEvents(params: any) {
 
   validateEmail(email);
 
-  try {
-    return await calendarService.getEvents({
-      email,
-      query,
-      maxResults,
-      timeMin,
-      timeMax
-    });
-  } catch (error) {
-    throw new McpError(
-      ErrorCode.InternalError,
-      `Failed to list calendar events: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  }
+  return accountManager.withTokenRenewal(email, async () => {
+    try {
+      return await calendarService.getEvents({
+        email,
+        query,
+        maxResults,
+        timeMin,
+        timeMax
+      });
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to list calendar events: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  });
 }
 
 export async function handleGetWorkspaceCalendarEvent(params: any) {
@@ -83,14 +90,16 @@ export async function handleGetWorkspaceCalendarEvent(params: any) {
 
   validateEmail(email);
 
-  try {
-    return await calendarService.getEvent(email, eventId);
-  } catch (error) {
-    throw new McpError(
-      ErrorCode.InternalError,
-      `Failed to get calendar event: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  }
+  return accountManager.withTokenRenewal(email, async () => {
+    try {
+      return await calendarService.getEvent(email, eventId);
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to get calendar event: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  });
 }
 
 export async function handleCreateWorkspaceCalendarEvent(params: any) {
@@ -130,34 +139,36 @@ export async function handleCreateWorkspaceCalendarEvent(params: any) {
     attendees.forEach((attendee: { email: string }) => validateEmail(attendee.email));
   }
 
-  try {
-    return await calendarService.createEvent({
-      email,
-      summary,
-      description,
-      start,
-      end,
-      attendees,
-      attachments: attachments?.map((attachment: {
-        driveFileId?: string;
-        content?: string;
-        name: string;
-        mimeType: string;
-        size?: number;
-      }) => ({
-        driveFileId: attachment.driveFileId,
-        content: attachment.content,
-        name: attachment.name,
-        mimeType: attachment.mimeType,
-        size: attachment.size
-      }))
-    });
-  } catch (error) {
-    throw new McpError(
-      ErrorCode.InternalError,
-      `Failed to create calendar event: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  }
+  return accountManager.withTokenRenewal(email, async () => {
+    try {
+      return await calendarService.createEvent({
+        email,
+        summary,
+        description,
+        start,
+        end,
+        attendees,
+        attachments: attachments?.map((attachment: {
+          driveFileId?: string;
+          content?: string;
+          name: string;
+          mimeType: string;
+          size?: number;
+        }) => ({
+          driveFileId: attachment.driveFileId,
+          content: attachment.content,
+          name: attachment.name,
+          mimeType: attachment.mimeType,
+          size: attachment.size
+        }))
+      });
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to create calendar event: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  });
 }
 
 export async function handleManageWorkspaceCalendarEvent(params: any) {
@@ -187,20 +198,22 @@ export async function handleManageWorkspaceCalendarEvent(params: any) {
 
   validateEmail(email);
 
-  try {
-    return await calendarService.manageEvent({
-      email,
-      eventId,
-      action,
-      comment,
-      newTimes
-    });
-  } catch (error) {
-    throw new McpError(
-      ErrorCode.InternalError,
-      `Failed to manage calendar event: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  }
+  return accountManager.withTokenRenewal(email, async () => {
+    try {
+      return await calendarService.manageEvent({
+        email,
+        eventId,
+        action,
+        comment,
+        newTimes
+      });
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to manage calendar event: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  });
 }
 
 export async function handleDeleteWorkspaceCalendarEvent(params: any) {
@@ -223,12 +236,14 @@ export async function handleDeleteWorkspaceCalendarEvent(params: any) {
 
   validateEmail(email);
 
-  try {
-    return await calendarService.deleteEvent(email, eventId, sendUpdates);
-  } catch (error) {
-    throw new McpError(
-      ErrorCode.InternalError,
-      `Failed to delete calendar event: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  }
+  return accountManager.withTokenRenewal(email, async () => {
+    try {
+      return await calendarService.deleteEvent(email, eventId, sendUpdates);
+    } catch (error) {
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to delete calendar event: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  });
 }
