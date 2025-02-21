@@ -4,7 +4,8 @@ import {
   AttachmentServiceConfig,
   AttachmentSource,
   AttachmentValidationResult,
-  ATTACHMENT_FOLDERS
+  ATTACHMENT_FOLDERS,
+  AttachmentFolderType
 } from './types.js';
 import fs from 'fs/promises';
 import path from 'path';
@@ -179,7 +180,7 @@ export class AttachmentService {
   /**
    * Get full path for a specific attachment category
    */
-  getAttachmentPath(folder: keyof typeof ATTACHMENT_FOLDERS): string {
+  getAttachmentPath(folder: AttachmentFolderType): string {
     return path.join(this.config.basePath!, folder);
   }
 }

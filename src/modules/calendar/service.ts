@@ -1,5 +1,6 @@
 import { google, calendar_v3 } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
+import path from 'path';
 import { getAccountManager } from '../accounts/index.js';
 import {
   GetEventsParams,
@@ -41,7 +42,7 @@ export class CalendarService {
       this.oauth2Client = await accountManager.getAuthClient();
       this.driveService = new DriveService();
       await this.driveService.ensureInitialized();
-      this.attachmentService = new AttachmentService(this.driveService, {
+      this.attachmentService = new AttachmentService({
         maxSizeBytes: this.config?.maxAttachmentSize,
         allowedMimeTypes: this.config?.allowedAttachmentTypes
       });
@@ -157,8 +158,7 @@ export class CalendarService {
       const result = await this.attachmentService.processAttachment(
         email,
         {
-          type: 'drive',
-          fileId: attachment.fileId,
+          content: fileResult.data || '',
           metadata: {
             name: attachment.title || 'untitled',
             mimeType: attachment.mimeType || 'application/octet-stream',
@@ -304,25 +304,14 @@ export class CalendarService {
       // Process attachments first
       const processedAttachments: EventAttachment[] = [];
       for (const attachment of attachments) {
-        const source: AttachmentSource = attachment.driveFileId ? 
-          {
-            type: 'drive',
-            fileId: attachment.driveFileId,
-            metadata: {
-              name: attachment.name,
-              mimeType: attachment.mimeType,
-              size: attachment.size
-            }
-          } : 
-          {
-            type: 'local',
-            content: attachment.content!,
-            metadata: {
-              name: attachment.name,
-              mimeType: attachment.mimeType,
-              size: attachment.size
-            }
-          };
+        const source: AttachmentSource = {
+          content: attachment.content || '',
+          metadata: {
+            name: attachment.name,
+            mimeType: attachment.mimeType,
+            size: attachment.size
+          }
+        };
 
         if (!this.attachmentService) {
           throw new CalendarError(
@@ -369,12 +358,14 @@ export class CalendarService {
         );
       }
 
+      // Convert processed attachments to AttachmentMetadata format
       const attachmentMetadata = processedAttachments.length > 0 ? 
         processedAttachments.map(a => ({
           id: a.fileId!,
           name: a.title!,
           mimeType: a.mimeType!,
-          size: 0 // Size not available from Calendar API
+          size: 0, // Size not available from Calendar API
+          path: path.join(this.attachmentService!.getAttachmentPath(ATTACHMENT_FOLDERS.EVENT_FILES), `${a.fileId}_${a.title}`)
         })) : 
         undefined;
 

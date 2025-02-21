@@ -421,45 +421,34 @@ export async function handleManageWorkspaceAttachment(params: ManageAttachmentPa
 
       switch (action) {
         case 'download': {
-          // Get attachment metadata from message
-          const message = await gmailService.getEmails({ 
-            email, 
-            messageIds: [messageId]
-          });
-
-          if (!message.emails.length || !message.emails[0].attachments) {
+          // First get the attachment data from Gmail
+          const gmailAttachment = await gmailService.getAttachment(email, messageId, attachmentId);
+          
+          if (!gmailAttachment || !gmailAttachment.content) {
             throw new McpError(
               ErrorCode.InvalidRequest,
-              'Message or attachment not found'
+              'Attachment not found or content missing'
             );
           }
 
-          const attachment = message.emails[0].attachments.find(a => a.id === attachmentId);
-          if (!attachment) {
-            throw new McpError(
-              ErrorCode.InvalidRequest,
-              'Attachment not found'
-            );
-          }
-
-          // Download attachment
-          if (!attachment.path) {
-            throw new McpError(
-              ErrorCode.InvalidRequest,
-              'Attachment path not found'
-            );
-          }
-
-          const result = await attachmentService.downloadAttachment(
+          // Process and save the attachment locally
+          const result = await attachmentService.processAttachment(
             email,
-            attachmentId,
-            attachment.path
+            {
+              content: gmailAttachment.content,
+              metadata: {
+                name: gmailAttachment.name || `attachment_${Date.now()}`,
+                mimeType: gmailAttachment.mimeType || 'application/octet-stream',
+                size: gmailAttachment.size || 0
+              }
+            },
+            parentFolder
           );
 
           if (!result.success) {
             throw new McpError(
               ErrorCode.InternalError,
-              `Failed to download attachment: ${result.error}`
+              `Failed to save attachment: ${result.error}`
             );
           }
 

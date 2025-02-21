@@ -40,15 +40,16 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
   private settingsService: SettingsService;
   private labelService: LabelService;
   private filterService: FilterService;
+  private attachmentService: GmailAttachmentService;
   private initialized = false;
   
   constructor(config?: GmailModuleConfig) {
     super({ serviceName: 'Gmail', version: 'v1' });
     
     this.searchService = new SearchService();
-    const attachmentService = new GmailAttachmentService();
-    this.emailService = new EmailService(this.searchService, attachmentService);
-    this.draftService = new DraftService(attachmentService);
+    this.attachmentService = new GmailAttachmentService();
+    this.emailService = new EmailService(this.searchService, this.attachmentService);
+    this.draftService = new DraftService(this.attachmentService);
     this.settingsService = new SettingsService();
     this.labelService = new LabelService();
     this.filterService = new FilterService();
@@ -102,6 +103,7 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
         this.settingsService.updateClient(client);
         this.labelService.updateClient(client);
         this.filterService.updateClient(client);
+        this.attachmentService.updateClient(client);
         
         return client;
       }
@@ -142,5 +144,10 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
   async manageLabelFilter(params: ManageLabelFilterParams): Promise<LabelFilter | GetLabelsResponse | void> {
     await this.getGmailClient(params.email);
     return this.labelService.manageLabelFilter(params);
+  }
+
+  async getAttachment(email: string, messageId: string, attachmentId: string) {
+    await this.getGmailClient(email);
+    return this.attachmentService.getAttachment(messageId, attachmentId);
   }
 }

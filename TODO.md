@@ -27,10 +27,10 @@
     - [x] Threading support
     - [x] Reply-to handling
     - [x] Message references
-  - [ ] Attachment handling
-    - [ ] Upload attachments
-    - [ ] Download attachments
-    - [ ] MIME type support
+  - [x] Attachment handling
+    - [x] Upload attachments
+    - [x] Download attachments
+    - [x] MIME type support
 
 ### Calendar Module (Implemented)
 - [x] Core functionality
