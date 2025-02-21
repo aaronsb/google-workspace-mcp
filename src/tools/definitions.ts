@@ -96,6 +96,104 @@ export const accountTools: ToolMetadata[] = [
 // Gmail Tools
 export const gmailTools: ToolMetadata[] = [
   {
+    name: 'download_workspace_attachment',
+    category: 'Gmail/Attachments',
+    description: `Download attachments from Gmail messages and Calendar events.
+    
+    IMPORTANT: Before downloading:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm account if multiple exist
+    3. Validate message and attachment exist
+    
+    Features:
+    - Downloads to local storage
+    - Supports both Gmail and Calendar attachments
+    - Validates file integrity
+    
+    Example Flow:
+    1. Check account access
+    2. Verify message and attachment exist
+    3. Download and return metadata`,
+    aliases: ['download_attachment', 'get_attachment', 'fetch_attachment'],
+    inputSchema: {
+      type: 'object',
+      properties: {
+        email: {
+          type: 'string',
+          description: 'Email address of the workspace account'
+        },
+        messageId: {
+          type: 'string',
+          description: 'ID of the email/event containing the attachment'
+        },
+        attachmentId: {
+          type: 'string',
+          description: 'ID of the attachment to download'
+        }
+      },
+      required: ['email', 'messageId', 'attachmentId']
+    }
+  },
+  {
+    name: 'manage_workspace_attachment',
+    category: 'Gmail/Messages',
+    description: `Manage attachments from Gmail messages and Calendar events using local storage.
+    
+    IMPORTANT: Before any operation:
+    1. Verify account access with list_workspace_accounts
+    2. Confirm account if multiple exist
+    3. Validate required parameters
+    
+    Operations:
+    - download: Download attachment to local storage
+    - upload: Upload new attachment
+    - delete: Remove attachment from storage
+    
+    Storage Location:
+    - Files are stored in WORKSPACE_BASE_PATH/attachments
+    - Email attachments: .../attachments/email/
+    - Calendar attachments: .../attachments/calendar/
+    
+    Example Flow:
+    1. Check account access
+    2. Validate message and attachment exist
+    3. Perform requested operation
+    4. Return attachment metadata`,
+    aliases: ['manage_attachment', 'handle_attachment', 'attachment_operation'],
+    inputSchema: {
+      type: 'object',
+      properties: {
+        email: {
+          type: 'string',
+          description: 'Email address of the workspace account'
+        },
+        action: {
+          type: 'string',
+          enum: ['download', 'upload', 'delete'],
+          description: 'Action to perform on the attachment'
+        },
+        source: {
+          type: 'string',
+          enum: ['email', 'calendar'],
+          description: 'Source type (email or calendar)'
+        },
+        messageId: {
+          type: 'string',
+          description: 'ID of the email/event containing the attachment'
+        },
+        attachmentId: {
+          type: 'string',
+          description: 'ID of the attachment to manage'
+        },
+        content: {
+          type: 'string',
+          description: 'Base64 encoded file content (required for upload)'
+        }
+      },
+      required: ['email', 'action', 'source', 'messageId', 'attachmentId']
+    }
+  },
+  {
     name: 'search_workspace_emails',
     category: 'Gmail/Messages',
     description: `Search emails in a Gmail account with advanced filtering capabilities.

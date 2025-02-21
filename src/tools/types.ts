@@ -309,6 +309,15 @@ export interface DeleteLabelFilterArgs extends BaseToolArguments {
   filterId: string;
 }
 
+// Attachment Management Types
+export interface ManageAttachmentParams extends BaseToolArguments {
+  action: 'download' | 'upload' | 'delete';
+  source: 'email' | 'calendar';
+  messageId: string;
+  attachmentId: string;
+  content?: string;  // Required for upload action
+}
+
 // Re-export consolidated management types
 export {
   ManageLabelParams,
