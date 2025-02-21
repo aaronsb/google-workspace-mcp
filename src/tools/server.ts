@@ -28,7 +28,8 @@ import {
   handleManageWorkspaceDraft,
   handleManageWorkspaceLabel,
   handleManageWorkspaceLabelAssignment,
-  handleManageWorkspaceLabelFilter
+  handleManageWorkspaceLabelFilter,
+  handleManageWorkspaceAttachment
 } from './gmail-handlers.js';
 
 import {
@@ -62,7 +63,8 @@ import {
   CalendarEventParams,
   SendEmailArgs,
   AuthenticateAccountArgs,
-  ManageDraftParams
+  ManageDraftParams,
+  ManageAttachmentParams
 } from './types.js';
 import {
   ManageLabelParams,
@@ -85,7 +87,8 @@ import {
   assertDriveDownloadArgs,
   assertDriveFolderArgs,
   assertDrivePermissionArgs,
-  assertDriveDeleteArgs
+  assertDriveDeleteArgs,
+  assertManageAttachmentParams
 } from './type-guards.js';
 
 export class GSuiteServer {
@@ -195,6 +198,11 @@ export class GSuiteServer {
           case 'manage_workspace_draft':
             assertManageDraftParams(args);
             result = await handleManageWorkspaceDraft(args as ManageDraftParams);
+            break;
+
+          case 'manage_workspace_attachment':
+            assertManageAttachmentParams(args);
+            result = await handleManageWorkspaceAttachment(args as ManageAttachmentParams);
             break;
 
           // Calendar Operations

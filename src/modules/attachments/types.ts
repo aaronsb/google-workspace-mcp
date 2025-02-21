@@ -1,15 +1,13 @@
 export interface AttachmentMetadata {
-  id: string;           // Drive file ID
+  id: string;           // Unique identifier
   name: string;         // Original filename
   mimeType: string;     // MIME type
   size: number;         // File size in bytes
-  driveLink?: string;   // Optional link to Drive file
+  path: string;         // Local filesystem path
 }
 
 export interface AttachmentSource {
-  type: 'drive' | 'local';
-  fileId?: string;      // Drive file ID if type is 'drive'
-  content?: string;     // Base64 content if type is 'local'
+  content: string;      // Base64 content
   metadata: {
     name: string;
     mimeType: string;
@@ -26,7 +24,7 @@ export interface AttachmentResult {
 export interface AttachmentServiceConfig {
   maxSizeBytes?: number;                    // Maximum file size (default: 25MB)
   allowedMimeTypes?: string[];             // Allowed MIME types (default: all)
-  attachmentRoot?: string;                 // Root folder for attachments
+  basePath?: string;                       // Base path for attachments (default: WORKSPACE_BASE_PATH/attachments)
   quotaLimitBytes?: number;                // Storage quota limit
 }
 
@@ -37,9 +35,9 @@ export interface AttachmentValidationResult {
 
 // Folder structure constants
 export const ATTACHMENT_FOLDERS = {
-  ROOT: 'MCP Attachments',
-  EMAIL: 'email-attachments',
-  CALENDAR: 'calendar-attachments',
+  ROOT: 'attachments',
+  EMAIL: 'email',
+  CALENDAR: 'calendar',
   INCOMING: 'incoming',
   OUTGOING: 'outgoing',
   EVENT_FILES: 'event-files'

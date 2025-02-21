@@ -12,7 +12,8 @@ import {
   DriveDownloadArgs,
   DriveFolderArgs,
   DrivePermissionArgs,
-  DriveDeleteArgs
+  DriveDeleteArgs,
+  ManageAttachmentParams
 } from './types.js';
 
 // Base Tool Arguments
@@ -300,6 +301,26 @@ export function isManageDraftParams(args: unknown): args is ManageDraftParams {
         (data.references === undefined || (Array.isArray(data.references) && data.references.every(ref => typeof ref === 'string'))) &&
         (data.inReplyTo === undefined || typeof data.inReplyTo === 'string');
     })());
+}
+
+export function isManageAttachmentParams(args: unknown): args is ManageAttachmentParams {
+  if (typeof args !== 'object' || args === null) return false;
+  const params = args as Partial<ManageAttachmentParams>;
+  
+  return typeof params.email === 'string' &&
+    typeof params.action === 'string' &&
+    ['download', 'upload', 'delete'].includes(params.action) &&
+    typeof params.source === 'string' &&
+    ['email', 'calendar'].includes(params.source) &&
+    typeof params.messageId === 'string' &&
+    typeof params.attachmentId === 'string' &&
+    (params.content === undefined || typeof params.content === 'string');
+}
+
+export function assertManageAttachmentParams(args: unknown): asserts args is ManageAttachmentParams {
+  if (!isManageAttachmentParams(args)) {
+    throw new Error('Invalid attachment management parameters. Required: email, action, source, messageId, attachmentId');
+  }
 }
 
 export function assertManageDraftParams(args: unknown): asserts args is ManageDraftParams {

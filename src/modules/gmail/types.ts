@@ -7,6 +7,7 @@ export interface BaseGmailAttachment {
 
 export interface IncomingGmailAttachment extends BaseGmailAttachment {
   content?: string;    // Base64 content when retrieved
+  path?: string;       // Local filesystem path when downloaded
 }
 
 export interface OutgoingGmailAttachment extends BaseGmailAttachment {

@@ -8,10 +8,13 @@ import {
   ManageLabelFilterParams
 } from '../modules/gmail/services/label.js';
 import { getAccountManager } from '../modules/accounts/index.js';
+import { AttachmentService } from '../modules/attachments/service.js';
+import { ATTACHMENT_FOLDERS } from '../modules/attachments/types.js';
 
 // Singleton instances
 let gmailService: ReturnType<typeof getGmailService>;
 let accountManager: ReturnType<typeof getAccountManager>;
+let attachmentService: AttachmentService;
 
 /**
  * Initialize required services
@@ -25,13 +28,18 @@ async function initializeServices() {
   if (!accountManager) {
     accountManager = getAccountManager();
   }
+
+  if (!attachmentService) {
+    attachmentService = new AttachmentService();
+  }
 }
 
 import { 
   GmailAttachment, 
   OutgoingGmailAttachment,
-  IncomingGmailAttachment 
+  IncomingGmailAttachment
 } from '../modules/gmail/types.js';
+import { ManageAttachmentParams } from './types.js';
 
 interface SearchEmailsParams {
   email: string;
@@ -382,6 +390,140 @@ export async function handleManageWorkspaceLabelAssignment(params: ManageLabelAs
       throw new McpError(
         ErrorCode.InternalError,
         `Failed to manage label assignment: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  });
+}
+
+export async function handleManageWorkspaceAttachment(params: ManageAttachmentParams) {
+  await initializeServices();
+  const { email, action, source, messageId, attachmentId, content } = params;
+
+  if (!email) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Email address is required'
+    );
+  }
+
+  validateEmail(email);
+
+  return accountManager.withTokenRenewal(email, async () => {
+    try {
+      // Initialize attachment service for this account
+      const attachmentService = new AttachmentService();
+      await attachmentService.initialize(email);
+
+      // Determine parent folder based on source
+      const parentFolder = source === 'email' ? 
+        ATTACHMENT_FOLDERS.EMAIL : 
+        ATTACHMENT_FOLDERS.CALENDAR;
+
+      switch (action) {
+        case 'download': {
+          // Get attachment metadata from message
+          const message = await gmailService.getEmails({ 
+            email, 
+            messageIds: [messageId]
+          });
+
+          if (!message.emails.length || !message.emails[0].attachments) {
+            throw new McpError(
+              ErrorCode.InvalidRequest,
+              'Message or attachment not found'
+            );
+          }
+
+          const attachment = message.emails[0].attachments.find(a => a.id === attachmentId);
+          if (!attachment) {
+            throw new McpError(
+              ErrorCode.InvalidRequest,
+              'Attachment not found'
+            );
+          }
+
+          // Download attachment
+          if (!attachment.path) {
+            throw new McpError(
+              ErrorCode.InvalidRequest,
+              'Attachment path not found'
+            );
+          }
+
+          const result = await attachmentService.downloadAttachment(
+            email,
+            attachmentId,
+            attachment.path
+          );
+
+          if (!result.success) {
+            throw new McpError(
+              ErrorCode.InternalError,
+              `Failed to download attachment: ${result.error}`
+            );
+          }
+
+          return {
+            success: true,
+            attachment: result.attachment
+          };
+        }
+
+        case 'upload': {
+          if (!content) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              'File content is required for upload'
+            );
+          }
+
+          // Process attachment
+          const result = await attachmentService.processAttachment(
+            email,
+            {
+              content,
+              metadata: {
+                name: `attachment_${Date.now()}`, // Default name if not provided
+                mimeType: 'application/octet-stream', // Default type if not provided
+              }
+            },
+            parentFolder
+          );
+
+          if (!result.success) {
+            throw new McpError(
+              ErrorCode.InternalError,
+              `Failed to upload attachment: ${result.error}`
+            );
+          }
+
+          return {
+            success: true,
+            attachment: result.attachment
+          };
+        }
+
+        case 'delete': {
+          // Implementation pending - need to add delete method to AttachmentService
+          throw new McpError(
+            ErrorCode.MethodNotFound,
+            'Delete operation not yet implemented'
+          );
+        }
+
+        default:
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            'Invalid action. Supported actions are: download, upload, delete'
+          );
+      }
+    } catch (error) {
+      if (error instanceof McpError) {
+        throw error;
+      }
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to manage attachment: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   });

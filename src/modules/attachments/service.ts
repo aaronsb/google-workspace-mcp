@@ -1,4 +1,3 @@
-import { DriveService } from '../drive/service.js';
 import {
   AttachmentMetadata,
   AttachmentResult,
@@ -7,89 +6,49 @@ import {
   AttachmentValidationResult,
   ATTACHMENT_FOLDERS
 } from './types.js';
-import _fs from 'fs/promises';
+import fs from 'fs/promises';
 import path from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 const DEFAULT_CONFIG: AttachmentServiceConfig = {
   maxSizeBytes: 25 * 1024 * 1024, // 25MB
   allowedMimeTypes: ['*/*'],
-  quotaLimitBytes: 1024 * 1024 * 1024 // 1GB
+  quotaLimitBytes: 1024 * 1024 * 1024, // 1GB
+  basePath: process.env.WORKSPACE_BASE_PATH ? 
+    path.join(process.env.WORKSPACE_BASE_PATH, ATTACHMENT_FOLDERS.ROOT) : 
+    '/app/workspace/attachments'
 };
 
 export class AttachmentService {
-  private driveService: DriveService;
   private config: AttachmentServiceConfig;
-  private folderIds: Map<string, string> = new Map();
+  private initialized = false;
 
-  constructor(driveService: DriveService, config: AttachmentServiceConfig = {}) {
-    this.driveService = driveService;
+  constructor(config: AttachmentServiceConfig = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
   /**
-   * Initialize attachment folders in Drive
+   * Initialize attachment folders in local storage
    */
   async initialize(email: string): Promise<void> {
-    // Create root folder if it doesn't exist
-    const rootResult = await this.driveService.createFolder(
-      email,
-      ATTACHMENT_FOLDERS.ROOT
-    );
+    try {
+      // Create base attachment directory
+      await fs.mkdir(this.config.basePath!, { recursive: true });
 
-    if (!rootResult.success || !rootResult.data?.id) {
-      throw new Error('Failed to initialize attachment root folder');
-    }
+      // Create email directory structure
+      const emailPath = path.join(this.config.basePath!, ATTACHMENT_FOLDERS.EMAIL);
+      await fs.mkdir(emailPath, { recursive: true });
+      await fs.mkdir(path.join(emailPath, ATTACHMENT_FOLDERS.INCOMING), { recursive: true });
+      await fs.mkdir(path.join(emailPath, ATTACHMENT_FOLDERS.OUTGOING), { recursive: true });
 
-    const rootId = rootResult.data.id;
-    this.folderIds.set(ATTACHMENT_FOLDERS.ROOT, rootId);
+      // Create calendar directory structure
+      const calendarPath = path.join(this.config.basePath!, ATTACHMENT_FOLDERS.CALENDAR);
+      await fs.mkdir(calendarPath, { recursive: true });
+      await fs.mkdir(path.join(calendarPath, ATTACHMENT_FOLDERS.EVENT_FILES), { recursive: true });
 
-    // Create email attachments structure
-    const emailResult = await this.driveService.createFolder(
-      email,
-      ATTACHMENT_FOLDERS.EMAIL,
-      rootId
-    );
-    if (emailResult.success && emailResult.data?.id) {
-      this.folderIds.set(ATTACHMENT_FOLDERS.EMAIL, emailResult.data.id);
-      
-      // Create incoming/outgoing subfolders
-      const incomingResult = await this.driveService.createFolder(
-        email,
-        ATTACHMENT_FOLDERS.INCOMING,
-        emailResult.data.id
-      );
-      if (incomingResult.success && incomingResult.data?.id) {
-        this.folderIds.set(ATTACHMENT_FOLDERS.INCOMING, incomingResult.data.id);
-      }
-
-      const outgoingResult = await this.driveService.createFolder(
-        email,
-        ATTACHMENT_FOLDERS.OUTGOING,
-        emailResult.data.id
-      );
-      if (outgoingResult.success && outgoingResult.data?.id) {
-        this.folderIds.set(ATTACHMENT_FOLDERS.OUTGOING, outgoingResult.data.id);
-      }
-    }
-
-    // Create calendar attachments structure
-    const calendarResult = await this.driveService.createFolder(
-      email,
-      ATTACHMENT_FOLDERS.CALENDAR,
-      rootId
-    );
-    if (calendarResult.success && calendarResult.data?.id) {
-      this.folderIds.set(ATTACHMENT_FOLDERS.CALENDAR, calendarResult.data.id);
-      
-      // Create event files subfolder
-      const eventFilesResult = await this.driveService.createFolder(
-        email,
-        ATTACHMENT_FOLDERS.EVENT_FILES,
-        calendarResult.data.id
-      );
-      if (eventFilesResult.success && eventFilesResult.data?.id) {
-        this.folderIds.set(ATTACHMENT_FOLDERS.EVENT_FILES, eventFilesResult.data.id);
-      }
+      this.initialized = true;
+    } catch (error) {
+      throw new Error(`Failed to initialize attachment directories: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -121,13 +80,17 @@ export class AttachmentService {
   }
 
   /**
-   * Process attachment from source and store in Drive
+   * Process attachment and store in local filesystem
    */
   async processAttachment(
     email: string,
     source: AttachmentSource,
     parentFolder: string
   ): Promise<AttachmentResult> {
+    if (!this.initialized) {
+      await this.initialize(email);
+    }
+
     // Validate attachment
     const validation = this.validateAttachment(source);
     if (!validation.valid) {
@@ -138,62 +101,32 @@ export class AttachmentService {
     }
 
     try {
-      const parentId = this.folderIds.get(parentFolder);
-      if (!parentId) {
-        throw new Error(`Parent folder ${parentFolder} not initialized`);
+      if (!source.content) {
+        throw new Error('File content not provided');
       }
 
-      if (source.type === 'drive') {
-        // File already in Drive, just verify and return metadata
-        if (!source.fileId) {
-          throw new Error('Drive file ID not provided');
-        }
+      // Generate unique ID and create file path
+      const id = uuidv4();
+      const folderPath = path.join(this.config.basePath!, parentFolder);
+      const filePath = path.join(folderPath, `${id}_${source.metadata.name}`);
 
-        const fileResult = await this.driveService.downloadFile(email, {
-          fileId: source.fileId
-        });
+      // Write file content
+      const content = Buffer.from(source.content, 'base64');
+      await fs.writeFile(filePath, content);
 
-        if (!fileResult.success) {
-          throw new Error('Failed to verify Drive file');
-        }
+      // Get actual file size
+      const stats = await fs.stat(filePath);
 
-        return {
-          success: true,
-          attachment: {
-            id: source.fileId,
-            name: source.metadata.name,
-            mimeType: source.metadata.mimeType,
-            size: source.metadata.size || 0
-          }
-        };
-      } else {
-        // Upload new file from local content
-        if (!source.content) {
-          throw new Error('File content not provided');
-        }
-
-        const uploadResult = await this.driveService.uploadFile(email, {
+      return {
+        success: true,
+        attachment: {
+          id,
           name: source.metadata.name,
-          content: source.content,
           mimeType: source.metadata.mimeType,
-          parents: [parentId]
-        });
-
-        if (!uploadResult.success || !uploadResult.data) {
-          throw new Error('Failed to upload file to Drive');
+          size: stats.size,
+          path: filePath
         }
-
-        return {
-          success: true,
-          attachment: {
-            id: uploadResult.data.id!,
-            name: uploadResult.data.name!,
-            mimeType: uploadResult.data.mimeType!,
-            size: source.metadata.size || 0,
-            driveLink: uploadResult.data.webViewLink
-          }
-        };
-      }
+      };
     } catch (error) {
       return {
         success: false,
@@ -203,28 +136,36 @@ export class AttachmentService {
   }
 
   /**
-   * Download attachment from Drive
+   * Download attachment from local storage
    */
   async downloadAttachment(
     email: string,
-    attachmentId: string
+    attachmentId: string,
+    filePath: string
   ): Promise<AttachmentResult> {
-    try {
-      const result = await this.driveService.downloadFile(email, {
-        fileId: attachmentId
-      });
+    if (!this.initialized) {
+      await this.initialize(email);
+    }
 
-      if (!result.success) {
-        throw new Error('Failed to download file from Drive');
+    try {
+      // Verify file exists and is within workspace
+      if (!filePath.startsWith(this.config.basePath!)) {
+        throw new Error('Invalid file path');
       }
+
+      const content = await fs.readFile(filePath);
+      const stats = await fs.stat(filePath);
 
       return {
         success: true,
         attachment: {
           id: attachmentId,
-          name: path.basename(result.filePath || ''),
-          mimeType: result.mimeType || 'application/octet-stream',
-          size: Buffer.from(result.data).length
+          name: path.basename(filePath).substring(37), // Remove UUID prefix
+          mimeType: path.extname(filePath) ? 
+            `application/${path.extname(filePath).substring(1)}` : 
+            'application/octet-stream',
+          size: stats.size,
+          path: filePath
         }
       };
     } catch (error) {
@@ -236,9 +177,9 @@ export class AttachmentService {
   }
 
   /**
-   * Get folder ID for a specific attachment category
+   * Get full path for a specific attachment category
    */
-  getFolderId(folder: keyof typeof ATTACHMENT_FOLDERS): string | undefined {
-    return this.folderIds.get(folder);
+  getAttachmentPath(folder: keyof typeof ATTACHMENT_FOLDERS): string {
+    return path.join(this.config.basePath!, folder);
   }
 }
