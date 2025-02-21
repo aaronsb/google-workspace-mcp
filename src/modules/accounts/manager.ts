@@ -36,8 +36,7 @@ export class AccountManager {
       if (renewalResult.success) {
         account.auth_status = {
           valid: true,
-          status: renewalResult.status,
-          token: renewalResult.token
+          status: renewalResult.status
         };
       } else {
         // If auto-renewal failed, try to get an auth URL for re-authentication
@@ -301,8 +300,7 @@ export class AccountManager {
         case 'REFRESHED':
           account.auth_status = {
             valid: true,
-            status: tokenStatus.status,
-            token: tokenStatus.token
+            status: tokenStatus.status
           };
           break;
           

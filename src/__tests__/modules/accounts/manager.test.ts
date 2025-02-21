@@ -168,8 +168,7 @@ describe('AccountManager', () => {
       expect(account.email).toBe(testEmail);
       expect(account.auth_status).toEqual({
         valid: true,
-        status: 'VALID',
-        token: { access_token: 'test-token' }
+        status: 'VALID'
       });
     });
 

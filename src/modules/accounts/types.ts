@@ -7,7 +7,7 @@ export interface Account {
   auth_status?: {
     valid: boolean;
     status?: TokenStatusType;
-    token?: any;
+    token?: any;  // Internal use only - not exposed to AI
     reason?: string;
     authUrl?: string;
     requiredScopes?: string[];

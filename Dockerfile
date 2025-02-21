@@ -35,6 +35,7 @@ COPY --from=builder /app/docker-entrypoint.sh ./
 # Install production dependencies and set up directories
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
     npm ci --prefer-offline --no-audit --no-fund --omit=dev && \
+    npm install uuid@11.1.0 && \
     chmod +x build/index.js && \
     chmod +x docker-entrypoint.sh && \
     mkdir -p /app/logs && \

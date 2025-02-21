@@ -8,10 +8,22 @@ import { McpToolResponse, BaseToolArguments } from './types.js';
  */
 export async function handleListWorkspaceAccounts(): Promise<McpToolResponse> {
   const accounts = await getAccountManager().listAccounts();
+  
+  // Filter out sensitive token data before returning to AI
+  const sanitizedAccounts = accounts.map(account => ({
+    ...account,
+    auth_status: account.auth_status ? {
+      valid: account.auth_status.valid,
+      status: account.auth_status.status,
+      reason: account.auth_status.reason,
+      authUrl: account.auth_status.authUrl
+    } : undefined
+  }));
+
   return {
     content: [{
       type: 'text',
-      text: JSON.stringify(accounts, null, 2)
+      text: JSON.stringify(sanitizedAccounts, null, 2)
     }]
   };
 }
