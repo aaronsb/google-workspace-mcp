@@ -205,15 +205,6 @@ export class GSuiteServer {
             result = await handleManageWorkspaceAttachment(args as ManageAttachmentParams);
             break;
 
-          case 'download_workspace_attachment':
-            assertManageAttachmentParams(args);
-            result = await handleManageWorkspaceAttachment({
-              ...args,
-              action: 'download',
-              source: 'email'
-            } as ManageAttachmentParams);
-            break;
-
           // Calendar Operations
           case 'list_workspace_calendar_events':
             assertCalendarEventParams(args);

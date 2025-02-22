@@ -96,45 +96,6 @@ export const accountTools: ToolMetadata[] = [
 // Gmail Tools
 export const gmailTools: ToolMetadata[] = [
   {
-    name: 'download_workspace_attachment',
-    category: 'Gmail/Attachments',
-    description: `Download attachments from Gmail messages and Calendar events.
-    
-    IMPORTANT: Before downloading:
-    1. Verify account access with list_workspace_accounts
-    2. Confirm account if multiple exist
-    3. Validate message and attachment exist
-    
-    Features:
-    - Downloads to local storage
-    - Supports both Gmail and Calendar attachments
-    - Validates file integrity
-    
-    Example Flow:
-    1. Check account access
-    2. Verify message and attachment exist
-    3. Download and return metadata`,
-    aliases: ['download_attachment', 'get_attachment', 'fetch_attachment'],
-    inputSchema: {
-      type: 'object',
-      properties: {
-        email: {
-          type: 'string',
-          description: 'Email address of the workspace account'
-        },
-        messageId: {
-          type: 'string',
-          description: 'ID of the email/event containing the attachment'
-        },
-        attachmentId: {
-          type: 'string',
-          description: 'ID of the attachment to download'
-        }
-      },
-      required: ['email', 'messageId', 'attachmentId']
-    }
-  },
-  {
     name: 'manage_workspace_attachment',
     category: 'Gmail/Messages',
     description: `Manage attachments from Gmail messages and Calendar events using local storage.
