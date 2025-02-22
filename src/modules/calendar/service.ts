@@ -10,14 +10,34 @@ import {
   CalendarError,
   CalendarModuleConfig,
   ManageEventParams,
-  ManageEventResponse
+  ManageEventResponse,
+  CalendarAttachment
 } from './types.js';
 import { AttachmentService } from '../attachments/service.js';
 import { DriveService } from '../drive/service.js';
 import { ATTACHMENT_FOLDERS, AttachmentSource, AttachmentMetadata } from '../attachments/types.js';
 
 type CalendarEvent = calendar_v3.Schema$Event;
-type EventAttachment = calendar_v3.Schema$EventAttachment;
+type GoogleEventAttachment = calendar_v3.Schema$EventAttachment;
+
+// Convert Google Calendar attachment to our format
+function convertToCalendarAttachment(attachment: GoogleEventAttachment): CalendarAttachment {
+  return {
+    content: attachment.fileUrl || '', // Use fileUrl as content for now
+    title: attachment.title || 'untitled',
+    mimeType: attachment.mimeType || 'application/octet-stream',
+    size: 0 // Size not available from Calendar API
+  };
+}
+
+// Convert our attachment format to Google Calendar format
+function convertToGoogleAttachment(attachment: CalendarAttachment): GoogleEventAttachment {
+  return {
+    title: attachment.title,
+    mimeType: attachment.mimeType,
+    fileUrl: attachment.content // Store content in fileUrl
+  };
+}
 
 /**
  * Google Calendar Service Implementation
@@ -42,7 +62,7 @@ export class CalendarService {
       this.oauth2Client = await accountManager.getAuthClient();
       this.driveService = new DriveService();
       await this.driveService.ensureInitialized();
-      this.attachmentService = new AttachmentService({
+      this.attachmentService = AttachmentService.getInstance({
         maxSizeBytes: this.config?.maxAttachmentSize,
         allowedMimeTypes: this.config?.allowedAttachmentTypes
       });
@@ -130,13 +150,13 @@ export class CalendarService {
   }
 
   /**
-   * Process event attachments and store in Drive
+   * Process event attachments directly like Gmail
    */
   private async processEventAttachments(
     email: string,
-    attachments: EventAttachment[]
+    attachments: GoogleEventAttachment[]
   ): Promise<AttachmentMetadata[]> {
-    if (!this.driveService || !this.attachmentService) {
+    if (!this.attachmentService) {
       throw new CalendarError(
         'Calendar service not initialized',
         'SERVICE_ERROR',
@@ -145,24 +165,18 @@ export class CalendarService {
     }
     const processedAttachments: AttachmentMetadata[] = [];
 
-    for (const attachment of attachments) {
-      if (!attachment.fileId) continue;
-
-      // Get file metadata from Drive
-      const fileResult = await this.driveService.downloadFile(email, {
-        fileId: attachment.fileId
-      });
-
-      if (!fileResult.success) continue;
+    for (const googleAttachment of attachments) {
+      // Convert Google attachment to our format
+      const attachment = convertToCalendarAttachment(googleAttachment);
 
       const result = await this.attachmentService.processAttachment(
         email,
         {
-          content: fileResult.data || '',
+          content: attachment.content,
           metadata: {
-            name: attachment.title || 'untitled',
-            mimeType: attachment.mimeType || 'application/octet-stream',
-            size: fileResult.data ? Buffer.from(fileResult.data).length : 0
+            name: attachment.title,
+            mimeType: attachment.mimeType,
+            size: attachment.size
           }
         },
         ATTACHMENT_FOLDERS.EVENT_FILES
@@ -180,10 +194,17 @@ export class CalendarService {
    * Map Calendar event to EventResponse
    */
   private async mapEventResponse(email: string, event: CalendarEvent): Promise<EventResponse> {
-    let attachments: AttachmentMetadata[] | undefined;
+    // Process attachments if present
+    let attachments: { name: string }[] | undefined;
     
     if (event.attachments && event.attachments.length > 0) {
-      attachments = await this.processEventAttachments(email, event.attachments);
+      // First process and store full metadata
+      const processedAttachments = await this.processEventAttachments(email, event.attachments);
+      
+      // Then return simplified format for AI
+      attachments = processedAttachments.map(att => ({
+        name: att.name
+      }));
     }
 
     return {
@@ -302,7 +323,7 @@ export class CalendarService {
 
     return this.handleCalendarOperation(email, async () => {
       // Process attachments first
-      const processedAttachments: EventAttachment[] = [];
+      const processedAttachments: GoogleEventAttachment[] = [];
       for (const attachment of attachments) {
         const source: AttachmentSource = {
           content: attachment.content || '',
@@ -327,11 +348,13 @@ export class CalendarService {
         );
 
         if (result.success && result.attachment) {
-          processedAttachments.push({
-            fileId: result.attachment.id,
+          // Convert back to Google format
+          processedAttachments.push(convertToGoogleAttachment({
+            content: result.attachment.id, // Use ID as content
             title: result.attachment.name,
-            mimeType: result.attachment.mimeType
-          });
+            mimeType: result.attachment.mimeType,
+            size: result.attachment.size
+          }));
         }
       }
 

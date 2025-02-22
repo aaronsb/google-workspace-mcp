@@ -142,16 +142,16 @@ export const gmailTools: ToolMetadata[] = [
           type: 'string',
           description: 'ID of the email/event containing the attachment'
         },
-        attachmentId: {
+        filename: {
           type: 'string',
-          description: 'ID of the attachment to manage'
+          description: 'Name of the attachment to manage'
         },
         content: {
           type: 'string',
           description: 'Base64 encoded file content (required for upload)'
         }
       },
-      required: ['email', 'action', 'source', 'messageId', 'attachmentId']
+      required: ['email', 'action', 'source', 'messageId', 'filename']
     }
   },
   {

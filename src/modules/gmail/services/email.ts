@@ -12,15 +12,21 @@ import {
 } from '../types.js';
 import { SearchService } from './search.js';
 import { GmailAttachmentService } from './attachment.js';
+import { AttachmentResponseTransformer } from '../../attachments/response-transformer.js';
+import { AttachmentIndexService } from '../../attachments/index-service.js';
 
 type GmailMessage = gmail_v1.Schema$Message;
 
 export class EmailService {
+  private responseTransformer: AttachmentResponseTransformer;
+
   constructor(
     private searchService: SearchService,
     private attachmentService: GmailAttachmentService,
     private gmailClient?: ReturnType<typeof google.gmail>
-  ) {}
+  ) {
+    this.responseTransformer = new AttachmentResponseTransformer(AttachmentIndexService.getInstance());
+  }
 
   /**
    * Updates the Gmail client instance
@@ -180,11 +186,16 @@ export class EmailService {
             }
           }
 
-          // Get attachment metadata if present
+          // Get attachment metadata if present and store in index
           const hasAttachments = email.payload?.parts?.some(part => part.filename && part.filename.length > 0) || false;
-          const attachments = hasAttachments ? 
-            this.getAttachmentMetadata(email) : 
-            undefined;
+          let attachments;
+          if (hasAttachments) {
+            attachments = this.getAttachmentMetadata(email);
+            // Store each attachment's metadata in the index
+            attachments.forEach(attachment => {
+              this.attachmentService.addAttachment(email.id!, attachment);
+            });
+          }
 
           const response: EmailResponse = {
             id: email.id!,
@@ -218,7 +229,8 @@ export class EmailService {
         });
       }
 
-      return {
+      // Transform response to simplify attachments
+      const transformedResponse = this.responseTransformer.transformResponse({
         emails,
         nextPageToken,
         resultSummary: {
@@ -228,7 +240,9 @@ export class EmailService {
           searchCriteria: search
         },
         threads
-      };
+      });
+
+      return transformedResponse;
     } catch (error) {
       if (error instanceof GmailError) {
         throw error;

@@ -30,7 +30,7 @@ async function initializeServices() {
   }
 
   if (!attachmentService) {
-    attachmentService = new AttachmentService();
+    attachmentService = AttachmentService.getInstance();
   }
 }
 
@@ -397,12 +397,13 @@ export async function handleManageWorkspaceLabelAssignment(params: ManageLabelAs
 
 export async function handleManageWorkspaceAttachment(params: ManageAttachmentParams) {
   await initializeServices();
-  const { email, action, source, messageId, attachmentId, content } = params;
+  const { email, action, source, messageId, filename, content } = params;
 
-  if (!email) {
+  // Validate all required parameters
+  if (!email || !action || !source || !messageId || !filename) {
     throw new McpError(
-      ErrorCode.InvalidParams,
-      'Email address is required'
+      ErrorCode.InvalidRequest,
+      'Invalid attachment management parameters. Required: email, action, source, messageId, filename'
     );
   }
 
@@ -410,9 +411,11 @@ export async function handleManageWorkspaceAttachment(params: ManageAttachmentPa
 
   return accountManager.withTokenRenewal(email, async () => {
     try {
-      // Initialize attachment service for this account
-      const attachmentService = new AttachmentService();
-      await attachmentService.initialize(email);
+      // Get shared attachment service instance
+      if (!attachmentService) {
+        attachmentService = AttachmentService.getInstance();
+        await attachmentService.initialize(email);
+      }
 
       // Determine parent folder based on source
       const parentFolder = source === 'email' ? 
@@ -422,7 +425,7 @@ export async function handleManageWorkspaceAttachment(params: ManageAttachmentPa
       switch (action) {
         case 'download': {
           // First get the attachment data from Gmail
-          const gmailAttachment = await gmailService.getAttachment(email, messageId, attachmentId);
+          const gmailAttachment = await gmailService.getAttachment(email, messageId, filename);
           
           if (!gmailAttachment || !gmailAttachment.content) {
             throw new McpError(

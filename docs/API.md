@@ -64,6 +64,19 @@ IMPORTANT: All Gmail operations require prior verification of account access usi
 ### search_workspace_emails
 Search emails with advanced filtering.
 
+Response Format (v1.1):
+- Attachments are simplified to just filename
+- Full metadata is maintained internally
+- Example response:
+```json
+{
+  "id": "message123",
+  "attachments": [{
+    "name": "document.pdf"
+  }]
+}
+```
+
 Common Query Patterns:
 - Meeting emails: "from:(*@zoom.us OR zoom.us OR calendar-notification@google.com) subject:(meeting OR sync OR invite)"
 - HR/Admin: "from:(*@workday.com OR *@adp.com) subject:(time off OR PTO OR benefits)"

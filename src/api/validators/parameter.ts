@@ -8,6 +8,56 @@ interface ParameterConfig {
 export class ParameterValidator {
   // Registry of endpoint-specific parameter configurations
   private readonly parameterRegistry: Record<string, ParameterConfig> = {
+    'gmail.users.messages.attachments.get': {
+      required: ['userId', 'messageId', 'filename'],
+      types: {
+        userId: 'string',
+        messageId: 'string',
+        filename: 'string'
+      }
+    },
+    'gmail.users.messages.attachments.upload': {
+      required: ['userId', 'messageId', 'filename', 'content'],
+      types: {
+        userId: 'string',
+        messageId: 'string',
+        filename: 'string',
+        content: 'string'
+      }
+    },
+    'gmail.users.messages.attachments.delete': {
+      required: ['userId', 'messageId', 'filename'],
+      types: {
+        userId: 'string',
+        messageId: 'string',
+        filename: 'string'
+      }
+    },
+    'calendar.events.attachments.get': {
+      required: ['calendarId', 'eventId', 'filename'],
+      types: {
+        calendarId: 'string',
+        eventId: 'string',
+        filename: 'string'
+      }
+    },
+    'calendar.events.attachments.upload': {
+      required: ['calendarId', 'eventId', 'filename', 'content'],
+      types: {
+        calendarId: 'string',
+        eventId: 'string',
+        filename: 'string',
+        content: 'string'
+      }
+    },
+    'calendar.events.attachments.delete': {
+      required: ['calendarId', 'eventId', 'filename'],
+      types: {
+        calendarId: 'string',
+        eventId: 'string',
+        filename: 'string'
+      }
+    },
     'gmail.users.messages.list': {
       required: ['userId'],
       types: {

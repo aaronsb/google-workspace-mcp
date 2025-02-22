@@ -1,8 +1,16 @@
 import { AttachmentMetadata } from '../attachments/types.js';
+import { AttachmentInfo } from '../attachments/response-transformer.js';
 
 export interface CalendarModuleConfig {
   maxAttachmentSize?: number;
   allowedAttachmentTypes?: string[];
+}
+
+export interface CalendarAttachment {
+  content: string;      // Base64 content
+  title: string;       // Filename
+  mimeType: string;    // MIME type
+  size?: number;       // Size in bytes
 }
 
 export interface EventTime {
@@ -28,7 +36,7 @@ export interface EventResponse {
   end: EventTime;
   attendees?: EventAttendee[];
   organizer?: EventOrganizer;
-  attachments?: AttachmentMetadata[];
+  attachments?: AttachmentInfo[];
 }
 
 export interface GetEventsParams {

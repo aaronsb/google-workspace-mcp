@@ -2,14 +2,21 @@ import { GoogleApiRequestParams, GoogleApiResponse, GoogleApiError } from '../ty
 import { GoogleApiRequest } from './request.js';
 import { EndpointValidator } from './validators/endpoint.js';
 import { ParameterValidator } from './validators/parameter.js';
+import { AttachmentResponseTransformer } from '../modules/attachments/response-transformer.js';
+import { AttachmentIndexService } from '../modules/attachments/index-service.js';
 
 export class RequestHandler {
   private endpointValidator: EndpointValidator;
   private parameterValidator: ParameterValidator;
+  private attachmentTransformer: AttachmentResponseTransformer;
 
-  constructor(private apiRequest: GoogleApiRequest) {
+  constructor(
+    private apiRequest: GoogleApiRequest,
+    attachmentIndexService: AttachmentIndexService = AttachmentIndexService.getInstance()
+  ) {
     this.endpointValidator = new EndpointValidator();
     this.parameterValidator = new ParameterValidator();
+    this.attachmentTransformer = new AttachmentResponseTransformer(attachmentIndexService);
   }
 
   async handleRequest(params: GoogleApiRequestParams, token: string): Promise<GoogleApiResponse> {
@@ -45,9 +52,12 @@ export class RequestHandler {
   }
 
   private formatSuccessResponse(data: any): GoogleApiResponse {
+    // Transform response to simplify attachments for AI
+    const transformedData = this.attachmentTransformer.transformResponse(data);
+    
     return {
       status: 'success',
-      data
+      data: transformedData
     };
   }
 

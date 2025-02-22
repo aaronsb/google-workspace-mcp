@@ -25,5 +25,9 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!(googleapis|google-auth-library|@modelcontextprotocol/sdk|zod)/)'
   ],
-  setupFilesAfterEnv: ['<rootDir>/src/__helpers__/testSetup.ts']
+  setupFilesAfterEnv: ['<rootDir>/src/__helpers__/testSetup.ts'],
+  fakeTimers: {
+    enableGlobally: true,
+    now: new Date('2025-02-21T20:30:00Z').getTime()
+  }
 };

@@ -5,9 +5,35 @@ import {
   OutgoingGmailAttachment,
   GmailError 
 } from '../types.js';
+import { AttachmentIndexService } from '../../attachments/index-service.js';
 
 export class GmailAttachmentService {
-  constructor(private gmailClient?: ReturnType<typeof google.gmail>) {}
+  private static instance: GmailAttachmentService;
+  private indexService: AttachmentIndexService;
+  private gmailClient?: ReturnType<typeof google.gmail>;
+
+  private constructor() {
+    this.indexService = AttachmentIndexService.getInstance();
+  }
+
+  /**
+   * Add attachment metadata to the index
+   */
+  addAttachment(messageId: string, attachment: {
+    id: string;
+    name: string;
+    mimeType: string;
+    size: number;
+  }): void {
+    this.indexService.addAttachment(messageId, attachment);
+  }
+
+  public static getInstance(): GmailAttachmentService {
+    if (!GmailAttachmentService.instance) {
+      GmailAttachmentService.instance = new GmailAttachmentService();
+    }
+    return GmailAttachmentService.instance;
+  }
 
   /**
    * Updates the Gmail client instance
@@ -31,15 +57,26 @@ export class GmailAttachmentService {
    * Get attachment content from Gmail
    */
   async getAttachment(
+    email: string,
     messageId: string,
-    attachmentId: string
+    filename: string
   ): Promise<IncomingGmailAttachment> {
     try {
+      // Get original metadata from index
+      const metadata = this.indexService.getMetadata(messageId, filename);
+      if (!metadata) {
+        throw new GmailError(
+          'Attachment not found',
+          'ATTACHMENT_ERROR',
+          'Attachment metadata not found - message may need to be refreshed'
+        );
+      }
+
       const client = this.ensureClient();
       const { data } = await client.users.messages.attachments.get({
         userId: 'me',
         messageId,
-        id: attachmentId,
+        id: metadata.originalId,
       });
 
       if (!data.data) {
@@ -47,12 +84,11 @@ export class GmailAttachmentService {
       }
 
       return {
-        id: attachmentId,
+        id: metadata.originalId,
         content: data.data,
-        size: data.size || 0,
-        // These will be set by the email service
-        name: '',
-        mimeType: '',
+        size: metadata.size,
+        name: metadata.filename,
+        mimeType: metadata.mimeType,
       };
     } catch (error) {
       throw new GmailError(
