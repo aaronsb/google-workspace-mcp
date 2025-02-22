@@ -13,6 +13,11 @@ describe('Attachment System', () => {
     responseTransformer = new AttachmentResponseTransformer(indexService);
   });
 
+  afterEach(() => {
+    cleanupService.stop();
+    jest.clearAllTimers();
+  });
+
   describe('AttachmentIndexService', () => {
     it('should store and retrieve attachment metadata', () => {
       const messageId = 'msg123';
@@ -73,15 +78,7 @@ describe('Attachment System', () => {
   });
 
   describe('AttachmentCleanupService', () => {
-    beforeEach(() => {
-      jest.useFakeTimers();
-    });
-
-    afterEach(() => {
-      jest.useRealTimers();
-    });
-
-    it('should clean expired entries on schedule', () => {
+    it('should clean expired entries on schedule', async () => {
       const messageId = 'msg123';
       const attachment = {
         id: 'att123',
@@ -90,22 +87,27 @@ describe('Attachment System', () => {
         size: 1024
       };
 
-      // Add attachment
+      // Add attachment with old timestamp
+      const pastTime = Date.now() - 3600000 - 1000; // 1 hour + 1 second ago
+      jest.setSystemTime(pastTime);
       indexService.addAttachment(messageId, attachment);
       expect(indexService.size).toBe(1);
 
-      // Start cleanup service
+      // Move to present and start cleanup
+      jest.setSystemTime(Date.now());
       cleanupService.start();
-
-      // Advance time past expiry
-      jest.advanceTimersByTime(3600000 + 1000); // 1 hour + 1 second
+      
+      // Run all pending timers
+      jest.runOnlyPendingTimers();
 
       // Verify cleanup occurred
       expect(indexService.size).toBe(0);
     });
 
     it('should adjust cleanup interval based on activity', () => {
+      jest.useFakeTimers();
       cleanupService.start();
+      const baseInterval = cleanupService.getCurrentInterval();
 
       // Simulate high activity
       for (let i = 0; i < 10; i++) {
@@ -118,17 +120,17 @@ describe('Attachment System', () => {
         cleanupService.notifyActivity();
       }
 
-      // Verify cleanup runs more frequently during high activity
-      const highActivityCleanup = jest.getTimerCount();
+      // Verify interval decreased during high activity
+      const highActivityInterval = cleanupService.getCurrentInterval();
+      expect(highActivityInterval).toBeLessThan(baseInterval);
 
-      // Clear activity
-      jest.clearAllTimers();
+      // Reset and simulate low activity
+      cleanupService._reset();
       cleanupService.start();
 
-      // Verify cleanup runs less frequently during low activity
-      const lowActivityCleanup = jest.getTimerCount();
-
-      expect(highActivityCleanup).toBeGreaterThan(lowActivityCleanup);
+      // Verify interval increases during low activity
+      const lowActivityInterval = cleanupService.getCurrentInterval();
+      expect(lowActivityInterval).toBeGreaterThan(highActivityInterval);
     });
   });
 
@@ -213,13 +215,10 @@ describe('Attachment System', () => {
         size: 1024
       };
 
-      // Add attachment
+      jest.useFakeTimers();
+      
+      // Add attachment and verify initial state
       indexService.addAttachment(messageId, attachment);
-
-      // Start cleanup service
-      cleanupService.start();
-
-      // Transform response before expiry
       const transformed1 = responseTransformer.transformResponse({
         id: messageId,
         attachments: [attachment]
@@ -227,9 +226,12 @@ describe('Attachment System', () => {
       expect(transformed1.attachments?.[0].name).toBe('test.pdf');
 
       // Advance time past expiry
-      jest.advanceTimersByTime(3600000 + 1000);
+      jest.advanceTimersByTime(3600000 + 1000); // 1 hour + 1 second
+      
+      // Start cleanup which should run immediately
+      cleanupService.start();
 
-      // Transform after expiry
+      // Transform after cleanup
       const transformed2 = responseTransformer.transformResponse({
         id: messageId,
         attachments: [attachment]

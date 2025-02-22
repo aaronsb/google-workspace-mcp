@@ -5,9 +5,13 @@ import {
   OutgoingGmailAttachment,
   GmailError 
 } from '../types.js';
+import { AttachmentIndexService } from '../../attachments/index-service.js';
 
 export class GmailAttachmentService {
-  constructor(private gmailClient?: ReturnType<typeof google.gmail>) {}
+  constructor(
+    private indexService: AttachmentIndexService,
+    private gmailClient?: ReturnType<typeof google.gmail>
+  ) {}
 
   /**
    * Updates the Gmail client instance
@@ -32,14 +36,24 @@ export class GmailAttachmentService {
    */
   async getAttachment(
     messageId: string,
-    attachmentId: string
+    filename: string
   ): Promise<IncomingGmailAttachment> {
     try {
+      // Get original metadata from index
+      const metadata = this.indexService.getMetadata(messageId, filename);
+      if (!metadata) {
+        throw new GmailError(
+          'Attachment not found',
+          'ATTACHMENT_ERROR',
+          'Attachment metadata not found - message may need to be refreshed'
+        );
+      }
+
       const client = this.ensureClient();
       const { data } = await client.users.messages.attachments.get({
         userId: 'me',
         messageId,
-        id: attachmentId,
+        id: metadata.originalId,
       });
 
       if (!data.data) {
@@ -47,12 +61,11 @@ export class GmailAttachmentService {
       }
 
       return {
-        id: attachmentId,
+        id: metadata.originalId,
         content: data.data,
-        size: data.size || 0,
-        // These will be set by the email service
-        name: '',
-        mimeType: '',
+        size: metadata.size,
+        name: metadata.filename,
+        mimeType: metadata.mimeType,
       };
     } catch (error) {
       throw new GmailError(

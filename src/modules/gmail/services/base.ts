@@ -15,6 +15,7 @@ import {
   GetLabelsResponse,
   LabelFilter
 } from '../types.js';
+import { AttachmentIndexService } from '../../attachments/index-service.js';
 
 import {
   ManageLabelParams,
@@ -46,8 +47,11 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
   constructor(config?: GmailModuleConfig) {
     super({ serviceName: 'Gmail', version: 'v1' });
     
+    // Create shared attachment index service
+    const attachmentIndexService = new AttachmentIndexService();
+    
     this.searchService = new SearchService();
-    this.attachmentService = new GmailAttachmentService();
+    this.attachmentService = new GmailAttachmentService(attachmentIndexService);
     this.emailService = new EmailService(this.searchService, this.attachmentService);
     this.draftService = new DraftService(this.attachmentService);
     this.settingsService = new SettingsService();
@@ -146,8 +150,8 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
     return this.labelService.manageLabelFilter(params);
   }
 
-  async getAttachment(email: string, messageId: string, attachmentId: string) {
+  async getAttachment(email: string, messageId: string, filename: string) {
     await this.getGmailClient(email);
-    return this.attachmentService.getAttachment(messageId, attachmentId);
+    return this.attachmentService.getAttachment(messageId, filename);
   }
 }

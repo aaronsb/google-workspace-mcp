@@ -36,9 +36,21 @@ export class AttachmentIndexService {
     mimeType: string;
     size: number;
   }): void {
-    // Clean expired entries if we're at capacity
+    // Clean expired entries if we're near capacity
     if (this.index.size >= this._maxEntries) {
       this.cleanExpiredEntries();
+      
+      // If still at capacity after cleaning expired entries,
+      // remove oldest entries until we have space
+      if (this.index.size >= this._maxEntries) {
+        const entries = Array.from(this.index.entries())
+          .sort(([, a], [, b]) => a.timestamp - b.timestamp);
+          
+        while (this.index.size >= this._maxEntries && entries.length > 0) {
+          const [key] = entries.shift()!;
+          this.index.delete(key);
+        }
+      }
     }
 
     const key = `${messageId}_${attachment.name}`;

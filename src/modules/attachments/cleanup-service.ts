@@ -27,7 +27,10 @@ export class AttachmentCleanupService {
     this.lastIndexSize = this.indexService.size;
     this.lastCleanupTime = Date.now();
 
-    // Schedule first cleanup
+    // Run initial cleanup immediately
+    this.cleanup();
+
+    // Schedule next cleanup
     this.scheduleNextCleanup();
   }
 
@@ -36,13 +39,23 @@ export class AttachmentCleanupService {
    */
   private scheduleNextCleanup(): void {
     if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
+      clearTimeout(this.cleanupInterval);
     }
 
+    // Calculate next interval based on activity
+    const nextInterval = this.currentIntervalMs;
+    
     this.cleanupInterval = setTimeout(() => {
       this.cleanup();
       this.scheduleNextCleanup();
-    }, this.currentIntervalMs);
+    }, nextInterval);
+  }
+
+  /**
+   * Get current cleanup interval (for testing)
+   */
+  getCurrentInterval(): number {
+    return this.currentIntervalMs;
   }
 
   /**
@@ -81,9 +94,19 @@ export class AttachmentCleanupService {
    */
   stop(): void {
     if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
+      clearTimeout(this.cleanupInterval);
       this.cleanupInterval = null;
     }
+  }
+
+  /**
+   * For testing purposes only - clear all internal state
+   */
+  _reset(): void {
+    this.stop();
+    this.currentIntervalMs = this.baseIntervalMs;
+    this.lastCleanupTime = 0;
+    this.lastIndexSize = 0;
   }
 
   /**

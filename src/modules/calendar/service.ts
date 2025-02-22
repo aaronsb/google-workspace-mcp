@@ -180,10 +180,17 @@ export class CalendarService {
    * Map Calendar event to EventResponse
    */
   private async mapEventResponse(email: string, event: CalendarEvent): Promise<EventResponse> {
-    let attachments: AttachmentMetadata[] | undefined;
+    // Process attachments if present
+    let attachments: { name: string }[] | undefined;
     
     if (event.attachments && event.attachments.length > 0) {
-      attachments = await this.processEventAttachments(email, event.attachments);
+      // First process and store full metadata
+      const processedAttachments = await this.processEventAttachments(email, event.attachments);
+      
+      // Then return simplified format for AI
+      attachments = processedAttachments.map(att => ({
+        name: att.name
+      }));
     }
 
     return {
