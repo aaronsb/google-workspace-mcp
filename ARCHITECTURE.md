@@ -107,14 +107,33 @@ Key characteristics:
   - Validates account status
 
 ### 4. Service Modules
+
+#### Attachment System
+- Singleton-based attachment management:
+  - AttachmentIndexService: Central metadata cache with size limits
+  - AttachmentResponseTransformer: Handles response simplification
+  - AttachmentCleanupService: Manages cache expiry
+- Cache Management:
+  - Map-based storage using messageId + filename as key
+  - Built-in size limit (256 entries)
+  - Automatic expiry handling (1 hour timeout)
+  - LRU-style cleanup for capacity management
+- Abstraction Layers:
+  - Service layer for Gmail/Calendar operations
+  - Transformer layer for response formatting
+  - Index layer for metadata storage
+  - Cleanup layer for maintenance
+
 #### Gmail Module (src/modules/gmail/*)
 - Comprehensive email operations:
   - Email search and sending
   - Draft management
   - Label and filter control
   - Settings configuration
+  - Simplified attachment handling
 - Manages Gmail API integration
 - Handles Gmail authentication scopes
+- Integrates with attachment system
 
 #### Calendar Module (src/modules/calendar/*)
 - Complete calendar operations:
@@ -330,6 +349,15 @@ The server uses a Docker volume mounted at `/app/config` to store:
 - Contains OAuth tokens for each account
 - Tokens are stored securely with appropriate permissions
 - Each token file is named using the account's email address
+
+## Version History
+
+### Version 1.1
+- Simplified attachment data in responses (filename only)
+- Maintained full metadata in index service
+- Improved attachment system architecture
+- Enhanced documentation and examples
+- Verified download functionality with simplified format
 
 ## Future Extensions
 

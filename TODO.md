@@ -58,11 +58,18 @@
    - ✓ Activity-based interval adjustments
    - ✓ Performance monitoring accuracy
 
+### Version 1.1 Changes ✓
+1. Attachment System Improvements
+   - ✓ Simplified attachment data in responses (filename only)
+   - ✓ Maintained full metadata in index service
+   - ✓ Verified download functionality with simplified format
+   - ✓ Updated documentation and architecture
+
 ### Next Steps 📋
 1. Documentation
-   - [ ] Add inline documentation
-   - [ ] Update API documentation
-   - [ ] Add usage examples
+   - [x] Add inline documentation
+   - [x] Update API documentation
+   - [x] Add usage examples
 
 ## Example Transformation
 Before:

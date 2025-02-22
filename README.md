@@ -4,7 +4,7 @@
 
 This Model Context Protocol (MCP) server puts you in control of your Google Workspace. Once you connect your account - a simple, secure process that takes just a minute - you're ready to go. Behind the scenes, it keeps your connection safe and active, so you can focus on getting things done instead of managing logins and permissions.
 
-Take command of your Gmail inbox in ways you never thought possible. Want that proposal from last quarter? Found in seconds. Drowning in newsletters? They'll sort themselves into folders automatically. Need to track responses to an important thread? Labels and filters do the work for you. From drafting the perfect email to managing conversations with your team, everything just clicks into place.
+Take command of your Gmail inbox in ways you never thought possible. Want that proposal from last quarter? Found in seconds. Drowning in newsletters? They'll sort themselves into folders automatically. Need to track responses to an important thread? Labels and filters do the work for you. From drafting the perfect email to managing conversations with your team, everything just clicks into place. With streamlined attachment handling, you can easily find and manage email attachments while the system takes care of all the complex metadata behind the scenes.
 
 Your calendar becomes a trusted ally in the daily juggle. No more double-booked meetings or timezone confusion. Planning a team sync? It spots the perfect time slots. Running a recurring workshop? Set it up once, and you're done. Even when plans change, finding new times that work for everyone is quick and painless. The days of endless "when are you free?" emails are over.
 
@@ -178,6 +178,14 @@ docker run -i --rm \
   -e LOG_MODE=strict \
   google-workspace-mcp:local
 ```
+
+## Features
+
+- Simplified attachment handling with automatic metadata management
+- Streamlined email responses focused on essential information
+- Robust attachment indexing and retrieval system
+- Efficient file management across Gmail and Calendar
+- Automatic cleanup of expired attachments
 
 ## Available Tools
 

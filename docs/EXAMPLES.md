@@ -30,9 +30,23 @@ const emails = await mcp.callTool('search_workspace_emails', {
   search: {
     from: 'sender@example.com',
     subject: 'Important Meeting',
-    after: '2024-01-01'
+    after: '2024-01-01',
+    hasAttachment: true
   }
 });
+
+// Example response with simplified attachment format (v1.1)
+{
+  "emails": [{
+    "id": "msg123",
+    "subject": "Important Meeting",
+    "from": "sender@example.com",
+    "hasAttachment": true,
+    "attachments": [{
+      "name": "presentation.pdf"
+    }]
+  }]
+}
 
 // Send email
 await mcp.callTool('send_workspace_email', {

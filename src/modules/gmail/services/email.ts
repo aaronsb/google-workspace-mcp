@@ -12,15 +12,21 @@ import {
 } from '../types.js';
 import { SearchService } from './search.js';
 import { GmailAttachmentService } from './attachment.js';
+import { AttachmentResponseTransformer } from '../../attachments/response-transformer.js';
+import { AttachmentIndexService } from '../../attachments/index-service.js';
 
 type GmailMessage = gmail_v1.Schema$Message;
 
 export class EmailService {
+  private responseTransformer: AttachmentResponseTransformer;
+
   constructor(
     private searchService: SearchService,
     private attachmentService: GmailAttachmentService,
     private gmailClient?: ReturnType<typeof google.gmail>
-  ) {}
+  ) {
+    this.responseTransformer = new AttachmentResponseTransformer(AttachmentIndexService.getInstance());
+  }
 
   /**
    * Updates the Gmail client instance
@@ -223,7 +229,8 @@ export class EmailService {
         });
       }
 
-      return {
+      // Transform response to simplify attachments
+      const transformedResponse = this.responseTransformer.transformResponse({
         emails,
         nextPageToken,
         resultSummary: {
@@ -233,7 +240,9 @@ export class EmailService {
           searchCriteria: search
         },
         threads
-      };
+      });
+
+      return transformedResponse;
     } catch (error) {
       if (error instanceof GmailError) {
         throw error;
