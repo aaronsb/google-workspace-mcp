@@ -12,6 +12,7 @@ export interface AttachmentMetadataInternal {
 }
 
 export class AttachmentIndexService {
+  private static instance: AttachmentIndexService;
   private index: Map<string, AttachmentMetadataInternal>;
   private readonly _maxEntries: number = 256;
   private expiryMs: number = 3600000; // 1 hour
@@ -23,8 +24,18 @@ export class AttachmentIndexService {
     return this._maxEntries;
   }
 
-  constructor() {
+  private constructor() {
     this.index = new Map();
+  }
+
+  /**
+   * Get the singleton instance
+   */
+  public static getInstance(): AttachmentIndexService {
+    if (!AttachmentIndexService.instance) {
+      AttachmentIndexService.instance = new AttachmentIndexService();
+    }
+    return AttachmentIndexService.instance;
   }
 
   /**

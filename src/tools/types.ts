@@ -314,7 +314,7 @@ export interface ManageAttachmentParams extends BaseToolArguments {
   action: 'download' | 'upload' | 'delete';
   source: 'email' | 'calendar';
   messageId: string;
-  attachmentId: string;
+  filename: string;
   content?: string;  // Required for upload action
 }
 

@@ -6,6 +6,13 @@ export interface CalendarModuleConfig {
   allowedAttachmentTypes?: string[];
 }
 
+export interface CalendarAttachment {
+  content: string;      // Base64 content
+  title: string;       // Filename
+  mimeType: string;    // MIME type
+  size?: number;       // Size in bytes
+}
+
 export interface EventTime {
   dateTime: string;
   timeZone?: string;

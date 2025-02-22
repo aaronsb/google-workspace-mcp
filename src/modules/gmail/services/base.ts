@@ -47,16 +47,20 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
   constructor(config?: GmailModuleConfig) {
     super({ serviceName: 'Gmail', version: 'v1' });
     
-    // Create shared attachment index service
-    const attachmentIndexService = new AttachmentIndexService();
-    
     this.searchService = new SearchService();
-    this.attachmentService = new GmailAttachmentService(attachmentIndexService);
+    this.attachmentService = GmailAttachmentService.getInstance();
     this.emailService = new EmailService(this.searchService, this.attachmentService);
     this.draftService = new DraftService(this.attachmentService);
     this.settingsService = new SettingsService();
     this.labelService = new LabelService();
     this.filterService = new FilterService();
+  }
+
+  private async ensureInitialized(email: string) {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    await this.getGmailClient(email);
   }
 
   /**
@@ -151,7 +155,7 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
   }
 
   async getAttachment(email: string, messageId: string, filename: string) {
-    await this.getGmailClient(email);
-    return this.attachmentService.getAttachment(messageId, filename);
+    await this.ensureInitialized(email);
+    return this.attachmentService.getAttachment(email, messageId, filename);
   }
 }

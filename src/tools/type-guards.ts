@@ -313,13 +313,13 @@ export function isManageAttachmentParams(args: unknown): args is ManageAttachmen
     typeof params.source === 'string' &&
     ['email', 'calendar'].includes(params.source) &&
     typeof params.messageId === 'string' &&
-    typeof params.attachmentId === 'string' &&
+    typeof params.filename === 'string' &&
     (params.content === undefined || typeof params.content === 'string');
 }
 
 export function assertManageAttachmentParams(args: unknown): asserts args is ManageAttachmentParams {
   if (!isManageAttachmentParams(args)) {
-    throw new Error('Invalid attachment management parameters. Required: email, action, source, messageId, attachmentId');
+    throw new Error('Invalid attachment management parameters. Required: email, action, source, messageId, filename');
   }
 }
 

@@ -21,11 +21,22 @@ const DEFAULT_CONFIG: AttachmentServiceConfig = {
 };
 
 export class AttachmentService {
+  private static instance: AttachmentService;
   private config: AttachmentServiceConfig;
   private initialized = false;
 
-  constructor(config: AttachmentServiceConfig = {}) {
+  private constructor(config: AttachmentServiceConfig = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  /**
+   * Get the singleton instance
+   */
+  public static getInstance(config: AttachmentServiceConfig = {}): AttachmentService {
+    if (!AttachmentService.instance) {
+      AttachmentService.instance = new AttachmentService(config);
+    }
+    return AttachmentService.instance;
   }
 
   /**

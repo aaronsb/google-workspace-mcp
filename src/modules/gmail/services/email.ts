@@ -180,11 +180,16 @@ export class EmailService {
             }
           }
 
-          // Get attachment metadata if present
+          // Get attachment metadata if present and store in index
           const hasAttachments = email.payload?.parts?.some(part => part.filename && part.filename.length > 0) || false;
-          const attachments = hasAttachments ? 
-            this.getAttachmentMetadata(email) : 
-            undefined;
+          let attachments;
+          if (hasAttachments) {
+            attachments = this.getAttachmentMetadata(email);
+            // Store each attachment's metadata in the index
+            attachments.forEach(attachment => {
+              this.attachmentService.addAttachment(email.id!, attachment);
+            });
+          }
 
           const response: EmailResponse = {
             id: email.id!,

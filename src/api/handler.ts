@@ -12,7 +12,7 @@ export class RequestHandler {
 
   constructor(
     private apiRequest: GoogleApiRequest,
-    attachmentIndexService: AttachmentIndexService = new AttachmentIndexService()
+    attachmentIndexService: AttachmentIndexService = AttachmentIndexService.getInstance()
   ) {
     this.endpointValidator = new EndpointValidator();
     this.parameterValidator = new ParameterValidator();

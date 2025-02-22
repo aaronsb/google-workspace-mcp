@@ -8,10 +8,32 @@ import {
 import { AttachmentIndexService } from '../../attachments/index-service.js';
 
 export class GmailAttachmentService {
-  constructor(
-    private indexService: AttachmentIndexService,
-    private gmailClient?: ReturnType<typeof google.gmail>
-  ) {}
+  private static instance: GmailAttachmentService;
+  private indexService: AttachmentIndexService;
+  private gmailClient?: ReturnType<typeof google.gmail>;
+
+  private constructor() {
+    this.indexService = AttachmentIndexService.getInstance();
+  }
+
+  /**
+   * Add attachment metadata to the index
+   */
+  addAttachment(messageId: string, attachment: {
+    id: string;
+    name: string;
+    mimeType: string;
+    size: number;
+  }): void {
+    this.indexService.addAttachment(messageId, attachment);
+  }
+
+  public static getInstance(): GmailAttachmentService {
+    if (!GmailAttachmentService.instance) {
+      GmailAttachmentService.instance = new GmailAttachmentService();
+    }
+    return GmailAttachmentService.instance;
+  }
 
   /**
    * Updates the Gmail client instance
@@ -35,6 +57,7 @@ export class GmailAttachmentService {
    * Get attachment content from Gmail
    */
   async getAttachment(
+    email: string,
     messageId: string,
     filename: string
   ): Promise<IncomingGmailAttachment> {

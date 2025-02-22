@@ -9,6 +9,29 @@ interface ServiceConfig {
 export class EndpointValidator {
   // Registry of supported services and their configurations
   private readonly serviceRegistry: Record<string, ServiceConfig> = {
+    calendar: {
+      version: 'v3',
+      methods: [
+        'events.list',
+        'events.get',
+        'events.insert',
+        'events.update',
+        'events.delete',
+        'events.attachments.get',
+        'events.attachments.upload',
+        'events.attachments.delete'
+      ],
+      scopes: {
+        'events.list': ['https://www.googleapis.com/auth/calendar.readonly'],
+        'events.get': ['https://www.googleapis.com/auth/calendar.readonly'],
+        'events.insert': ['https://www.googleapis.com/auth/calendar.events'],
+        'events.update': ['https://www.googleapis.com/auth/calendar.events'],
+        'events.delete': ['https://www.googleapis.com/auth/calendar.events'],
+        'events.attachments.get': ['https://www.googleapis.com/auth/calendar.readonly'],
+        'events.attachments.upload': ['https://www.googleapis.com/auth/calendar.events'],
+        'events.attachments.delete': ['https://www.googleapis.com/auth/calendar.events']
+      }
+    },
     gmail: {
       version: 'v1',
       methods: [
