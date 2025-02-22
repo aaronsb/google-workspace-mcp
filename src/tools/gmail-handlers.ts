@@ -496,11 +496,34 @@ export async function handleManageWorkspaceAttachment(params: ManageAttachmentPa
         }
 
         case 'delete': {
-          // Implementation pending - need to add delete method to AttachmentService
-          throw new McpError(
-            ErrorCode.MethodNotFound,
-            'Delete operation not yet implemented'
+          // Get the attachment metadata first to verify it exists
+          const gmailAttachment = await gmailService.getAttachment(email, messageId, filename);
+          
+          if (!gmailAttachment || !gmailAttachment.path) {
+            throw new McpError(
+              ErrorCode.InvalidRequest,
+              'Attachment not found or path missing'
+            );
+          }
+
+          // Delete the attachment
+          const result = await attachmentService.deleteAttachment(
+            email,
+            gmailAttachment.id,
+            gmailAttachment.path
           );
+
+          if (!result.success) {
+            throw new McpError(
+              ErrorCode.InternalError,
+              `Failed to delete attachment: ${result.error}`
+            );
+          }
+
+          return {
+            success: true,
+            attachment: result.attachment
+          };
         }
 
         default:

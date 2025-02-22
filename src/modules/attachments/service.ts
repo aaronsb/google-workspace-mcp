@@ -189,6 +189,52 @@ export class AttachmentService {
   }
 
   /**
+   * Delete attachment from local storage
+   */
+  async deleteAttachment(
+    email: string,
+    attachmentId: string,
+    filePath: string
+  ): Promise<AttachmentResult> {
+    if (!this.initialized) {
+      await this.initialize(email);
+    }
+
+    try {
+      // Verify file exists and is within workspace
+      if (!filePath.startsWith(this.config.basePath!)) {
+        throw new Error('Invalid file path');
+      }
+
+      // Get file stats before deletion
+      const stats = await fs.stat(filePath);
+      const name = path.basename(filePath).substring(37); // Remove UUID prefix
+      const mimeType = path.extname(filePath) ? 
+        `application/${path.extname(filePath).substring(1)}` : 
+        'application/octet-stream';
+
+      // Delete the file
+      await fs.unlink(filePath);
+
+      return {
+        success: true,
+        attachment: {
+          id: attachmentId,
+          name,
+          mimeType,
+          size: stats.size,
+          path: filePath
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
+  }
+
+  /**
    * Get full path for a specific attachment category
    */
   getAttachmentPath(folder: AttachmentFolderType): string {
