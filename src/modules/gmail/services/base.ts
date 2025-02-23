@@ -13,6 +13,7 @@ import {
   GetDraftsResponse,
   Label,
   GetLabelsResponse,
+  GetLabelFiltersResponse,
   LabelFilter
 } from '../types.js';
 import { AttachmentIndexService } from '../../attachments/index-service.js';
@@ -28,7 +29,6 @@ import { SearchService } from './search.js';
 import { DraftService } from './draft.js';
 import { SettingsService } from './settings.js';
 import { LabelService } from './label.js';
-import { FilterService } from './filter.js';
 import { GmailAttachmentService } from './attachment.js';
 
 /**
@@ -40,7 +40,6 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
   private draftService: DraftService;
   private settingsService: SettingsService;
   private labelService: LabelService;
-  private filterService: FilterService;
   private attachmentService: GmailAttachmentService;
   private initialized = false;
   
@@ -53,7 +52,6 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
     this.draftService = new DraftService(this.attachmentService);
     this.settingsService = new SettingsService();
     this.labelService = new LabelService();
-    this.filterService = new FilterService();
   }
 
   private async ensureInitialized(email: string) {
@@ -110,7 +108,6 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
         this.draftService.updateClient(client);
         this.settingsService.updateClient(client);
         this.labelService.updateClient(client);
-        this.filterService.updateClient(client);
         this.attachmentService.updateClient(client);
         
         return client;
@@ -149,7 +146,7 @@ export class GmailService extends BaseGoogleService<ReturnType<typeof google.gma
     return this.labelService.manageLabelAssignment(params);
   }
 
-  async manageLabelFilter(params: ManageLabelFilterParams): Promise<LabelFilter | GetLabelsResponse | void> {
+  async manageLabelFilter(params: ManageLabelFilterParams): Promise<LabelFilter | GetLabelFiltersResponse | void> {
     await this.getGmailClient(params.email);
     return this.labelService.manageLabelFilter(params);
   }

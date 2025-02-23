@@ -10,10 +10,12 @@ import {
   GmailError,
   CreateLabelFilterParams,
   GetLabelFiltersParams,
+  GetLabelFiltersResponse,
   UpdateLabelFilterParams,
   DeleteLabelFilterParams,
   LabelFilterCriteria,
-  LabelFilterActions
+  LabelFilterActions,
+  LabelFilter
 } from '../types.js';
 import {
   isValidGmailLabelColor,
@@ -164,18 +166,139 @@ export class LabelService {
     return this.modifyMessageLabels(modifyParams);
   }
 
-  async manageLabelFilter(params: ManageLabelFilterParams): Promise<any> {
+  /**
+   * Validate filter criteria to ensure all required fields are present and properly formatted
+   */
+  private validateFilterCriteria(criteria: LabelFilterCriteria): void {
+    if (!criteria) {
+      throw new GmailError(
+        'Filter criteria is required',
+        'VALIDATION_ERROR',
+        'Please provide filter criteria'
+      );
+    }
+
+    // At least one filtering condition must be specified
+    const hasCondition = (criteria.from && criteria.from.length > 0) ||
+      (criteria.to && criteria.to.length > 0) ||
+      criteria.subject ||
+      (criteria.hasWords && criteria.hasWords.length > 0) ||
+      (criteria.doesNotHaveWords && criteria.doesNotHaveWords.length > 0) ||
+      criteria.hasAttachment ||
+      criteria.size;
+
+    if (!hasCondition) {
+      throw new GmailError(
+        'Invalid filter criteria',
+        'VALIDATION_ERROR',
+        'At least one filtering condition must be specified (from, to, subject, hasWords, doesNotHaveWords, hasAttachment, or size)'
+      );
+    }
+
+    // Validate email arrays
+    if (criteria.from?.length) {
+      criteria.from.forEach(email => {
+        if (!email.includes('@')) {
+          throw new GmailError(
+            'Invalid email address in from criteria',
+            'VALIDATION_ERROR',
+            `Invalid email address: ${email}`
+          );
+        }
+      });
+    }
+
+    if (criteria.to?.length) {
+      criteria.to.forEach(email => {
+        if (!email.includes('@')) {
+          throw new GmailError(
+            'Invalid email address in to criteria',
+            'VALIDATION_ERROR',
+            `Invalid email address: ${email}`
+          );
+        }
+      });
+    }
+
+    // Validate size criteria if present
+    if (criteria.size) {
+      if (typeof criteria.size.size !== 'number' || criteria.size.size <= 0) {
+        throw new GmailError(
+          'Invalid size criteria',
+          'VALIDATION_ERROR',
+          'Size must be a positive number'
+        );
+      }
+      if (!['larger', 'smaller'].includes(criteria.size.operator)) {
+        throw new GmailError(
+          'Invalid size operator',
+          'VALIDATION_ERROR',
+          'Size operator must be either "larger" or "smaller"'
+        );
+      }
+    }
+  }
+
+  /**
+   * Build Gmail API query string from filter criteria
+   */
+  private buildFilterQuery(criteria: LabelFilterCriteria): string {
+    const conditions: string[] = [];
+
+    if (criteria.from?.length) {
+      conditions.push(`{${criteria.from.map(email => `from:${email}`).join(' OR ')}}`);
+    }
+
+    if (criteria.to?.length) {
+      conditions.push(`{${criteria.to.map(email => `to:${email}`).join(' OR ')}}`);
+    }
+
+    if (criteria.subject) {
+      conditions.push(`subject:"${criteria.subject}"`);
+    }
+
+    if (criteria.hasWords?.length) {
+      conditions.push(`{${criteria.hasWords.join(' OR ')}}`);
+    }
+
+    if (criteria.doesNotHaveWords?.length) {
+      conditions.push(`-{${criteria.doesNotHaveWords.join(' OR ')}}`);
+    }
+
+    if (criteria.hasAttachment) {
+      conditions.push('has:attachment');
+    }
+
+    if (criteria.size) {
+      conditions.push(`size${criteria.size.operator === 'larger' ? '>' : '<'}${criteria.size.size}`);
+    }
+
+    return conditions.join(' ');
+  }
+
+  async manageLabelFilter(params: ManageLabelFilterParams): Promise<LabelFilter | GetLabelFiltersResponse | void> {
     this.ensureClient();
 
     switch (params.action) {
       case 'create':
-        if (!params.labelId || !params.data?.criteria || !params.data?.actions) {
+        if (!params.labelId) {
           throw new GmailError(
-            'Missing required filter data',
+            'Label ID is required',
             'VALIDATION_ERROR',
-            'Please provide labelId, criteria, and actions'
+            'Please provide a valid label ID'
           );
         }
+        if (!params.data?.criteria || !params.data?.actions) {
+          throw new GmailError(
+            'Filter configuration is required',
+            'VALIDATION_ERROR',
+            'Please provide both criteria and actions for the filter'
+          );
+        }
+
+        // Validate filter criteria
+        this.validateFilterCriteria(params.data.criteria);
+
         return this.createLabelFilter({
           email: params.email,
           labelId: params.labelId,
@@ -242,7 +365,15 @@ export class LabelService {
         }
       }
 
-      const response = await this.client?.users.labels.create({
+      if (!this.client) {
+        throw new GmailError(
+          'Gmail client not initialized',
+          'CLIENT_ERROR',
+          'Please ensure the service is initialized with a valid client'
+        );
+      }
+
+      const response = await this.client.users.labels.create({
         userId: params.email,
         requestBody: {
           name: params.name,
@@ -265,6 +396,22 @@ export class LabelService {
 
       return this.mapGmailLabel(response.data);
     } catch (error: unknown) {
+      if (error instanceof Error && 'code' in error && error.code === '401') {
+        throw new GmailError(
+          'Authentication failed',
+          'AUTH_ERROR',
+          'Please re-authenticate your account'
+        );
+      }
+      
+      if (error instanceof Error && error.message.includes('Invalid grant')) {
+        throw new GmailError(
+          'Authentication token expired',
+          'TOKEN_ERROR',
+          'Please re-authenticate your account'
+        );
+      }
+
       throw new GmailError(
         'Failed to create label',
         'CREATE_ERROR',
@@ -309,7 +456,15 @@ export class LabelService {
         }
       }
 
-      const response = await this.client?.users.labels.patch({
+      if (!this.client) {
+        throw new GmailError(
+          'Gmail client not initialized',
+          'CLIENT_ERROR',
+          'Please ensure the service is initialized with a valid client'
+        );
+      }
+
+      const response = await this.client.users.labels.patch({
         userId: params.email,
         id: params.labelId,
         requestBody: {
@@ -333,6 +488,22 @@ export class LabelService {
 
       return this.mapGmailLabel(response.data);
     } catch (error: unknown) {
+      if (error instanceof Error && 'code' in error && error.code === '401') {
+        throw new GmailError(
+          'Authentication failed',
+          'AUTH_ERROR',
+          'Please re-authenticate your account'
+        );
+      }
+      
+      if (error instanceof Error && error.message.includes('Invalid grant')) {
+        throw new GmailError(
+          'Authentication token expired',
+          'TOKEN_ERROR',
+          'Please re-authenticate your account'
+        );
+      }
+
       throw new GmailError(
         'Failed to update label',
         'UPDATE_ERROR',
@@ -375,25 +546,25 @@ export class LabelService {
     }
   }
 
-  private async createLabelFilter(params: CreateLabelFilterParams): Promise<gmail_v1.Schema$Filter> {
+  private async createLabelFilter(params: CreateLabelFilterParams): Promise<LabelFilter> {
     try {
-      // Convert our criteria format to Gmail API format
-      const criteria: gmail_v1.Schema$FilterCriteria = {
-        from: params.criteria.from?.join(' OR ') || null,
-        to: params.criteria.to?.join(' OR ') || null,
-        subject: params.criteria.subject || null,
-        query: params.criteria.hasWords?.join(' OR ') || null,
-        negatedQuery: params.criteria.doesNotHaveWords?.join(' OR ') || null,
-        hasAttachment: params.criteria.hasAttachment || null,
-        size: params.criteria.size?.size || null,
-        sizeComparison: params.criteria.size?.operator || null
+      // Build filter criteria for Gmail API
+      const filterCriteria: gmail_v1.Schema$FilterCriteria = {
+        from: params.criteria.from?.join(' OR ') || undefined,
+        to: params.criteria.to?.join(' OR ') || undefined,
+        subject: params.criteria.subject || undefined,
+        query: this.buildFilterQuery(params.criteria),
+        hasAttachment: params.criteria.hasAttachment || undefined,
+        excludeChats: true,
+        size: params.criteria.size ? Number(params.criteria.size.size) : undefined,
+        sizeComparison: params.criteria.size?.operator || undefined
       };
 
-      // Initialize arrays for label IDs
-      const addLabelIds: string[] = [params.labelId];
+      // Build filter action with initialized arrays
+      const addLabelIds = [params.labelId];
       const removeLabelIds: string[] = [];
 
-      // Add additional label IDs based on actions
+      // Add system label modifications based on actions
       if (params.actions.markImportant) {
         addLabelIds.push('IMPORTANT');
       }
@@ -404,28 +575,36 @@ export class LabelService {
         removeLabelIds.push('INBOX');
       }
 
-      // Create the filter action
-      const action: gmail_v1.Schema$FilterAction = {
+      const filterAction: gmail_v1.Schema$FilterAction = {
         addLabelIds,
         removeLabelIds,
-        forward: null
+        forward: undefined
       };
 
+      // Create the filter
       const response = await this.client?.users.settings.filters.create({
         userId: params.email,
         requestBody: {
-          criteria,
-          action
+          criteria: filterCriteria,
+          action: filterAction
         }
       });
+
       if (!response?.data) {
         throw new GmailError(
-          'No response data from create filter request',
+          'Failed to create filter',
           'CREATE_ERROR',
-          'Server returned empty response'
+          'No response data received from Gmail API'
         );
       }
-      return response.data;
+
+      // Return the created filter in our standard format
+      return {
+        id: response.data.id || '',
+        labelId: params.labelId,
+        criteria: params.criteria,
+        actions: params.actions
+      };
     } catch (error: unknown) {
       throw new GmailError(
         'Failed to create label filter',
@@ -435,15 +614,50 @@ export class LabelService {
     }
   }
 
-  private async getLabelFilters(params: GetLabelFiltersParams): Promise<gmail_v1.Schema$ListFiltersResponse> {
+  private async getLabelFilters(params: GetLabelFiltersParams): Promise<GetLabelFiltersResponse> {
     try {
       const response = await this.client?.users.settings.filters.list({
         userId: params.email
       });
-      if (!response?.data) {
-        return { filter: [] };
+
+      if (!response?.data.filter) {
+        return { filters: [] };
       }
-      return response.data;
+
+      // Map Gmail API filters to our format
+      const filters = response.data.filter
+        .filter(filter => {
+          if (!filter.action?.addLabelIds?.length) return false;
+          // If labelId is provided, only return filters for that label
+          if (params.labelId) {
+            return filter.action.addLabelIds.includes(params.labelId);
+          }
+          return true;
+        })
+        .map(filter => ({
+          id: filter.id || '',
+          labelId: filter.action?.addLabelIds?.[0] || '',
+          criteria: {
+            from: filter.criteria?.from ? filter.criteria.from.split(' OR ') : undefined,
+            to: filter.criteria?.to ? filter.criteria.to.split(' OR ') : undefined,
+            subject: filter.criteria?.subject || undefined,
+            hasAttachment: filter.criteria?.hasAttachment || undefined,
+            hasWords: filter.criteria?.query ? [filter.criteria.query] : undefined,
+            doesNotHaveWords: filter.criteria?.negatedQuery ? [filter.criteria.negatedQuery] : undefined,
+            size: filter.criteria?.size && filter.criteria?.sizeComparison ? {
+              operator: filter.criteria.sizeComparison as 'larger' | 'smaller',
+              size: Number(filter.criteria.size)
+            } : undefined
+          },
+          actions: {
+            addLabel: true,
+            markImportant: filter.action?.addLabelIds?.includes('IMPORTANT') || false,
+            markRead: filter.action?.removeLabelIds?.includes('UNREAD') || false,
+            archive: filter.action?.removeLabelIds?.includes('INBOX') || false
+          }
+        }));
+
+      return { filters };
     } catch (error: unknown) {
       throw new GmailError(
         'Failed to get label filters',
@@ -453,7 +667,7 @@ export class LabelService {
     }
   }
 
-  private async updateLabelFilter(params: UpdateLabelFilterParams): Promise<gmail_v1.Schema$Filter> {
+  private async updateLabelFilter(params: UpdateLabelFilterParams): Promise<LabelFilter> {
     try {
       // Gmail API doesn't support direct filter updates, so we need to delete and recreate
       await this.deleteLabelFilter({
@@ -509,7 +723,13 @@ export class LabelService {
           'Server returned empty response'
         );
       }
-      return response.data;
+      // Map response to our LabelFilter format
+      return {
+        id: response.data.id || '',
+        labelId: params.labelId,
+        criteria: params.criteria,
+        actions: params.actions
+      };
     } catch (error: unknown) {
       throw new GmailError(
         'Failed to update label filter',
