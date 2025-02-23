@@ -1,6 +1,6 @@
 {
   "name": "google-workspace-mcp",
-  "version": "0.9.0",
+  "version": "1.2.0",
   "description": "Google Workspace OAuth MCP Server for Google Workspace integration",
   "private": true,
   "type": "module",
