@@ -385,7 +385,13 @@ export async function handleManageWorkspaceLabelAssignment(params: ManageLabelAs
 
   return accountManager.withTokenRenewal(email, async () => {
     try {
-      return await gmailService.manageLabelAssignment(params);
+      await gmailService.manageLabelAssignment(params);
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ success: true })
+        }]
+      };
     } catch (error) {
       throw new McpError(
         ErrorCode.InternalError,
