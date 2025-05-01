@@ -703,7 +703,13 @@ export const calendarTools: ToolMetadata[] = [
   {
     name: 'delete_workspace_calendar_event',
     category: 'Calendar/Events',
-    description: 'Delete a calendar event',
+    description: `Delete a calendar event with options for recurring events.
+    
+    For recurring events, you can specify a deletion scope:
+    - "entire_series": Removes all instances of the recurring event (default)
+    - "this_and_following": Removes the selected instance and all future occurrences while preserving past instances
+    
+    This provides more granular control over calendar management and prevents accidental deletion of entire event series.`,
     aliases: ['delete_event', 'remove_event', 'cancel_event'],
     inputSchema: {
       type: 'object',
@@ -720,6 +726,11 @@ export const calendarTools: ToolMetadata[] = [
           type: 'string',
           enum: ['all', 'externalOnly', 'none'],
           description: 'Whether to send update notifications'
+        },
+        deletionScope: {
+          type: 'string',
+          enum: ['entire_series', 'this_and_following'],
+          description: 'For recurring events, specifies which instances to delete'
         }
       },
       required: ['email', 'eventId']

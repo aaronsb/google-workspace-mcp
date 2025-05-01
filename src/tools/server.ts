@@ -287,10 +287,15 @@ export class GSuiteServer {
         }
 
         // Wrap result in McpToolResponse format
+        // Handle undefined results (like from void functions)
+        const responseText = result === undefined ? 
+          JSON.stringify({ status: 'success', message: 'Operation completed successfully' }, null, 2) : 
+          JSON.stringify(result, null, 2);
+        
         return {
           content: [{
             type: 'text',
-            text: JSON.stringify(result, null, 2)
+            text: responseText
           }],
           _meta: {}
         };

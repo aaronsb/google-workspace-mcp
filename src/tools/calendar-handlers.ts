@@ -3,6 +3,7 @@ import { DriveService } from '../modules/drive/service.js';
 import { validateEmail } from '../utils/account.js';
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { getAccountManager } from '../modules/accounts/index.js';
+import { CalendarError } from '../modules/calendar/types.js';
 
 // Singleton instances
 let driveService: DriveService;
@@ -218,7 +219,7 @@ export async function handleManageWorkspaceCalendarEvent(params: any) {
 
 export async function handleDeleteWorkspaceCalendarEvent(params: any) {
   await initializeServices();
-  const { email, eventId, sendUpdates } = params;
+  const { email, eventId, sendUpdates, deletionScope } = params;
 
   if (!email) {
     throw new McpError(
@@ -234,12 +235,37 @@ export async function handleDeleteWorkspaceCalendarEvent(params: any) {
     );
   }
 
+  // Validate deletionScope if provided
+  if (deletionScope && !['entire_series', 'this_and_following'].includes(deletionScope)) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      'Invalid deletion scope. Must be one of: entire_series, this_and_following'
+    );
+  }
+
   validateEmail(email);
 
   return accountManager.withTokenRenewal(email, async () => {
     try {
-      return await calendarService.deleteEvent(email, eventId, sendUpdates);
+      await calendarService.deleteEvent(email, eventId, sendUpdates, deletionScope);
+      // Return a success response object instead of void
+      return {
+        status: 'success',
+        message: 'Event deleted successfully',
+        details: deletionScope ? 
+          `Event deleted with scope: ${deletionScope}` : 
+          'Event deleted completely'
+      };
     } catch (error) {
+      // Check if this is a CalendarError with a specific code
+      if (error instanceof CalendarError) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          error.message,
+          error.details
+        );
+      }
+      
       throw new McpError(
         ErrorCode.InternalError,
         `Failed to delete calendar event: ${error instanceof Error ? error.message : 'Unknown error'}`

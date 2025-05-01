@@ -95,6 +95,13 @@ export interface ManageEventResponse {
   }[];
 }
 
+export interface DeleteEventParams {
+  email: string;
+  eventId: string;
+  sendUpdates?: 'all' | 'externalOnly' | 'none';
+  deletionScope?: 'entire_series' | 'this_and_following';
+}
+
 export class CalendarError extends Error implements CalendarError {
   code: string;
   details?: string;

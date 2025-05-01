@@ -525,16 +525,153 @@ export class CalendarService {
 
   /**
    * Delete a calendar event
+   * 
+   * @param email User's email address
+   * @param eventId ID of the event to delete
+   * @param sendUpdates Whether to send update notifications
+   * @param deletionScope For recurring events, specifies which instances to delete
    */
-  async deleteEvent(email: string, eventId: string, sendUpdates: 'all' | 'externalOnly' | 'none' = 'all'): Promise<void> {
+  async deleteEvent(
+    email: string, 
+    eventId: string, 
+    sendUpdates: 'all' | 'externalOnly' | 'none' = 'all',
+    deletionScope?: 'entire_series' | 'this_and_following'
+  ): Promise<void> {
     const calendar = await this.getCalendarClient(email);
 
     return this.handleCalendarOperation(email, async () => {
-      await calendar.events.delete({
-        calendarId: 'primary',
-        eventId,
-        sendUpdates
-      });
+      // If no deletion scope is specified or it's set to delete entire series,
+      // use the default behavior
+      if (!deletionScope || deletionScope === 'entire_series') {
+        await calendar.events.delete({
+          calendarId: 'primary',
+          eventId,
+          sendUpdates
+        });
+        return;
+      }
+
+      // For 'this_and_following', we need to check if this is a recurring event
+      try {
+        const { data: event } = await calendar.events.get({
+          calendarId: 'primary',
+          eventId
+        });
+        
+        const isRecurring = !!event.recurringEventId || !!event.recurrence;
+        
+        if (!isRecurring) {
+          throw new CalendarError(
+            'Deletion scope can only be applied to recurring events',
+            'INVALID_REQUEST',
+            'The specified event is not recurring'
+          );
+        }
+
+        // For 'this_and_following', we need to use a different approach
+        // Google Calendar API handles recurring events differently
+        
+        if (event.recurringEventId) {
+          // This is an instance of a recurring event
+          // We need to get the master event to update its recurrence rules
+          const { data: masterEvent } = await calendar.events.get({
+            calendarId: 'primary',
+            eventId: event.recurringEventId
+          });
+          
+          if (!masterEvent || !masterEvent.recurrence) {
+            throw new CalendarError(
+              'Failed to retrieve master event',
+              'NOT_FOUND',
+              'Could not find the master event for this recurring instance'
+            );
+          }
+          
+          // Get the instance date to use as the cutoff
+          const instanceDate = new Date(event.start?.dateTime || event.start?.date || '');
+          
+          // Format the date as YYYYMMDD for UNTIL parameter in RRULE
+          // Subtract one day to make it exclusive (end before this instance)
+          instanceDate.setDate(instanceDate.getDate() - 1);
+          const formattedDate = instanceDate.toISOString().slice(0, 10).replace(/-/g, '');
+          
+          // Update the recurrence rules to end before this instance
+          const updatedRules = masterEvent.recurrence.map(rule => {
+            if (rule.startsWith('RRULE:')) {
+              // If the rule already has an UNTIL parameter, we need to replace it
+              if (rule.includes('UNTIL=')) {
+                return rule.replace(/UNTIL=\d+T\d+Z?/, `UNTIL=${formattedDate}`);
+              } else {
+                // Otherwise, add the UNTIL parameter
+                return `${rule};UNTIL=${formattedDate}`;
+              }
+            }
+            return rule;
+          });
+          
+          // Update the master event with the new recurrence rules
+          await calendar.events.patch({
+            calendarId: 'primary',
+            eventId: event.recurringEventId,
+            sendUpdates,
+            requestBody: {
+              recurrence: updatedRules
+            }
+          });
+          
+          // Now delete this specific instance
+          await calendar.events.delete({
+            calendarId: 'primary',
+            eventId,
+            sendUpdates
+          });
+        } else if (event.recurrence) {
+          // This is a master event with recurrence rules
+          // We need to update the recurrence rule to end before this instance
+          const eventDate = new Date(event.start?.dateTime || event.start?.date || '');
+          
+          // Format the date as YYYYMMDD for UNTIL parameter in RRULE
+          const formattedDate = eventDate.toISOString().slice(0, 10).replace(/-/g, '');
+          
+          // Get the existing recurrence rules
+          const recurrenceRules = event.recurrence || [];
+          
+          // Update the RRULE to include UNTIL parameter
+          const updatedRules = recurrenceRules.map(rule => {
+            if (rule.startsWith('RRULE:')) {
+              // If the rule already has an UNTIL parameter, we need to replace it
+              if (rule.includes('UNTIL=')) {
+                return rule.replace(/UNTIL=\d+T\d+Z?/, `UNTIL=${formattedDate}`);
+              } else {
+                // Otherwise, add the UNTIL parameter
+                return `${rule};UNTIL=${formattedDate}`;
+              }
+            }
+            return rule;
+          });
+          
+          // Update the master event with the new recurrence rules
+          await calendar.events.patch({
+            calendarId: 'primary',
+            eventId,
+            sendUpdates,
+            requestBody: {
+              recurrence: updatedRules
+            }
+          });
+        }
+      } catch (error) {
+        if (error instanceof CalendarError) {
+          throw error;
+        }
+        
+        // If we can't get the event or another error occurs, fall back to simple delete
+        await calendar.events.delete({
+          calendarId: 'primary',
+          eventId,
+          sendUpdates
+        });
+      }
     });
   }
 }

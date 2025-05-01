@@ -167,4 +167,150 @@ describe('CalendarService', () => {
         .rejects.toThrow();
     });
   });
+
+  describe('deleteEvent', () => {
+    beforeEach(() => {
+      // Add delete method to mock
+      mockCalendarClient.events.delete = jest.fn().mockResolvedValue({});
+    });
+
+    it('should delete a single event with default parameters', async () => {
+      await calendarService.deleteEvent(mockEmail, 'event1');
+      
+      expect(mockCalendarClient.events.delete).toHaveBeenCalledWith({
+        calendarId: 'primary',
+        eventId: 'event1',
+        sendUpdates: 'all'
+      });
+    });
+
+    it('should delete a single event with custom sendUpdates', async () => {
+      await calendarService.deleteEvent(mockEmail, 'event1', 'none');
+      
+      expect(mockCalendarClient.events.delete).toHaveBeenCalledWith({
+        calendarId: 'primary',
+        eventId: 'event1',
+        sendUpdates: 'none'
+      });
+    });
+
+    it('should delete entire series of a recurring event', async () => {
+      await calendarService.deleteEvent(mockEmail, 'recurring1', 'all', 'entire_series');
+      
+      expect(mockCalendarClient.events.delete).toHaveBeenCalledWith({
+        calendarId: 'primary',
+        eventId: 'recurring1',
+        sendUpdates: 'all'
+      });
+    });
+
+    it('should handle "this_and_following" for a recurring event instance', async () => {
+      // Mock a recurring event instance
+      (mockCalendarClient.events.get as jest.Mock).mockResolvedValueOnce({
+        data: {
+          id: 'instance1',
+          recurringEventId: 'master1',
+          start: { dateTime: '2024-05-15T10:00:00Z' }
+        }
+      });
+
+      // Mock the master event
+      (mockCalendarClient.events.get as jest.Mock).mockResolvedValueOnce({
+        data: {
+          id: 'master1',
+          recurrence: ['RRULE:FREQ=WEEKLY;COUNT=10'],
+          start: { dateTime: '2024-05-01T10:00:00Z' }
+        }
+      });
+
+      await calendarService.deleteEvent(mockEmail, 'instance1', 'all', 'this_and_following');
+      
+      // Should get the instance
+      expect(mockCalendarClient.events.get).toHaveBeenCalledWith({
+        calendarId: 'primary',
+        eventId: 'instance1'
+      });
+
+      // Should get the master event
+      expect(mockCalendarClient.events.get).toHaveBeenCalledWith({
+        calendarId: 'primary',
+        eventId: 'master1'
+      });
+
+      // Should update the master event's recurrence rule
+      expect(mockCalendarClient.events.patch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          calendarId: 'primary',
+          eventId: 'master1',
+          requestBody: {
+            recurrence: expect.arrayContaining([
+              expect.stringMatching(/RRULE:FREQ=WEEKLY;COUNT=10;UNTIL=\d+/)
+            ])
+          }
+        })
+      );
+
+      // Should delete the instance
+      expect(mockCalendarClient.events.delete).toHaveBeenCalledWith({
+        calendarId: 'primary',
+        eventId: 'instance1',
+        sendUpdates: 'all'
+      });
+    });
+
+    it('should handle "this_and_following" for a master recurring event', async () => {
+      // Mock a master recurring event
+      (mockCalendarClient.events.get as jest.Mock).mockResolvedValueOnce({
+        data: {
+          id: 'master1',
+          recurrence: ['RRULE:FREQ=WEEKLY;COUNT=10'],
+          start: { dateTime: '2024-05-01T10:00:00Z' }
+        }
+      });
+
+      await calendarService.deleteEvent(mockEmail, 'master1', 'all', 'this_and_following');
+      
+      // Should update the recurrence rule
+      expect(mockCalendarClient.events.patch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          calendarId: 'primary',
+          eventId: 'master1',
+          requestBody: {
+            recurrence: expect.arrayContaining([
+              expect.stringMatching(/RRULE:FREQ=WEEKLY;COUNT=10;UNTIL=\d+/)
+            ])
+          }
+        })
+      );
+    });
+
+    it('should throw error when using "this_and_following" on a non-recurring event', async () => {
+      // Mock a non-recurring event
+      (mockCalendarClient.events.get as jest.Mock).mockResolvedValueOnce({
+        data: {
+          id: 'single1',
+          summary: 'Single Event',
+          start: { dateTime: '2024-05-01T10:00:00Z' }
+        }
+      });
+
+      await expect(
+        calendarService.deleteEvent(mockEmail, 'single1', 'all', 'this_and_following')
+      ).rejects.toThrow('Deletion scope can only be applied to recurring events');
+    });
+
+    it('should handle errors gracefully', async () => {
+      (mockCalendarClient.events.get as jest.Mock).mockRejectedValueOnce(new Error('API error'));
+      (mockCalendarClient.events.delete as jest.Mock).mockResolvedValueOnce({});
+
+      // Should fall back to simple delete
+      await calendarService.deleteEvent(mockEmail, 'event1', 'all', 'this_and_following');
+      
+      expect(mockCalendarClient.events.delete).toHaveBeenCalledWith({
+        calendarId: 'primary',
+        eventId: 'event1',
+        sendUpdates: 'all'
+      });
+    });
+  });
 });
