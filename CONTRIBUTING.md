@@ -16,26 +16,39 @@ Thank you for your interest in contributing to the Google Workspace MCP project!
    mkdir -p ~/.mcp/google-workspace-mcp
    ```
 
-4. Run the container with your Google API credentials:
+4. Set up Google Cloud OAuth credentials:
+   - Create OAuth 2.0 credentials in Google Cloud Console
+   - **Important**: Choose "Web application" type (not Desktop)
+   - Set redirect URI to: `http://localhost:8080`
+   - Note your Client ID and Client Secret
+
+5. Run the container with your Google API credentials:
    ```bash
    docker run -i --rm \
+     -p 8080:8080 \
      -v ~/.mcp/google-workspace-mcp:/app/config \
      -e GOOGLE_CLIENT_ID=your_client_id \
      -e GOOGLE_CLIENT_SECRET=your_client_secret \
-     -e GOOGLE_REDIRECT_URI=urn:ietf:wg:oauth:2.0:oob \
+     -e LOG_MODE=strict \
      google-workspace-mcp:local
    ```
 
 Note: For local development, you can also mount the source code directory:
 ```bash
 docker run -i --rm \
+  -p 8080:8080 \
   -v ~/.mcp/google-workspace-mcp:/app/config \
   -v $(pwd)/src:/app/src \
   -e GOOGLE_CLIENT_ID=your_client_id \
   -e GOOGLE_CLIENT_SECRET=your_client_secret \
-  -e GOOGLE_REDIRECT_URI=urn:ietf:wg:oauth:2.0:oob \
+  -e LOG_MODE=strict \
   google-workspace-mcp:local
 ```
+
+**Key Development Notes**:
+- Port mapping `-p 8080:8080` is required for OAuth callback handling
+- OAuth credentials must be "Web application" type with `http://localhost:8080` redirect URI
+- The callback server automatically starts when the OAuth client initializes
 
 ## Development Workflow
 

@@ -10,90 +10,41 @@ Your calendar becomes a trusted ally in the daily juggle. No more double-booked 
 
 Turn Google Drive from a file dump into your digital command center. Every document finds its place, every folder tells a story. Share files with exactly the right people - no more "who can edit this?" confusion. Looking for that presentation from last week's meeting? Search not just names, but what's inside your files. Whether you're organizing a small project or managing a mountain of documents, everything stays right where you need it.
 
-## TL;DR Setup
+## Key Features
 
-> **Note**: For AI assistants like Cline, see [llms-install.md](llms-install.md) for specialized installation guidance.
+- **Gmail Management**: Search, send, organize emails with advanced filtering and label management
+- **Calendar Operations**: Create, update, and manage events with full scheduling capabilities
+- **Drive Integration**: Upload, download, search, and manage files with permission controls
+- **Contact Access**: Retrieve and manage your Google contacts
+- **Secure Authentication**: OAuth 2.0 flow with automatic token refresh
+- **Multi-Account Support**: Manage multiple Google accounts simultaneously
 
-1. Create Google Cloud Project:
-   ```bash
-   # Go to Google Cloud Console
-   https://console.cloud.google.com
-   → Create Project
-   → Enable Gmail API and Calendar API
-   → Configure OAuth consent screen (External)
-   → Create OAuth Desktop Client ID and Secret
-   ```
+## Quick Start
 
-2. Add to Cline settings (e.g., `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`):
-   ```json
-   {
-     "mcpServers": {
-       "google-workspace-mcp": {
-         "command": "docker",
-         "args": [
-           "run",
-           "--rm",
-           "-i",
-           "-v", "/home/aaron/.mcp/google-workspace-mcp:/app/config",
-           "-v", "/home/aaron/Documents/workspace-mcp-files:/app/workspace",
-           "-e", "GOOGLE_CLIENT_ID",
-           "-e", "GOOGLE_CLIENT_SECRET",
-           "-e", "LOG_MODE=strict",
-           "ghcr.io/aaronsb/google-workspace-mcp:latest"
-         ],
-         "env": {
-           "GOOGLE_CLIENT_ID": "123456789012-abcdef3gh1jklmn2pqrs4uvw5xyz6789.apps.googleusercontent.com",
-           "GOOGLE_CLIENT_SECRET": "GOCSPX-abcdefghijklmnopqrstuvwxyz1234"
-         },
-         "autoApprove": [],
-         "disabled": false
-       }
-     }
-   }
-   ```
+### Prerequisites
 
-   Logging modes:
-   - `normal` (default): Uses appropriate console methods for each log level
-   - `strict`: Routes all non-JSON-RPC messages to stderr (recommended for Claude desktop)
-
-4. Restart Cline/Claude
-
-5. Just ask the AI to "add my Google account" - it will guide you through the authentication process conversationally.
-
-See [detailed setup guide](#prerequisites) for more information.
-
-## Prerequisites
-
-> **Important:**  
-> Before starting the MCP server, you must create the config directory (e.g., `~/.mcp/google-workspace-mcp`) yourself, and ensure it is owned by your user account.  
-> If this directory is missing or owned by root, the server will not be able to create or update configuration files and will fail to start.
-
-Before using this MCP server, you must set up your own Google Cloud Project with access to Google Workspace APIs:
-
-1. Create a new project in [Google Cloud Console](https://console.cloud.google.com)
-2. Enable the required APIs:
-   - Gmail API
-   - Google Calendar API
-   - Google Drive API
-3. Configure the OAuth consent screen:
-   - Set up as "External"
+1. **Google Cloud Project Setup**:
+   - Create a project in [Google Cloud Console](https://console.cloud.google.com)
+   - Enable Gmail API, Calendar API, and Drive API
+   - Configure OAuth consent screen as "External"
    - Add yourself as a test user
-   - Add required scopes for Gmail, Calendar, and Drive
-4. Create OAuth 2.0 credentials:
-   - Choose "Desktop application" type
-   - Note your Client ID and Client Secret
-   - Use "urn:ietf:wg:oauth:2.0:oob" as the redirect URI (this enables out-of-band authentication)
 
-The MCP server requires:
-1. Your Google OAuth Client ID and Secret from the steps above
-2. Local directory path for storing configuration (recommended: `~/.mcp/google-workspace-mcp`)
+2. **OAuth Credentials**:
+   - Create OAuth 2.0 credentials
+   - Choose "Web application" type
+   - Set redirect URI to: `http://localhost:8080`
+   - Save your Client ID and Client Secret
 
-Note: This server uses out-of-band (OOB) authentication flow, which means you'll need to manually copy-paste authorization codes during the initial setup of each account.
+3. **Local Setup**:
+   - Install Docker
+   - Create config directory: `mkdir -p ~/.mcp/google-workspace-mcp`
+       - If the directory already exists, ensure your user owns it
 
-### Using with Cline
+### Configuration
 
-Add the following configuration to your Cline MCP settings:
+Add the server to your MCP client configuration:
 
+**For Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
@@ -103,432 +54,202 @@ Add the following configuration to your Cline MCP settings:
         "run",
         "--rm",
         "-i",
-        "-v", "/home/aaron/.mcp/google-workspace-mcp:/app/config",
+        "-p", "8080:8080",
+        "-v", "~/.mcp/google-workspace-mcp:/app/config",
+        "-v", "~/Documents/workspace-mcp-files:/app/workspace",
         "-e", "GOOGLE_CLIENT_ID",
         "-e", "GOOGLE_CLIENT_SECRET",
         "-e", "LOG_MODE=strict",
         "ghcr.io/aaronsb/google-workspace-mcp:latest"
       ],
       "env": {
-        "GOOGLE_CLIENT_ID": "123456789012-abcdef3gh1jklmn2pqrs4uvw5xyz6789.apps.googleusercontent.com",
-        "GOOGLE_CLIENT_SECRET": "GOCSPX-abcdefghijklmnopqrstuvwxyz1234"
-      },
-      "autoApprove": [],
-      "disabled": false
+        "GOOGLE_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
+        "GOOGLE_CLIENT_SECRET": "your-client-secret"
+      }
     }
   }
 }
 ```
 
+**For Cline** (`~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`):
+```json
+{
+  "mcpServers": {
+    "google-workspace-mcp": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-p", "8080:8080",
+        "-v", "~/.mcp/google-workspace-mcp:/app/config",
+        "-v", "~/Documents/workspace-mcp-files:/app/workspace",
+        "-e", "GOOGLE_CLIENT_ID",
+        "-e", "GOOGLE_CLIENT_SECRET",
+        "-e", "LOG_MODE=strict",
+        "ghcr.io/aaronsb/google-workspace-mcp:latest"
+      ],
+      "env": {
+        "GOOGLE_CLIENT_ID": "your-client-id.apps.googleusercontent.com",
+        "GOOGLE_CLIENT_SECRET": "your-client-secret"
+      }
+    }
+  }
+}
+```
+
+**Key Configuration Notes**:
+- Port mapping `-p 8080:8080` is required for OAuth callback handling
+- Replace placeholder credentials with your actual Google Cloud OAuth credentials
+- The `LOG_MODE=strict` setting is recommended but not required
+
+Logging modes:
+- normal (default): Uses appropriate console methods for each log level
+- strict: Routes all non-JSON-RPC messages to stderr
+
+### Authentication
+
+1. Restart your MCP client after configuration
+2. Ask your AI assistant to "add my Google account"
+3. Follow the OAuth flow:
+   - Click the provided authorization URL
+   - Sign in to Google and grant permissions
+   - Copy the authorization code from the success page
+   - Provide the code back to complete authentication
+
+## Architecture
+
+### OAuth Flow
+
+The server implements a secure OAuth 2.0 flow:
+
+1. **Callback Server**: Automatically starts on `localhost:8080` to handle OAuth redirects
+2. **Authorization**: Generates Google OAuth URLs for user authentication
+3. **Token Management**: Securely stores and automatically refreshes access tokens
+4. **Multi-Account**: Supports multiple Google accounts with isolated token storage
+
 ### File Management
 
-The server automatically manages files in a structured way:
+Files are organized in a structured workspace:
 
 ```
 ~/Documents/workspace-mcp-files/
-├── [email_1@domain.com]/
+├── [email@domain.com]/
 │   ├── downloads/        # Files downloaded from Drive
 │   └── uploads/         # Files staged for upload
-├── [email_2@domain.com]/
+├── [email2@domain.com]/
 │   ├── downloads/
 │   └── uploads/
 └── shared/
-    └── temp/           # Temporary files (cleaned up automatically)
+    └── temp/           # Temporary files (auto-cleanup)
 ```
-
-The WorkspaceManager creates and maintains this structure automatically:
-- Creates directories as needed when files are downloaded/uploaded
-- Organizes files by user email
-- Handles temporary file cleanup
-- Maintains proper permissions
-
-You can customize the workspace location by setting the `WORKSPACE_BASE_PATH` environment variable.
-
-### Manual Usage
-
-> **Important:**  
-> The config directory you mount (e.g., `~/.mcp/google-workspace-mcp`) must exist and be owned by your user before starting the container.  
-> If it does not exist, create it with `mkdir -p ~/.mcp/google-workspace-mcp && chown $USER ~/.mcp/google-workspace-mcp`.  
-> The server will attempt to create `accounts.json` automatically if it is missing, but only if it has write access to the directory.
-
-You can run the container directly:
-
-```bash
-docker run -i --rm \
-  -v ~/.mcp/google-workspace-mcp:/app/config \
-  -v ~/Documents/workspace-mcp-files:/app/workspace \
-  -e GOOGLE_CLIENT_ID=123456789012-abcdef3gh1jklmn2pqrs4uvw5xyz6789.apps.googleusercontent.com \
-  -e GOOGLE_CLIENT_SECRET=GOCSPX-abcdefghijklmnopqrstuvwxyz1234 \
-  -e LOG_MODE=strict \
-  ghcr.io/aaronsb/google-workspace-mcp:latest
-```
-
-The server will automatically:
-- Create and manage all necessary configuration files
-- Handle secure storage of credentials and tokens
-- Maintain proper file permissions
-
-### Development Build
-
-#### Local Build Script
-
-For a fast, CI-like local build and Docker image creation, use the provided script:
-
-```bash
-# Run the local build pipeline (installs, lints, tests, builds, and creates Docker image)
-./scripts/build-local.sh
-```
-
-- By default, the image is tagged as `google-workspace-mcp:local`.
-- To use verbose output (print all logs to the console), add `--verbose`:
-  ```bash
-  ./scripts/build-local.sh --verbose
-  ```
-- To change the Docker image tag:
-  ```bash
-  ./scripts/build-local.sh --tag my-custom-tag
-  ```
-- Log files are written to `/tmp/google-workspace-mcp/` for review.
-
-The build script uses `Dockerfile.local` which is optimized for local development without platform-specific settings or BuildKit features. This ensures compatibility across different development environments.
-
-#### Manual Docker Build
-
-You can also build and run the container manually:
-
-```bash
-# Build the image using the standard Dockerfile
-docker build -t google-workspace-mcp:local .
-
-# Or build using the local development Dockerfile (recommended for local development)
-docker build -t google-workspace-mcp:local -f Dockerfile.local .
-
-# Run with required environment variables
-docker run -i --rm \
-  -v ~/.mcp/google-workspace-mcp:/app/config \
-  -v ~/Documents/workspace-mcp-files:/app/workspace \
-  -e GOOGLE_CLIENT_ID=123456789012-abcdef3gh1jklmn2pqrs4uvw5xyz6789.apps.googleusercontent.com \
-  -e GOOGLE_CLIENT_SECRET=GOCSPX-abcdefghijklmnopqrstuvwxyz1234 \
-  -e LOG_MODE=strict \
-  google-workspace-mcp:local
-```
-
-## Features
-
-- Simplified attachment handling with automatic metadata management
-- Streamlined email responses focused on essential information
-- Robust attachment indexing and retrieval system
-- Efficient file management across Gmail and Calendar
-- Automatic cleanup of expired attachments
 
 ## Available Tools
 
 ### Account Management
-- `list_workspace_accounts` (aliases: list_accounts, get_accounts, show_accounts)
-  - List all configured Google accounts and authentication status
-  - Must be called first before other operations
-  - Validates required API scopes
-  - Handles multiple account selection
-
-- `authenticate_workspace_account` (aliases: auth_account, add_account, connect_account)
-  - Add and authenticate Google accounts for API access
-  - Supports account categorization (work, personal)
-  - Handles OAuth flow with user interaction
-  - Manages token refresh automatically
-
-- `remove_workspace_account` (aliases: delete_account, disconnect_account, remove_account)
-  - Remove Google accounts and associated tokens
-  - Clean up stored credentials
+- `list_workspace_accounts` - List configured accounts and authentication status
+- `authenticate_workspace_account` - Add and authenticate Google accounts
+- `remove_workspace_account` - Remove accounts and associated tokens
 
 ### Gmail Operations
-
-#### Messages and Search
-- `search_workspace_emails` (aliases: search_emails, find_emails, query_emails)
-  - Advanced email filtering capabilities:
-    - Sender/recipient filtering
-    - Subject and content search
-    - Date range filtering
-    - Attachment presence
-    - Label-based filtering
-    - Complex Gmail query syntax support
-  - Common search patterns for:
-    - Meeting emails
-    - HR/Admin communications
-    - Team updates
-    - Newsletters
-
-- `send_workspace_email` (aliases: send_email, send_mail, create_email)
-  - Send emails with full formatting
-  - Support for CC/BCC recipients
-  - Attachment handling
-  - Email threading support
-
-#### Settings and Configuration
-- `get_workspace_gmail_settings` (aliases: get_gmail_settings, gmail_settings, get_mail_settings)
-  - Access account settings
-  - Language preferences
-  - Signature configuration
-  - Vacation responder status
-  - Filter and forwarding rules
-
-#### Draft Management
-- `manage_workspace_draft` (aliases: manage_draft, draft_operation, handle_draft)
-  - Complete draft CRUD operations:
-    - Create new drafts
-    - Read existing drafts
-    - Update draft content
-    - Delete drafts
-    - Send drafts
-  - Support for:
-    - New email drafts
-    - Reply drafts with threading
-    - Draft modifications
-    - Draft sending
-
-#### Label Management
-- `manage_workspace_label` (aliases: manage_label, label_operation, handle_label)
-  - Full label CRUD operations
-  - Support for nested labels
-  - Custom color configuration
-  - Visibility settings
-
-- `manage_workspace_label_assignment` (aliases: assign_label, modify_message_labels, change_message_labels)
-  - Apply/remove labels from messages
-  - Batch label modifications
-  - System label updates
-
-- `manage_workspace_label_filter` (aliases: manage_filter, handle_filter, filter_operation)
-  - Create and manage label filters
-  - Complex filtering criteria:
-    - Sender/recipient patterns
-    - Subject/content matching
-    - Attachment presence
-    - Message size rules
-  - Automated actions:
-    - Label application
-    - Importance marking
-    - Read status
-    - Archiving
+- `search_workspace_emails` - Advanced email search with filtering
+- `send_workspace_email` - Send emails with attachments and formatting
+- `manage_workspace_draft` - Create, update, and manage email drafts
+- `manage_workspace_label` - Create and manage Gmail labels
+- `manage_workspace_label_assignment` - Apply/remove labels from messages
+- `manage_workspace_label_filter` - Create automated label filters
+- `get_workspace_gmail_settings` - Access Gmail account settings
 
 ### Calendar Operations
-
-#### Event Management
-- `list_workspace_calendar_events` (aliases: list_events, get_events, show_events)
-  - List calendar events with filtering
-  - Date range specification
-  - Text search within events
-  - Customizable result limits
-
-- `get_workspace_calendar_event` (aliases: get_event, view_event, show_event)
-  - Detailed event information
-  - Attendee status
-  - Event settings
-
-- `manage_workspace_calendar_event` (aliases: manage_event, update_event, respond_to_event)
-  - Event response management:
-    - Accept/Decline invitations
-    - Mark as tentative
-    - Propose new times
-    - Update event times
-  - Comment support
-  - Time zone handling
-
-- `create_workspace_calendar_event` (aliases: create_event, new_event, schedule_event)
-  - Create new calendar events
-  - Support for:
-    - Single events
-    - Recurring events (RRULE format)
-    - Multiple attendees
-    - Time zone specification
-    - Event description
-    - Conflict checking
-
-- `delete_workspace_calendar_event` (aliases: delete_event, remove_event, cancel_event)
-  - Delete calendar events
-  - Notification options for attendees
-
-### Contacts Operations
-
-- `get_workspace_contacts` (aliases: get_contacts, list_contacts, fetch_contacts)
-  - Retrieve contacts from a Google account
-  - Support for:
-    - Basic contact information (names, emails, phones)
-    - Extended contact details
-    - Pagination for large contact lists
-  - Common use cases:
-    - Contact lookup
-    - Address book management
-    - Contact information retrieval
+- `list_workspace_calendar_events` - List and search calendar events
+- `get_workspace_calendar_event` - Get detailed event information
+- `create_workspace_calendar_event` - Create new events with attendees
+- `manage_workspace_calendar_event` - Update events and respond to invitations
+- `delete_workspace_calendar_event` - Delete calendar events
 
 ### Drive Operations
+- `list_drive_files` - List files with filtering and pagination
+- `search_drive_files` - Full-text search across Drive content
+- `upload_drive_file` - Upload files with metadata and permissions
+- `download_drive_file` - Download files with format conversion
+- `delete_drive_file` - Delete files and folders
+- `create_drive_folder` - Create organized folder structures
+- `update_drive_permissions` - Manage file sharing and permissions
 
-#### File Management
-- `list_drive_files` (aliases: list_files, get_files, show_files)
-  - List files with optional filtering
-  - Filter by folder
-  - Custom query support
-  - Sorting and pagination
-  - Field selection
+### Contacts Operations
+- `get_workspace_contacts` - Retrieve contact information and details
 
-- `search_drive_files` (aliases: search_files, find_files, query_files)
-  - Full text search across file content
-  - Filter by MIME type
-  - Filter by folder
-  - Include/exclude trashed files
-  - Advanced query options
+See [API Documentation](docs/API.md) for detailed usage examples.
 
-- `upload_drive_file` (aliases: upload_file, create_file, add_file)
-  - Upload new files
-  - Set file metadata
-  - Specify parent folders
-  - Support for various file types
+## Development
 
-- `download_drive_file` (aliases: download_file, get_file_content, fetch_file)
-  - Download any file type
-  - Export Google Workspace files
-  - Format conversion options
-  - Automatic MIME type handling
+### Local Development
 
-- `delete_drive_file` (aliases: delete_file, remove_file, trash_file)
-  - Delete files and folders
-  - Clean removal from Drive
-
-#### Folder Operations
-- `create_drive_folder` (aliases: create_folder, new_folder, add_folder)
-  - Create new folders
-  - Nested folder support
-  - Parent folder specification
-  - Folder metadata
-
-#### Permissions
-- `update_drive_permissions` (aliases: share_file, update_sharing, modify_permissions)
-  - Update sharing settings
-  - Multiple permission types:
-    - User permissions
-    - Group permissions
-    - Domain sharing
-    - Public access
-  - Various access roles:
-    - Owner
-    - Organizer
-    - File Organizer
-    - Writer
-    - Commenter
-    - Reader
-  - Discovery settings for public files
-
-See [API Documentation](docs/API.md) for detailed usage.
-
-## Coming Soon
-
-### Future Services
-- Admin SDK support
-- Additional Google services
-
-## Testing Strategy
-
-### Unit Testing Approach
-
-1. **Simplified Mocking**
-   - Use static mock responses for predictable testing
-   - Avoid complex end-to-end simulations in unit tests
-   - Focus on testing one piece of functionality at a time
-   - Mock external dependencies (OAuth, file system) with simple implementations
-
-2. **Test Organization**
-   - Group tests by functionality (e.g., account operations, file operations)
-   - Use clear, descriptive test names
-   - Keep tests focused and isolated
-   - Reset mocks and modules between tests
-
-3. **Mock Management**
-   - Use jest.resetModules() to ensure clean state
-   - Re-require modules after mock changes
-   - Track mock function calls explicitly
-   - Verify both function calls and results
-
-4. **File System Testing**
-   - Use simple JSON structures
-   - Focus on data correctness over formatting
-   - Test error scenarios (missing files, invalid JSON)
-   - Verify file operations without implementation details
-
-5. **Token Handling**
-   - Mock token validation with static responses
-   - Test success and failure scenarios separately
-   - Verify token operations without OAuth complexity
-   - Focus on account manager's token handling logic
-
-### Running Tests
+For local development and testing:
 
 ```bash
-# Run all tests
-npm test
+# Clone the repository
+git clone https://github.com/aaronsb/google-workspace-mcp.git
+cd google-workspace-mcp
 
-# Run specific test file
-npm test path/to/test.ts
+# Build local Docker image
+./scripts/build-local.sh
 
-# Run tests with coverage
-npm test -- --coverage
-
-# CI builds run all tests with coverage reporting
-npm run test:ci
+# Use local image in configuration
+# Replace "ghcr.io/aaronsb/google-workspace-mcp:latest" with "google-workspace-mcp:local"
 ```
-
-## Best Practices
-
-1. **Authentication**
-   - Store credentials securely in MCP settings
-   - Use minimal required scopes
-   - Handle token refresh properly
-
-2. **Error Handling**
-   - Check response status
-   - Handle auth errors appropriately
-   - Implement proper retries
-
-3. **Configuration & Security**
-   - Each user maintains their own Google Cloud Project
-   - Configure OAuth credentials in MCP settings
-   - Secure token storage in ~/.mcp/google-workspace-mcp
-   - Regular token rotation
-   - Never commit sensitive files to git
-   - Use proper file permissions for config directory
-
-4. **Local Development Setup**
-   - Configure OAuth credentials in MCP settings
-   - Create ~/.mcp/google-workspace-mcp directory
-   - Keep sensitive tokens out of version control
-   - Run authentication script for each account
 
 ## Troubleshooting
 
-### Common Setup Issues
+### Common Issues
 
-1. **Missing Configuration**
-   - Error: "GOOGLE_CLIENT_ID environment variable is required"
-   - Solution: Configure the OAuth credentials in your MCP settings file (see docs/API.md for details)
+**Authentication Errors**:
+- Verify OAuth credentials are correctly configured
+- Ensure APIs (Gmail, Calendar, Drive) are enabled in Google Cloud
+- Check that you're added as a test user in OAuth consent screen
+- Confirm redirect URI is set to `http://localhost:8080`
 
-2. **Authentication Errors**
-   - Error: "Invalid OAuth credentials"
-   - Solution:
-     - Verify your Google Cloud project is properly configured
-     - Ensure you've added yourself as a test user in the OAuth consent screen
-     - Check that both Gmail API and Google Calendar API are enabled
-     - Verify credentials in MCP settings match your OAuth client configuration
+**Connection Issues**:
+- Verify port 8080 is available and not blocked by firewall
+- Ensure Docker has permission to bind to port 8080
+- Check that config directory exists and has proper permissions
 
-3. **Token Issues**
-   - Error: "Token refresh failed"
-   - Solution: Remove the account using `remove_workspace_account` and re-authenticate
-   - Check that your Google Cloud project has the necessary API scopes enabled
+**Docker Issues**:
+macOS:
+- Shut down Docker fully from command line with `pkill -SIGHUP -f /Applications/Docker.app 'docker serve'`
+- Restart Docker Desktop
+- Restart your MCP client (Claude Desktop or Cursor/Cline/etc.)
 
-4. **Directory Structure**
-   - Error: "Directory not found"
-   - Solution: Ensure ~/.mcp/google-workspace-mcp exists with proper permissions
-   - Verify Docker has access to mount the config directory
+Windows:
+- Open Task Manager (Ctrl+Shift+Esc)
+- Find and end the "Docker Desktop" process
+- Restart Docker Desktop from the Start menu
+- Restart your MCP client (Claude Desktop or Cursor/Cline/etc.)
 
-For additional help, consult the [Error Handling](docs/ERRORS.md) documentation.
+**Token Issues**:
+- Remove and re-authenticate accounts if tokens become invalid
+- Verify API scopes are properly configured in Google Cloud
+- Check token expiration and refresh logic
+
+### Getting Help
+
+For additional support:
+- Check [Error Documentation](docs/ERRORS.md)
+- Review [API Examples](docs/EXAMPLES.md)
+- Submit issues on GitHub
+
+## Security
+
+- OAuth credentials are stored securely in MCP client configuration
+- Access tokens are encrypted and stored locally
+- Automatic token refresh prevents credential exposure
+- Each user maintains their own Google Cloud Project
+- No credentials are transmitted to external servers
 
 ## License
 
-MIT License - See LICENSE file for details
+MIT License - See [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

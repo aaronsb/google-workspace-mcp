@@ -347,6 +347,10 @@ export class AccountManager {
     return this.oauthClient.generateAuthUrl(allScopes);
   }
 
+  async waitForAuthorizationCode(): Promise<string> {
+    return this.oauthClient.waitForAuthorizationCode();
+  }
+
   async getTokenFromCode(code: string): Promise<any> {
     const token = await this.oauthClient.getTokenFromCode(code);
     return token;

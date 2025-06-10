@@ -89,8 +89,8 @@ run_step "Type checking" "type-check" "npm run type-check" || exit 1
 # Run linting
 run_step "Linting" "lint" "npm run lint" || exit 1
 
-# Run tests (allowing failure for now since they're placeholder)
-run_step "Testing" "test" "npm run test || true"
+# Run tests (commented out since they're a placeholder)
+# run_step "Testing" "test" "npm run test || true"
 
 # Build TypeScript
 run_step "Building TypeScript" "build" "npm run build" || exit 1

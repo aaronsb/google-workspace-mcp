@@ -1,9 +1,11 @@
 import { OAuth2Client } from 'google-auth-library';
 import { AccountError } from './types.js';
+import { OAuthCallbackServer } from './callback-server.js';
 import logger from '../../utils/logger.js';
 
 export class GoogleOAuthClient {
   private oauth2Client: OAuth2Client;
+  private callbackServer: OAuthCallbackServer;
 
   constructor() {
     const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -17,13 +19,20 @@ export class GoogleOAuthClient {
       );
     }
 
+    this.callbackServer = OAuthCallbackServer.getInstance();
+    
     logger.info('Initializing OAuth client...');
     this.oauth2Client = new OAuth2Client(
       clientId,
       clientSecret,
-      'urn:ietf:wg:oauth:2.0:oob'
+      this.callbackServer.getCallbackUrl() // Use localhost:8080 instead of OOB
     );
     logger.info('OAuth client initialized successfully');
+    
+    // Ensure the callback server is running
+    this.callbackServer.ensureServerRunning().catch(error => {
+      logger.error('Failed to start OAuth callback server:', error);
+    });
   }
 
   getAuthClient(): OAuth2Client {
@@ -46,6 +55,11 @@ export class GoogleOAuthClient {
     });
     logger.debug('Authorization URL generated successfully');
     return url;
+  }
+
+  async waitForAuthorizationCode(): Promise<string> {
+    logger.info('Starting OAuth callback server and waiting for authorization...');
+    return await this.callbackServer.waitForAuthorizationCode();
   }
 
   async getTokenFromCode(code: string): Promise<any> {
