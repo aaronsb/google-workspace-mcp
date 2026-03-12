@@ -70,9 +70,10 @@ export class DriveService extends BaseGoogleService<ReturnType<typeof google.dri
 
       const response = await client.files.list({
         q: query.join(' and ') || undefined,
-        pageSize: options.pageSize,
+        pageSize: Math.min(options.pageSize || 25, 100),
+        pageToken: options.pageToken,
         orderBy: options.orderBy?.join(','),
-        fields: options.fields?.join(',') || 'files(id, name, mimeType, modifiedTime, size)',
+        fields: options.fields?.join(',') || 'files(id, name, mimeType, modifiedTime, size), nextPageToken',
       });
 
       return {
@@ -269,9 +270,10 @@ export class DriveService extends BaseGoogleService<ReturnType<typeof google.dri
 
       const response = await client.files.list({
         q: query.join(' and ') || undefined,
-        pageSize: options.pageSize,
+        pageSize: Math.min(options.pageSize || 25, 100),
+        pageToken: options.pageToken,
         orderBy: options.orderBy?.join(','),
-        fields: options.fields?.join(',') || 'files(id, name, mimeType, modifiedTime, size)',
+        fields: options.fields?.join(',') || 'files(id, name, mimeType, modifiedTime, size), nextPageToken',
       });
 
       return {

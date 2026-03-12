@@ -283,7 +283,11 @@ export const gmailTools: ToolMetadata[] = [
         },
         maxResults: {
           type: 'number',
-          description: 'Maximum number of emails to return (default: 10)'
+          description: 'Maximum number of emails to return (default: 25, max: 100)'
+        },
+        pageToken: {
+          type: 'string',
+          description: 'Token to retrieve the next page of results'
         }
       },
       required: ['email']
@@ -513,7 +517,11 @@ export const calendarTools: ToolMetadata[] = [
         },
         maxResults: {
           type: 'number',
-          description: 'Maximum number of events to return (default: 10)'
+          description: 'Maximum number of events to return (default: 25, max: 100)'
+        },
+        pageToken: {
+          type: 'string',
+          description: 'Token to retrieve the next page of results'
         },
         timeMin: {
           type: 'string',
@@ -1089,7 +1097,11 @@ export const driveTools: ToolMetadata[] = [
             },
             pageSize: {
               type: 'number',
-              description: 'Maximum number of files to return'
+              description: 'Maximum number of files to return (default: 25, max: 100)'
+            },
+            pageToken: {
+              type: 'string',
+              description: 'Token to retrieve the next page of results'
             },
             orderBy: {
               type: 'array',
@@ -1160,7 +1172,11 @@ export const driveTools: ToolMetadata[] = [
             },
             pageSize: {
               type: 'number',
-              description: 'Maximum number of files to return'
+              description: 'Maximum number of files to return (default: 25, max: 100)'
+            },
+            pageToken: {
+              type: 'string',
+              description: 'Token to retrieve the next page of results'
             }
           }
         }
@@ -1445,7 +1461,7 @@ export const contactsTools: ToolMetadata[] = [
         },
         pageSize: {
           type: "number",
-          description: "Maximum number of contacts to return (default: 100)"
+          description: "Maximum number of contacts to return (default: 50, max: 100)"
         },
         pageToken: {
           type: "string",

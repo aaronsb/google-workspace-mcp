@@ -45,6 +45,7 @@ export interface GetEventsParams {
   maxResults?: number;
   timeMin?: string;
   timeMax?: string;
+  pageToken?: string;
 }
 
 export interface CreateEventParams {

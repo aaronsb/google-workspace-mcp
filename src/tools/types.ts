@@ -22,11 +22,48 @@ export interface ToolArguments {
 }
 
 /**
+ * Global pagination interface for all list operations
+ * @property pageToken - Token to retrieve the next page of results
+ * @property pageSize - Maximum number of items to return per page
+ */
+export interface PaginationOptions {
+  pageToken?: string;
+  pageSize?: number;
+}
+
+/**
+ * Standard pagination response metadata
+ * @property nextPageToken - Token for the next page, null if no more pages
+ * @property previousPageToken - Token for the previous page, null if first page
+ * @property totalItems - Total number of items available (if known)
+ * @property currentPage - Current page number (1-based)
+ * @property totalPages - Total number of pages (if known)
+ * @property hasMore - Whether there are more results available
+ */
+export interface PaginationMetadata {
+  nextPageToken?: string;
+  previousPageToken?: string;
+  totalItems?: number;
+  currentPage?: number;
+  totalPages?: number;
+  hasMore: boolean;
+}
+
+/**
  * Common arguments required by all workspace tools
  * @property email - The Google Workspace account email address
  */
 export interface BaseToolArguments extends Record<string, unknown> {
   email: string;
+}
+
+/**
+ * Base arguments for tools that support pagination
+ * @property email - The Google Workspace account email address
+ * @property pagination - Pagination options
+ */
+export interface PaginatedToolArguments extends BaseToolArguments {
+  pagination?: PaginationOptions;
 }
 
 /**

@@ -47,10 +47,11 @@ describe('CalendarService', () => {
 
       const result = await calendarService.getEvents({ email: mockEmail });
 
-      expect(result).toEqual(expect.arrayContaining([
+      expect(result.events).toEqual(expect.arrayContaining([
         expect.objectContaining({ id: 'event1' }),
         expect.objectContaining({ id: 'event2' })
       ]));
+      expect(result.nextPageToken).toBeUndefined();
     });
 
     it('should handle empty results', async () => {
@@ -58,7 +59,8 @@ describe('CalendarService', () => {
         Promise.resolve({ data: {} })
       );
       const result = await calendarService.getEvents({ email: mockEmail });
-      expect(result).toEqual([]);
+      expect(result.events).toEqual([]);
+      expect(result.nextPageToken).toBeUndefined();
     });
 
     it('should handle invalid date format', async () => {

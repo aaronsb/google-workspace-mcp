@@ -120,7 +120,7 @@ export class EmailService {
    */
   async getEmails({ email, search = {}, options = {}, messageIds }: GetEmailsParams): Promise<GetEmailsResponse> {
     try {
-      const maxResults = options.maxResults || 10;
+      const maxResults = Math.min(options.maxResults || 25, 100);
       
       let messages;
       let nextPageToken: string | undefined;

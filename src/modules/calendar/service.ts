@@ -234,15 +234,16 @@ export class CalendarService {
   /**
    * Retrieve calendar events with optional filtering
    */
-  async getEvents({ email, query, maxResults = 10, timeMin, timeMax }: GetEventsParams): Promise<EventResponse[]> {
+  async getEvents({ email, query, maxResults = 25, timeMin, timeMax, pageToken }: GetEventsParams): Promise<{ events: EventResponse[], nextPageToken?: string }> {
     const calendar = await this.getCalendarClient(email);
 
     return this.handleCalendarOperation(email, async () => {
       const params: calendar_v3.Params$Resource$Events$List = {
         calendarId: 'primary',
-        maxResults,
+        maxResults: Math.min(maxResults || 25, 100),
         singleEvents: true,
-        orderBy: 'startTime'
+        orderBy: 'startTime',
+        pageToken
       };
 
       if (query) {
@@ -284,10 +285,11 @@ export class CalendarService {
       const { data } = await calendar.events.list(params);
 
       if (!data.items || data.items.length === 0) {
-        return [];
+        return { events: [], nextPageToken: undefined };
       }
 
-      return Promise.all(data.items.map(event => this.mapEventResponse(email, event)));
+      const events = await Promise.all(data.items.map(event => this.mapEventResponse(email, event)));
+      return { events, nextPageToken: data.nextPageToken || undefined };
     });
   }
 

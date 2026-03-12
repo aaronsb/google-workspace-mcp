@@ -55,14 +55,8 @@ interface SearchEmailsParams {
     includeSpam?: boolean;
     isUnread?: boolean;
   };
-  options?: {
-    maxResults?: number;
-    pageToken?: string;
-    format?: 'full' | 'metadata' | 'minimal';
-    includeHeaders?: boolean;
-    threadedView?: boolean;
-    sortOrder?: 'asc' | 'desc';
-  };
+  maxResults?: number;
+  pageToken?: string;
   messageIds?: string[];
 }
 
@@ -92,7 +86,7 @@ interface ManageDraftParams {
 
 export async function handleSearchWorkspaceEmails(params: SearchEmailsParams) {
   await initializeServices();
-  const { email, search = {}, options = {}, messageIds } = params;
+  const { email, search = {}, maxResults, pageToken, messageIds } = params;
 
   if (!email) {
     throw new McpError(
@@ -105,6 +99,12 @@ export async function handleSearchWorkspaceEmails(params: SearchEmailsParams) {
 
   return accountManager.withTokenRenewal(email, async () => {
     try {
+      // Construct options object from top-level parameters
+      const options = {
+        maxResults,
+        pageToken
+      };
+      
       return await gmailService.getEmails({ email, search, options, messageIds });
     } catch (error) {
       throw new McpError(
