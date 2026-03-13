@@ -1,7 +1,7 @@
 # Pivot Proposal: MCP Context Layer over Google Workspace CLI
 
-**Date:** 2026-03-12
-**Status:** Discussion draft — not a commitment
+**Date:** 2026-03-13
+**Status:** Discussion draft — assumptions validated
 
 ## Problem
 
@@ -79,10 +79,15 @@ Our project manually maintains TypeScript wrappers around a subset of these same
 
 ## What We Keep
 
-- **Account manager** (`src/modules/accounts/`) — multi-account registry, token management
-- **OAuth callback server** (`src/modules/accounts/callback-server.ts`) — automatic auth flow
+- **Account registry** (`accounts.json`) — which accounts exist and their metadata
 - **MCP server shell** (`src/tools/server.ts`) — protocol layer, tool dispatch
 - **Attachment optimization** (`src/modules/attachments/`) — context-efficient response shaping
+
+## What We No Longer Need
+
+- **OAuth callback server** — gws runs its own localhost callback; we just `xdg-open` the URL
+- **Token refresh logic** — gws handles token lifecycle internally
+- **Plaintext token storage** — gws uses AES-256-GCM encryption with OS keyring
 
 ## What We Build New
 
@@ -122,11 +127,44 @@ Progressive disclosure means an agent sees `list_accounts` first, then account-r
 ### 5. What about gws skills?
 gws ships 92 skills as SKILL.md files for agent consumption. We could expose these as MCP resources — agents can read the skill docs to understand what's possible before invoking tools. This aligns with progressive disclosure.
 
+## Auth Flow: Browser Invocation
+
+gws prints the OAuth URL to stderr and waits on a localhost callback. It does not open a browser itself. Our wrapper is ~20 lines:
+
+```typescript
+import { spawn } from 'child_process';
+import open from 'open'; // cross-platform: xdg-open (Linux), open (macOS), start (Windows)
+
+function authenticateAccount(clientId: string, clientSecret: string): Promise<AuthResult> {
+  const gws = spawn('gws', ['auth', 'login'], {
+    env: { ...process.env,
+      GOOGLE_WORKSPACE_CLI_CLIENT_ID: clientId,
+      GOOGLE_WORKSPACE_CLI_CLIENT_SECRET: clientSecret
+    }
+  });
+
+  // Capture auth URL from stderr, open in default browser
+  gws.stderr.on('data', (chunk) => {
+    const match = chunk.toString().match(/https:\/\/accounts\.google\.com\S+/);
+    if (match) open(match[0]);
+  });
+
+  // gws prints JSON result to stdout on completion
+  return new Promise((resolve) => {
+    let stdout = '';
+    gws.stdout.on('data', (d) => stdout += d);
+    gws.on('close', () => resolve(JSON.parse(stdout)));
+  });
+  // result: { status: 'success', account: 'user@gmail.com', credentials_file: '...' }
+}
+```
+
+This replaces our entire OAuth module (~500 lines), callback server, and token refresh logic.
+
 ## Risks
 
-- **gws stability** — v0.13.1, pre-1.0, API could change. Mitigated by version-pinning in package.json.
+- **gws stability** — v0.13.2, pre-1.0, API could change. Mitigated by version-pinning in package.json.
 - **Subprocess overhead** — each tool call spawns a process. Likely negligible for Workspace API latency, but worth benchmarking.
-- **Credential format compatibility** — our OAuth tokens may need translation to gws format. Need to verify.
 - **"Not officially supported"** — Google's disclaimer. But it's active, has multiple contributors, and the Google DevRel team maintains it.
 
 ## What This Buys Us
@@ -137,10 +175,25 @@ gws ships 92 skills as SKILL.md files for agent consumption. We could expose the
 4. **Security improvement** — gws's encrypted credential storage vs our plaintext tokens
 5. **Focus on our differentiator** — progressive context disclosure and multi-account orchestration, not API plumbing
 
+## Validation Results (2026-03-13)
+
+| Assumption | Result |
+|---|---|
+| gws installs via npx | **Confirmed** — v0.13.2, runs without issues |
+| Our OAuth client works with gws | **Confirmed** — `GOOGLE_WORKSPACE_CLI_CLIENT_ID` accepted |
+| gws auth flow stores encrypted credentials | **Confirmed** — `~/.config/gws/credentials.enc` (AES-256-GCM) |
+| Live Calendar API calls | **Confirmed** — events returned with full structured JSON |
+| Live Gmail API calls | **Confirmed** — `+triage` returned inbox summary |
+| gws helper commands work | **Confirmed** — `+triage` produces formatted table output |
+| Credential format: `authorized_user` JSON | **Confirmed** — `{ type, client_id, client_secret, refresh_token }` |
+| Browser auth is just URL capture + open | **Confirmed** — gws prints URL to stderr, runs localhost callback |
+
+**Removed from risk list:** Credential format compatibility — verified working.
+
 ## Next Steps
 
-1. Validate credential format compatibility between our OAuth flow and gws
-2. Prototype the gws executor — subprocess call, JSON parse, error mapping
-3. Test multi-account credential routing via env var
+1. ~~Validate credential format compatibility~~ — done
+2. Test multi-account credential routing via env var (needs second account auth)
+3. Prototype the gws executor — subprocess call, JSON parse, error mapping
 4. Design the semantic tool registry
-5. If all checks out, write the ADR and start the rewrite
+5. Write the ADR and start the rewrite
