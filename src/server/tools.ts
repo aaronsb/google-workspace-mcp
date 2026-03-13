@@ -1,299 +1,158 @@
 /**
- * Semantic tool registry — maps intent-based MCP tools to gws commands.
+ * Semantic tool registry — operation-based tools with conditional properties.
  *
- * Instead of exposing 200+ raw API methods, we group by user intent.
- * Each tool definition includes: MCP schema, the gws command it maps to,
- * and a function to translate MCP args into gws CLI args.
+ * Pattern: fewer tools, more properties. Each tool accepts an `operation`
+ * enum that determines behavior and which fields are required.
  */
 
-export interface ToolDefinition {
+export interface ToolSchema {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
-  category: 'accounts' | 'email' | 'calendar' | 'drive' | 'docs' | 'sheets';
-  requiresAccount: boolean;
-  toGwsArgs: (params: Record<string, unknown>) => string[];
 }
 
-// --- Account management tools (handled directly, not via gws) ---
-
-const accountTools: ToolDefinition[] = [
+export const toolSchemas: ToolSchema[] = [
   {
-    name: 'list_accounts',
-    description: 'List all configured Google Workspace accounts and their status',
-    inputSchema: {
-      type: 'object',
-      properties: {},
-    },
-    category: 'accounts',
-    requiresAccount: false,
-    toGwsArgs: () => [],
-  },
-  {
-    name: 'authenticate_account',
-    description: 'Add and authenticate a new Google Workspace account. Opens a browser for OAuth consent.',
+    name: 'manage_accounts',
+    description: 'List, authenticate, or remove Google Workspace accounts. Start here to see which accounts are available.',
     inputSchema: {
       type: 'object',
       properties: {
-        category: {
+        operation: {
           type: 'string',
-          enum: ['personal', 'work', 'other'],
-          description: 'Account category (default: personal)',
+          enum: ['list', 'authenticate', 'remove'],
+          description: 'list: show all accounts | authenticate: add new account (opens browser) | remove: delete account and credentials',
         },
-        description: {
+        email: { type: 'string', description: 'Required for remove' },
+        category: { type: 'string', enum: ['personal', 'work', 'other'], description: 'For authenticate (default: personal)' },
+        description: { type: 'string', description: 'For authenticate — optional label' },
+      },
+      required: ['operation'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'manage_email',
+    description: 'Search, read, send, or triage emails in a Google Workspace account. Supports Gmail search syntax.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        operation: {
           type: 'string',
-          description: 'Optional description for this account',
+          enum: ['search', 'read', 'send', 'reply', 'triage'],
+          description: 'search: find emails by query | read: get email by ID | send: compose new email | reply: reply to a thread | triage: inbox summary',
         },
+        email: { type: 'string', description: 'Account email address' },
+        // search
+        query: { type: 'string', description: 'Gmail search query (e.g. "from:alice subject:meeting has:attachment")' },
+        maxResults: { type: 'number', description: 'Max results for search (default: 10, max: 50)' },
+        // read
+        messageId: { type: 'string', description: 'Email message ID (for read/reply)' },
+        // send/reply
+        to: { type: 'string', description: 'Recipient email (for send)' },
+        subject: { type: 'string', description: 'Email subject (for send)' },
+        body: { type: 'string', description: 'Email body text (for send/reply)' },
       },
-    },
-    category: 'accounts',
-    requiresAccount: false,
-    toGwsArgs: () => [],
-  },
-  {
-    name: 'remove_account',
-    description: 'Remove a Google Workspace account and its stored credentials',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        email: { type: 'string', description: 'Email address of the account to remove' },
-      },
-      required: ['email'],
-    },
-    category: 'accounts',
-    requiresAccount: false,
-    toGwsArgs: () => [],
-  },
-];
-
-// --- Email tools ---
-
-const emailTools: ToolDefinition[] = [
-  {
-    name: 'search_emails',
-    description: 'Search for emails in a Google Workspace account. Supports Gmail search syntax (from:, to:, subject:, has:attachment, etc).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        email: { type: 'string', description: 'Account email to search' },
-        query: { type: 'string', description: 'Gmail search query (e.g. "from:alice subject:meeting")' },
-        maxResults: { type: 'number', description: 'Maximum results to return (default: 10, max: 50)' },
-      },
-      required: ['email'],
-    },
-    category: 'email',
-    requiresAccount: true,
-    toGwsArgs: (params) => {
-      const args = ['gmail', 'users', 'messages', 'list', '--params',
-        JSON.stringify({
-          userId: 'me',
-          q: params.query || '',
-          maxResults: Math.min(Number(params.maxResults) || 10, 50),
-        }),
-      ];
-      return args;
+      required: ['operation', 'email'],
+      additionalProperties: false,
     },
   },
   {
-    name: 'read_email',
-    description: 'Read a specific email by ID. Returns headers, body, and attachment metadata.',
+    name: 'manage_calendar',
+    description: 'List events, view today\'s agenda, or create/update/delete calendar events.',
     inputSchema: {
       type: 'object',
       properties: {
-        email: { type: 'string', description: 'Account email' },
-        messageId: { type: 'string', description: 'Email message ID' },
-      },
-      required: ['email', 'messageId'],
-    },
-    category: 'email',
-    requiresAccount: true,
-    toGwsArgs: (params) => [
-      'gmail', 'users', 'messages', 'get',
-      '--params', JSON.stringify({ userId: 'me', id: params.messageId }),
-    ],
-  },
-  {
-    name: 'send_email',
-    description: 'Send an email from a Google Workspace account',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        email: { type: 'string', description: 'Account email to send from' },
-        to: { type: 'string', description: 'Recipient email address' },
-        subject: { type: 'string', description: 'Email subject' },
-        body: { type: 'string', description: 'Email body text' },
-      },
-      required: ['email', 'to', 'subject', 'body'],
-    },
-    category: 'email',
-    requiresAccount: true,
-    toGwsArgs: (params) => [
-      'gmail', '+send',
-      '--to', String(params.to),
-      '--subject', String(params.subject),
-      '--body', String(params.body),
-    ],
-  },
-  {
-    name: 'inbox_summary',
-    description: 'Get a summary of recent unread emails (sender, subject, date). Quick inbox triage.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        email: { type: 'string', description: 'Account email' },
-      },
-      required: ['email'],
-    },
-    category: 'email',
-    requiresAccount: true,
-    toGwsArgs: () => ['gmail', '+triage'],
-  },
-];
-
-// --- Calendar tools ---
-
-const calendarTools: ToolDefinition[] = [
-  {
-    name: 'get_calendar_events',
-    description: 'List upcoming calendar events. Defaults to today if no time range specified.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        email: { type: 'string', description: 'Account email' },
-        timeMin: { type: 'string', description: 'Start of time range (ISO 8601)' },
-        timeMax: { type: 'string', description: 'End of time range (ISO 8601)' },
-        maxResults: { type: 'number', description: 'Maximum events to return (default: 10)' },
-      },
-      required: ['email'],
-    },
-    category: 'calendar',
-    requiresAccount: true,
-    toGwsArgs: (params) => {
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      return [
-        'calendar', 'events', 'list',
-        '--params', JSON.stringify({
-          calendarId: 'primary',
-          timeMin: params.timeMin || todayStart,
-          timeMax: params.timeMax || undefined,
-          maxResults: Math.min(Number(params.maxResults) || 10, 50),
-          singleEvents: true,
-          orderBy: 'startTime',
-        }),
-      ];
-    },
-  },
-  {
-    name: 'todays_agenda',
-    description: 'Get today\'s meetings and schedule at a glance across all calendars',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        email: { type: 'string', description: 'Account email' },
-      },
-      required: ['email'],
-    },
-    category: 'calendar',
-    requiresAccount: true,
-    toGwsArgs: () => ['calendar', '+agenda'],
-  },
-  {
-    name: 'create_calendar_event',
-    description: 'Create a new calendar event',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        email: { type: 'string', description: 'Account email' },
-        summary: { type: 'string', description: 'Event title' },
-        start: { type: 'string', description: 'Start time (ISO 8601)' },
-        end: { type: 'string', description: 'End time (ISO 8601)' },
+        operation: {
+          type: 'string',
+          enum: ['list', 'agenda', 'create', 'get', 'delete'],
+          description: 'list: upcoming events | agenda: today at a glance | create: new event | get: event details | delete: remove event',
+        },
+        email: { type: 'string', description: 'Account email address' },
+        // list
+        timeMin: { type: 'string', description: 'Start of range (ISO 8601) — defaults to today' },
+        timeMax: { type: 'string', description: 'End of range (ISO 8601)' },
+        maxResults: { type: 'number', description: 'Max events (default: 10, max: 50)' },
+        // get/delete
+        eventId: { type: 'string', description: 'Event ID (for get/delete)' },
+        // create
+        summary: { type: 'string', description: 'Event title (for create)' },
+        start: { type: 'string', description: 'Start time ISO 8601 (for create)' },
+        end: { type: 'string', description: 'End time ISO 8601 (for create)' },
         description: { type: 'string', description: 'Event description' },
         location: { type: 'string', description: 'Event location' },
         attendees: { type: 'string', description: 'Comma-separated attendee emails' },
       },
-      required: ['email', 'summary', 'start', 'end'],
-    },
-    category: 'calendar',
-    requiresAccount: true,
-    toGwsArgs: (params) => {
-      const args = [
-        'calendar', '+insert',
-        '--summary', String(params.summary),
-        '--start', String(params.start),
-        '--end', String(params.end),
-      ];
-      if (params.description) args.push('--description', String(params.description));
-      if (params.location) args.push('--location', String(params.location));
-      if (params.attendees) args.push('--attendees', String(params.attendees));
-      return args;
+      required: ['operation', 'email'],
+      additionalProperties: false,
     },
   },
-];
-
-// --- Drive tools ---
-
-const driveTools: ToolDefinition[] = [
   {
-    name: 'search_drive',
-    description: 'Search for files in Google Drive. Supports Drive search syntax.',
+    name: 'manage_drive',
+    description: 'Search, upload, download, or read files in Google Drive.',
     inputSchema: {
       type: 'object',
       properties: {
-        email: { type: 'string', description: 'Account email' },
-        query: { type: 'string', description: 'Drive search query (e.g. "name contains \'report\' and mimeType = \'application/pdf\'")' },
-        maxResults: { type: 'number', description: 'Maximum results (default: 10)' },
+        operation: {
+          type: 'string',
+          enum: ['search', 'upload', 'get', 'download'],
+          description: 'search: find files | upload: upload local file | get: file metadata | download: download file content',
+        },
+        email: { type: 'string', description: 'Account email address' },
+        // search
+        query: { type: 'string', description: 'Drive search query' },
+        maxResults: { type: 'number', description: 'Max results (default: 10, max: 50)' },
+        // get/download
+        fileId: { type: 'string', description: 'File ID (for get/download)' },
+        // upload
+        filePath: { type: 'string', description: 'Local file path (for upload)' },
+        name: { type: 'string', description: 'File name in Drive (for upload, defaults to local name)' },
+        parentFolderId: { type: 'string', description: 'Parent folder ID (for upload)' },
+        // download
+        outputPath: { type: 'string', description: 'Local path to save downloaded file' },
       },
-      required: ['email'],
+      required: ['operation', 'email'],
+      additionalProperties: false,
     },
-    category: 'drive',
-    requiresAccount: true,
-    toGwsArgs: (params) => [
-      'drive', 'files', 'list',
-      '--params', JSON.stringify({
-        q: params.query || undefined,
-        pageSize: Math.min(Number(params.maxResults) || 10, 50),
-        fields: 'files(id, name, mimeType, modifiedTime, size, webViewLink)',
-      }),
-    ],
   },
   {
-    name: 'upload_file',
-    description: 'Upload a file to Google Drive',
+    name: 'queue_operations',
+    description: 'Execute multiple operations in sequence. Operations run in order with result references ($0.field) to chain outputs. Use for multi-step workflows.',
     inputSchema: {
       type: 'object',
       properties: {
-        email: { type: 'string', description: 'Account email' },
-        filePath: { type: 'string', description: 'Local path to the file to upload' },
-        name: { type: 'string', description: 'Name for the file in Drive (defaults to local filename)' },
-        parentFolderId: { type: 'string', description: 'ID of the parent folder in Drive' },
+        operations: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              tool: {
+                type: 'string',
+                enum: ['manage_email', 'manage_calendar', 'manage_drive', 'manage_accounts'],
+                description: 'Tool to call',
+              },
+              args: {
+                type: 'object',
+                description: 'Arguments for the tool. Use $N.field to reference results from earlier operations.',
+              },
+              onError: {
+                type: 'string',
+                enum: ['bail', 'continue'],
+                description: 'bail: stop on error (default) | continue: skip and proceed',
+              },
+            },
+            required: ['tool', 'args'],
+          },
+          maxItems: 10,
+          description: 'Operations to execute sequentially',
+        },
       },
-      required: ['email', 'filePath'],
-    },
-    category: 'drive',
-    requiresAccount: true,
-    toGwsArgs: (params) => {
-      const args = ['drive', '+upload', String(params.filePath)];
-      if (params.name) args.push('--name', String(params.name));
-      if (params.parentFolderId) args.push('--parent', String(params.parentFolderId));
-      return args;
+      required: ['operations'],
+      additionalProperties: false,
     },
   },
 ];
 
-// --- All tools ---
-
-export const allTools: ToolDefinition[] = [
-  ...accountTools,
-  ...emailTools,
-  ...calendarTools,
-  ...driveTools,
-];
-
-export function getToolByName(name: string): ToolDefinition | undefined {
-  return allTools.find(t => t.name === name);
-}
-
-export function getToolsByCategory(category: ToolDefinition['category']): ToolDefinition[] {
-  return allTools.filter(t => t.category === category);
+export function getToolSchema(name: string): ToolSchema | undefined {
+  return toolSchemas.find(t => t.name === name);
 }

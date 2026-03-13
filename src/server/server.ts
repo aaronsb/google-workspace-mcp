@@ -4,7 +4,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { allTools, getToolByName } from './tools.js';
+import { toolSchemas } from './tools.js';
 import { handleToolCall } from './handler.js';
 import { GwsError } from '../executor/errors.js';
 
@@ -21,10 +21,9 @@ export function createServer(): Server {
     },
   );
 
-  // List available tools
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
-      tools: allTools.map(tool => ({
+      tools: toolSchemas.map(tool => ({
         name: tool.name,
         description: tool.description,
         inputSchema: tool.inputSchema,
@@ -32,33 +31,23 @@ export function createServer(): Server {
     };
   });
 
-  // Handle tool calls
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
-    const tool = getToolByName(name);
-    if (!tool) {
-      return {
-        content: [{ type: 'text', text: `Unknown tool: ${name}` }],
-        isError: true,
-      };
-    }
-
     try {
-      const result = await handleToolCall(tool, (args ?? {}) as Record<string, unknown>);
+      const result = await handleToolCall(name, (args ?? {}) as Record<string, unknown>);
       return {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
       };
     } catch (err) {
       if (err instanceof GwsError) {
-        const detail = {
-          error: err.message,
-          exitCode: err.exitCode,
-          reason: err.reason,
-          stderr: err.stderr,
-        };
         return {
-          content: [{ type: 'text', text: JSON.stringify(detail, null, 2) }],
+          content: [{ type: 'text', text: JSON.stringify({
+            error: err.message,
+            exitCode: err.exitCode,
+            reason: err.reason,
+            stderr: err.stderr,
+          }, null, 2) }],
           isError: true,
         };
       }

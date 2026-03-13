@@ -1,84 +1,41 @@
-import { execute } from '../executor/gws.js';
 import { GwsError } from '../executor/errors.js';
-import { listAccounts, removeAccount, authenticateAndAddAccount } from '../accounts/registry.js';
-import type { ToolDefinition } from './tools.js';
+import { handleAccounts } from './handlers/accounts.js';
+import { handleEmail } from './handlers/email.js';
+import { handleCalendar } from './handlers/calendar.js';
+import { handleDrive } from './handlers/drive.js';
+import { handleQueue } from './queue.js';
 
 const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-function validateEmail(email: unknown): string {
-  if (typeof email !== 'string' || !EMAIL_RE.test(email)) {
-    throw new Error('Invalid email address format');
-  }
-  return email;
-}
+type ToolHandler = (params: Record<string, unknown>) => Promise<unknown>;
+
+const domainHandlers: Record<string, ToolHandler> = {
+  manage_accounts: handleAccounts,
+  manage_email: handleEmail,
+  manage_calendar: handleCalendar,
+  manage_drive: handleDrive,
+};
 
 export async function handleToolCall(
-  tool: ToolDefinition,
+  toolName: string,
   params: Record<string, unknown>,
 ): Promise<unknown> {
-  // Account management tools are handled directly
-  switch (tool.name) {
-    case 'list_accounts':
-      return handleListAccounts();
-    case 'authenticate_account':
-      return handleAuthenticateAccount(params);
-    case 'remove_account':
-      return handleRemoveAccount(params);
+  // Validate email if present (prevents path traversal in credential routing)
+  if (params.email && typeof params.email === 'string') {
+    if (!EMAIL_RE.test(params.email)) {
+      throw new Error('Invalid email address format');
+    }
   }
 
-  // All other tools go through the gws executor
-  if (tool.requiresAccount) {
-    const email = validateEmail(params.email);
-    const gwsArgs = tool.toGwsArgs(params);
-    const result = await execute(gwsArgs, { account: email });
-    return result.data;
+  // Queue handler wraps the domain handlers
+  if (toolName === 'queue_operations') {
+    return handleQueue(params, domainHandlers);
   }
 
-  // Non-account tools without requiresAccount
-  const gwsArgs = tool.toGwsArgs(params);
-  const result = await execute(gwsArgs);
-  return result.data;
-}
-
-async function handleListAccounts(): Promise<unknown> {
-  const accounts = await listAccounts();
-  if (accounts.length === 0) {
-    return {
-      accounts: [],
-      message: 'No accounts configured. Use authenticate_account to add one.',
-    };
-  }
-  return { accounts };
-}
-
-async function handleAuthenticateAccount(params: Record<string, unknown>): Promise<unknown> {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    throw new Error(
-      'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables are required. ' +
-      'Create OAuth credentials at https://console.cloud.google.com/apis/credentials',
-    );
+  const handler = domainHandlers[toolName];
+  if (!handler) {
+    throw new Error(`Unknown tool: ${toolName}`);
   }
 
-  const category = (params.category as string) || 'personal';
-  const description = params.description as string | undefined;
-
-  const result = await authenticateAndAddAccount(
-    clientId,
-    clientSecret,
-    category as 'personal' | 'work' | 'other',
-    description,
-  );
-
-  return result;
-}
-
-async function handleRemoveAccount(params: Record<string, unknown>): Promise<unknown> {
-  const email = params.email as string;
-  if (!email) throw new Error('email is required');
-
-  await removeAccount(email);
-  return { status: 'removed', email };
+  return handler(params);
 }
