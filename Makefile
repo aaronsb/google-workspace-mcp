@@ -2,7 +2,7 @@
 
 # Unit tests — mocked, fast, no network
 test-unit:
-	npx jest --config jest.config.cjs --testPathPattern='src/__tests__/(executor|accounts)' --runInBand
+	npx jest --config jest.config.cjs --testPathPattern='src/__tests__/(executor|accounts|server)' --runInBand
 
 # Integration tests — requires gws installed + valid credentials
 test-integration:
