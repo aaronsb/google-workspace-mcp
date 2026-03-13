@@ -104,7 +104,7 @@ describe('execute', () => {
 
     const spawnCall = mockSpawn.mock.calls[0];
     const env = spawnCall[2]?.env as Record<string, string>;
-    expect(env.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE).toContain('user-example-com.json');
+    expect(env.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE).toContain('user_at_example_dot_com.json');
   });
 
   it('appends --format json by default', async () => {

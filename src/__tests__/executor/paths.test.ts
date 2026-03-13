@@ -46,15 +46,19 @@ describe('paths', () => {
 
   describe('emailToSlug', () => {
     it('converts email to filesystem-safe slug', () => {
-      expect(emailToSlug('aaronsb@gmail.com')).toBe('aaronsb-gmail-com');
-      expect(emailToSlug('aaron.bockelie@cprime.com')).toBe('aaron-bockelie-cprime-com');
+      expect(emailToSlug('aaronsb@gmail.com')).toBe('aaronsb_at_gmail_dot_com');
+      expect(emailToSlug('aaron.bockelie@cprime.com')).toBe('aaron_dot_bockelie_at_cprime_dot_com');
+    });
+
+    it('produces unique slugs for similar emails', () => {
+      expect(emailToSlug('user.name@example.com')).not.toBe(emailToSlug('user-name@example.com'));
     });
   });
 
   describe('credentialPath', () => {
     it('returns path under credentials dir', () => {
       process.env.XDG_DATA_HOME = '/data';
-      expect(credentialPath('user@example.com')).toBe('/data/google-workspace-mcp/credentials/user-example-com.json');
+      expect(credentialPath('user@example.com')).toBe('/data/google-workspace-mcp/credentials/user_at_example_dot_com.json');
     });
   });
 

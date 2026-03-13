@@ -17,6 +17,16 @@ export interface GwsOptions {
 
 const DEFAULT_TIMEOUT = 30_000;
 
+// Resolve gws binary from node_modules relative to this package.
+// Walks up from this file's compiled location to find the project root.
+// Exported for testing.
+export function resolvePackageBinDir(): string {
+  // In production (ESM), __dirname isn't available but we can derive from
+  // the build output structure: build/executor/gws.js → ../../node_modules/.bin
+  // In development, process.cwd() is the project root.
+  return path.join(process.cwd(), 'node_modules', '.bin');
+}
+
 // Stderr lines that are diagnostic noise, not errors
 const STDERR_NOISE = [
   /^Using keyring backend:/,
@@ -41,11 +51,13 @@ export async function execute(args: string[], options: GwsOptions = {}): Promise
 
   const fullArgs = [...args, '--format', format];
 
-  // Ensure node_modules/.bin is on PATH so gws is found
-  const binDir = path.join(process.cwd(), 'node_modules', '.bin');
-  env.PATH = `${binDir}:${env.PATH || ''}`;
+  // Prepend package-local bin dir to PATH
+  env.PATH = `${resolvePackageBinDir()}:${env.PATH || ''}`;
 
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const settle = (fn: () => void) => { if (!settled) { settled = true; fn(); } };
+
     const proc = spawn('gws', fullArgs, { env, stdio: ['ignore', 'pipe', 'pipe'] });
 
     let stdout = '';
@@ -56,17 +68,17 @@ export async function execute(args: string[], options: GwsOptions = {}): Promise
 
     const timer = setTimeout(() => {
       proc.kill('SIGTERM');
-      reject(new GwsError('gws command timed out', GwsExitCode.InternalError, 'timeout', stderr));
+      settle(() => reject(new GwsError('gws command timed out', GwsExitCode.InternalError, 'timeout', stderr)));
     }, timeout);
 
     proc.on('error', (err) => {
       clearTimeout(timer);
-      reject(new GwsError(
+      settle(() => reject(new GwsError(
         `Failed to spawn gws: ${err.message}`,
         GwsExitCode.InternalError,
         'spawn_error',
         stderr,
-      ));
+      )));
     });
 
     proc.on('close', (code) => {
@@ -75,7 +87,7 @@ export async function execute(args: string[], options: GwsOptions = {}): Promise
       const filteredStderr = filterStderr(stderr);
 
       if (exitCode !== GwsExitCode.Success) {
-        reject(parseGwsError(exitCode, stdout, filteredStderr));
+        settle(() => reject(parseGwsError(exitCode, stdout, filteredStderr)));
         return;
       }
 
@@ -85,24 +97,25 @@ export async function execute(args: string[], options: GwsOptions = {}): Promise
         try {
           data = JSON.parse(stdout);
         } catch {
-          reject(new GwsError(
+          settle(() => reject(new GwsError(
             'Failed to parse gws JSON output',
             GwsExitCode.InternalError,
             'parse_error',
             stdout,
-          ));
+          )));
           return;
         }
       } else {
         data = stdout;
       }
 
-      resolve({ success: true, data, stderr: filteredStderr });
+      settle(() => resolve({ success: true, data, stderr: filteredStderr }));
     });
   });
 }
 
 export async function gwsVersion(): Promise<string> {
-  const result = await execute(['--version'], { format: 'json' });
+  // --version outputs plain text, not JSON
+  const result = await execute(['--version'], { format: 'table' });
   return String(result.data).trim();
 }

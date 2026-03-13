@@ -18,7 +18,8 @@ export function credentialsDir(): string {
 }
 
 export function emailToSlug(email: string): string {
-  return email.replace(/@/g, '-').replace(/\./g, '-');
+  // Preserve uniqueness: @ → _at_, dots → _dot_, hyphens stay as-is
+  return email.replace(/@/g, '_at_').replace(/\./g, '_dot_');
 }
 
 export function credentialPath(email: string): string {

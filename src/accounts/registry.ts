@@ -26,7 +26,7 @@ async function readAccounts(): Promise<AccountsFile> {
 async function writeAccounts(data: AccountsFile): Promise<void> {
   const dir = configDir();
   await fs.mkdir(dir, { recursive: true, mode: 0o700 });
-  await fs.writeFile(accountsFilePath(), JSON.stringify(data, null, 2));
+  await fs.writeFile(accountsFilePath(), JSON.stringify(data, null, 2), { mode: 0o600 });
 }
 
 export async function listAccounts(): Promise<Account[]> {

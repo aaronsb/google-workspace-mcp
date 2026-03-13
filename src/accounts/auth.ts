@@ -1,4 +1,4 @@
-import { spawn, exec } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import { platform } from 'node:os';
 import { exportAndSaveCredential } from './credentials.js';
 
@@ -13,7 +13,10 @@ function openBrowser(url: string): void {
   const cmd = platform() === 'darwin' ? 'open'
             : platform() === 'win32' ? 'start'
             : 'xdg-open';
-  exec(`${cmd} ${JSON.stringify(url)}`);
+  // Use execFile to avoid shell interpretation of the URL
+  execFile(cmd, [url], (err) => {
+    if (err) process.stderr.write(`Failed to open browser: ${err.message}\n`);
+  });
 }
 
 export async function authenticateAccount(
