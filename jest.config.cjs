@@ -5,29 +5,23 @@ module.exports = {
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
-    '^@modelcontextprotocol/sdk/(.*)$': '<rootDir>/src/__mocks__/@modelcontextprotocol/sdk.ts',
-    '^@modelcontextprotocol/sdk$': '<rootDir>/src/__mocks__/@modelcontextprotocol/sdk.ts',
-    '^src/utils/logger.js$': '<rootDir>/src/__mocks__/logger.ts',
-    '^../utils/logger.js$': '<rootDir>/src/__mocks__/logger.ts',
-    '^../../utils/logger.js$': '<rootDir>/src/__mocks__/logger.ts'
   },
   transform: {
     '^.+\\.tsx?$': [
       'ts-jest',
       {
         useESM: true,
-        tsconfig: 'tsconfig.json'
+        tsconfig: 'tsconfig.json',
+        diagnostics: {
+          ignoreDiagnostics: [151002],
+        },
       },
     ],
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   testMatch: ['**/__tests__/**/*.test.ts'],
   transformIgnorePatterns: [
-    'node_modules/(?!(googleapis|google-auth-library|@modelcontextprotocol/sdk|zod)/)'
+    'node_modules/(?!(@modelcontextprotocol/sdk|zod)/)'
   ],
   setupFilesAfterEnv: ['<rootDir>/src/__helpers__/testSetup.ts'],
-  fakeTimers: {
-    enableGlobally: true,
-    now: new Date('2025-02-21T20:30:00Z').getTime()
-  }
 };
