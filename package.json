@@ -1,8 +1,7 @@
 {
-  "name": "google-workspace-mcp",
+  "name": "@aaronsb/google-workspace-mcp",
   "version": "2.0.0-alpha.1",
   "description": "MCP server for Google Workspace with progressive context disclosure and multi-account orchestration",
-  "private": true,
   "type": "module",
   "bin": {
     "google-workspace-mcp": "./build/index.js"
