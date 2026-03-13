@@ -1,6 +1,5 @@
 import { spawn } from 'node:child_process';
 import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { credentialPath } from './paths.js';
 import { GwsExitCode, GwsError, parseGwsError } from './errors.js';
 
@@ -16,10 +15,6 @@ export interface GwsOptions {
   format?: 'json' | 'table' | 'yaml' | 'csv';
 }
 
-// Resolve gws binary: project node_modules/.bin first, then PATH
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROJECT_GWS = path.resolve(__dirname, '..', '..', 'node_modules', '.bin', 'gws');
-const GWS_BIN = PROJECT_GWS;
 const DEFAULT_TIMEOUT = 30_000;
 
 // Stderr lines that are diagnostic noise, not errors
@@ -46,8 +41,12 @@ export async function execute(args: string[], options: GwsOptions = {}): Promise
 
   const fullArgs = [...args, '--format', format];
 
+  // Ensure node_modules/.bin is on PATH so gws is found
+  const binDir = path.join(process.cwd(), 'node_modules', '.bin');
+  env.PATH = `${binDir}:${env.PATH || ''}`;
+
   return new Promise((resolve, reject) => {
-    const proc = spawn(GWS_BIN, fullArgs, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = spawn('gws', fullArgs, { env, stdio: ['ignore', 'pipe', 'pipe'] });
 
     let stdout = '';
     let stderr = '';

@@ -1,5 +1,3 @@
-import { ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-
 export enum GwsExitCode {
   Success = 0,
   ApiError = 1,
@@ -18,17 +16,6 @@ export class GwsError extends Error {
   ) {
     super(message);
     this.name = 'GwsError';
-  }
-
-  toMcpErrorCode(): ErrorCode {
-    switch (this.exitCode) {
-      case GwsExitCode.AuthError:
-        return ErrorCode.InvalidRequest;
-      case GwsExitCode.ValidationError:
-        return ErrorCode.InvalidParams;
-      default:
-        return ErrorCode.InternalError;
-    }
   }
 }
 

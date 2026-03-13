@@ -1,22 +1,18 @@
 import { GwsError, GwsExitCode, parseGwsError } from '../../executor/errors.js';
-import { ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 
 describe('GwsError', () => {
-  it('maps auth errors to InvalidRequest MCP error', () => {
-    const err = new GwsError('bad auth', GwsExitCode.AuthError);
-    expect(err.toMcpErrorCode()).toBe(ErrorCode.InvalidRequest);
+  it('stores exit code and reason', () => {
+    const err = new GwsError('bad auth', GwsExitCode.AuthError, 'authError', 'stderr output');
+    expect(err.message).toBe('bad auth');
+    expect(err.exitCode).toBe(GwsExitCode.AuthError);
+    expect(err.reason).toBe('authError');
+    expect(err.stderr).toBe('stderr output');
+    expect(err.name).toBe('GwsError');
   });
 
-  it('maps validation errors to InvalidParams MCP error', () => {
-    const err = new GwsError('bad args', GwsExitCode.ValidationError);
-    expect(err.toMcpErrorCode()).toBe(ErrorCode.InvalidParams);
-  });
-
-  it('maps other errors to InternalError MCP error', () => {
-    for (const code of [GwsExitCode.ApiError, GwsExitCode.DiscoveryError, GwsExitCode.InternalError]) {
-      const err = new GwsError('fail', code);
-      expect(err.toMcpErrorCode()).toBe(ErrorCode.InternalError);
-    }
+  it('is an instance of Error', () => {
+    const err = new GwsError('fail', GwsExitCode.InternalError);
+    expect(err).toBeInstanceOf(Error);
   });
 });
 
@@ -41,5 +37,11 @@ describe('parseGwsError', () => {
     const err = parseGwsError(5, '', '');
     expect(err.message).toContain('code 5');
     expect(err.message).toContain('InternalError');
+  });
+
+  it('handles malformed JSON in stdout', () => {
+    const err = parseGwsError(1, '{not valid json', 'some error');
+    expect(err.message).toBe('some error');
+    expect(err.exitCode).toBe(GwsExitCode.ApiError);
   });
 });
