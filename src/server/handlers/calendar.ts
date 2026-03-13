@@ -1,10 +1,11 @@
 import { execute } from '../../executor/gws.js';
 import { formatEventList, formatEventDetail } from '../formatting/markdown.js';
 import { nextSteps } from '../formatting/next-steps.js';
+import { requireEmail, requireString, clamp } from './validate.js';
 
 export async function handleCalendar(params: Record<string, unknown>): Promise<unknown> {
   const operation = params.operation as string;
-  const email = params.email as string;
+  const email = requireEmail(params);
 
   switch (operation) {
     case 'list': {
@@ -21,10 +22,7 @@ export async function handleCalendar(params: Record<string, unknown>): Promise<u
           orderBy: 'startTime',
         }),
       ], { account: email });
-      return {
-        ...formatEventList(result.data),
-        ...nextSteps('calendar', 'list'),
-      };
+      return { ...formatEventList(result.data), ...nextSteps('calendar', 'list') };
     }
 
     case 'agenda': {
@@ -33,15 +31,10 @@ export async function handleCalendar(params: Record<string, unknown>): Promise<u
     }
 
     case 'create': {
-      if (!params.summary) throw new Error('summary is required for create');
-      if (!params.start) throw new Error('start is required for create');
-      if (!params.end) throw new Error('end is required for create');
-      const args = [
-        'calendar', '+insert',
-        '--summary', String(params.summary),
-        '--start', String(params.start),
-        '--end', String(params.end),
-      ];
+      const summary = requireString(params, 'summary');
+      const start = requireString(params, 'start');
+      const end = requireString(params, 'end');
+      const args = ['calendar', '+insert', '--summary', summary, '--start', start, '--end', end];
       if (params.description) args.push('--description', String(params.description));
       if (params.location) args.push('--location', String(params.location));
       if (params.attendees) args.push('--attendees', String(params.attendees));
@@ -50,32 +43,24 @@ export async function handleCalendar(params: Record<string, unknown>): Promise<u
     }
 
     case 'get': {
-      if (!params.eventId) throw new Error('eventId is required for get');
+      const eventId = requireString(params, 'eventId');
       const result = await execute([
         'calendar', 'events', 'get',
-        '--params', JSON.stringify({ calendarId: 'primary', eventId: params.eventId }),
+        '--params', JSON.stringify({ calendarId: 'primary', eventId }),
       ], { account: email });
-      return {
-        ...formatEventDetail(result.data),
-        ...nextSteps('calendar', 'get', { eventId: params.eventId as string }),
-      };
+      return { ...formatEventDetail(result.data), ...nextSteps('calendar', 'get', { eventId }) };
     }
 
     case 'delete': {
-      if (!params.eventId) throw new Error('eventId is required for delete');
-      const result = await execute([
+      const eventId = requireString(params, 'eventId');
+      await execute([
         'calendar', 'events', 'delete',
-        '--params', JSON.stringify({ calendarId: 'primary', eventId: params.eventId }),
+        '--params', JSON.stringify({ calendarId: 'primary', eventId }),
       ], { account: email });
-      return { status: 'deleted', eventId: params.eventId, ...nextSteps('calendar', 'delete') };
+      return { status: 'deleted', eventId, ...nextSteps('calendar', 'delete') };
     }
 
     default:
       throw new Error(`Unknown calendar operation: ${operation}`);
   }
-}
-
-function clamp(value: unknown, defaultVal: number, max: number): number {
-  const n = Number(value) || defaultVal;
-  return Math.min(n, max);
 }

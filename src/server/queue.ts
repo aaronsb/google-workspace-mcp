@@ -59,7 +59,9 @@ export async function handleQueue(
     }
 
     try {
-      const data = await handler(resolvedArgs);
+      const rawData = await handler(resolvedArgs);
+      // Strip next_steps from queue results — the queue caller already planned the sequence
+      const data = stripNextSteps(rawData);
       results.push({ index: i, tool: op.tool, status: 'success', data });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -113,26 +115,20 @@ function resolveRef(value: string, results: OperationResult[]): string {
   });
 }
 
+function stripNextSteps(data: unknown): unknown {
+  if (data == null || typeof data !== 'object') return data;
+  const { next_steps, ...rest } = data as Record<string, unknown>;
+  return rest;
+}
+
+/**
+ * Extract a field from operation result data.
+ * Only does direct property lookup — no magic indexing into arrays.
+ * Use explicit field names that match the response structure.
+ */
 function extractField(data: unknown, field: string): unknown {
   if (data == null || typeof data !== 'object') return undefined;
   const obj = data as Record<string, unknown>;
-
-  // Direct field lookup
   if (field in obj) return obj[field];
-
-  // Common nested patterns
-  if (field === 'id' && 'emails' in obj) {
-    const emails = obj.emails as Array<Record<string, unknown>>;
-    return emails[0]?.id;
-  }
-  if (field === 'id' && 'events' in obj) {
-    const events = obj.events as Array<Record<string, unknown>>;
-    return events[0]?.id;
-  }
-  if (field === 'id' && 'files' in obj) {
-    const files = obj.files as Array<Record<string, unknown>>;
-    return files[0]?.id;
-  }
-
   return undefined;
 }

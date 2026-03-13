@@ -1,10 +1,11 @@
 import { execute } from '../../executor/gws.js';
 import { formatFileList } from '../formatting/markdown.js';
 import { nextSteps } from '../formatting/next-steps.js';
+import { requireEmail, requireString, clamp } from './validate.js';
 
 export async function handleDrive(params: Record<string, unknown>): Promise<unknown> {
   const operation = params.operation as string;
-  const email = params.email as string;
+  const email = requireEmail(params);
 
   switch (operation) {
     case 'search': {
@@ -16,27 +17,24 @@ export async function handleDrive(params: Record<string, unknown>): Promise<unkn
           fields: 'files(id, name, mimeType, modifiedTime, size, webViewLink)',
         }),
       ], { account: email });
-      return {
-        ...formatFileList(result.data),
-        ...nextSteps('drive', 'search'),
-      };
+      return { ...formatFileList(result.data), ...nextSteps('drive', 'search') };
     }
 
     case 'get': {
-      if (!params.fileId) throw new Error('fileId is required for get');
+      const fileId = requireString(params, 'fileId');
       const result = await execute([
         'drive', 'files', 'get',
         '--params', JSON.stringify({
-          fileId: params.fileId,
+          fileId,
           fields: 'id, name, mimeType, modifiedTime, size, webViewLink, owners, shared',
         }),
       ], { account: email });
-      return { ...result.data as object, ...nextSteps('drive', 'get', { fileId: params.fileId as string }) };
+      return { ...result.data as object, ...nextSteps('drive', 'get', { fileId }) };
     }
 
     case 'upload': {
-      if (!params.filePath) throw new Error('filePath is required for upload');
-      const args = ['drive', '+upload', String(params.filePath)];
+      const filePath = requireString(params, 'filePath');
+      const args = ['drive', '+upload', filePath];
       if (params.name) args.push('--name', String(params.name));
       if (params.parentFolderId) args.push('--parent', String(params.parentFolderId));
       const result = await execute(args, { account: email });
@@ -44,22 +42,17 @@ export async function handleDrive(params: Record<string, unknown>): Promise<unkn
     }
 
     case 'download': {
-      if (!params.fileId) throw new Error('fileId is required for download');
+      const fileId = requireString(params, 'fileId');
       const args = [
         'drive', 'files', 'get',
-        '--params', JSON.stringify({ fileId: params.fileId, alt: 'media' }),
+        '--params', JSON.stringify({ fileId, alt: 'media' }),
       ];
       if (params.outputPath) args.push('--output', String(params.outputPath));
-      const result = await execute(args, { account: email });
-      return { status: 'downloaded', fileId: params.fileId, ...nextSteps('drive', 'download') };
+      await execute(args, { account: email });
+      return { status: 'downloaded', fileId, ...nextSteps('drive', 'download') };
     }
 
     default:
       throw new Error(`Unknown drive operation: ${operation}`);
   }
-}
-
-function clamp(value: unknown, defaultVal: number, max: number): number {
-  const n = Number(value) || defaultVal;
-  return Math.min(n, max);
 }

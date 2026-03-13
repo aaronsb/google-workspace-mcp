@@ -1,10 +1,11 @@
 import { execute } from '../../executor/gws.js';
 import { formatEmailList, formatEmailDetail } from '../formatting/markdown.js';
 import { nextSteps } from '../formatting/next-steps.js';
+import { requireEmail, requireString, clamp } from './validate.js';
 
 export async function handleEmail(params: Record<string, unknown>): Promise<unknown> {
   const operation = params.operation as string;
-  const email = params.email as string;
+  const email = requireEmail(params);
 
   switch (operation) {
     case 'search': {
@@ -16,65 +17,44 @@ export async function handleEmail(params: Record<string, unknown>): Promise<unkn
           maxResults: clamp(params.maxResults, 10, 50),
         }),
       ], { account: email });
-      return {
-        ...formatEmailList(result.data),
-        ...nextSteps('email', 'search'),
-      };
+      return { ...formatEmailList(result.data), ...nextSteps('email', 'search') };
     }
 
     case 'read': {
-      if (!params.messageId) throw new Error('messageId is required for read');
+      const messageId = requireString(params, 'messageId');
       const result = await execute([
         'gmail', 'users', 'messages', 'get',
-        '--params', JSON.stringify({ userId: 'me', id: params.messageId }),
+        '--params', JSON.stringify({ userId: 'me', id: messageId }),
       ], { account: email });
-      return {
-        ...formatEmailDetail(result.data),
-        ...nextSteps('email', 'read', { messageId: params.messageId as string }),
-      };
+      return { ...formatEmailDetail(result.data), ...nextSteps('email', 'read', { messageId }) };
     }
 
     case 'send': {
-      if (!params.to) throw new Error('to is required for send');
-      if (!params.subject) throw new Error('subject is required for send');
-      if (!params.body) throw new Error('body is required for send');
+      const to = requireString(params, 'to');
+      const subject = requireString(params, 'subject');
+      const body = requireString(params, 'body');
       const result = await execute([
         'gmail', '+send',
-        '--to', String(params.to),
-        '--subject', String(params.subject),
-        '--body', String(params.body),
+        '--to', to, '--subject', subject, '--body', body,
       ], { account: email });
-      return {
-        ...result.data as object,
-        ...nextSteps('email', 'send'),
-      };
+      return { ...result.data as object, ...nextSteps('email', 'send') };
     }
 
     case 'reply': {
-      if (!params.messageId) throw new Error('messageId is required for reply');
-      if (!params.body) throw new Error('body is required for reply');
+      const messageId = requireString(params, 'messageId');
+      const body = requireString(params, 'body');
       const result = await execute([
-        'gmail', '+reply',
-        String(params.messageId),
-        '--body', String(params.body),
+        'gmail', '+reply', messageId, '--body', body,
       ], { account: email });
       return { ...result.data as object, ...nextSteps('email', 'reply') };
     }
 
     case 'triage': {
       const result = await execute(['gmail', '+triage'], { account: email, format: 'json' });
-      return {
-        ...formatEmailList(result.data),
-        ...nextSteps('email', 'triage'),
-      };
+      return { ...formatEmailList(result.data), ...nextSteps('email', 'triage') };
     }
 
     default:
       throw new Error(`Unknown email operation: ${operation}`);
   }
-}
-
-function clamp(value: unknown, defaultVal: number, max: number): number {
-  const n = Number(value) || defaultVal;
-  return Math.min(n, max);
 }
