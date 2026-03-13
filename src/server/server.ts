@@ -6,6 +6,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { allTools, getToolByName } from './tools.js';
 import { handleToolCall } from './handler.js';
+import { GwsError } from '../executor/errors.js';
 
 export function createServer(): Server {
   const server = new Server(
@@ -49,6 +50,18 @@ export function createServer(): Server {
         content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
       };
     } catch (err) {
+      if (err instanceof GwsError) {
+        const detail = {
+          error: err.message,
+          exitCode: err.exitCode,
+          reason: err.reason,
+          stderr: err.stderr,
+        };
+        return {
+          content: [{ type: 'text', text: JSON.stringify(detail, null, 2) }],
+          isError: true,
+        };
+      }
       const message = err instanceof Error ? err.message : String(err);
       return {
         content: [{ type: 'text', text: `Error: ${message}` }],

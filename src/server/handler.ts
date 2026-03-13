@@ -3,6 +3,15 @@ import { GwsError } from '../executor/errors.js';
 import { listAccounts, removeAccount, authenticateAndAddAccount } from '../accounts/registry.js';
 import type { ToolDefinition } from './tools.js';
 
+const EMAIL_RE = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+function validateEmail(email: unknown): string {
+  if (typeof email !== 'string' || !EMAIL_RE.test(email)) {
+    throw new Error('Invalid email address format');
+  }
+  return email;
+}
+
 export async function handleToolCall(
   tool: ToolDefinition,
   params: Record<string, unknown>,
@@ -19,16 +28,13 @@ export async function handleToolCall(
 
   // All other tools go through the gws executor
   if (tool.requiresAccount) {
-    const email = params.email as string | undefined;
-    if (!email) {
-      throw new Error('email is required for this tool. Use list_accounts to see available accounts.');
-    }
+    const email = validateEmail(params.email);
     const gwsArgs = tool.toGwsArgs(params);
     const result = await execute(gwsArgs, { account: email });
     return result.data;
   }
 
-  // Non-account tools without requiresAccount (shouldn't happen but handle gracefully)
+  // Non-account tools without requiresAccount
   const gwsArgs = tool.toGwsArgs(params);
   const result = await execute(gwsArgs);
   return result.data;
