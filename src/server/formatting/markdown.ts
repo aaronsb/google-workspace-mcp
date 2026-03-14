@@ -11,8 +11,11 @@ export function formatEmailList(data: unknown): { emails: EmailSummary[]; count:
 
   const emails: EmailSummary[] = messages.map(msg => ({
     id: String(msg.id ?? ''),
-    threadId: String(msg.threadId ?? ''),
-    snippet: String(msg.snippet ?? ''),
+    threadId: msg.threadId ? String(msg.threadId) : undefined,
+    from: msg.from ? String(msg.from) : undefined,
+    subject: msg.subject ? String(msg.subject) : undefined,
+    date: msg.date ? String(msg.date) : undefined,
+    snippet: msg.snippet ? String(msg.snippet) : undefined,
   }));
 
   return { emails, count: emails.length };
@@ -39,8 +42,11 @@ export function formatEmailDetail(data: unknown): Record<string, unknown> {
 
 interface EmailSummary {
   id: string;
-  threadId: string;
-  snippet: string;
+  threadId?: string;
+  from?: string;
+  subject?: string;
+  date?: string;
+  snippet?: string;
 }
 
 // --- Calendar formatting ---
