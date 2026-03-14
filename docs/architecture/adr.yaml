@@ -1,0 +1,41 @@
+# ADR Configuration — google-workspace-mcp
+# Defines domain numbering and validation rules.
+# Used by: docs/scripts/adr
+
+project_name: Google Workspace MCP Server
+
+domains:
+  core:
+    range: [100, 199]
+    name: Core
+    description: Architecture, tool design, executor patterns
+    folder: core
+
+  auth:
+    range: [200, 299]
+    name: Authentication
+    description: OAuth, credential management, multi-account
+    folder: auth
+
+  api:
+    range: [300, 399]
+    name: API Surface
+    description: MCP tools, schemas, progressive disclosure
+    folder: api
+
+statuses:
+  - Draft
+  - Proposed
+  - Accepted
+  - Superseded
+  - Deprecated
+
+defaults:
+  deciders: [aaronsb]
+  status: Draft
+
+legacy:
+  range: [1, 99]
+  label: "Legacy"
+
+viewer: cat {file}
