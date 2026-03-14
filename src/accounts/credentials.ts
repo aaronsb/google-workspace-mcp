@@ -20,8 +20,8 @@ export async function hasCredential(email: string): Promise<boolean> {
 }
 
 export async function exportAndSaveCredential(email: string): Promise<string> {
-  // Ask gws to export the current credential as plaintext
-  const result = await execute(['auth', 'export']);
+  // --unmasked is required; without it gws masks the client_secret
+  const result = await execute(['auth', 'export', '--unmasked']);
   const credential = result.data as AuthorizedUserCredential;
 
   if (credential?.type !== 'authorized_user') {
