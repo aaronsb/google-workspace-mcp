@@ -17,6 +17,7 @@ export function requireString(params: Record<string, unknown>, field: string): s
 }
 
 export function clamp(value: unknown, defaultVal: number, max: number): number {
-  const n = Number(value) || defaultVal;
+  const n = Number(value);
+  if (Number.isNaN(n) || n <= 0) return Math.min(defaultVal, max);
   return Math.min(n, max);
 }

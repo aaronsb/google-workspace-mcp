@@ -85,9 +85,10 @@ describe('clamp', () => {
     expect(clamp('not-a-number', 10, 50)).toBe(10);
   });
 
-  it('returns default when value is 0 (falsy)', () => {
-    // Number(0) is 0, which is falsy, so || defaultVal kicks in
+  it('returns default when value is 0 or negative', () => {
     expect(clamp(0, 10, 50)).toBe(10);
+    expect(clamp(-5, 10, 50)).toBe(10);
+    expect(clamp(-100, 10, 50)).toBe(10);
   });
 
   it('clamps to max when value exceeds it', () => {
@@ -99,10 +100,6 @@ describe('clamp', () => {
     expect(clamp(25, 10, 50)).toBe(25);
     expect(clamp(1, 10, 50)).toBe(1);
     expect(clamp(50, 10, 50)).toBe(50);
-  });
-
-  it('handles negative values', () => {
-    expect(clamp(-5, 10, 50)).toBe(-5);
   });
 
   it('coerces string numbers', () => {

@@ -38,10 +38,20 @@ describe('credentials', () => {
         'utf-8',
       );
     });
+
+    it('throws when credential file does not exist', async () => {
+      mockFs.readFile.mockRejectedValue(new Error('ENOENT'));
+      await expect(credentials.readCredential('user@example.com')).rejects.toThrow('ENOENT');
+    });
+
+    it('throws on malformed JSON', async () => {
+      mockFs.readFile.mockResolvedValue('not-json{{{');
+      await expect(credentials.readCredential('user@example.com')).rejects.toThrow();
+    });
   });
 
   describe('removeCredential', () => {
-    it('deletes credential file', async () => {
+    it('deletes credential file at the correct path', async () => {
       mockFs.unlink.mockResolvedValue(undefined);
       await credentials.removeCredential('user@example.com');
       expect(mockFs.unlink).toHaveBeenCalledWith(credentialPath('user@example.com'));
@@ -59,6 +69,11 @@ describe('credentials', () => {
       err.code = 'EACCES';
       mockFs.unlink.mockRejectedValue(err);
       await expect(credentials.removeCredential('user@example.com')).rejects.toThrow('EACCES');
+    });
+
+    it('rethrows errors without code property', async () => {
+      mockFs.unlink.mockRejectedValue(new Error('unknown fs error'));
+      await expect(credentials.removeCredential('user@example.com')).rejects.toThrow('unknown fs error');
     });
   });
 

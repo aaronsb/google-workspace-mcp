@@ -42,11 +42,11 @@ describe('createServer', () => {
   beforeAll(() => {
     createServer();
 
-    // Extract the handlers that were registered
-    const calls = mockSetRequestHandler.mock.calls;
-    // First call is ListTools, second is CallTool (matches server.ts order)
-    listToolsHandler = calls[0][1];
-    callToolHandler = calls[1][1];
+    // Extract handlers by schema key, not registration order
+    for (const [schema, handler] of mockSetRequestHandler.mock.calls) {
+      if (schema === 'ListToolsRequestSchema') listToolsHandler = handler;
+      if (schema === 'CallToolRequestSchema') callToolHandler = handler;
+    }
   });
 
   beforeEach(() => {

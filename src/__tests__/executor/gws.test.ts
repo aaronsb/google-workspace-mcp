@@ -126,18 +126,19 @@ describe('execute', () => {
 
   it('rejects with timeout error and sends SIGTERM', async () => {
     jest.useFakeTimers();
-    const proc = createMockProcess();
-    mockSpawn.mockReturnValue(proc as any);
+    try {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc as any);
 
-    const promise = execute(['calendar', 'events', 'list'], { timeout: 100 });
+      const promise = execute(['calendar', 'events', 'list'], { timeout: 100 });
 
-    // Advance past the timeout
-    jest.advanceTimersByTime(150);
+      jest.advanceTimersByTime(150);
 
-    await expect(promise).rejects.toThrow('timed out');
-    expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
-
-    jest.useRealTimers();
+      await expect(promise).rejects.toThrow('timed out');
+      expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('returns raw string data when format is not json', async () => {
