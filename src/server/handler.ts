@@ -4,7 +4,15 @@ import { handleCalendar } from './handlers/calendar.js';
 import { handleDrive } from './handlers/drive.js';
 import { handleQueue } from './queue.js';
 
-type ToolHandler = (params: Record<string, unknown>) => Promise<unknown>;
+/**
+ * Handlers return text for the agent plus refs for queue $N.field resolution.
+ */
+export interface HandlerResponse {
+  text: string;
+  refs: Record<string, unknown>;
+}
+
+type ToolHandler = (params: Record<string, unknown>) => Promise<HandlerResponse>;
 
 const domainHandlers: Record<string, ToolHandler> = {
   manage_accounts: handleAccounts,
@@ -16,7 +24,7 @@ const domainHandlers: Record<string, ToolHandler> = {
 export async function handleToolCall(
   toolName: string,
   params: Record<string, unknown>,
-): Promise<unknown> {
+): Promise<HandlerResponse> {
   // Queue wraps the domain handlers
   if (toolName === 'queue_operations') {
     return handleQueue(params, domainHandlers);
@@ -27,6 +35,5 @@ export async function handleToolCall(
     throw new Error(`Unknown tool: ${toolName}`);
   }
 
-  // Email validation happens inside each handler via requireEmail()
   return handler(params);
 }

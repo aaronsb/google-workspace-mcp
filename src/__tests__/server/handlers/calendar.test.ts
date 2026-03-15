@@ -12,13 +12,14 @@ describe('handleCalendar', () => {
   });
 
   describe('list', () => {
-    it('returns formatted events', async () => {
+    it('returns markdown with events', async () => {
       mockExecute.mockResolvedValue(mockGwsResponse(calendarEventsListResponse));
-      const result = await handleCalendar({ operation: 'list', email: 'user@test.com' }) as any;
+      const result = await handleCalendar({ operation: 'list', email: 'user@test.com' });
 
-      expect(result.events).toHaveLength(2);
-      expect(result.events[0].summary).toBe('Standup');
-      expect(result.next_steps).toBeDefined();
+      expect(result.text).toContain('## Events (2)');
+      expect(result.text).toContain('Standup');
+      expect(result.text).toContain('**Next steps:**');
+      expect(result.refs.count).toBe(2);
     });
 
     it('defaults timeMin to today', async () => {
@@ -44,7 +45,7 @@ describe('handleCalendar', () => {
   describe('agenda', () => {
     it('calls gws calendar +agenda', async () => {
       mockExecute.mockResolvedValue(mockGwsResponse(calendarAgendaResponse));
-      const result = await handleCalendar({ operation: 'agenda', email: 'user@test.com' }) as any;
+      await handleCalendar({ operation: 'agenda', email: 'user@test.com' });
 
       expect(mockExecute).toHaveBeenCalledWith(['calendar', '+agenda'], expect.objectContaining({ account: 'user@test.com' }));
     });
@@ -70,16 +71,15 @@ describe('handleCalendar', () => {
       expect(args).toContain('--attendees');
     });
 
-    it('omits optional fields when absent', async () => {
+    it('returns markdown with event details', async () => {
       mockExecute.mockResolvedValue(mockGwsResponse(calendarInsertResponse));
-      await handleCalendar({
+      const result = await handleCalendar({
         operation: 'create', email: 'user@test.com',
         summary: 'Meeting', start: 'X', end: 'Y',
       });
 
-      const args = mockExecute.mock.calls[0][0];
-      expect(args).not.toContain('--location');
-      expect(args).not.toContain('--attendees');
+      expect(result.text).toContain('Event created: **Meeting**');
+      expect(result.refs.summary).toBe('Meeting');
     });
   });
 
@@ -88,12 +88,13 @@ describe('handleCalendar', () => {
       await expect(handleCalendar({ operation: 'get', email: 'user@test.com' })).rejects.toThrow('eventId');
     });
 
-    it('returns formatted event detail', async () => {
+    it('returns markdown event detail', async () => {
       mockExecute.mockResolvedValue(mockGwsResponse(calendarEventDetailResponse));
-      const result = await handleCalendar({ operation: 'get', email: 'user@test.com', eventId: 'evt-1' }) as any;
+      const result = await handleCalendar({ operation: 'get', email: 'user@test.com', eventId: 'evt-1' });
 
-      expect(result.summary).toBe('Standup');
-      expect(result.attendees).toHaveLength(1);
+      expect(result.text).toContain('## Standup');
+      expect(result.text).toContain('alice@test.com');
+      expect(result.refs.eventId).toBe('evt-1');
     });
   });
 
@@ -104,10 +105,11 @@ describe('handleCalendar', () => {
 
     it('returns deleted status', async () => {
       mockExecute.mockResolvedValue(mockGwsResponse({}));
-      const result = await handleCalendar({ operation: 'delete', email: 'user@test.com', eventId: 'evt-1' }) as any;
+      const result = await handleCalendar({ operation: 'delete', email: 'user@test.com', eventId: 'evt-1' });
 
-      expect(result.status).toBe('deleted');
-      expect(result.eventId).toBe('evt-1');
+      expect(result.text).toContain('Event deleted: evt-1');
+      expect(result.refs.status).toBe('deleted');
+      expect(result.refs.eventId).toBe('evt-1');
     });
   });
 

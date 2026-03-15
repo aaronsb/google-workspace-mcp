@@ -37,7 +37,7 @@ export function createServer(): Server {
     try {
       const result = await handleToolCall(name, (args ?? {}) as Record<string, unknown>);
       return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        content: [{ type: 'text', text: result.text }],
       };
     } catch (err) {
       if (err instanceof GwsError) {

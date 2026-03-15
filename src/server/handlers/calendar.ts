@@ -2,8 +2,9 @@ import { execute } from '../../executor/gws.js';
 import { formatEventList, formatEventDetail } from '../formatting/markdown.js';
 import { nextSteps } from '../formatting/next-steps.js';
 import { requireEmail, requireString, clamp } from './validate.js';
+import type { HandlerResponse } from '../handler.js';
 
-export async function handleCalendar(params: Record<string, unknown>): Promise<unknown> {
+export async function handleCalendar(params: Record<string, unknown>): Promise<HandlerResponse> {
   const operation = params.operation as string;
   const email = requireEmail(params);
 
@@ -22,12 +23,22 @@ export async function handleCalendar(params: Record<string, unknown>): Promise<u
           orderBy: 'startTime',
         }),
       ], { account: email });
-      return { ...formatEventList(result.data), ...nextSteps('calendar', 'list') };
+      const formatted = formatEventList(result.data);
+      return {
+        text: formatted.text + nextSteps('calendar', 'list', { email }),
+        refs: formatted.refs,
+      };
     }
 
     case 'agenda': {
       const result = await execute(['calendar', '+agenda'], { account: email });
-      return { ...result.data as object, ...nextSteps('calendar', 'agenda') };
+      // +agenda returns its own format — pass through as text
+      const data = result.data;
+      const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+      return {
+        text: text + nextSteps('calendar', 'agenda', { email }),
+        refs: typeof data === 'object' && data !== null ? data as Record<string, unknown> : {},
+      };
     }
 
     case 'create': {
@@ -39,7 +50,15 @@ export async function handleCalendar(params: Record<string, unknown>): Promise<u
       if (params.location) args.push('--location', String(params.location));
       if (params.attendees) args.push('--attendees', String(params.attendees));
       const result = await execute(args, { account: email });
-      return { ...result.data as object, ...nextSteps('calendar', 'create') };
+      const data = result.data as Record<string, unknown>;
+      return {
+        text: `Event created: **${summary}**\n\n` +
+          `**When:** ${start} – ${end}\n` +
+          (params.location ? `**Where:** ${params.location}\n` : '') +
+          `**Event ID:** ${data.id ?? 'unknown'}` +
+          nextSteps('calendar', 'create', { email }),
+        refs: { id: data.id, eventId: data.id, summary, start, end },
+      };
     }
 
     case 'get': {
@@ -48,7 +67,11 @@ export async function handleCalendar(params: Record<string, unknown>): Promise<u
         'calendar', 'events', 'get',
         '--params', JSON.stringify({ calendarId: 'primary', eventId }),
       ], { account: email });
-      return { ...formatEventDetail(result.data), ...nextSteps('calendar', 'get', { eventId }) };
+      const formatted = formatEventDetail(result.data);
+      return {
+        text: formatted.text + nextSteps('calendar', 'get', { email, eventId }),
+        refs: formatted.refs,
+      };
     }
 
     case 'delete': {
@@ -57,7 +80,10 @@ export async function handleCalendar(params: Record<string, unknown>): Promise<u
         'calendar', 'events', 'delete',
         '--params', JSON.stringify({ calendarId: 'primary', eventId }),
       ], { account: email });
-      return { status: 'deleted', eventId, ...nextSteps('calendar', 'delete') };
+      return {
+        text: `Event deleted: ${eventId}` + nextSteps('calendar', 'delete', { email }),
+        refs: { eventId, status: 'deleted' },
+      };
     }
 
     default:
