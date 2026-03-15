@@ -10,8 +10,8 @@ test: test-unit ## Run all tests (unit)
 test-unit: ## Run unit tests (mocked, fast, no network)
 	npx jest --config jest.config.cjs --testPathPattern='src/__tests__/(executor|accounts|server)' --runInBand
 
-test-integration: ## Run integration tests (requires gws + credentials)
-	npx jest --config jest.config.cjs --testPathPattern='src/__tests__/integration' --runInBand
+test-integration: ## Run integration tests (ACCOUNT=email optional)
+	TEST_ACCOUNT=$(ACCOUNT) npx jest --config jest.config.cjs --testPathPattern='src/__tests__/integration' --runInBand
 
 typecheck: ## Type-check without emitting
 	npx tsc --noEmit --skipLibCheck
