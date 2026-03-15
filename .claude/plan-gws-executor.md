@@ -79,8 +79,8 @@ $XDG_CONFIG_HOME/google-workspace-mcp/     # ~/.config/google-workspace-mcp/
 
 $XDG_DATA_HOME/google-workspace-mcp/       # ~/.local/share/google-workspace-mcp/
   credentials/
-    aaronsb-gmail-com.json                  # Exported authorized_user JSON (0600)
-    aaron-bockelie-com.json                 # One file per account
+    aaronsb_at_gmail_dot_com.json            # Exported authorized_user JSON (0600)
+    aaron_at_bockelie_dot_com.json          # One file per account
 
 ~/.config/gws/                             # gws's own namespace — DO NOT TOUCH
   credentials.enc                           # Their encrypted store
@@ -100,16 +100,10 @@ function dataDir(): string {
 }
 
 function credentialPath(email: string): string {
-  const slug = email.replace(/@/g, '-').replace(/\./g, '-');
+  const slug = email.replace(/@/g, '_at_').replace(/\./g, '_dot_');
   return path.join(dataDir(), 'credentials', `${slug}.json`);
 }
 ```
-
-### Migration
-
-Old path: `~/.mcp/google-workspace-mcp/` — not XDG compliant.
-On first run, detect old layout and offer to migrate accounts.json + re-auth credentials.
-Don't migrate old tokens — they're expired anyway. Just re-auth via gws.
 
 ## Key Decisions
 
