@@ -1,24 +1,23 @@
-.PHONY: test test-unit test-integration build clean typecheck
+.DEFAULT_GOAL := help
+.PHONY: help test test-unit test-integration build clean typecheck
 
-# Unit tests — mocked, fast, no network
-test-unit:
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
+
+test: test-unit ## Run all tests (unit)
+
+test-unit: ## Run unit tests (mocked, fast, no network)
 	npx jest --config jest.config.cjs --testPathPattern='src/__tests__/(executor|accounts|server)' --runInBand
 
-# Integration tests — requires gws installed + valid credentials
-test-integration:
+test-integration: ## Run integration tests (requires gws + credentials)
 	npx jest --config jest.config.cjs --testPathPattern='src/__tests__/integration' --runInBand
 
-# All unit tests
-test: test-unit
-
-# Type checking
-typecheck:
+typecheck: ## Type-check without emitting
 	npx tsc --noEmit --skipLibCheck
 
-# Build
-build:
+build: ## Compile TypeScript to build/
 	npx tsc --skipLibCheck
 
-# Clean build output
-clean:
+clean: ## Remove build artifacts
 	rm -rf build/
