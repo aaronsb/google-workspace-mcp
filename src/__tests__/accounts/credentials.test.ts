@@ -1,11 +1,13 @@
 import * as fs from 'node:fs/promises';
 import * as credentials from '../../accounts/credentials.js';
 import { credentialPath, credentialsDir } from '../../executor/paths.js';
+import { execute } from '../../executor/gws.js';
 
 jest.mock('node:fs/promises');
 jest.mock('../../executor/gws.js');
 
 const mockFs = jest.mocked(fs);
+const mockExecute = execute as jest.MockedFunction<typeof execute>;
 
 describe('credentials', () => {
   beforeEach(() => {
@@ -36,10 +38,20 @@ describe('credentials', () => {
         'utf-8',
       );
     });
+
+    it('throws when credential file does not exist', async () => {
+      mockFs.readFile.mockRejectedValue(new Error('ENOENT'));
+      await expect(credentials.readCredential('user@example.com')).rejects.toThrow('ENOENT');
+    });
+
+    it('throws on malformed JSON', async () => {
+      mockFs.readFile.mockResolvedValue('not-json{{{');
+      await expect(credentials.readCredential('user@example.com')).rejects.toThrow();
+    });
   });
 
   describe('removeCredential', () => {
-    it('deletes credential file', async () => {
+    it('deletes credential file at the correct path', async () => {
       mockFs.unlink.mockResolvedValue(undefined);
       await credentials.removeCredential('user@example.com');
       expect(mockFs.unlink).toHaveBeenCalledWith(credentialPath('user@example.com'));
@@ -57,6 +69,92 @@ describe('credentials', () => {
       err.code = 'EACCES';
       mockFs.unlink.mockRejectedValue(err);
       await expect(credentials.removeCredential('user@example.com')).rejects.toThrow('EACCES');
+    });
+
+    it('rethrows errors without code property', async () => {
+      mockFs.unlink.mockRejectedValue(new Error('unknown fs error'));
+      await expect(credentials.removeCredential('user@example.com')).rejects.toThrow('unknown fs error');
+    });
+  });
+
+  describe('exportAndSaveCredential', () => {
+    const validCredential = {
+      type: 'authorized_user',
+      client_id: 'id-123',
+      client_secret: 'secret-456',
+      refresh_token: 'token-789',
+    };
+
+    beforeEach(() => {
+      mockFs.mkdir.mockResolvedValue(undefined);
+      mockFs.writeFile.mockResolvedValue(undefined);
+    });
+
+    it('calls gws auth export --unmasked', async () => {
+      mockExecute.mockResolvedValue({ success: true, data: validCredential, stderr: '' });
+
+      await credentials.exportAndSaveCredential('user@example.com');
+
+      expect(mockExecute).toHaveBeenCalledWith(['auth', 'export', '--unmasked']);
+    });
+
+    it('creates credentials directory with 0700 permissions', async () => {
+      mockExecute.mockResolvedValue({ success: true, data: validCredential, stderr: '' });
+
+      await credentials.exportAndSaveCredential('user@example.com');
+
+      expect(mockFs.mkdir).toHaveBeenCalledWith(
+        expect.any(String),
+        { recursive: true, mode: 0o700 },
+      );
+    });
+
+    it('writes credential file with 0600 permissions', async () => {
+      mockExecute.mockResolvedValue({ success: true, data: validCredential, stderr: '' });
+
+      await credentials.exportAndSaveCredential('user@example.com');
+
+      expect(mockFs.writeFile).toHaveBeenCalledWith(
+        credentialPath('user@example.com'),
+        JSON.stringify(validCredential, null, 2),
+        { mode: 0o600 },
+      );
+    });
+
+    it('returns the credential file path', async () => {
+      mockExecute.mockResolvedValue({ success: true, data: validCredential, stderr: '' });
+
+      const result = await credentials.exportAndSaveCredential('user@example.com');
+
+      expect(result).toBe(credentialPath('user@example.com'));
+    });
+
+    it('rejects when gws returns non-authorized_user type', async () => {
+      mockExecute.mockResolvedValue({
+        success: true,
+        data: { type: 'service_account', project_id: 'test' },
+        stderr: '',
+      });
+
+      await expect(
+        credentials.exportAndSaveCredential('user@example.com'),
+      ).rejects.toThrow('authorized_user');
+    });
+
+    it('rejects when gws returns null data', async () => {
+      mockExecute.mockResolvedValue({ success: true, data: null, stderr: '' });
+
+      await expect(
+        credentials.exportAndSaveCredential('user@example.com'),
+      ).rejects.toThrow('authorized_user');
+    });
+
+    it('rejects when gws returns empty object', async () => {
+      mockExecute.mockResolvedValue({ success: true, data: {}, stderr: '' });
+
+      await expect(
+        credentials.exportAndSaveCredential('user@example.com'),
+      ).rejects.toThrow('authorized_user');
     });
   });
 

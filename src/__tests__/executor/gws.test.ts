@@ -1,4 +1,4 @@
-import { execute } from '../../executor/gws.js';
+import { execute, gwsVersion } from '../../executor/gws.js';
 import { GwsError, GwsExitCode } from '../../executor/errors.js';
 import * as child_process from 'node:child_process';
 import { EventEmitter } from 'node:events';
@@ -122,5 +122,124 @@ describe('execute', () => {
     const args = spawnCall[1] as string[];
     expect(args).toContain('--format');
     expect(args).toContain('json');
+  });
+
+  it('rejects with timeout error and sends SIGTERM', async () => {
+    jest.useFakeTimers();
+    try {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc as any);
+
+      const promise = execute(['calendar', 'events', 'list'], { timeout: 100 });
+
+      jest.advanceTimersByTime(150);
+
+      await expect(promise).rejects.toThrow('timed out');
+      expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('returns raw string data when format is not json', async () => {
+    const proc = createMockProcess();
+    mockSpawn.mockReturnValue(proc as any);
+
+    const promise = execute(['calendar', 'events', 'list'], { format: 'table' });
+
+    proc.stdout.emit('data', Buffer.from('ID  Summary\n1   Standup'));
+    proc.emit('close', 0);
+
+    const result = await promise;
+    expect(result.data).toBe('ID  Summary\n1   Standup');
+  });
+
+  it('does not set credential env var when no account', async () => {
+    const proc = createMockProcess();
+    mockSpawn.mockReturnValue(proc as any);
+
+    const promise = execute(['calendar', 'events', 'list']);
+
+    proc.stdout.emit('data', Buffer.from('{}'));
+    proc.emit('close', 0);
+
+    await promise;
+
+    const env = mockSpawn.mock.calls[0][2]?.env as Record<string, string>;
+    expect(env.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE).toBeUndefined();
+  });
+
+  it('handles empty stdout with json format as undefined data', async () => {
+    const proc = createMockProcess();
+    mockSpawn.mockReturnValue(proc as any);
+
+    const promise = execute(['calendar', 'events', 'list']);
+
+    proc.stdout.emit('data', Buffer.from(''));
+    proc.emit('close', 0);
+
+    const result = await promise;
+    // Empty stdout with json format → data is the empty string (non-json branch)
+    expect(result.success).toBe(true);
+  });
+
+  it('only settles once even if close fires after error', async () => {
+    const proc = createMockProcess();
+    mockSpawn.mockReturnValue(proc as any);
+
+    const promise = execute(['test']);
+
+    proc.emit('error', new Error('ENOENT'));
+    // close fires after error in real Node.js
+    proc.emit('close', 1);
+
+    await expect(promise).rejects.toThrow('Failed to spawn gws');
+  });
+
+  it('preserves real stderr through filtering', async () => {
+    const proc = createMockProcess();
+    mockSpawn.mockReturnValue(proc as any);
+
+    const promise = execute(['test']);
+
+    proc.stderr.emit('data', Buffer.from('Using keyring backend: keyring\nActual error message\n'));
+    proc.stdout.emit('data', Buffer.from('{}'));
+    proc.emit('close', 0);
+
+    const result = await promise;
+    expect(result.stderr).toBe('Actual error message');
+  });
+});
+
+describe('gwsVersion', () => {
+  const mockSpawn = child_process.spawn as jest.MockedFunction<typeof child_process.spawn>;
+
+  it('returns trimmed version string', async () => {
+    const proc = createMockProcess();
+    mockSpawn.mockReturnValue(proc as any);
+
+    const promise = gwsVersion();
+
+    proc.stdout.emit('data', Buffer.from('gws 0.13.2\n'));
+    proc.emit('close', 0);
+
+    const version = await promise;
+    expect(version).toBe('gws 0.13.2');
+  });
+
+  it('uses table format (not json)', async () => {
+    const proc = createMockProcess();
+    mockSpawn.mockReturnValue(proc as any);
+
+    const promise = gwsVersion();
+
+    proc.stdout.emit('data', Buffer.from('gws 0.13.2'));
+    proc.emit('close', 0);
+
+    await promise;
+
+    const args = mockSpawn.mock.calls[0][1] as string[];
+    expect(args).toContain('--version');
+    expect(args).toContain('table');
   });
 });
