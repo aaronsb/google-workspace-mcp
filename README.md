@@ -31,7 +31,7 @@ Every response includes **next-steps** guidance — the agent always knows what 
 ```
                           ┌─────────────────────────┐
 MCP Client ──stdio──▶     │  manifest.yaml           │
-                          │  (32 operations declared) │
+                          │  (52 operations declared) │
                           └────────┬────────────────┘
                                    │
                           ┌────────▼────────────────┐
@@ -57,6 +57,22 @@ The underlying engine is Google's `@googleworkspace/cli` — a Rust binary that 
 
 ## Install
 
+### MCPB Bundle (Claude Desktop and other MCP clients)
+
+Download the `.mcpb` bundle for your platform from the [latest release](https://github.com/aaronsb/google-workspace-mcp/releases):
+
+| Platform | File |
+|----------|------|
+| macOS (Apple Silicon) | `google-workspace-mcp-darwin-arm64.mcpb` |
+| macOS (Intel) | `google-workspace-mcp-darwin-x64.mcpb` |
+| Linux x64 | `google-workspace-mcp-linux-x64.mcpb` |
+| Linux ARM64 | `google-workspace-mcp-linux-arm64.mcpb` |
+| Windows x64 | `google-workspace-mcp-windows-x64.mcpb` |
+
+In Claude Desktop, drag the `.mcpb` file into the app — it will prompt you for your Google OAuth credentials, then you're ready to go. Other MCP clients that support `.mcpb` extensions can install it the same way. The bundle includes everything: the server, the gws binary, and all dependencies.
+
+### Claude Code / npm
+
 ```bash
 npm install @aaronsb/google-workspace-mcp
 ```
@@ -66,8 +82,6 @@ Or run directly:
 ```bash
 npx @aaronsb/google-workspace-mcp
 ```
-
-The gws CLI binary is included as a dependency — no separate install needed.
 
 ### Prerequisites
 
