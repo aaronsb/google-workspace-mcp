@@ -1,9 +1,11 @@
 /**
- * Semantic tool registry — operation-based tools with conditional properties.
+ * Tool registry — combines factory-generated schemas with hand-coded tools.
  *
- * Pattern: fewer tools, more properties. Each tool accepts an `operation`
- * enum that determines behavior and which fields are required.
+ * Factory tools come from the manifest (ADR-300). Hand-coded tools are
+ * manage_accounts (not a gws wrapper) and queue_operations (meta-tool).
  */
+
+import { generatedTools } from '../factory/registry.js';
 
 export interface ToolSchema {
   name: string;
@@ -11,7 +13,8 @@ export interface ToolSchema {
   inputSchema: Record<string, unknown>;
 }
 
-export const toolSchemas: ToolSchema[] = [
+// Hand-coded tools that don't go through the factory
+const handCodedSchemas: ToolSchema[] = [
   {
     name: 'manage_accounts',
     description: 'Manage Google Workspace account lifecycle: list, authenticate, check status, refresh credentials, update scopes, or remove accounts.',
@@ -29,90 +32,6 @@ export const toolSchemas: ToolSchema[] = [
         services: { type: 'string', description: 'For scopes — comma-separated service names (e.g. gmail,drive,calendar,sheets)' },
       },
       required: ['operation'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'manage_email',
-    description: 'Search, read, send, or triage emails in a Google Workspace account. Supports Gmail search syntax.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        operation: {
-          type: 'string',
-          enum: ['search', 'read', 'send', 'reply', 'triage'],
-          description: 'search: find emails by query | read: get email by ID | send: compose new email | reply: reply to a thread | triage: inbox summary',
-        },
-        email: { type: 'string', description: 'Account email address' },
-        // search
-        query: { type: 'string', description: 'Gmail search query (e.g. "from:alice subject:meeting has:attachment")' },
-        maxResults: { type: 'number', description: 'Max results for search (default: 10, max: 50)' },
-        // read
-        messageId: { type: 'string', description: 'Email message ID (for read/reply)' },
-        // send/reply
-        to: { type: 'string', description: 'Recipient email (for send)' },
-        subject: { type: 'string', description: 'Email subject (for send)' },
-        body: { type: 'string', description: 'Email body text (for send/reply)' },
-      },
-      required: ['operation', 'email'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'manage_calendar',
-    description: 'List events, view today\'s agenda, or create/update/delete calendar events.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        operation: {
-          type: 'string',
-          enum: ['list', 'agenda', 'create', 'get', 'delete'],
-          description: 'list: upcoming events | agenda: today at a glance | create: new event | get: event details | delete: remove event',
-        },
-        email: { type: 'string', description: 'Account email address' },
-        // list
-        timeMin: { type: 'string', description: 'Start of range (ISO 8601) — defaults to today' },
-        timeMax: { type: 'string', description: 'End of range (ISO 8601)' },
-        maxResults: { type: 'number', description: 'Max events (default: 10, max: 50)' },
-        // get/delete
-        eventId: { type: 'string', description: 'Event ID (for get/delete)' },
-        // create
-        summary: { type: 'string', description: 'Event title (for create)' },
-        start: { type: 'string', description: 'Start time ISO 8601 (for create)' },
-        end: { type: 'string', description: 'End time ISO 8601 (for create)' },
-        description: { type: 'string', description: 'Event description' },
-        location: { type: 'string', description: 'Event location' },
-        attendees: { type: 'string', description: 'Comma-separated attendee emails' },
-      },
-      required: ['operation', 'email'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'manage_drive',
-    description: 'Search, upload, download, or read files in Google Drive.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        operation: {
-          type: 'string',
-          enum: ['search', 'upload', 'get', 'download'],
-          description: 'search: find files | upload: upload local file | get: file metadata | download: download file content',
-        },
-        email: { type: 'string', description: 'Account email address' },
-        // search
-        query: { type: 'string', description: 'Drive search query' },
-        maxResults: { type: 'number', description: 'Max results (default: 10, max: 50)' },
-        // get/download
-        fileId: { type: 'string', description: 'File ID (for get/download)' },
-        // upload
-        filePath: { type: 'string', description: 'Local file path (for upload)' },
-        name: { type: 'string', description: 'File name in Drive (for upload, defaults to local name)' },
-        parentFolderId: { type: 'string', description: 'Parent folder ID (for upload)' },
-        // download
-        outputPath: { type: 'string', description: 'Local path to save downloaded file' },
-      },
-      required: ['operation', 'email'],
       additionalProperties: false,
     },
   },
@@ -157,6 +76,14 @@ export const toolSchemas: ToolSchema[] = [
       additionalProperties: false,
     },
   },
+];
+
+// Factory-generated schemas from the shared registry
+const factorySchemas: ToolSchema[] = generatedTools.map(t => t.schema);
+
+export const toolSchemas: ToolSchema[] = [
+  ...handCodedSchemas,
+  ...factorySchemas,
 ];
 
 export function getToolSchema(name: string): ToolSchema | undefined {

@@ -1,23 +1,19 @@
 import { handleToolCall } from '../../server/handler.js';
 import type { HandlerResponse } from '../../server/handler.js';
 
-// Mock all domain handlers
+// Mock gws executor — all factory-generated handlers call through here
+jest.mock('../../executor/gws.js');
+// Mock accounts handler — still hand-coded
 jest.mock('../../server/handlers/accounts.js');
-jest.mock('../../server/handlers/email.js');
-jest.mock('../../server/handlers/calendar.js');
-jest.mock('../../server/handlers/drive.js');
+// Mock queue handler — still hand-coded
 jest.mock('../../server/queue.js');
 
+import { execute } from '../../executor/gws.js';
 import { handleAccounts } from '../../server/handlers/accounts.js';
-import { handleEmail } from '../../server/handlers/email.js';
-import { handleCalendar } from '../../server/handlers/calendar.js';
-import { handleDrive } from '../../server/handlers/drive.js';
 import { handleQueue } from '../../server/queue.js';
 
+const mockExecute = execute as jest.MockedFunction<typeof execute>;
 const mockAccounts = handleAccounts as jest.MockedFunction<typeof handleAccounts>;
-const mockEmail = handleEmail as jest.MockedFunction<typeof handleEmail>;
-const mockCalendar = handleCalendar as jest.MockedFunction<typeof handleCalendar>;
-const mockDrive = handleDrive as jest.MockedFunction<typeof handleDrive>;
 const mockQueue = handleQueue as jest.MockedFunction<typeof handleQueue>;
 
 const stubResponse: HandlerResponse = { text: 'ok', refs: {} };
@@ -34,35 +30,51 @@ describe('handleToolCall', () => {
     await handleToolCall('manage_accounts', params);
 
     expect(mockAccounts).toHaveBeenCalledWith(params);
-    expect(mockEmail).not.toHaveBeenCalled();
+    expect(mockExecute).not.toHaveBeenCalled();
   });
 
-  it('routes manage_email to handleEmail', async () => {
-    mockEmail.mockResolvedValue(stubResponse);
+  it('routes manage_email to factory-generated handler', async () => {
+    // Factory handler calls execute() for triage (helper: +triage)
+    mockExecute.mockResolvedValue({
+      success: true,
+      data: { messages: [] },
+      stderr: '',
+    });
     const params = { operation: 'triage', email: 'u@t.com' };
 
-    await handleToolCall('manage_email', params);
+    const result = await handleToolCall('manage_email', params);
 
-    expect(mockEmail).toHaveBeenCalledWith(params);
-    expect(mockAccounts).not.toHaveBeenCalled();
+    expect(mockExecute).toHaveBeenCalled();
+    expect(result).toHaveProperty('text');
+    expect(result).toHaveProperty('refs');
   });
 
-  it('routes manage_calendar to handleCalendar', async () => {
-    mockCalendar.mockResolvedValue(stubResponse);
+  it('routes manage_calendar to factory-generated handler', async () => {
+    mockExecute.mockResolvedValue({
+      success: true,
+      data: { items: [] },
+      stderr: '',
+    });
     const params = { operation: 'list', email: 'u@t.com' };
 
-    await handleToolCall('manage_calendar', params);
+    const result = await handleToolCall('manage_calendar', params);
 
-    expect(mockCalendar).toHaveBeenCalledWith(params);
+    expect(mockExecute).toHaveBeenCalled();
+    expect(result).toHaveProperty('text');
   });
 
-  it('routes manage_drive to handleDrive', async () => {
-    mockDrive.mockResolvedValue(stubResponse);
+  it('routes manage_drive to factory-generated handler', async () => {
+    mockExecute.mockResolvedValue({
+      success: true,
+      data: { files: [] },
+      stderr: '',
+    });
     const params = { operation: 'search', email: 'u@t.com' };
 
-    await handleToolCall('manage_drive', params);
+    const result = await handleToolCall('manage_drive', params);
 
-    expect(mockDrive).toHaveBeenCalledWith(params);
+    expect(mockExecute).toHaveBeenCalled();
+    expect(result).toHaveProperty('text');
   });
 
   it('routes queue_operations to handleQueue with domain handlers', async () => {
@@ -83,21 +95,24 @@ describe('handleToolCall', () => {
     await expect(handleToolCall('nonexistent', {})).rejects.toThrow('Unknown tool: nonexistent');
   });
 
-  it('propagates handler errors', async () => {
-    mockEmail.mockRejectedValue(new Error('API failure'));
+  it('propagates executor errors through factory handler', async () => {
+    mockExecute.mockRejectedValue(new Error('API failure'));
 
     await expect(
       handleToolCall('manage_email', { operation: 'triage', email: 'u@t.com' }),
     ).rejects.toThrow('API failure');
   });
 
-  it('returns HandlerResponse with text and refs', async () => {
-    const expected: HandlerResponse = { text: '## Messages (1)\n\nmsg-1 | alice', refs: { count: 1 } };
-    mockEmail.mockResolvedValue(expected);
+  it('returns HandlerResponse with text and refs from factory handler', async () => {
+    mockExecute.mockResolvedValue({
+      success: true,
+      data: { messages: [{ id: 'msg-1', from: 'alice', subject: 'test', date: '2024-01-01' }] },
+      stderr: '',
+    });
 
     const result = await handleToolCall('manage_email', { operation: 'triage', email: 'u@t.com' });
 
-    expect(result.text).toBe(expected.text);
-    expect(result.refs).toEqual(expected.refs);
+    expect(result.text).toContain('msg-1');
+    expect(result.refs).toHaveProperty('count', 1);
   });
 });

@@ -1,8 +1,6 @@
 import { handleAccounts } from './handlers/accounts.js';
-import { handleEmail } from './handlers/email.js';
-import { handleCalendar } from './handlers/calendar.js';
-import { handleDrive } from './handlers/drive.js';
 import { handleQueue } from './queue.js';
+import { generatedTools } from '../factory/registry.js';
 
 export type { HandlerResponse } from './formatting/markdown.js';
 import type { HandlerResponse } from './formatting/markdown.js';
@@ -11,10 +9,12 @@ type ToolHandler = (params: Record<string, unknown>) => Promise<HandlerResponse>
 
 const domainHandlers: Record<string, ToolHandler> = {
   manage_accounts: handleAccounts,
-  manage_email: handleEmail,
-  manage_calendar: handleCalendar,
-  manage_drive: handleDrive,
 };
+
+// Register factory-generated handlers
+for (const tool of generatedTools) {
+  domainHandlers[tool.schema.name] = tool.handler;
+}
 
 export async function handleToolCall(
   toolName: string,

@@ -103,7 +103,7 @@ export async function handleEmail(params: Record<string, unknown>): Promise<Hand
       const messageId = requireString(params, 'messageId');
       const body = requireString(params, 'body');
       const result = await execute([
-        'gmail', '+reply', messageId, '--body', body,
+        'gmail', '+reply', '--message-id', messageId, '--body', body,
       ], { account: email });
       const data = result.data as Record<string, unknown>;
       return {
