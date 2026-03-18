@@ -76,8 +76,43 @@ export function createServer(): Server {
   return server;
 }
 
+/** Warm up credentials on startup — validates accounts and refreshes tokens. */
+async function warmupAccounts(): Promise<void> {
+  try {
+    const { listAccounts } = await import('../accounts/registry.js');
+    const accounts = await listAccounts();
+    if (accounts.length === 0) {
+      log('startup: no accounts configured');
+      return;
+    }
+    log(`startup: warming ${accounts.length} account(s)`);
+    for (const account of accounts) {
+      const email = account.email;
+      try {
+        const { hasCredential } = await import('../accounts/credentials.js');
+        if (await hasCredential(email)) {
+          const { execute } = await import('../executor/gws.js');
+          await execute(
+            ['gmail', 'users', 'getProfile', '--params', JSON.stringify({ userId: 'me' })],
+            { account: email },
+          );
+          log(`startup: ${email} — token valid`);
+        } else {
+          log(`startup: ${email} — no credential file`);
+        }
+      } catch (err) {
+        log(`startup: ${email} — token invalid (${(err as Error).message})`);
+      }
+    }
+  } catch (err) {
+    log(`startup: warmup failed (${(err as Error).message})`);
+  }
+}
+
 export async function startServer(): Promise<void> {
   const server = createServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  // Non-blocking warmup — don't delay MCP handshake
+  warmupAccounts().catch(() => {});
 }

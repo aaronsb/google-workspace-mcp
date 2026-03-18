@@ -1,7 +1,7 @@
 import { spawn, execFile } from 'node:child_process';
 import { platform } from 'node:os';
 import { execute } from '../executor/gws.js';
-import { exportAndSaveCredential } from './credentials.js';
+import { exportAndSaveCredential, readCredential, hasCredential } from './credentials.js';
 
 export interface AuthResult {
   status: 'success' | 'error';
@@ -18,15 +18,61 @@ export interface AccountStatus {
   hasRefreshToken: boolean;
 }
 
+/**
+ * Check account status by reading our credential file and validating
+ * the token via a lightweight Gmail API call.
+ *
+ * Note: `gws auth status` is single-account (keyring-based) and ignores
+ * GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE. We bypass it entirely and
+ * validate against our own per-account credential files.
+ */
 export async function checkAccountStatus(email: string): Promise<AccountStatus> {
-  const result = await execute(['auth', 'status'], { account: email });
-  const data = result.data as Record<string, unknown>;
+  const hasCred = await hasCredential(email);
+  if (!hasCred) {
+    return {
+      email,
+      tokenValid: false,
+      scopes: [],
+      scopeCount: 0,
+      hasRefreshToken: false,
+    };
+  }
+
+  const cred = await readCredential(email);
+  const hasRefreshToken = Boolean(cred.refresh_token);
+
+  // Validate the token with a lightweight API call using this account's credential
+  let tokenValid = false;
+  try {
+    await execute(
+      ['gmail', 'users', 'getProfile', '--params', JSON.stringify({ userId: 'me' })],
+      { account: email },
+    );
+    tokenValid = true;
+  } catch {
+    tokenValid = false;
+  }
+
+  // Get scopes from gws auth status. These are the scopes granted to the
+  // OAuth app, not per-account — gws is single-account so we can't get
+  // per-account scopes. But they're useful for showing what services are enabled.
+  let scopes: string[] = [];
+  if (tokenValid) {
+    try {
+      const statusResult = await execute(['auth', 'status']);
+      const statusData = statusResult.data as Record<string, unknown>;
+      scopes = Array.isArray(statusData.scopes) ? statusData.scopes as string[] : [];
+    } catch {
+      // Non-critical — scopes are informational
+    }
+  }
+
   return {
-    email: (data.user as string) ?? email,
-    tokenValid: Boolean(data.token_valid),
-    scopes: Array.isArray(data.scopes) ? data.scopes as string[] : [],
-    scopeCount: Number(data.scope_count ?? 0),
-    hasRefreshToken: Boolean(data.has_refresh_token),
+    email,
+    tokenValid,
+    scopes,
+    scopeCount: scopes.length,
+    hasRefreshToken,
   };
 }
 
