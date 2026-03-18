@@ -17,18 +17,28 @@ export interface GwsOptions {
 
 const DEFAULT_TIMEOUT = 30_000;
 
+const IS_WINDOWS = process.platform === 'win32';
+const GWS_BINARY_NAME = IS_WINDOWS ? 'gws.exe' : 'gws';
+
 /**
  * Resolve gws binary location.
  *
  * Priority:
  * 1. GWS_BINARY_PATH env var (set by mcpb manifest for bundled binary)
+ *    - If path is a directory, appends platform-appropriate binary name
+ *    - If path is a file, uses it directly
  * 2. node_modules/.bin/gws (npm dependency)
  */
 export function resolveGwsBinary(): string {
-  if (process.env.GWS_BINARY_PATH) {
-    return process.env.GWS_BINARY_PATH;
+  const envPath = process.env.GWS_BINARY_PATH;
+  if (envPath) {
+    // Support both direct binary path and directory path
+    if (envPath.endsWith('.exe') || envPath.endsWith('/gws') || envPath.endsWith('\\gws')) {
+      return envPath;
+    }
+    return path.join(envPath, GWS_BINARY_NAME);
   }
-  return path.join(process.cwd(), 'node_modules', '.bin', 'gws');
+  return path.join(process.cwd(), 'node_modules', '.bin', GWS_BINARY_NAME);
 }
 
 // Kept for backward compatibility with tests

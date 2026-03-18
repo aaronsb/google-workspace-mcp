@@ -9,7 +9,13 @@ import { handleToolCall } from './handler.js';
 import { GwsError, GwsExitCode } from '../executor/errors.js';
 import { nextSteps } from './formatting/next-steps.js';
 
+function log(msg: string): void {
+  process.stderr.write(`[gws-mcp] ${msg}\n`);
+}
+
 export function createServer(): Server {
+  log(`startup: ${toolSchemas.length} tools loaded`);
+
   const server = new Server(
     {
       name: '@aaronsb/google-workspace-mcp',
@@ -36,7 +42,9 @@ export function createServer(): Server {
     const { name, arguments: args } = request.params;
 
     try {
+      log(`call: ${name} ${JSON.stringify(args ?? {}).slice(0, 200)}`);
       const result = await handleToolCall(name, (args ?? {}) as Record<string, unknown>);
+      log(`done: ${name}`);
       return {
         content: [{ type: 'text', text: result.text }],
       };

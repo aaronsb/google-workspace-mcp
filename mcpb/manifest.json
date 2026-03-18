@@ -35,7 +35,7 @@
       "env": {
         "GOOGLE_CLIENT_ID": "${user_config.google_client_id}",
         "GOOGLE_CLIENT_SECRET": "${user_config.google_client_secret}",
-        "GWS_BINARY_PATH": "${__dirname}/bin/gws"
+        "GWS_BINARY_PATH": "${__dirname}/bin"
       }
     }
   },

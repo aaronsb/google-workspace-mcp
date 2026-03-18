@@ -31,18 +31,31 @@ download_binary() {
   echo "  Downloading: ${url}"
   mkdir -p "${OUT_DIR}"
 
+  local tmpdir
+  tmpdir=$(mktemp -d)
+
   if [[ "$artifact" == *.zip ]]; then
     local tmpzip
     tmpzip=$(mktemp)
     curl -sL "$url" -o "$tmpzip"
-    unzip -qo "$tmpzip" -d "${OUT_DIR}"
+    unzip -qo "$tmpzip" -d "$tmpdir"
     rm -f "$tmpzip"
   else
-    curl -sL "$url" | tar xz -C "${OUT_DIR}"
+    curl -sL "$url" | tar xz -C "$tmpdir"
   fi
 
-  # Ensure binary is executable
-  chmod +x "${OUT_DIR}/${binary_name}" 2>/dev/null || true
+  # Find the actual binary (may be in a subdirectory) and move to OUT_DIR
+  local found
+  found=$(find "$tmpdir" -name "$binary_name" -type f | head -1)
+  if [[ -z "$found" ]]; then
+    echo "  ERROR: binary '$binary_name' not found in archive" >&2
+    rm -rf "$tmpdir"
+    return 1
+  fi
+
+  mv "$found" "${OUT_DIR}/${binary_name}"
+  chmod +x "${OUT_DIR}/${binary_name}"
+  rm -rf "$tmpdir"
   echo "  Installed: ${OUT_DIR}/${binary_name}"
 }
 
