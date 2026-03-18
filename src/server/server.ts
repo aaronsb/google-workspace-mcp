@@ -9,11 +9,47 @@ import { handleToolCall } from './handler.js';
 import { GwsError, GwsExitCode } from '../executor/errors.js';
 import { nextSteps } from './formatting/next-steps.js';
 
+import {
+  configurePolicies,
+  draftOnlyEmail,
+  noDelete,
+  readOnly,
+  auditLog,
+  type SafetyPolicy,
+} from '../factory/safety.js';
+
 function log(msg: string): void {
   process.stderr.write(`[gws-mcp] ${msg}\n`);
 }
 
+/** Configure safety policies from GWS_SAFETY_POLICY env var. */
+function initSafetyPolicies(): void {
+  const policyEnv = process.env.GWS_SAFETY_POLICY || '';
+  if (!policyEnv) return;
+
+  const policyMap: Record<string, SafetyPolicy> = {
+    'draft-only-email': draftOnlyEmail,
+    'no-delete': noDelete,
+    'read-only': readOnly,
+    'audit': auditLog,
+  };
+
+  const names = policyEnv.split(',').map(s => s.trim()).filter(Boolean);
+  const policies = names
+    .map(name => {
+      const policy = policyMap[name];
+      if (!policy) {
+        log(`safety: unknown policy '${name}', skipping`);
+      }
+      return policy;
+    })
+    .filter((p): p is SafetyPolicy => p !== undefined);
+
+  configurePolicies(policies);
+}
+
 export function createServer(): Server {
+  initSafetyPolicies();
   log(`startup: ${toolSchemas.length} tools loaded`);
 
   const server = new Server(
