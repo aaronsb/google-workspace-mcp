@@ -15,7 +15,9 @@ export interface GwsOptions {
   format?: 'json' | 'table' | 'yaml' | 'csv';
 }
 
-const DEFAULT_TIMEOUT = 30_000;
+const DEFAULT_TIMEOUT = 120_000; // Hard ceiling (2min) — process dies after this regardless
+const STALL_TIMEOUT = 30_000;   // Kill if no stdout/stderr activity for 30s
+                                // (generous: gws may do OAuth refresh, API pagination, cold start)
 
 const IS_WINDOWS = process.platform === 'win32';
 const GWS_BINARY_NAME = IS_WINDOWS ? 'gws.exe' : 'gws';
@@ -89,17 +91,39 @@ export async function execute(args: string[], options: GwsOptions = {}): Promise
     let stdout = '';
     let stderr = '';
 
-    proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-    proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+    // Activity-based stall detection: kill if process goes silent
+    let lastActivity = Date.now();
+    const resetStall = () => { lastActivity = Date.now(); };
 
-    const timer = setTimeout(() => {
-      process.stderr.write(`[gws-mcp] timeout: killing gws after ${timeout}ms\n`);
+    proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); resetStall(); });
+    proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); resetStall(); });
+
+    const killProc = (reason: string) => {
+      process.stderr.write(`[gws-mcp] ${reason}\n`);
       proc.kill('SIGTERM');
-      // Follow up with SIGKILL if still alive after 3s
       const killTimer = setTimeout(() => {
         try { proc.kill('SIGKILL'); } catch { /* already dead */ }
       }, 3000);
-      killTimer.unref(); // don't keep the event loop alive for this
+      killTimer.unref();
+    };
+
+    // Stall detector — checks periodically if the process has gone silent
+    const stallCheck = setInterval(() => {
+      if (Date.now() - lastActivity > STALL_TIMEOUT) {
+        clearInterval(stallCheck);
+        killProc(`stall: no output for ${STALL_TIMEOUT / 1000}s, killing gws`);
+        settle(() => reject(new GwsError(
+          `gws stalled (no output for ${STALL_TIMEOUT / 1000}s)`,
+          GwsExitCode.InternalError, 'stall', stderr,
+        )));
+      }
+    }, 5000);
+    stallCheck.unref();
+
+    // Hard timeout — absolute ceiling regardless of activity
+    const timer = setTimeout(() => {
+      clearInterval(stallCheck);
+      killProc(`hard timeout: killing gws after ${timeout / 1000}s`);
       settle(() => reject(new GwsError('gws command timed out', GwsExitCode.InternalError, 'timeout', stderr)));
     }, timeout);
 
@@ -119,6 +143,7 @@ export async function execute(args: string[], options: GwsOptions = {}): Promise
     process.once('exit', cleanup);
 
     proc.on('close', (code) => {
+      clearInterval(stallCheck);
       process.removeListener('exit', cleanup);
       clearTimeout(timer);
       const exitCode = code ?? 1;
