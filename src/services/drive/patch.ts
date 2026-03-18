@@ -4,15 +4,34 @@
  * Key customizations:
  * - Custom formatters for file lists and details
  * - Upload: custom handler with positional file path arg
- * - Download: custom handler with output path and alt=media
+ * - Download/Export: save to workspace via gws --output, return inline for text
  */
 
+import * as fs from 'node:fs/promises';
 import { execute } from '../../executor/gws.js';
 import { formatFileList, formatFileDetail } from '../../server/formatting/markdown.js';
 import { nextSteps } from '../../server/formatting/next-steps.js';
 import { requireString } from '../../server/handlers/validate.js';
+import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
+import { isTextFile, formatFileOutput, type FileOutputResult } from '../../executor/file-output.js';
 import type { ServicePatch } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
+
+/** Read a file from workspace and build the output result with optional inline content. */
+async function readWorkspaceFile(filePath: string, filename: string, mimeType?: string): Promise<FileOutputResult> {
+  const stat = await fs.stat(filePath);
+  const result: FileOutputResult = {
+    filename,
+    path: filePath,
+    size: stat.size,
+  };
+
+  if (isTextFile(filename, mimeType) && stat.size < 100_000) {
+    result.content = await fs.readFile(filePath, 'utf-8');
+  }
+
+  return result;
+}
 
 export const drivePatch: ServicePatch = {
   formatList: (data: unknown) => formatFileList(data),
@@ -35,17 +54,93 @@ export const drivePatch: ServicePatch = {
 
     download: async (params, account): Promise<HandlerResponse> => {
       const fileId = requireString(params, 'fileId');
-      const args = [
+
+      // Get file metadata for filename and mime type
+      const metaResult = await execute([
+        'drive', 'files', 'get',
+        '--params', JSON.stringify({ fileId, fields: 'name,mimeType' }),
+      ], { account });
+      const meta = metaResult.data as Record<string, unknown>;
+      const filename = String(params.outputPath || meta.name || `file-${fileId}`);
+      const mimeType = String(meta.mimeType || '');
+
+      // Ensure workspace and resolve output path
+      const wsStatus = await ensureWorkspaceDir();
+      if (!wsStatus.valid) throw new Error(`Workspace invalid: ${wsStatus.warning}`);
+      const outputPath = resolveWorkspacePath(filename);
+      await verifyPathSafety(outputPath);
+
+      // Download directly to disk via --output (preserves binary integrity)
+      await execute([
         'drive', 'files', 'get',
         '--params', JSON.stringify({ fileId, alt: 'media' }),
-      ];
-      if (params.outputPath) args.push('--output', String(params.outputPath));
-      await execute(args, { account });
+        '--output', outputPath,
+      ], { account });
+
+      const output = await readWorkspaceFile(outputPath, filename, mimeType);
+
       return {
-        text: `File downloaded: ${fileId}` +
-          (params.outputPath ? ` → ${params.outputPath}` : '') +
-          nextSteps('drive', 'download', { email: account }),
-        refs: { fileId, status: 'downloaded' },
+        text: formatFileOutput(output) + nextSteps('drive', 'download', { email: account }),
+        refs: {
+          fileId,
+          filename: output.filename,
+          path: output.path,
+          size: output.size,
+          ...(output.content ? { content: output.content } : {}),
+        },
+      };
+    },
+
+    export: async (params, account): Promise<HandlerResponse> => {
+      const fileId = requireString(params, 'fileId');
+      const mimeType = requireString(params, 'mimeType');
+
+      // Map MIME type to file extension
+      const extMap: Record<string, string> = {
+        'application/pdf': '.pdf',
+        'text/csv': '.csv',
+        'text/plain': '.txt',
+        'text/html': '.html',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+      };
+      const ext = extMap[mimeType] || '';
+
+      // Get source file name
+      const metaResult = await execute([
+        'drive', 'files', 'get',
+        '--params', JSON.stringify({ fileId, fields: 'name' }),
+      ], { account });
+      const meta = metaResult.data as Record<string, unknown>;
+      const baseName = String(meta.name || `export-${fileId}`).replace(/\.[^.]+$/, '');
+      const filename = String(params.outputPath || `${baseName}${ext}`);
+
+      // Ensure workspace and resolve output path
+      const wsStatus = await ensureWorkspaceDir();
+      if (!wsStatus.valid) throw new Error(`Workspace invalid: ${wsStatus.warning}`);
+      const outputPath = resolveWorkspacePath(filename);
+      await verifyPathSafety(outputPath);
+
+      // Export directly to disk via --output (preserves binary integrity)
+      await execute([
+        'drive', 'files', 'export',
+        '--params', JSON.stringify({ fileId, mimeType }),
+        '--output', outputPath,
+      ], { account });
+
+      const output = await readWorkspaceFile(outputPath, filename, mimeType);
+
+      return {
+        text: formatFileOutput(output) + nextSteps('drive', 'export', { email: account }),
+        refs: {
+          fileId,
+          filename: output.filename,
+          path: output.path,
+          size: output.size,
+          mimeType,
+          ...(output.content ? { content: output.content } : {}),
+        },
       };
     },
   },

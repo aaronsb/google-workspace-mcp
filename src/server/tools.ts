@@ -36,6 +36,24 @@ const handCodedSchemas: ToolSchema[] = [
     },
   },
   {
+    name: 'manage_workspace',
+    description: 'Read, write, list, or delete files in the workspace directory. The workspace is the exchange point for file operations (attachments, downloads, exports).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        operation: {
+          type: 'string',
+          enum: ['list', 'read', 'write', 'delete'],
+          description: 'list: show files in workspace | read: get file content | write: save content to file | delete: remove a file',
+        },
+        filename: { type: 'string', description: 'File name (for read, write, delete)' },
+        content: { type: 'string', description: 'File content to write (for write)' },
+      },
+      required: ['operation'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'queue_operations',
     description: 'Execute multiple operations in sequence. Operations run in order with result references ($0.field) to chain outputs. Use for multi-step workflows.',
     inputSchema: {
