@@ -4,6 +4,46 @@ import { nextSteps } from '../formatting/next-steps.js';
 import { requireEmail, requireString, clamp } from './validate.js';
 import type { HandlerResponse } from '../handler.js';
 
+/**
+ * Gmail messages.list only returns IDs. This hydrates each message
+ * with metadata (From, Subject, Date, snippet) via parallel gets.
+ */
+async function hydrateMessages(
+  messageIds: Array<{ id: string }>,
+  account: string,
+): Promise<Record<string, unknown>[]> {
+  const hydrated = await Promise.all(
+    messageIds.map(async (msg) => {
+      try {
+        const result = await execute([
+          'gmail', 'users', 'messages', 'get',
+          '--params', JSON.stringify({
+            userId: 'me',
+            id: msg.id,
+            format: 'metadata',
+            metadataHeaders: ['From', 'Subject', 'Date'],
+          }),
+        ], { account });
+        const data = result.data as Record<string, unknown>;
+        const headers = ((data.payload as Record<string, unknown>)?.headers ?? []) as Array<{ name: string; value: string }>;
+        const getHeader = (name: string) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value;
+        return {
+          id: data.id,
+          threadId: data.threadId,
+          from: getHeader('from'),
+          subject: getHeader('subject'),
+          date: getHeader('date'),
+          snippet: data.snippet,
+        };
+      } catch {
+        // If individual hydration fails, return the bare ID
+        return { id: msg.id };
+      }
+    }),
+  );
+  return hydrated;
+}
+
 export async function handleEmail(params: Record<string, unknown>): Promise<HandlerResponse> {
   const operation = params.operation as string;
   const email = requireEmail(params);
@@ -18,7 +58,12 @@ export async function handleEmail(params: Record<string, unknown>): Promise<Hand
           maxResults: clamp(params.maxResults, 10, 50),
         }),
       ], { account: email });
-      const formatted = formatEmailList(result.data);
+
+      // messages.list only returns IDs — hydrate with metadata
+      const raw = result.data as Record<string, unknown>;
+      const ids = (raw?.messages ?? []) as Array<{ id: string }>;
+      const messages = ids.length > 0 ? await hydrateMessages(ids, email) : [];
+      const formatted = formatEmailList({ messages });
       return {
         text: formatted.text + nextSteps('email', 'search', { email }),
         refs: formatted.refs,
