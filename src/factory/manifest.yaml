@@ -1,6 +1,6 @@
 # Service manifest — declarative registry for the tool factory (ADR-300).
 # Each entry produces one MCP tool via the generator.
-# gws 0.13.3
+# gws 0.13.3 — 8 services, 55+ operations
 
 services:
   gmail:
@@ -547,4 +547,433 @@ services:
           permissionId:
             type: string
             description: "Permission ID to remove (from listPermissions)"
+            required: true
+
+  # ========================================================================
+  # Sheets
+  # ========================================================================
+
+  sheets:
+    tool_name: manage_sheets
+    description: "Read, write, and manage Google Sheets spreadsheets."
+    requires_email: true
+    gws_service: sheets
+    operations:
+
+      get:
+        type: detail
+        description: "get spreadsheet metadata and sheet names"
+        resource: spreadsheets.get
+        params:
+          spreadsheetId:
+            type: string
+            description: "Spreadsheet ID"
+            required: true
+
+      create:
+        type: action
+        description: "create a new empty spreadsheet"
+        resource: spreadsheets.create
+
+      read:
+        type: detail
+        description: "read cell values from a range"
+        helper: "+read"
+        params:
+          spreadsheetId:
+            type: string
+            description: "Spreadsheet ID"
+            required: true
+          range:
+            type: string
+            description: "Range to read (e.g. 'Sheet1!A1:D10' or just 'Sheet1')"
+            required: true
+        cli_args:
+          spreadsheetId: "--spreadsheet"
+          range: "--range"
+
+      append:
+        type: action
+        description: "append rows to a spreadsheet"
+        helper: "+append"
+        params:
+          spreadsheetId:
+            type: string
+            description: "Spreadsheet ID"
+            required: true
+          values:
+            type: string
+            description: "Comma-separated values for a single row (e.g. 'Alice,100,true')"
+          jsonValues:
+            type: string
+            description: "JSON array of rows for bulk insert (e.g. '[[\"a\",\"b\"],[\"c\",\"d\"]]')"
+        cli_args:
+          spreadsheetId: "--spreadsheet"
+          values: "--values"
+          jsonValues: "--json-values"
+
+      getValues:
+        type: detail
+        description: "get values from a specific range (raw API)"
+        resource: spreadsheets.values.get
+        params:
+          spreadsheetId:
+            type: string
+            description: "Spreadsheet ID"
+            required: true
+          range:
+            type: string
+            description: "A1 notation range (e.g. 'Sheet1!A1:B10')"
+            required: true
+
+      updateValues:
+        type: action
+        description: "write values to a specific range"
+        resource: spreadsheets.values.update
+        params:
+          spreadsheetId:
+            type: string
+            description: "Spreadsheet ID"
+            required: true
+          range:
+            type: string
+            description: "A1 notation range to write to"
+            required: true
+
+  # ========================================================================
+  # Docs
+  # ========================================================================
+
+  docs:
+    tool_name: manage_docs
+    description: "Read and write Google Docs documents."
+    requires_email: true
+    gws_service: docs
+    operations:
+
+      get:
+        type: detail
+        description: "get document content and metadata"
+        resource: documents.get
+        params:
+          documentId:
+            type: string
+            description: "Document ID"
+            required: true
+
+      create:
+        type: action
+        description: "create a new blank document"
+        resource: documents.create
+
+      write:
+        type: action
+        description: "append text to the end of a document"
+        helper: "+write"
+        params:
+          documentId:
+            type: string
+            description: "Document ID"
+            required: true
+          text:
+            type: string
+            description: "Text to append (plain text)"
+            required: true
+        cli_args:
+          documentId: "--document"
+          text: "--text"
+
+  # ========================================================================
+  # Tasks
+  # ========================================================================
+
+  tasks:
+    tool_name: manage_tasks
+    description: "Manage task lists and tasks in Google Tasks."
+    requires_email: true
+    gws_service: tasks
+    operations:
+
+      # --- Task lists ---
+
+      listTaskLists:
+        type: list
+        description: "list all task lists"
+        resource: tasklists.list
+
+      getTaskList:
+        type: detail
+        description: "get a task list by ID"
+        resource: tasklists.get
+        params:
+          taskListId:
+            type: string
+            description: "Task list ID"
+            required: true
+            maps_to: tasklist
+
+      createTaskList:
+        type: action
+        description: "create a new task list"
+        resource: tasklists.insert
+
+      deleteTaskList:
+        type: action
+        description: "delete a task list and all its tasks"
+        resource: tasklists.delete
+        params:
+          taskListId:
+            type: string
+            description: "Task list ID to delete"
+            required: true
+            maps_to: tasklist
+
+      # --- Tasks ---
+
+      list:
+        type: list
+        description: "list tasks in a task list"
+        resource: tasks.list
+        params:
+          taskListId:
+            type: string
+            description: "Task list ID (use listTaskLists to find)"
+            required: true
+            maps_to: tasklist
+          showCompleted:
+            type: boolean
+            description: "Include completed tasks (default: true)"
+          maxResults:
+            type: number
+            description: "Max tasks to return (default: 20, max: 100)"
+            default: 20
+            max: 100
+
+      get:
+        type: detail
+        description: "get a specific task"
+        resource: tasks.get
+        params:
+          taskListId:
+            type: string
+            description: "Task list ID"
+            required: true
+            maps_to: tasklist
+          taskId:
+            type: string
+            description: "Task ID"
+            required: true
+            maps_to: task
+
+      create:
+        type: action
+        description: "create a new task"
+        resource: tasks.insert
+        params:
+          taskListId:
+            type: string
+            description: "Task list ID"
+            required: true
+            maps_to: tasklist
+
+      update:
+        type: action
+        description: "update a task (patch semantics)"
+        resource: tasks.patch
+        params:
+          taskListId:
+            type: string
+            description: "Task list ID"
+            required: true
+            maps_to: tasklist
+          taskId:
+            type: string
+            description: "Task ID"
+            required: true
+            maps_to: task
+
+      complete:
+        type: action
+        description: "mark a task as completed"
+        resource: tasks.patch
+        params:
+          taskListId:
+            type: string
+            description: "Task list ID"
+            required: true
+            maps_to: tasklist
+          taskId:
+            type: string
+            description: "Task ID"
+            required: true
+            maps_to: task
+
+      delete:
+        type: action
+        description: "delete a task"
+        resource: tasks.delete
+        params:
+          taskListId:
+            type: string
+            description: "Task list ID"
+            required: true
+            maps_to: tasklist
+          taskId:
+            type: string
+            description: "Task ID to delete"
+            required: true
+            maps_to: task
+
+  # ========================================================================
+  # People / Contacts
+  # ========================================================================
+
+  people:
+    tool_name: manage_contacts
+    description: "Search, view, and manage contacts and contact groups."
+    requires_email: true
+    gws_service: people
+    operations:
+
+      search:
+        type: list
+        description: "search contacts by name, email, or phone"
+        resource: people.searchContacts
+        params:
+          query:
+            type: string
+            description: "Search query (name, email, phone number)"
+            required: true
+          maxResults:
+            type: number
+            description: "Max results (default: 10, max: 30)"
+            default: 10
+            max: 30
+            maps_to: pageSize
+        defaults:
+          readMask: "names,emailAddresses,phoneNumbers,organizations"
+          sources: "READ_SOURCE_TYPE_CONTACT"
+
+      get:
+        type: detail
+        description: "get contact details by resource name"
+        resource: people.get
+        params:
+          resourceName:
+            type: string
+            description: "Contact resource name (e.g. 'people/c123456')"
+            required: true
+        defaults:
+          personFields: "names,emailAddresses,phoneNumbers,organizations,addresses,biographies"
+
+      list:
+        type: list
+        description: "list all contacts"
+        resource: people.connections.list
+        params:
+          maxResults:
+            type: number
+            description: "Max contacts (default: 20, max: 100)"
+            default: 20
+            max: 100
+            maps_to: pageSize
+        defaults:
+          resourceName: "people/me"
+          personFields: "names,emailAddresses,phoneNumbers,organizations"
+
+      create:
+        type: action
+        description: "create a new contact"
+        resource: people.createContact
+
+      delete:
+        type: action
+        description: "delete a contact"
+        resource: people.deleteContact
+        params:
+          resourceName:
+            type: string
+            description: "Contact resource name to delete"
+            required: true
+
+      listGroups:
+        type: list
+        description: "list contact groups"
+        resource: contactGroups.list
+
+      searchDirectory:
+        type: list
+        description: "search organization directory (Google Workspace accounts only)"
+        resource: people.searchDirectoryPeople
+        params:
+          query:
+            type: string
+            description: "Search query"
+            required: true
+        defaults:
+          readMask: "names,emailAddresses,phoneNumbers,organizations"
+          sources: "DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE"
+
+  # ========================================================================
+  # Meet
+  # ========================================================================
+
+  meet:
+    tool_name: manage_meet
+    description: "Create and manage Google Meet spaces and view conference records."
+    requires_email: true
+    gws_service: meet
+    operations:
+
+      createSpace:
+        type: action
+        description: "create a new meeting space (generates a Meet link)"
+        resource: spaces.create
+
+      getSpace:
+        type: detail
+        description: "get meeting space details"
+        resource: spaces.get
+        params:
+          spaceName:
+            type: string
+            description: "Space resource name (e.g. 'spaces/abc123')"
+            required: true
+            maps_to: name
+
+      endConference:
+        type: action
+        description: "end an active conference in a space"
+        resource: spaces.endActiveConference
+        params:
+          spaceName:
+            type: string
+            description: "Space resource name"
+            required: true
+            maps_to: name
+
+      listRecordings:
+        type: list
+        description: "list conference records (past meetings)"
+        resource: conferenceRecords.list
+
+      getRecording:
+        type: detail
+        description: "get details of a past conference"
+        resource: conferenceRecords.get
+        params:
+          recordName:
+            type: string
+            description: "Conference record resource name"
+            required: true
+            maps_to: name
+
+      listParticipants:
+        type: list
+        description: "list participants in a conference"
+        resource: conferenceRecords.participants.list
+        params:
+          parent:
+            type: string
+            description: "Conference record resource name (e.g. 'conferenceRecords/abc123')"
             required: true

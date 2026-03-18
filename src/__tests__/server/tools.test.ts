@@ -9,15 +9,21 @@ jest.mock('../../factory/registry.js', () => {
 import { toolSchemas, getToolSchema } from '../../server/tools.js';
 
 describe('tool registry', () => {
-  it('has 5 operation-based tools', () => {
+  it('has all expected tools', () => {
     const names = toolSchemas.map(t => t.name);
-    expect(names).toEqual([
-      'manage_accounts',
-      'queue_operations',
-      'manage_email',
-      'manage_calendar',
-      'manage_drive',
-    ]);
+    // Hand-coded tools
+    expect(names).toContain('manage_accounts');
+    expect(names).toContain('queue_operations');
+    // Factory-generated tools
+    expect(names).toContain('manage_email');
+    expect(names).toContain('manage_calendar');
+    expect(names).toContain('manage_drive');
+    expect(names).toContain('manage_sheets');
+    expect(names).toContain('manage_docs');
+    expect(names).toContain('manage_tasks');
+    expect(names).toContain('manage_contacts');
+    expect(names).toContain('manage_meet');
+    expect(names.length).toBeGreaterThanOrEqual(10);
   });
 
   it('getToolSchema returns correct tool', () => {

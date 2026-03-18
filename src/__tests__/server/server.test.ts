@@ -68,13 +68,11 @@ describe('createServer', () => {
     it('returns all 5 tool schemas', async () => {
       const result = await listToolsHandler({});
       const names = result.tools.map((t: any) => t.name);
-      expect(names).toEqual([
-        'manage_accounts',
-        'queue_operations',
-        'manage_email',
-        'manage_calendar',
-        'manage_drive',
-      ]);
+      expect(names).toContain('manage_accounts');
+      expect(names).toContain('manage_email');
+      expect(names).toContain('manage_sheets');
+      expect(names).toContain('manage_tasks');
+      expect(names.length).toBeGreaterThanOrEqual(10);
     });
 
     it('each tool has name, description, and inputSchema', async () => {
