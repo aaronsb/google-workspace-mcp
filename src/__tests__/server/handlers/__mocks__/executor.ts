@@ -34,6 +34,22 @@ export const gmailMessageListResponse = {
   ],
 };
 
+// Metadata responses for hydration (format: metadata)
+export function gmailMetadataResponse(id: string, from: string, subject: string, date: string) {
+  return {
+    id,
+    threadId: `thread-${id}`,
+    snippet: `Preview of ${subject}`,
+    payload: {
+      headers: [
+        { name: 'From', value: from },
+        { name: 'Subject', value: subject },
+        { name: 'Date', value: date },
+      ],
+    },
+  };
+}
+
 export const gmailMessageDetailResponse = {
   id: 'msg-1',
   threadId: 'thread-1',
