@@ -111,19 +111,62 @@ export async function ensureWorkspaceDir(): Promise<WorkspaceStatus> {
 }
 
 /**
+ * Sanitize a filename from external sources (email attachments, Drive metadata).
+ * Strips null bytes, control characters, path separators, and other dangerous chars.
+ */
+export function sanitizeFilename(filename: string): string {
+  return filename
+    // Remove null bytes and control characters
+    .replace(/[\x00-\x1f\x7f]/g, '')
+    // Remove path separators (prevent directory traversal via filename)
+    .replace(/[/\\]/g, '_')
+    // Remove other potentially dangerous characters
+    .replace(/[<>:"|?*]/g, '_')
+    // Collapse multiple underscores
+    .replace(/_+/g, '_')
+    // Remove leading dots (hidden files) and trailing dots/spaces (Windows)
+    .replace(/^\.+/, '')
+    .replace(/[. ]+$/, '')
+    // Fallback if nothing remains
+    || 'unnamed';
+}
+
+/**
  * Resolve a file path within the workspace directory.
- * Prevents path traversal (e.g. ../../etc/passwd).
+ * Prevents path traversal (e.g. ../../etc/passwd) and sanitizes the filename.
  */
 export function resolveWorkspacePath(filename: string): string {
   const dir = getWorkspaceDir();
-  const resolved = path.resolve(dir, filename);
+  const sanitized = sanitizeFilename(filename);
+  const resolved = path.resolve(dir, sanitized);
 
   // Ensure the resolved path is still inside the workspace
-  if (!resolved.startsWith(path.resolve(dir) + path.sep) && resolved !== path.resolve(dir)) {
+  const resolvedDir = path.resolve(dir);
+  if (!resolved.startsWith(resolvedDir + path.sep) && resolved !== resolvedDir) {
     throw new Error(
       `Path traversal detected: "${filename}" resolves outside workspace directory`,
     );
   }
 
   return resolved;
+}
+
+/**
+ * Verify a file path is safe to read/write after symlink resolution.
+ * Must be called before any fs operation on a workspace path.
+ */
+export async function verifyPathSafety(filePath: string): Promise<void> {
+  const dir = path.resolve(getWorkspaceDir());
+  try {
+    const real = await fs.realpath(filePath);
+    if (!real.startsWith(dir + path.sep) && real !== dir) {
+      throw new Error(
+        `Symlink escape detected: "${filePath}" resolves to "${real}" outside workspace`,
+      );
+    }
+  } catch (err) {
+    // ENOENT is OK — file doesn't exist yet (write case)
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return;
+    throw err;
+  }
 }

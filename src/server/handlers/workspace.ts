@@ -8,7 +8,7 @@
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { ensureWorkspaceDir, resolveWorkspacePath, getWorkspaceDir } from '../../executor/workspace.js';
+import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety, getWorkspaceDir } from '../../executor/workspace.js';
 import { isTextFile } from '../../executor/file-output.js';
 import type { HandlerResponse } from '../formatting/markdown.js';
 
@@ -57,6 +57,7 @@ export async function handleWorkspace(params: Record<string, unknown>): Promise<
       if (!filename) throw new Error('filename is required');
 
       const filePath = resolveWorkspacePath(filename);
+      await verifyPathSafety(filePath);
       const stat = await fs.stat(filePath);
 
       if (stat.size > 100_000) {
@@ -70,8 +71,9 @@ export async function handleWorkspace(params: Record<string, unknown>): Promise<
 
       if (isTextFile(filename)) {
         const content = buffer.toString('utf-8');
+        const safeContent = content.replace(/```/g, '` ` `');
         return {
-          text: `## ${filename}\n\n\`\`\`\n${content}\n\`\`\``,
+          text: `## ${filename}\n\n\`\`\`\n${safeContent}\n\`\`\``,
           refs: { filename, path: filePath, size: stat.size, content },
         };
       }
@@ -94,6 +96,7 @@ export async function handleWorkspace(params: Record<string, unknown>): Promise<
       }
 
       const filePath = resolveWorkspacePath(filename);
+      await verifyPathSafety(filePath);
       await fs.mkdir(path.dirname(filePath), { recursive: true });
       await fs.writeFile(filePath, content, 'utf-8');
 
@@ -108,6 +111,7 @@ export async function handleWorkspace(params: Record<string, unknown>): Promise<
       if (!filename) throw new Error('filename is required');
 
       const filePath = resolveWorkspacePath(filename);
+      await verifyPathSafety(filePath);
       await fs.unlink(filePath);
 
       return {

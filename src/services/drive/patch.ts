@@ -4,16 +4,34 @@
  * Key customizations:
  * - Custom formatters for file lists and details
  * - Upload: custom handler with positional file path arg
- * - Download/Export: save to workspace + return inline content for text files
+ * - Download/Export: save to workspace via gws --output, return inline for text
  */
 
+import * as fs from 'node:fs/promises';
 import { execute } from '../../executor/gws.js';
 import { formatFileList, formatFileDetail } from '../../server/formatting/markdown.js';
 import { nextSteps } from '../../server/formatting/next-steps.js';
 import { requireString } from '../../server/handlers/validate.js';
-import { saveToWorkspace, formatFileOutput } from '../../executor/file-output.js';
+import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
+import { isTextFile, formatFileOutput, type FileOutputResult } from '../../executor/file-output.js';
 import type { ServicePatch } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
+
+/** Read a file from workspace and build the output result with optional inline content. */
+async function readWorkspaceFile(filePath: string, filename: string, mimeType?: string): Promise<FileOutputResult> {
+  const stat = await fs.stat(filePath);
+  const result: FileOutputResult = {
+    filename,
+    path: filePath,
+    size: stat.size,
+  };
+
+  if (isTextFile(filename, mimeType) && stat.size < 100_000) {
+    result.content = await fs.readFile(filePath, 'utf-8');
+  }
+
+  return result;
+}
 
 export const drivePatch: ServicePatch = {
   formatList: (data: unknown) => formatFileList(data),
@@ -37,7 +55,7 @@ export const drivePatch: ServicePatch = {
     download: async (params, account): Promise<HandlerResponse> => {
       const fileId = requireString(params, 'fileId');
 
-      // First get file metadata for the filename
+      // Get file metadata for filename and mime type
       const metaResult = await execute([
         'drive', 'files', 'get',
         '--params', JSON.stringify({ fileId, fields: 'name,mimeType' }),
@@ -46,17 +64,20 @@ export const drivePatch: ServicePatch = {
       const filename = String(params.outputPath || meta.name || `file-${fileId}`);
       const mimeType = String(meta.mimeType || '');
 
-      // Download the file content
-      const result = await execute([
+      // Ensure workspace and resolve output path
+      const wsStatus = await ensureWorkspaceDir();
+      if (!wsStatus.valid) throw new Error(`Workspace invalid: ${wsStatus.warning}`);
+      const outputPath = resolveWorkspacePath(filename);
+      await verifyPathSafety(outputPath);
+
+      // Download directly to disk via --output (preserves binary integrity)
+      await execute([
         'drive', 'files', 'get',
         '--params', JSON.stringify({ fileId, alt: 'media' }),
-      ], { account, format: 'table' }); // table format to get raw content
+        '--output', outputPath,
+      ], { account });
 
-      const content = String(result.data ?? '');
-      const buffer = Buffer.from(content, 'utf-8');
-
-      // Save to workspace + return inline for text files
-      const output = await saveToWorkspace(filename, buffer, mimeType);
+      const output = await readWorkspaceFile(outputPath, filename, mimeType);
 
       return {
         text: formatFileOutput(output) + nextSteps('drive', 'download', { email: account }),
@@ -74,7 +95,7 @@ export const drivePatch: ServicePatch = {
       const fileId = requireString(params, 'fileId');
       const mimeType = requireString(params, 'mimeType');
 
-      // Determine filename from the export mime type
+      // Map MIME type to file extension
       const extMap: Record<string, string> = {
         'application/pdf': '.pdf',
         'text/csv': '.csv',
@@ -86,7 +107,7 @@ export const drivePatch: ServicePatch = {
       };
       const ext = extMap[mimeType] || '';
 
-      // Get source file name for the output filename
+      // Get source file name
       const metaResult = await execute([
         'drive', 'files', 'get',
         '--params', JSON.stringify({ fileId, fields: 'name' }),
@@ -95,16 +116,20 @@ export const drivePatch: ServicePatch = {
       const baseName = String(meta.name || `export-${fileId}`).replace(/\.[^.]+$/, '');
       const filename = String(params.outputPath || `${baseName}${ext}`);
 
-      // Export the file
-      const result = await execute([
+      // Ensure workspace and resolve output path
+      const wsStatus = await ensureWorkspaceDir();
+      if (!wsStatus.valid) throw new Error(`Workspace invalid: ${wsStatus.warning}`);
+      const outputPath = resolveWorkspacePath(filename);
+      await verifyPathSafety(outputPath);
+
+      // Export directly to disk via --output (preserves binary integrity)
+      await execute([
         'drive', 'files', 'export',
         '--params', JSON.stringify({ fileId, mimeType }),
-      ], { account, format: 'table' }); // raw content
+        '--output', outputPath,
+      ], { account });
 
-      const content = String(result.data ?? '');
-      const buffer = Buffer.from(content, 'utf-8');
-
-      const output = await saveToWorkspace(filename, buffer, mimeType);
+      const output = await readWorkspaceFile(outputPath, filename, mimeType);
 
       return {
         text: formatFileOutput(output) + nextSteps('drive', 'export', { email: account }),

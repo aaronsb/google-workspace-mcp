@@ -9,7 +9,7 @@
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { ensureWorkspaceDir, resolveWorkspacePath } from './workspace.js';
+import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from './workspace.js';
 
 /** MIME types and extensions considered text-safe for inline return. */
 const TEXT_MIME_PREFIXES = [
@@ -54,6 +54,7 @@ export async function saveToWorkspace(
   }
 
   const outputPath = resolveWorkspacePath(filename);
+  await verifyPathSafety(outputPath);
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await fs.writeFile(outputPath, buffer);
 
@@ -80,7 +81,9 @@ export function formatFileOutput(result: FileOutputResult): string {
   ];
 
   if (result.content) {
-    parts.push('', '---', '', '```', result.content, '```');
+    // Escape any triple backticks in the content to prevent markdown fence injection
+    const safeContent = result.content.replace(/```/g, '` ` `');
+    parts.push('', '---', '', '```', safeContent, '```');
   }
 
   return parts.join('\n');

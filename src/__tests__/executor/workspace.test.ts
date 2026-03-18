@@ -64,17 +64,28 @@ describe('resolveWorkspacePath', () => {
     expect(resolved).toBe('/tmp/test-workspace/report.csv');
   });
 
-  it('resolves nested path within workspace', () => {
-    const resolved = resolveWorkspacePath('exports/2026/report.csv');
-    expect(resolved).toBe('/tmp/test-workspace/exports/2026/report.csv');
+  it('resolves filename within workspace (sanitized)', () => {
+    // Slashes in filenames get sanitized to underscores
+    const resolved = resolveWorkspacePath('report.csv');
+    expect(resolved).toBe('/tmp/test-workspace/report.csv');
   });
 
-  it('rejects path traversal with ../', () => {
-    expect(() => resolveWorkspacePath('../../etc/passwd')).toThrow(/traversal/);
+  it('sanitizes path separators in filenames', () => {
+    // Path separators become underscores — no directory traversal
+    const resolved = resolveWorkspacePath('../../etc/passwd');
+    // Leading dots stripped, slashes become underscores
+    expect(resolved).toBe('/tmp/test-workspace/_.._etc_passwd');
   });
 
-  it('rejects absolute path outside workspace', () => {
-    expect(() => resolveWorkspacePath('/etc/passwd')).toThrow(/traversal/);
+  it('sanitizes absolute paths', () => {
+    const resolved = resolveWorkspacePath('/etc/passwd');
+    expect(resolved).toBe('/tmp/test-workspace/_etc_passwd');
+  });
+
+  it('sanitizes null bytes and control characters', () => {
+    const resolved = resolveWorkspacePath('file\x00.txt');
+    expect(resolved).toBe('/tmp/test-workspace/file.txt');
+    expect(resolved).not.toContain('\x00');
   });
 });
 
