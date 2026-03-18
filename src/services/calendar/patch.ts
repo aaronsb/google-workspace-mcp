@@ -15,6 +15,33 @@ import { requireString } from '../../server/handlers/validate.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
+/** Format calendar list — name, access role, primary flag. */
+function formatCalendarList(data: unknown): HandlerResponse {
+  const raw = data as Record<string, unknown>;
+  const items = (raw?.items ?? []) as Array<Record<string, unknown>>;
+
+  if (items.length === 0) {
+    return { text: 'No calendars found.', refs: { count: 0 } };
+  }
+
+  const lines = items.map(cal => {
+    const id = String(cal.id ?? '');
+    const summary = String(cal.summary ?? '(unnamed)');
+    const role = String(cal.accessRole ?? '');
+    const primary = cal.primary ? ' ★' : '';
+    return `${summary}${primary} | ${role} | ${id}`;
+  });
+
+  return {
+    text: `## Calendars (${items.length})\n\n${lines.join('\n')}`,
+    refs: {
+      count: items.length,
+      calendarId: String(items[0]?.id ?? ''),
+      calendars: items.map(c => ({ id: c.id, summary: c.summary })),
+    },
+  };
+}
+
 export const calendarPatch: ServicePatch = {
   beforeExecute: {
     list: async (args, ctx) => {
@@ -36,7 +63,14 @@ export const calendarPatch: ServicePatch = {
     },
   },
 
-  formatList: (data: unknown) => formatEventList(data),
+  formatList: (data: unknown, ctx: PatchContext) => {
+    switch (ctx.operation) {
+      case 'calendars':
+        return formatCalendarList(data);
+      default:
+        return formatEventList(data);
+    }
+  },
   formatDetail: (data: unknown) => formatEventDetail(data),
 
   customHandlers: {

@@ -52,6 +52,109 @@ async function hydrateMessages(
   );
 }
 
+/** Format labels list — name, type, unread count. */
+function formatLabelList(data: unknown): HandlerResponse {
+  const raw = data as Record<string, unknown>;
+  const labels = (raw?.labels ?? []) as Array<Record<string, unknown>>;
+
+  if (labels.length === 0) {
+    return { text: 'No labels found.', refs: { count: 0 } };
+  }
+
+  // Separate system and user labels
+  const system = labels.filter(l => l.type === 'system');
+  const user = labels.filter(l => l.type === 'user');
+
+  const formatLabel = (l: Record<string, unknown>) => {
+    const id = String(l.id ?? '');
+    const name = String(l.name ?? '');
+    const unread = l.messagesUnread ? ` (${l.messagesUnread} unread)` : '';
+    return `${id} | ${name}${unread}`;
+  };
+
+  const parts: string[] = [];
+  if (user.length > 0) {
+    parts.push(`## User Labels (${user.length})\n`);
+    parts.push(...user.map(formatLabel));
+  }
+  if (system.length > 0) {
+    parts.push('', `## System Labels (${system.length})\n`);
+    parts.push(...system.map(formatLabel));
+  }
+
+  return {
+    text: parts.join('\n'),
+    refs: {
+      count: labels.length,
+      labels: labels.map(l => ({ id: l.id, name: l.name })),
+    },
+  };
+}
+
+/** Format threads list — thread ID, snippet, message count. */
+function formatThreadList(data: unknown): HandlerResponse {
+  const raw = data as Record<string, unknown>;
+  const threads = (raw?.threads ?? []) as Array<Record<string, unknown>>;
+
+  if (threads.length === 0) {
+    return { text: 'No threads found.', refs: { count: 0 } };
+  }
+
+  const lines = threads.map(t => {
+    const id = String(t.id ?? '');
+    const snippet = String(t.snippet ?? '').slice(0, 80);
+    return `${id} | ${snippet}`;
+  });
+
+  return {
+    text: `## Threads (${threads.length})\n\n${lines.join('\n')}`,
+    refs: {
+      count: threads.length,
+      threadId: String(threads[0]?.id ?? ''),
+      threads: threads.map(t => String(t.id ?? '')),
+    },
+  };
+}
+
+/** Format thread detail — all messages in the thread. */
+function formatThreadDetail(data: unknown): HandlerResponse {
+  const raw = data as Record<string, unknown>;
+  const messages = (raw?.messages ?? []) as Array<Record<string, unknown>>;
+  const threadId = String(raw?.id ?? '');
+
+  if (messages.length === 0) {
+    return { text: 'Empty thread.', refs: { threadId } };
+  }
+
+  const parts: string[] = [`## Thread (${messages.length} messages)\n`];
+
+  for (const msg of messages) {
+    const payload = msg.payload as Record<string, unknown> | undefined;
+    const headers = (payload?.headers ?? []) as Array<{ name: string; value: string }>;
+    const getHeader = (name: string) =>
+      headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value ?? '';
+
+    const from = getHeader('from');
+    const date = getHeader('date');
+    const subject = getHeader('subject');
+    const snippet = String(msg.snippet ?? '');
+
+    parts.push(`**${from}** — ${date}`);
+    if (subject) parts.push(`Subject: ${subject}`);
+    parts.push(snippet, '');
+  }
+
+  return {
+    text: parts.join('\n'),
+    refs: {
+      threadId,
+      messageCount: messages.length,
+      messageId: String(messages[messages.length - 1]?.id ?? ''),
+      messages: messages.map(m => String(m.id ?? '')),
+    },
+  };
+}
+
 export const gmailPatch: ServicePatch = {
   afterExecute: {
     search: async (result, ctx) => {
@@ -64,8 +167,24 @@ export const gmailPatch: ServicePatch = {
     },
   },
 
-  formatList: (data: unknown) => formatEmailList(data),
-  formatDetail: (data: unknown) => formatEmailDetail(data),
+  formatList: (data: unknown, ctx: PatchContext) => {
+    switch (ctx.operation) {
+      case 'labels':
+        return formatLabelList(data);
+      case 'threads':
+        return formatThreadList(data);
+      default:
+        return formatEmailList(data);
+    }
+  },
+  formatDetail: (data: unknown, ctx: PatchContext) => {
+    switch (ctx.operation) {
+      case 'getThread':
+        return formatThreadDetail(data);
+      default:
+        return formatEmailDetail(data);
+    }
+  },
 
   customHandlers: {
     send: async (params, account): Promise<HandlerResponse> => {
