@@ -105,15 +105,36 @@ export async function handleGetAttachment(
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
   await fs.writeFile(outputPath, buffer);
 
+  // For text-based files, include content inline so containerized agents
+  // (like Claude Desktop) can read it without filesystem access.
+  const textMimeTypes = [
+    'text/', 'application/json', 'application/xml', 'application/javascript',
+    'application/x-yaml', 'application/toml',
+  ];
+  const isText = textMimeTypes.some(t => match.mimeType.startsWith(t))
+    || filename.endsWith('.md') || filename.endsWith('.txt') || filename.endsWith('.csv')
+    || filename.endsWith('.json') || filename.endsWith('.yaml') || filename.endsWith('.yml')
+    || filename.endsWith('.xml') || filename.endsWith('.html') || filename.endsWith('.eml');
+
+  const parts = [
+    `Attachment saved: **${filename}**`,
+    '',
+    `**Path:** ${outputPath}`,
+    `**Size:** ${buffer.length} bytes`,
+  ];
+
+  if (isText && buffer.length < 100_000) {
+    parts.push('', '---', '', '```', buffer.toString('utf-8'), '```');
+  }
+
   return {
-    text: `Attachment saved: **${filename}**\n\n` +
-      `**Path:** ${outputPath}\n` +
-      `**Size:** ${buffer.length} bytes`,
+    text: parts.join('\n'),
     refs: {
       filename,
       path: outputPath,
       size: buffer.length,
       messageId,
+      ...(isText && buffer.length < 100_000 ? { content: buffer.toString('utf-8') } : {}),
     },
   };
 }
