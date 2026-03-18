@@ -23,8 +23,8 @@ const handCodedSchemas: ToolSchema[] = [
       properties: {
         operation: {
           type: 'string',
-          enum: ['list', 'authenticate', 'remove', 'status', 'refresh', 'scopes'],
-          description: 'list: show all accounts | authenticate: add new account (opens browser) | remove: delete account and credentials | status: check token validity and scopes | refresh: re-export credentials from gws | scopes: re-auth with different services',
+          enum: ['list', 'authenticate', 'remove', 'status', 'refresh', 'scopes', 'capabilities'],
+          description: 'list: show all accounts | authenticate: add new account (opens browser) | remove: delete account and credentials | status: check token validity and scopes | refresh: re-export credentials from gws | scopes: re-auth with different services | capabilities: show available services, safety policies, and workspace status',
         },
         email: { type: 'string', description: 'Required for remove, status, refresh, scopes' },
         category: { type: 'string', enum: ['personal', 'work', 'other'], description: 'For authenticate (default: personal)' },
