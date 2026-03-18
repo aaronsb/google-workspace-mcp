@@ -1,9 +1,10 @@
 import { execute } from '../../executor/gws.js';
-import { formatFileList } from '../formatting/markdown.js';
+import { formatFileList, formatFileDetail } from '../formatting/markdown.js';
 import { nextSteps } from '../formatting/next-steps.js';
 import { requireEmail, requireString, clamp } from './validate.js';
+import type { HandlerResponse } from '../handler.js';
 
-export async function handleDrive(params: Record<string, unknown>): Promise<unknown> {
+export async function handleDrive(params: Record<string, unknown>): Promise<HandlerResponse> {
   const operation = params.operation as string;
   const email = requireEmail(params);
 
@@ -17,7 +18,11 @@ export async function handleDrive(params: Record<string, unknown>): Promise<unkn
           fields: 'files(id, name, mimeType, modifiedTime, size, webViewLink)',
         }),
       ], { account: email });
-      return { ...formatFileList(result.data), ...nextSteps('drive', 'search') };
+      const formatted = formatFileList(result.data);
+      return {
+        text: formatted.text + nextSteps('drive', 'search', { email }),
+        refs: formatted.refs,
+      };
     }
 
     case 'get': {
@@ -29,7 +34,11 @@ export async function handleDrive(params: Record<string, unknown>): Promise<unkn
           fields: 'id, name, mimeType, modifiedTime, size, webViewLink, owners, shared',
         }),
       ], { account: email });
-      return { ...result.data as object, ...nextSteps('drive', 'get', { fileId }) };
+      const formatted = formatFileDetail(result.data);
+      return {
+        text: formatted.text + nextSteps('drive', 'get', { email, fileId }),
+        refs: formatted.refs,
+      };
     }
 
     case 'upload': {
@@ -38,7 +47,12 @@ export async function handleDrive(params: Record<string, unknown>): Promise<unkn
       if (params.name) args.push('--name', String(params.name));
       if (params.parentFolderId) args.push('--parent', String(params.parentFolderId));
       const result = await execute(args, { account: email });
-      return { ...result.data as object, ...nextSteps('drive', 'upload') };
+      const data = result.data as Record<string, unknown>;
+      return {
+        text: `File uploaded: **${data.name ?? filePath}**\n\n**File ID:** ${data.id ?? 'unknown'}` +
+          nextSteps('drive', 'upload', { email }),
+        refs: { id: data.id, fileId: data.id, name: data.name },
+      };
     }
 
     case 'download': {
@@ -49,7 +63,12 @@ export async function handleDrive(params: Record<string, unknown>): Promise<unkn
       ];
       if (params.outputPath) args.push('--output', String(params.outputPath));
       await execute(args, { account: email });
-      return { status: 'downloaded', fileId, ...nextSteps('drive', 'download') };
+      return {
+        text: `File downloaded: ${fileId}` +
+          (params.outputPath ? ` → ${params.outputPath}` : '') +
+          nextSteps('drive', 'download', { email }),
+        refs: { fileId, status: 'downloaded' },
+      };
     }
 
     default:

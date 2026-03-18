@@ -16,13 +16,14 @@ describe('handleEmail', () => {
   });
 
   describe('triage', () => {
-    it('calls gws gmail +triage and returns formatted list', async () => {
+    it('calls gws gmail +triage and returns markdown with messages', async () => {
       mockExecute.mockResolvedValue(mockGwsResponse(gmailTriageResponse));
-      const result = await handleEmail({ operation: 'triage', email: 'user@test.com' }) as any;
+      const result = await handleEmail({ operation: 'triage', email: 'user@test.com' });
 
-      expect(result.emails).toHaveLength(2);
-      expect(result.emails[0].from).toBe('alice@test.com');
-      expect(result.next_steps).toBeDefined();
+      expect(result.text).toContain('## Messages (2)');
+      expect(result.text).toContain('alice@test.com');
+      expect(result.text).toContain('**Next steps:**');
+      expect(result.refs.count).toBe(2);
       expect(mockExecute).toHaveBeenCalledWith(['gmail', '+triage'], expect.objectContaining({ account: 'user@test.com' }));
     });
   });
@@ -53,12 +54,14 @@ describe('handleEmail', () => {
       await expect(handleEmail({ operation: 'read', email: 'user@test.com' })).rejects.toThrow('messageId');
     });
 
-    it('returns formatted email detail', async () => {
+    it('returns markdown email detail', async () => {
       mockExecute.mockResolvedValue(mockGwsResponse(gmailMessageDetailResponse));
-      const result = await handleEmail({ operation: 'read', email: 'user@test.com', messageId: 'msg-1' }) as any;
+      const result = await handleEmail({ operation: 'read', email: 'user@test.com', messageId: 'msg-1' });
 
-      expect(result.from).toBe('alice@test.com');
-      expect(result.subject).toBe('Test Subject');
+      expect(result.text).toContain('## Test Subject');
+      expect(result.text).toContain('**From:** alice@test.com');
+      expect(result.refs.from).toBe('alice@test.com');
+      expect(result.refs.subject).toBe('Test Subject');
     });
   });
 
@@ -71,11 +74,13 @@ describe('handleEmail', () => {
 
     it('calls gws gmail +send with correct args', async () => {
       mockExecute.mockResolvedValue(mockGwsResponse(gmailSendResponse));
-      await handleEmail({ operation: 'send', email: 'user@test.com', to: 'bob@test.com', subject: 'Hi', body: 'Hello' });
+      const result = await handleEmail({ operation: 'send', email: 'user@test.com', to: 'bob@test.com', subject: 'Hi', body: 'Hello' });
 
       const args = mockExecute.mock.calls[0][0];
       expect(args).toContain('+send');
       expect(args[args.indexOf('--to') + 1]).toBe('bob@test.com');
+      expect(result.text).toContain('Email sent to bob@test.com');
+      expect(result.refs.to).toBe('bob@test.com');
     });
   });
 

@@ -1,9 +1,18 @@
 import { handleQueue } from '../../server/queue.js';
+import type { HandlerResponse } from '../../server/handler.js';
 
-// Simple mock handlers
-const handlers: Record<string, (p: Record<string, unknown>) => Promise<unknown>> = {
-  tool_a: async (params) => ({ id: 'result-a', value: params.input ?? 'default' }),
-  tool_b: async (params) => ({ id: 'result-b', ref: params.ref ?? 'none' }),
+type ToolHandler = (p: Record<string, unknown>) => Promise<HandlerResponse>;
+
+// Mock handlers returning HandlerResponse { text, refs }
+const handlers: Record<string, ToolHandler> = {
+  tool_a: async (params) => ({
+    text: `Result A: ${params.input ?? 'default'}`,
+    refs: { id: 'result-a', value: params.input ?? 'default' },
+  }),
+  tool_b: async (params) => ({
+    text: `Result B: ref=${params.ref ?? 'none'}`,
+    refs: { id: 'result-b', ref: params.ref ?? 'none' },
+  }),
   tool_fail: async () => { throw new Error('intentional failure'); },
 };
 
@@ -14,22 +23,25 @@ describe('handleQueue', () => {
         { tool: 'tool_a', args: { input: 'hello' } },
         { tool: 'tool_b', args: { ref: 'world' } },
       ],
-    }, handlers) as any;
+    }, handlers);
 
-    expect(result.summary).toEqual({ total: 2, succeeded: 2, failed: 0, skipped: 0 });
-    expect(result.results[0].data).toEqual({ id: 'result-a', value: 'hello' });
-    expect(result.results[1].data).toEqual({ id: 'result-b', ref: 'world' });
+    expect(result.text).toContain('2/2 succeeded');
+    expect(result.text).toContain('✓ tool_a');
+    expect(result.text).toContain('✓ tool_b');
+    expect(result.refs.succeeded).toBe(2);
   });
 
-  it('resolves $N.field references', async () => {
+  it('resolves $N.field references from refs', async () => {
     const result = await handleQueue({
       operations: [
         { tool: 'tool_a', args: { input: 'first' } },
         { tool: 'tool_b', args: { ref: '$0.id' } },
       ],
-    }, handlers) as any;
+    }, handlers);
 
-    expect(result.results[1].data).toEqual({ id: 'result-b', ref: 'result-a' });
+    // tool_b should have received ref='result-a' (from tool_a's refs.id)
+    expect(result.text).toContain('✓ tool_b');
+    expect(result.refs.succeeded).toBe(2);
   });
 
   it('bails on error by default', async () => {
@@ -39,11 +51,13 @@ describe('handleQueue', () => {
         { tool: 'tool_fail', args: {} },
         { tool: 'tool_b', args: {} },
       ],
-    }, handlers) as any;
+    }, handlers);
 
-    expect(result.summary).toEqual({ total: 3, succeeded: 1, failed: 1, skipped: 1 });
-    expect(result.results[1].status).toBe('error');
-    expect(result.results[2].status).toBe('skipped');
+    expect(result.refs.succeeded).toBe(1);
+    expect(result.refs.failed).toBe(1);
+    expect(result.refs.skipped).toBe(1);
+    expect(result.text).toContain('✗ tool_fail');
+    expect(result.text).toContain('○ tool_b');
   });
 
   it('continues on error when onError is continue', async () => {
@@ -53,10 +67,11 @@ describe('handleQueue', () => {
         { tool: 'tool_fail', args: {}, onError: 'continue' },
         { tool: 'tool_b', args: {} },
       ],
-    }, handlers) as any;
+    }, handlers);
 
-    expect(result.summary).toEqual({ total: 3, succeeded: 2, failed: 1, skipped: 0 });
-    expect(result.results[2].status).toBe('success');
+    expect(result.refs.succeeded).toBe(2);
+    expect(result.refs.failed).toBe(1);
+    expect(result.refs.skipped).toBe(0);
   });
 
   it('errors on forward references', async () => {
@@ -65,10 +80,10 @@ describe('handleQueue', () => {
         { tool: 'tool_a', args: { input: '$1.id' } },
         { tool: 'tool_b', args: {} },
       ],
-    }, handlers) as any;
+    }, handlers);
 
-    expect(result.results[0].status).toBe('error');
-    expect(result.results[0].error).toContain("hasn't run yet");
+    expect(result.text).toContain('✗ tool_a');
+    expect(result.text).toContain("hasn't run yet");
   });
 
   it('errors on references to failed operations', async () => {
@@ -77,10 +92,9 @@ describe('handleQueue', () => {
         { tool: 'tool_fail', args: {}, onError: 'continue' },
         { tool: 'tool_b', args: { ref: '$0.id' } },
       ],
-    }, handlers) as any;
+    }, handlers);
 
-    expect(result.results[1].status).toBe('error');
-    expect(result.results[1].error).toContain('error');
+    expect(result.refs.failed).toBe(2);
   });
 
   it('errors on missing field in reference', async () => {
@@ -89,10 +103,9 @@ describe('handleQueue', () => {
         { tool: 'tool_a', args: {} },
         { tool: 'tool_b', args: { ref: '$0.nonexistent' }, onError: 'continue' },
       ],
-    }, handlers) as any;
+    }, handlers);
 
-    expect(result.results[1].status).toBe('error');
-    expect(result.results[1].error).toContain('not found');
+    expect(result.text).toContain('not found');
   });
 
   it('errors on unknown tool', async () => {
@@ -100,26 +113,45 @@ describe('handleQueue', () => {
       operations: [
         { tool: 'unknown_tool', args: {} },
       ],
-    }, handlers) as any;
+    }, handlers);
 
-    expect(result.results[0].status).toBe('error');
-    expect(result.results[0].error).toContain('Unknown tool');
+    expect(result.text).toContain('✗ unknown_tool');
+    expect(result.text).toContain('Unknown tool');
   });
 
-  it('strips next_steps from results', async () => {
-    const handlersWithSteps: Record<string, (p: Record<string, unknown>) => Promise<unknown>> = {
-      tool_with_steps: async () => ({ id: '1', next_steps: [{ description: 'do something' }] }),
+  it('strips next_steps from per-operation text in summary', async () => {
+    const handlersWithSteps: Record<string, ToolHandler> = {
+      tool_with_steps: async () => ({
+        text: 'Some result\n\n---\n**Next steps:**\n- Do something',
+        refs: { id: '1' },
+      }),
     };
 
     const result = await handleQueue({
       operations: [{ tool: 'tool_with_steps', args: {} }],
-    }, handlersWithSteps) as any;
+    }, handlersWithSteps);
 
-    expect(result.results[0].data).toEqual({ id: '1' });
-    expect(result.results[0].data.next_steps).toBeUndefined();
+    // Summary line should not contain next-steps
+    const lines = result.text.split('\n');
+    const summaryLine = lines.find(l => l.includes('tool_with_steps'));
+    expect(summaryLine).not.toContain('Next steps');
+
+    // But consolidated next-steps from last success should be appended
+    expect(result.text).toContain('**Next steps:**');
   });
 
   it('rejects empty operations array', async () => {
     await expect(handleQueue({ operations: [] }, handlers)).rejects.toThrow('must not be empty');
+  });
+
+  it('returns markdown summary', async () => {
+    const result = await handleQueue({
+      operations: [
+        { tool: 'tool_a', args: { input: 'test' } },
+      ],
+    }, handlers);
+
+    expect(result.text).toContain('## Queue Results');
+    expect(result.text).toContain('1/1 succeeded');
   });
 });

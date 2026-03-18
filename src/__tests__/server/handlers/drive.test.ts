@@ -12,13 +12,14 @@ describe('handleDrive', () => {
   });
 
   describe('search', () => {
-    it('returns formatted file list', async () => {
+    it('returns markdown file list', async () => {
       mockExecute.mockResolvedValue(mockGwsResponse(driveFileListResponse));
-      const result = await handleDrive({ operation: 'search', email: 'user@test.com' }) as any;
+      const result = await handleDrive({ operation: 'search', email: 'user@test.com' });
 
-      expect(result.files).toHaveLength(2);
-      expect(result.files[0].name).toBe('report.pdf');
-      expect(result.next_steps).toBeDefined();
+      expect(result.text).toContain('## Files (2)');
+      expect(result.text).toContain('report.pdf');
+      expect(result.text).toContain('**Next steps:**');
+      expect(result.refs.count).toBe(2);
     });
 
     it('passes query to gws', async () => {
@@ -45,11 +46,12 @@ describe('handleDrive', () => {
       await expect(handleDrive({ operation: 'get', email: 'user@test.com' })).rejects.toThrow('fileId');
     });
 
-    it('returns file detail', async () => {
+    it('returns markdown file detail', async () => {
       mockExecute.mockResolvedValue(mockGwsResponse(driveFileDetailResponse));
-      const result = await handleDrive({ operation: 'get', email: 'user@test.com', fileId: 'file-1' }) as any;
+      const result = await handleDrive({ operation: 'get', email: 'user@test.com', fileId: 'file-1' });
 
-      expect(result.name).toBe('report.pdf');
+      expect(result.text).toContain('## report.pdf');
+      expect(result.refs.fileId).toBe('file-1');
     });
   });
 
@@ -60,11 +62,12 @@ describe('handleDrive', () => {
 
     it('calls gws drive +upload with path', async () => {
       mockExecute.mockResolvedValue(mockGwsResponse(driveUploadResponse));
-      await handleDrive({ operation: 'upload', email: 'user@test.com', filePath: '/tmp/doc.txt' });
+      const result = await handleDrive({ operation: 'upload', email: 'user@test.com', filePath: '/tmp/doc.txt' });
 
       const args = mockExecute.mock.calls[0][0];
       expect(args).toContain('+upload');
       expect(args).toContain('/tmp/doc.txt');
+      expect(result.text).toContain('File uploaded');
     });
 
     it('passes optional name and parent', async () => {
@@ -84,11 +87,13 @@ describe('handleDrive', () => {
 
     it('passes outputPath when provided', async () => {
       mockExecute.mockResolvedValue(mockGwsResponse({}));
-      await handleDrive({ operation: 'download', email: 'user@test.com', fileId: 'file-1', outputPath: '/tmp/out.pdf' });
+      const result = await handleDrive({ operation: 'download', email: 'user@test.com', fileId: 'file-1', outputPath: '/tmp/out.pdf' });
 
       const args = mockExecute.mock.calls[0][0];
       expect(args).toContain('--output');
       expect(args[args.indexOf('--output') + 1]).toBe('/tmp/out.pdf');
+      expect(result.text).toContain('File downloaded');
+      expect(result.text).toContain('/tmp/out.pdf');
     });
   });
 

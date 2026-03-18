@@ -1,7 +1,6 @@
 /**
- * Contextual next-steps guidance. Appended to every response to help
- * the agent discover natural follow-on actions without needing to see
- * all possible tools upfront.
+ * Contextual next-steps guidance. Appended as a markdown footer to every
+ * response so agents discover natural follow-on actions.
  */
 
 interface NextStep {
@@ -83,24 +82,27 @@ const suggestions: Record<string, Record<string, NextStep[]>> = {
   },
 };
 
+/**
+ * Returns a markdown footer string with contextual next-steps guidance.
+ * Returns empty string when no suggestions exist for the domain/operation.
+ */
 export function nextSteps(
   domain: string,
   operation: string,
   context?: Record<string, string>,
-): { next_steps: NextStep[] } {
+): string {
   const steps = suggestions[domain]?.[operation] ?? [];
+  if (steps.length === 0) return '';
 
-  if (context && steps.length > 0) {
-    // Replace placeholders with actual values from context
-    return {
-      next_steps: steps.map(step => ({
-        ...step,
-        example: replacePlaceholders(step.example, context),
-      })),
-    };
-  }
+  const resolved = context
+    ? steps.map(step => ({ ...step, example: replacePlaceholders(step.example, context) }))
+    : steps;
 
-  return { next_steps: steps };
+  const lines = resolved.map(step =>
+    `- ${step.description}: \`${step.tool}\` — \`${JSON.stringify(step.example)}\``
+  );
+
+  return `\n\n---\n**Next steps:**\n${lines.join('\n')}`;
 }
 
 function replacePlaceholders(

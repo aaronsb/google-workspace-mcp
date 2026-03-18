@@ -1,9 +1,14 @@
 /**
  * Queue handler — execute multiple operations sequentially with
  * result references ($N.field) for chaining outputs.
+ *
+ * Handlers return { text, refs }. Queue uses refs for $N.field
+ * resolution and text for the final response.
  */
 
-type ToolHandler = (params: Record<string, unknown>) => Promise<unknown>;
+import type { HandlerResponse } from './handler.js';
+
+type ToolHandler = (params: Record<string, unknown>) => Promise<HandlerResponse>;
 
 interface QueueOperation {
   tool: string;
@@ -15,14 +20,22 @@ interface OperationResult {
   index: number;
   tool: string;
   status: 'success' | 'error' | 'skipped';
-  data?: unknown;
+  text?: string;
+  refs?: Record<string, unknown>;
   error?: string;
+}
+
+const NEXT_STEPS_SEPARATOR = '\n\n---\n**Next steps:**';
+
+function stripNextSteps(text: string): string {
+  const idx = text.indexOf(NEXT_STEPS_SEPARATOR);
+  return idx >= 0 ? text.slice(0, idx) : text;
 }
 
 export async function handleQueue(
   params: Record<string, unknown>,
   handlers: Record<string, ToolHandler>,
-): Promise<unknown> {
+): Promise<HandlerResponse> {
   const operations = params.operations as QueueOperation[];
   if (!Array.isArray(operations) || operations.length === 0) {
     throw new Error('operations array is required and must not be empty');
@@ -30,6 +43,7 @@ export async function handleQueue(
 
   const results: OperationResult[] = [];
   let bailedAt = -1;
+  let lastSuccessText = '';
 
   for (let i = 0; i < operations.length; i++) {
     const op = operations[i];
@@ -59,10 +73,10 @@ export async function handleQueue(
     }
 
     try {
-      const rawData = await handler(resolvedArgs);
-      // Strip next_steps from queue results — the queue caller already planned the sequence
-      const data = stripNextSteps(rawData);
-      results.push({ index: i, tool: op.tool, status: 'success', data });
+      const response = await handler(resolvedArgs);
+      const text = stripNextSteps(response.text);
+      results.push({ index: i, tool: op.tool, status: 'success', text, refs: response.refs });
+      lastSuccessText = response.text; // keep next-steps from last success
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       results.push({ index: i, tool: op.tool, status: 'error', error: msg });
@@ -74,10 +88,36 @@ export async function handleQueue(
   const failed = results.filter(r => r.status === 'error').length;
   const skipped = results.filter(r => r.status === 'skipped').length;
 
-  return {
-    summary: { total: results.length, succeeded, failed, skipped },
-    results,
+  // Build summary markdown
+  const lines: string[] = [
+    `## Queue Results (${succeeded}/${results.length} succeeded)`,
+    '',
+  ];
+
+  for (const r of results) {
+    const icon = r.status === 'success' ? '✓' : r.status === 'error' ? '✗' : '○';
+    const summary = r.status === 'error' ? r.error
+                  : r.text ? firstLine(r.text)
+                  : r.status;
+    lines.push(`${icon} ${r.tool} — ${summary}`);
+  }
+
+  // Append consolidated next-steps from last successful operation
+  const nextStepsSuffix = extractNextSteps(lastSuccessText);
+  const text = lines.join('\n') + nextStepsSuffix;
+
+  // Queue-level refs are aggregate counters only.
+  // Per-operation refs are available during execution for $N.field resolution
+  // but not exposed in the final response. Exposing them (e.g. as results[N].refs)
+  // is scoped for the queue-enhancement workstream.
+  const refs: Record<string, unknown> = {
+    total: results.length,
+    succeeded,
+    failed,
+    skipped,
   };
+
+  return { text, refs };
 }
 
 // --- Reference resolution ---
@@ -107,7 +147,7 @@ function resolveRef(value: string, results: OperationResult[]): string {
     if (result.status !== 'success') {
       throw new Error(`$${index}.${field}: operation ${index} ${result.status}`);
     }
-    const extracted = extractField(result.data, field);
+    const extracted = result.refs?.[field];
     if (extracted === undefined) {
       throw new Error(`$${index}.${field}: field '${field}' not found in result`);
     }
@@ -115,20 +155,18 @@ function resolveRef(value: string, results: OperationResult[]): string {
   });
 }
 
-function stripNextSteps(data: unknown): unknown {
-  if (data == null || typeof data !== 'object') return data;
-  const { next_steps, ...rest } = data as Record<string, unknown>;
-  return rest;
+function firstLine(text: string): string {
+  // Skip markdown headings to get the first content line
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('---')) {
+      return trimmed.length > 80 ? trimmed.slice(0, 79) + '…' : trimmed;
+    }
+  }
+  return text.split('\n')[0] ?? '';
 }
 
-/**
- * Extract a field from operation result data.
- * Only does direct property lookup — no magic indexing into arrays.
- * Use explicit field names that match the response structure.
- */
-function extractField(data: unknown, field: string): unknown {
-  if (data == null || typeof data !== 'object') return undefined;
-  const obj = data as Record<string, unknown>;
-  if (field in obj) return obj[field];
-  return undefined;
+function extractNextSteps(text: string): string {
+  const idx = text.indexOf(NEXT_STEPS_SEPARATOR);
+  return idx >= 0 ? text.slice(idx) : '';
 }

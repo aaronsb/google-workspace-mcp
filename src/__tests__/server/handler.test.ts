@@ -1,4 +1,5 @@
 import { handleToolCall } from '../../server/handler.js';
+import type { HandlerResponse } from '../../server/handler.js';
 
 // Mock all domain handlers
 jest.mock('../../server/handlers/accounts.js');
@@ -19,13 +20,15 @@ const mockCalendar = handleCalendar as jest.MockedFunction<typeof handleCalendar
 const mockDrive = handleDrive as jest.MockedFunction<typeof handleDrive>;
 const mockQueue = handleQueue as jest.MockedFunction<typeof handleQueue>;
 
+const stubResponse: HandlerResponse = { text: 'ok', refs: {} };
+
 describe('handleToolCall', () => {
   beforeEach(() => {
     jest.resetAllMocks();
   });
 
   it('routes manage_accounts to handleAccounts', async () => {
-    mockAccounts.mockResolvedValue({ accounts: [] });
+    mockAccounts.mockResolvedValue(stubResponse);
     const params = { operation: 'list' };
 
     await handleToolCall('manage_accounts', params);
@@ -35,7 +38,7 @@ describe('handleToolCall', () => {
   });
 
   it('routes manage_email to handleEmail', async () => {
-    mockEmail.mockResolvedValue({ emails: [] });
+    mockEmail.mockResolvedValue(stubResponse);
     const params = { operation: 'triage', email: 'u@t.com' };
 
     await handleToolCall('manage_email', params);
@@ -45,7 +48,7 @@ describe('handleToolCall', () => {
   });
 
   it('routes manage_calendar to handleCalendar', async () => {
-    mockCalendar.mockResolvedValue({ events: [] });
+    mockCalendar.mockResolvedValue(stubResponse);
     const params = { operation: 'list', email: 'u@t.com' };
 
     await handleToolCall('manage_calendar', params);
@@ -54,7 +57,7 @@ describe('handleToolCall', () => {
   });
 
   it('routes manage_drive to handleDrive', async () => {
-    mockDrive.mockResolvedValue({ files: [] });
+    mockDrive.mockResolvedValue(stubResponse);
     const params = { operation: 'search', email: 'u@t.com' };
 
     await handleToolCall('manage_drive', params);
@@ -63,7 +66,7 @@ describe('handleToolCall', () => {
   });
 
   it('routes queue_operations to handleQueue with domain handlers', async () => {
-    mockQueue.mockResolvedValue({ summary: {}, results: [] });
+    mockQueue.mockResolvedValue(stubResponse);
     const params = { operations: [{ tool: 'manage_email', args: {} }] };
 
     await handleToolCall('queue_operations', params);
@@ -88,12 +91,13 @@ describe('handleToolCall', () => {
     ).rejects.toThrow('API failure');
   });
 
-  it('returns handler result', async () => {
-    const expected = { emails: [{ id: '1' }], count: 1 };
+  it('returns HandlerResponse with text and refs', async () => {
+    const expected: HandlerResponse = { text: '## Messages (1)\n\nmsg-1 | alice', refs: { count: 1 } };
     mockEmail.mockResolvedValue(expected);
 
     const result = await handleToolCall('manage_email', { operation: 'triage', email: 'u@t.com' });
 
-    expect(result).toEqual(expected);
+    expect(result.text).toBe(expected.text);
+    expect(result.refs).toEqual(expected.refs);
   });
 });

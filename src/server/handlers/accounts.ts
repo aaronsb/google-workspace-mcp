@@ -1,22 +1,44 @@
-import { listAccounts, removeAccount, authenticateAndAddAccount } from '../../accounts/registry.js';
+import { listAccounts, removeAccount, authenticateAndAddAccount, type Account } from '../../accounts/registry.js';
 import { nextSteps } from '../formatting/next-steps.js';
+import type { HandlerResponse } from '../handler.js';
 
-export async function handleAccounts(params: Record<string, unknown>): Promise<unknown> {
+interface EnrichedAccount extends Account {
+  hasCredential: boolean;
+}
+
+function formatAccountList(accounts: EnrichedAccount[]): { text: string; refs: Record<string, unknown> } {
+  const lines = accounts.map(a => {
+    const cred = a.hasCredential ? '[x]' : '[ ]';
+    const desc = a.description ? ` — ${a.description}` : '';
+    return `${cred} ${a.email} (${a.category})${desc}`;
+  });
+
+  return {
+    text: `## Accounts (${accounts.length})\n\n${lines.join('\n')}`,
+    refs: {
+      count: accounts.length,
+      accounts: accounts.map(a => a.email),
+      email: accounts[0]?.email,
+    },
+  };
+}
+
+export async function handleAccounts(params: Record<string, unknown>): Promise<HandlerResponse> {
   const operation = params.operation as string;
 
   switch (operation) {
     case 'list': {
-      const accounts = await listAccounts();
+      const accounts = await listAccounts() as EnrichedAccount[];
       if (accounts.length === 0) {
         return {
-          accounts: [],
-          message: 'No accounts configured.',
-          ...nextSteps('accounts', 'list_empty'),
+          text: 'No accounts configured.' + nextSteps('accounts', 'list_empty'),
+          refs: { count: 0 },
         };
       }
+      const formatted = formatAccountList(accounts);
       return {
-        accounts,
-        ...nextSteps('accounts', 'list'),
+        text: formatted.text + nextSteps('accounts', 'list'),
+        refs: formatted.refs,
       };
     }
 
@@ -36,14 +58,23 @@ export async function handleAccounts(params: Record<string, unknown>): Promise<u
         category as 'personal' | 'work' | 'other',
         description,
       );
-      return { ...result, ...nextSteps('accounts', 'authenticate') };
+      const statusText = result.status === 'success'
+        ? `Account authenticated: **${result.account}**`
+        : `Authentication failed: ${result.error}`;
+      return {
+        text: statusText + nextSteps('accounts', 'authenticate'),
+        refs: { status: result.status, account: result.account, email: result.account },
+      };
     }
 
     case 'remove': {
       const email = params.email as string;
       if (!email) throw new Error('email is required for remove');
       await removeAccount(email);
-      return { status: 'removed', email, ...nextSteps('accounts', 'remove') };
+      return {
+        text: `Account removed: ${email}` + nextSteps('accounts', 'remove'),
+        refs: { status: 'removed', email },
+      };
     }
 
     default:
