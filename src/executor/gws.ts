@@ -17,13 +17,22 @@ export interface GwsOptions {
 
 const DEFAULT_TIMEOUT = 30_000;
 
-// Resolve gws binary from node_modules relative to this package.
-// Walks up from this file's compiled location to find the project root.
-// Exported for testing.
+/**
+ * Resolve gws binary location.
+ *
+ * Priority:
+ * 1. GWS_BINARY_PATH env var (set by mcpb manifest for bundled binary)
+ * 2. node_modules/.bin/gws (npm dependency)
+ */
+export function resolveGwsBinary(): string {
+  if (process.env.GWS_BINARY_PATH) {
+    return process.env.GWS_BINARY_PATH;
+  }
+  return path.join(process.cwd(), 'node_modules', '.bin', 'gws');
+}
+
+// Kept for backward compatibility with tests
 export function resolvePackageBinDir(): string {
-  // In production (ESM), __dirname isn't available but we can derive from
-  // the build output structure: build/executor/gws.js → ../../node_modules/.bin
-  // In development, process.cwd() is the project root.
   return path.join(process.cwd(), 'node_modules', '.bin');
 }
 
@@ -51,14 +60,17 @@ export async function execute(args: string[], options: GwsOptions = {}): Promise
 
   const fullArgs = [...args, '--format', format];
 
-  // Prepend package-local bin dir to PATH
+  // Resolve gws binary — bundled (mcpb) or npm dependency
+  const gwsBinary = resolveGwsBinary();
+
+  // Still prepend bin dir to PATH for non-bundled case
   env.PATH = `${resolvePackageBinDir()}:${env.PATH || ''}`;
 
   return new Promise((resolve, reject) => {
     let settled = false;
     const settle = (fn: () => void) => { if (!settled) { settled = true; fn(); } };
 
-    const proc = spawn('gws', fullArgs, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = spawn(gwsBinary, fullArgs, { env, stdio: ['ignore', 'pipe', 'pipe'] });
 
     let stdout = '';
     let stderr = '';

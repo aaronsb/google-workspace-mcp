@@ -1,0 +1,16 @@
+# Exclude dev artifacts from .mcpb bundle
+*.map
+*.test.js
+*.test.d.ts
+__tests__/
+.github/
+docs/
+scripts/
+src/
+*.md
+.eslintrc*
+tsconfig.json
+jest.config*
+Makefile
+discovered-manifest.yaml
+.claude/
