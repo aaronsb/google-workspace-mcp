@@ -21,9 +21,7 @@ describe('tool registry', () => {
     expect(names).toContain('manage_sheets');
     expect(names).toContain('manage_docs');
     expect(names).toContain('manage_tasks');
-    expect(names).toContain('manage_contacts');
-    expect(names).toContain('manage_meet');
-    expect(names.length).toBeGreaterThanOrEqual(10);
+    expect(names.length).toBeGreaterThanOrEqual(8);
   });
 
   it('getToolSchema returns correct tool', () => {

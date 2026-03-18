@@ -72,7 +72,7 @@ describe('createServer', () => {
       expect(names).toContain('manage_email');
       expect(names).toContain('manage_sheets');
       expect(names).toContain('manage_tasks');
-      expect(names.length).toBeGreaterThanOrEqual(10);
+      expect(names.length).toBeGreaterThanOrEqual(8);
     });
 
     it('each tool has name, description, and inputSchema', async () => {

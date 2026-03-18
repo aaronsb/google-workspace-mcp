@@ -1,6 +1,11 @@
 # Service manifest — declarative registry for the tool factory (ADR-300).
 # Each entry produces one MCP tool via the generator.
-# gws 0.13.3 — 8 services, 55+ operations
+# gws 0.13.3 — 6 services, 51 operations
+#
+# Note: People (contacts) and Meet are supported by gws but excluded here
+# because gws auth login doesn't offer their required OAuth scopes.
+# See https://github.com/googleworkspace/cli/issues/556
+# Re-add when gws supports contacts.readonly and meetings.space.created scopes.
 
 services:
   gmail:
@@ -824,156 +829,6 @@ services:
             required: true
             maps_to: task
 
-  # ========================================================================
-  # People / Contacts
-  # ========================================================================
-
-  people:
-    tool_name: manage_contacts
-    description: "Search, view, and manage contacts and contact groups."
-    requires_email: true
-    gws_service: people
-    operations:
-
-      search:
-        type: list
-        description: "search contacts by name, email, or phone"
-        resource: people.searchContacts
-        params:
-          query:
-            type: string
-            description: "Search query (name, email, phone number)"
-            required: true
-          maxResults:
-            type: number
-            description: "Max results (default: 10, max: 30)"
-            default: 10
-            max: 30
-            maps_to: pageSize
-        defaults:
-          readMask: "names,emailAddresses,phoneNumbers,organizations"
-          sources: "READ_SOURCE_TYPE_CONTACT"
-
-      get:
-        type: detail
-        description: "get contact details by resource name"
-        resource: people.get
-        params:
-          resourceName:
-            type: string
-            description: "Contact resource name (e.g. 'people/c123456')"
-            required: true
-        defaults:
-          personFields: "names,emailAddresses,phoneNumbers,organizations,addresses,biographies"
-
-      list:
-        type: list
-        description: "list all contacts"
-        resource: people.connections.list
-        params:
-          maxResults:
-            type: number
-            description: "Max contacts (default: 20, max: 100)"
-            default: 20
-            max: 100
-            maps_to: pageSize
-        defaults:
-          resourceName: "people/me"
-          personFields: "names,emailAddresses,phoneNumbers,organizations"
-
-      create:
-        type: action
-        description: "create a new contact"
-        resource: people.createContact
-
-      delete:
-        type: action
-        description: "delete a contact"
-        resource: people.deleteContact
-        params:
-          resourceName:
-            type: string
-            description: "Contact resource name to delete"
-            required: true
-
-      listGroups:
-        type: list
-        description: "list contact groups"
-        resource: contactGroups.list
-
-      searchDirectory:
-        type: list
-        description: "search organization directory (Google Workspace accounts only)"
-        resource: people.searchDirectoryPeople
-        params:
-          query:
-            type: string
-            description: "Search query"
-            required: true
-        defaults:
-          readMask: "names,emailAddresses,phoneNumbers,organizations"
-          sources: "DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE"
-
-  # ========================================================================
-  # Meet
-  # ========================================================================
-
-  meet:
-    tool_name: manage_meet
-    description: "Create and manage Google Meet spaces and view conference records."
-    requires_email: true
-    gws_service: meet
-    operations:
-
-      createSpace:
-        type: action
-        description: "create a new meeting space (generates a Meet link)"
-        resource: spaces.create
-
-      getSpace:
-        type: detail
-        description: "get meeting space details"
-        resource: spaces.get
-        params:
-          spaceName:
-            type: string
-            description: "Space resource name (e.g. 'spaces/abc123')"
-            required: true
-            maps_to: name
-
-      endConference:
-        type: action
-        description: "end an active conference in a space"
-        resource: spaces.endActiveConference
-        params:
-          spaceName:
-            type: string
-            description: "Space resource name"
-            required: true
-            maps_to: name
-
-      listRecordings:
-        type: list
-        description: "list conference records (past meetings)"
-        resource: conferenceRecords.list
-
-      getRecording:
-        type: detail
-        description: "get details of a past conference"
-        resource: conferenceRecords.get
-        params:
-          recordName:
-            type: string
-            description: "Conference record resource name"
-            required: true
-            maps_to: name
-
-      listParticipants:
-        type: list
-        description: "list participants in a conference"
-        resource: conferenceRecords.participants.list
-        params:
-          parent:
-            type: string
-            description: "Conference record resource name (e.g. 'conferenceRecords/abc123')"
-            required: true
+  # People (contacts) and Meet are excluded pending gws auth scope support.
+  # See https://github.com/googleworkspace/cli/issues/556
+  # Manifest entries ready at git tag pre-contacts-meet-removal if needed.

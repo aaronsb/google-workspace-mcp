@@ -70,14 +70,6 @@
       "description": "Manage task lists and tasks"
     },
     {
-      "name": "manage_contacts",
-      "description": "Search, view, and manage contacts and contact groups"
-    },
-    {
-      "name": "manage_meet",
-      "description": "Create and manage Google Meet spaces and view conference records"
-    },
-    {
       "name": "queue_operations",
       "description": "Chain multiple operations sequentially with result references between steps"
     }
