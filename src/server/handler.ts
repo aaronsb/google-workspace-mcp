@@ -1,16 +1,11 @@
 import { handleAccounts } from './handlers/accounts.js';
 import { handleQueue } from './queue.js';
-import { loadManifest, generateTools } from '../factory/generator.js';
-import { patches } from '../factory/patches.js';
+import { generatedTools } from '../factory/registry.js';
 
 export type { HandlerResponse } from './formatting/markdown.js';
 import type { HandlerResponse } from './formatting/markdown.js';
 
 type ToolHandler = (params: Record<string, unknown>) => Promise<HandlerResponse>;
-
-// Factory-generated handlers for manifest-declared services
-const manifest = loadManifest();
-const generatedTools = generateTools(manifest, patches);
 
 const domainHandlers: Record<string, ToolHandler> = {
   manage_accounts: handleAccounts,

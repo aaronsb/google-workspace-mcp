@@ -5,8 +5,7 @@
  * manage_accounts (not a gws wrapper) and queue_operations (meta-tool).
  */
 
-import { loadManifest, generateTools } from '../factory/generator.js';
-import { patches } from '../factory/patches.js';
+import { generatedTools } from '../factory/registry.js';
 
 export interface ToolSchema {
   name: string;
@@ -79,9 +78,7 @@ const handCodedSchemas: ToolSchema[] = [
   },
 ];
 
-// Factory-generated schemas from the manifest
-const manifest = loadManifest();
-const generatedTools = generateTools(manifest, patches);
+// Factory-generated schemas from the shared registry
 const factorySchemas: ToolSchema[] = generatedTools.map(t => t.schema);
 
 export const toolSchemas: ToolSchema[] = [

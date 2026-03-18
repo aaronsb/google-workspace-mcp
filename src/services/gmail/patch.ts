@@ -191,15 +191,46 @@ export const gmailPatch: ServicePatch = {
       const to = requireString(params, 'to');
       const subject = requireString(params, 'subject');
       const body = requireString(params, 'body');
-      const result = await execute([
-        'gmail', '+send',
-        '--to', to, '--subject', subject, '--body', body,
-      ], { account });
+      const args = ['gmail', '+send', '--to', to, '--subject', subject, '--body', body];
+      if (params.cc) args.push('--cc', String(params.cc));
+      if (params.bcc) args.push('--bcc', String(params.bcc));
+      const result = await execute(args, { account });
       const data = result.data as Record<string, unknown>;
       return {
         text: `Email sent to ${to}.\n\n**Subject:** ${subject}\n**Message ID:** ${data.id ?? 'unknown'}` +
           nextSteps('email', 'send', { email: account }),
         refs: { id: data.id, threadId: data.threadId, to, subject },
+      };
+    },
+
+    modify: async (params, account): Promise<HandlerResponse> => {
+      const messageId = requireString(params, 'messageId');
+      const addLabelIds = params.addLabelIds
+        ? String(params.addLabelIds).split(',').map(s => s.trim())
+        : [];
+      const removeLabelIds = params.removeLabelIds
+        ? String(params.removeLabelIds).split(',').map(s => s.trim())
+        : [];
+
+      if (addLabelIds.length === 0 && removeLabelIds.length === 0) {
+        throw new Error('At least one of addLabelIds or removeLabelIds is required');
+      }
+
+      const body: Record<string, string[]> = {};
+      if (addLabelIds.length > 0) body.addLabelIds = addLabelIds;
+      if (removeLabelIds.length > 0) body.removeLabelIds = removeLabelIds;
+
+      const result = await execute([
+        'gmail', 'users', 'messages', 'modify',
+        '--params', JSON.stringify({ userId: 'me', id: messageId }),
+        '--json', JSON.stringify(body),
+      ], { account });
+      const data = result.data as Record<string, unknown>;
+      const labels = (data.labelIds ?? []) as string[];
+      return {
+        text: `Labels updated on ${messageId}.\n\n**Current labels:** ${labels.join(', ') || '(none)'}` +
+          nextSteps('email', 'modify', { email: account }),
+        refs: { messageId, labelIds: labels },
       };
     },
 
