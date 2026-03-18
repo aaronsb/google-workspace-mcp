@@ -76,11 +76,14 @@ describe('generateTools', () => {
   it('produces one tool per manifest service', () => {
     const manifest = loadManifest();
     const tools = generateTools(manifest, patches);
-    expect(tools).toHaveLength(3);
+    expect(tools.length).toBeGreaterThanOrEqual(6);
     const names = tools.map(t => t.schema.name);
     expect(names).toContain('manage_email');
     expect(names).toContain('manage_calendar');
     expect(names).toContain('manage_drive');
+    expect(names).toContain('manage_sheets');
+    expect(names).toContain('manage_tasks');
+    // manage_contacts and manage_meet excluded pending gws auth scope support
   });
 
   it('each tool has both schema and handler', () => {

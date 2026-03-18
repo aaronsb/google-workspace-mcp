@@ -35,7 +35,8 @@
       "env": {
         "GOOGLE_CLIENT_ID": "${user_config.google_client_id}",
         "GOOGLE_CLIENT_SECRET": "${user_config.google_client_secret}",
-        "GWS_BINARY_PATH": "${__dirname}/bin"
+        "GWS_BINARY_PATH": "${__dirname}/bin",
+        "WORKSPACE_DIR": "${user_config.workspace_dir}"
       }
     }
   },
@@ -57,6 +58,18 @@
       "description": "Search, upload, download, copy, delete, export, and share Google Drive files"
     },
     {
+      "name": "manage_sheets",
+      "description": "Read, write, and manage Google Sheets spreadsheets"
+    },
+    {
+      "name": "manage_docs",
+      "description": "Read and write Google Docs documents"
+    },
+    {
+      "name": "manage_tasks",
+      "description": "Manage task lists and tasks"
+    },
+    {
       "name": "queue_operations",
       "description": "Chain multiple operations sequentially with result references between steps"
     }
@@ -75,6 +88,12 @@
       "description": "The client secret from your OAuth 2.0 credentials",
       "sensitive": true,
       "required": true
+    },
+    "workspace_dir": {
+      "type": "string",
+      "title": "Workspace Directory",
+      "description": "Directory for file operations (upload/download/export). Must be a dedicated folder — not your home, Documents, Desktop, or Google Drive directory. Default: ~/.local/share/google-workspace-mcp/workspace/",
+      "required": false
     }
   },
   "compatibility": {
