@@ -39,7 +39,11 @@ const GDRIVE_PATTERNS = [
 /** Validate and return the workspace directory path. */
 export function getWorkspaceDir(): string {
   const configured = process.env.WORKSPACE_DIR;
-  return configured || DEFAULT_WORKSPACE;
+  // Ignore unresolved mcpb template variables (e.g. "${user_config.workspace_dir}")
+  if (configured && !configured.includes('${')) {
+    return configured;
+  }
+  return DEFAULT_WORKSPACE;
 }
 
 /**
