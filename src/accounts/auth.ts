@@ -1,6 +1,6 @@
 import { spawn, execFile } from 'node:child_process';
 import { platform } from 'node:os';
-import { execute } from '../executor/gws.js';
+import { execute, resolveGwsBinary, resolvePackageBinDir } from '../executor/gws.js';
 import { exportAndSaveCredential, readCredential, hasCredential } from './credentials.js';
 
 export interface AuthResult {
@@ -105,7 +105,10 @@ function runAuthLogin(
       GOOGLE_WORKSPACE_CLI_CLIENT_SECRET: clientSecret,
     };
 
-    const proc = spawn('gws', args, {
+    const gwsBinary = resolveGwsBinary();
+    env.PATH = `${resolvePackageBinDir()}:${env.PATH || ''}`;
+
+    const proc = spawn(gwsBinary, args, {
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
