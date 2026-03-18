@@ -99,6 +99,20 @@ export const noDelete: SafetyPolicy = {
 };
 
 /**
+ * Classify an operation as read-only by name pattern.
+ * Uses prefix/name matching so new operations are automatically classified
+ * without maintaining a hardcoded list.
+ */
+function isReadOperation(operation: string): boolean {
+  const op = operation.toLowerCase();
+  // Prefix patterns: get*, list*, search*
+  if (op.startsWith('get') || op.startsWith('list') || op.startsWith('search')) return true;
+  // Exact read-only names
+  const readOps = ['read', 'triage', 'labels', 'threads', 'agenda', 'calendars', 'freebusy'];
+  return readOps.includes(op);
+}
+
+/**
  * Read-only policy — blocks all write operations across all services.
  * Only list, get, search, and read operations are allowed.
  */
@@ -107,16 +121,7 @@ export const readOnly: SafetyPolicy = {
   description: 'Block all write operations — observation only',
   applies: () => true,
   evaluate: (_args, ctx) => {
-    const readOps = [
-      'search', 'read', 'list', 'get', 'triage', 'labels', 'threads', 'getThread',
-      'agenda', 'calendars', 'freebusy',
-      'listPermissions',
-      'getValues',
-      'listTaskLists', 'getTaskList',
-      'listRecordings', 'getRecording', 'listParticipants', 'getSpace',
-    ];
-
-    if (!readOps.includes(ctx.operation)) {
+    if (!isReadOperation(ctx.operation)) {
       return {
         action: 'block',
         reason: `Operation '${ctx.operation}' is blocked by read-only policy. ` +
@@ -135,14 +140,8 @@ export const auditLog: SafetyPolicy = {
   name: 'audit-log',
   description: 'Log all write operations to stderr — no blocking',
   applies: () => true,
-  evaluate: (args, ctx, service) => {
-    const readOps = [
-      'search', 'read', 'list', 'get', 'triage', 'labels', 'threads', 'getThread',
-      'agenda', 'calendars', 'freebusy', 'listPermissions', 'getValues',
-      'listTaskLists', 'getTaskList',
-    ];
-
-    if (!readOps.includes(ctx.operation)) {
+  evaluate: (_args, ctx, service) => {
+    if (!isReadOperation(ctx.operation)) {
       process.stderr.write(
         `[gws-mcp] AUDIT: ${service}.${ctx.operation} account=${ctx.account} ` +
         `args=${JSON.stringify(ctx.params)}\n`,
@@ -168,9 +167,9 @@ export function configurePolicies(policies: SafetyPolicy[]): void {
   }
 }
 
-/** Get the active policies (for testing). */
+/** Get the active policies (defensive copy). */
 export function getActivePolicies(): SafetyPolicy[] {
-  return activePolicies;
+  return [...activePolicies];
 }
 
 /**

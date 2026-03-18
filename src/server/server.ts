@@ -40,16 +40,16 @@ function initSafetyPolicies(): void {
   };
 
   const names = policyEnv.split(',').map(s => s.trim()).filter(Boolean);
-  const policies = names
-    .map(name => {
-      const policy = policyMap[name];
-      if (!policy) {
-        log(`safety: unknown policy '${name}', skipping`);
-      }
-      return policy;
-    })
-    .filter((p): p is SafetyPolicy => p !== undefined);
+  const unknown = names.filter(name => !policyMap[name]);
+  if (unknown.length > 0) {
+    const valid = Object.keys(policyMap).join(', ');
+    throw new Error(
+      `Unknown safety policy(ies): ${unknown.join(', ')}. ` +
+      `Valid policies: ${valid}`,
+    );
+  }
 
+  const policies = names.map(name => policyMap[name]);
   configurePolicies(policies);
 }
 

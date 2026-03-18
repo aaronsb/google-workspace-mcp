@@ -26,6 +26,10 @@ describe('draftOnlyEmail', () => {
     expect(evaluatePolicies([], ctx('reply'), 'gmail').action).toBe('block');
   });
 
+  it('blocks replyAll', () => {
+    expect(evaluatePolicies([], ctx('replyAll'), 'gmail').action).toBe('block');
+  });
+
   it('blocks forward', () => {
     expect(evaluatePolicies([], ctx('forward'), 'gmail').action).toBe('block');
   });
