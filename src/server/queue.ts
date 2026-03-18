@@ -41,6 +41,8 @@ export async function handleQueue(
     throw new Error('operations array is required and must not be empty');
   }
 
+  const detail = (params.detail as string) ?? 'summary';
+
   const results: OperationResult[] = [];
   let bailedAt = -1;
   let lastSuccessText = '';
@@ -88,7 +90,7 @@ export async function handleQueue(
   const failed = results.filter(r => r.status === 'error').length;
   const skipped = results.filter(r => r.status === 'skipped').length;
 
-  // Build summary markdown
+  // Build markdown output
   const lines: string[] = [
     `## Queue Results (${succeeded}/${results.length} succeeded)`,
     '',
@@ -96,25 +98,32 @@ export async function handleQueue(
 
   for (const r of results) {
     const icon = r.status === 'success' ? '✓' : r.status === 'error' ? '✗' : '○';
-    const summary = r.status === 'error' ? r.error
-                  : r.text ? firstLine(r.text)
-                  : r.status;
-    lines.push(`${icon} ${r.tool} — ${summary}`);
+    const headline = r.status === 'error' ? r.error
+                   : r.text ? firstLine(r.text)
+                   : r.status;
+    lines.push(`${icon} ${r.tool} — ${headline}`);
+
+    // Full mode: include complete operation output below the summary line
+    if (detail === 'full' && r.status === 'success' && r.text) {
+      lines.push('', r.text, '');
+    }
   }
 
   // Append consolidated next-steps from last successful operation
   const nextStepsSuffix = extractNextSteps(lastSuccessText);
   const text = lines.join('\n') + nextStepsSuffix;
 
-  // Queue-level refs are aggregate counters only.
-  // Per-operation refs are available during execution for $N.field resolution
-  // but not exposed in the final response. Exposing them (e.g. as results[N].refs)
-  // is scoped for the queue-enhancement workstream.
   const refs: Record<string, unknown> = {
     total: results.length,
     succeeded,
     failed,
     skipped,
+    // Per-operation refs keyed by index for downstream access
+    results: results.map(r => ({
+      tool: r.tool,
+      status: r.status,
+      ...(r.refs ?? {}),
+    })),
   };
 
   return { text, refs };

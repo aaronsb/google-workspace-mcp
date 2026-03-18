@@ -146,6 +146,11 @@ export const toolSchemas: ToolSchema[] = [
           maxItems: 10,
           description: 'Operations to execute sequentially',
         },
+        detail: {
+          type: 'string',
+          enum: ['summary', 'full'],
+          description: 'summary: one-line status per operation (default) | full: include complete output from each operation',
+        },
       },
       required: ['operations'],
       additionalProperties: false,

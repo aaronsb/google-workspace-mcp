@@ -154,4 +154,77 @@ describe('handleQueue', () => {
     expect(result.text).toContain('## Queue Results');
     expect(result.text).toContain('1/1 succeeded');
   });
+
+  it('exposes per-operation refs in results array', async () => {
+    const result = await handleQueue({
+      operations: [
+        { tool: 'tool_a', args: { input: 'hello' } },
+        { tool: 'tool_b', args: { ref: 'world' } },
+      ],
+    }, handlers);
+
+    const opResults = result.refs.results as Array<Record<string, unknown>>;
+    expect(opResults).toHaveLength(2);
+    expect(opResults[0]).toMatchObject({ tool: 'tool_a', status: 'success', id: 'result-a' });
+    expect(opResults[1]).toMatchObject({ tool: 'tool_b', status: 'success', id: 'result-b' });
+  });
+
+  it('includes error status in per-operation results', async () => {
+    const result = await handleQueue({
+      operations: [
+        { tool: 'tool_fail', args: {}, onError: 'continue' },
+        { tool: 'tool_a', args: {} },
+      ],
+    }, handlers);
+
+    const opResults = result.refs.results as Array<Record<string, unknown>>;
+    expect(opResults[0]).toMatchObject({ tool: 'tool_fail', status: 'error' });
+    expect(opResults[1]).toMatchObject({ tool: 'tool_a', status: 'success' });
+  });
+
+  describe('detail: full', () => {
+    it('includes complete operation output below summary lines', async () => {
+      const result = await handleQueue({
+        operations: [
+          { tool: 'tool_a', args: { input: 'hello' } },
+          { tool: 'tool_b', args: { ref: 'world' } },
+        ],
+        detail: 'full',
+      }, handlers);
+
+      expect(result.text).toContain('## Queue Results');
+      // Full output should appear
+      expect(result.text).toContain('Result A: hello');
+      expect(result.text).toContain('Result B: ref=world');
+    });
+
+    it('does not include output for failed operations', async () => {
+      const result = await handleQueue({
+        operations: [
+          { tool: 'tool_a', args: {} },
+          { tool: 'tool_fail', args: {}, onError: 'continue' },
+        ],
+        detail: 'full',
+      }, handlers);
+
+      expect(result.text).toContain('Result A: default');
+      expect(result.text).toContain('✗ tool_fail');
+      // Error message appears in summary line, not as full output
+    });
+  });
+
+  describe('detail: summary (default)', () => {
+    it('only shows one-liner per operation, not full output blocks', async () => {
+      const result = await handleQueue({
+        operations: [
+          { tool: 'tool_a', args: { input: 'hello' } },
+        ],
+      }, handlers);
+
+      // Summary line contains the first content line
+      expect(result.text).toContain('✓ tool_a — Result A: hello');
+      // No blank-line-separated full output block
+      expect(result.text).not.toMatch(/\n\nResult A: hello\n/);
+    });
+  });
 });
