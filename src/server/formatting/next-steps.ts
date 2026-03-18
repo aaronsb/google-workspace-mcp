@@ -41,9 +41,6 @@ const suggestions: Record<string, Record<string, NextStep[]>> = {
       { description: 'Re-authenticate account', tool: 'manage_accounts', example: { operation: 'authenticate' } },
       { description: 'Check account status', tool: 'manage_accounts', example: { operation: 'status', email: '<email>' } },
     ],
-    scope_error: [
-      { description: 'Update scopes for this account', tool: 'manage_accounts', example: { operation: 'scopes', email: '<email>', services: '<needed services>' } },
-    ],
   },
   email: {
     search: [

@@ -109,6 +109,14 @@ Auth failures should return specific remediation:
 - Token validity checks add an API call per `status` invocation
 - The `setup` operation only works when `gcloud` CLI is installed
 
+## Deferred
+
+The following items from the original design are deferred to future work:
+
+- **`setup` operation** — requires `gcloud` CLI and is hard to automate for headless/MCP environments. Users should run `gws auth setup` directly for first-time Cloud project creation.
+- **`list` status enrichment** — calling `gws auth status` per account on every list is slow. The current list shows credential file presence; full status is available via the `status` operation.
+- **Client secret as tool parameter** — currently sourced from env vars only. Accepting via tool params would require careful handling to avoid logging secrets in MCP request traces.
+
 ## Alternatives Considered
 
 - **Separate `manage_auth` tool**: Splits account CRUD from auth lifecycle. Rejected because accounts and auth are the same domain — an account without auth is useless.

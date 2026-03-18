@@ -124,7 +124,7 @@ describe('handleAccounts', () => {
       process.env = { ...originalEnv, GOOGLE_CLIENT_ID: 'test-id', GOOGLE_CLIENT_SECRET: 'test-secret' };
     });
 
-    afterAll(() => {
+    afterEach(() => {
       process.env = originalEnv;
     });
 
