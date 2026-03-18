@@ -106,7 +106,10 @@ export async function handleQueue(
   const nextStepsSuffix = extractNextSteps(lastSuccessText);
   const text = lines.join('\n') + nextStepsSuffix;
 
-  // Merge all refs for queue-level reference resolution
+  // Queue-level refs are aggregate counters only.
+  // Per-operation refs are available during execution for $N.field resolution
+  // but not exposed in the final response. Exposing them (e.g. as results[N].refs)
+  // is scoped for the queue-enhancement workstream.
   const refs: Record<string, unknown> = {
     total: results.length,
     succeeded,

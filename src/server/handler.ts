@@ -4,13 +4,8 @@ import { handleCalendar } from './handlers/calendar.js';
 import { handleDrive } from './handlers/drive.js';
 import { handleQueue } from './queue.js';
 
-/**
- * Handlers return text for the agent plus refs for queue $N.field resolution.
- */
-export interface HandlerResponse {
-  text: string;
-  refs: Record<string, unknown>;
-}
+export type { HandlerResponse } from './formatting/markdown.js';
+import type { HandlerResponse } from './formatting/markdown.js';
 
 type ToolHandler = (params: Record<string, unknown>) => Promise<HandlerResponse>;
 

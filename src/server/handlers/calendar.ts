@@ -32,12 +32,17 @@ export async function handleCalendar(params: Record<string, unknown>): Promise<H
 
     case 'agenda': {
       const result = await execute(['calendar', '+agenda'], { account: email });
-      // +agenda returns its own format — pass through as text
-      const data = result.data;
-      const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+      const data = result.data as Record<string, unknown> | undefined;
+      const text = typeof result.data === 'string' ? result.data : JSON.stringify(result.data, null, 2);
+      // Curate refs — only expose fields useful for chaining
+      const events = Array.isArray(data?.events) ? data.events : [];
       return {
         text: text + nextSteps('calendar', 'agenda', { email }),
-        refs: typeof data === 'object' && data !== null ? data as Record<string, unknown> : {},
+        refs: {
+          count: events.length,
+          eventId: events[0]?.id,
+          events: events.map((e: Record<string, unknown>) => e.id),
+        },
       };
     }
 

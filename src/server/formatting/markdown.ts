@@ -9,14 +9,15 @@
  *   structured values queue $N.field resolution needs
  */
 
-export interface FormattedResponse {
+/** Shared response shape — markdown text for agents, structured refs for queue $N.field. */
+export interface HandlerResponse {
   text: string;
   refs: Record<string, unknown>;
 }
 
 // --- Email formatting ---
 
-export function formatEmailList(data: unknown): FormattedResponse {
+export function formatEmailList(data: unknown): HandlerResponse {
   const raw = data as Record<string, unknown>;
   const messages = (raw?.messages ?? raw?.items ?? []) as Record<string, unknown>[];
 
@@ -45,7 +46,7 @@ export function formatEmailList(data: unknown): FormattedResponse {
   };
 }
 
-export function formatEmailDetail(data: unknown): FormattedResponse {
+export function formatEmailDetail(data: unknown): HandlerResponse {
   const msg = data as Record<string, unknown>;
   const payload = msg.payload as Record<string, unknown> | undefined;
   const headers = (payload?.headers ?? []) as Array<{ name: string; value: string }>;
@@ -90,7 +91,7 @@ export function formatEmailDetail(data: unknown): FormattedResponse {
 
 // --- Calendar formatting ---
 
-export function formatEventList(data: unknown): FormattedResponse {
+export function formatEventList(data: unknown): HandlerResponse {
   const raw = data as Record<string, unknown>;
   const items = (raw?.items ?? []) as Record<string, unknown>[];
 
@@ -123,7 +124,7 @@ export function formatEventList(data: unknown): FormattedResponse {
   };
 }
 
-export function formatEventDetail(data: unknown): FormattedResponse {
+export function formatEventDetail(data: unknown): HandlerResponse {
   const event = data as Record<string, unknown>;
   const attendees = (event.attendees ?? []) as Array<Record<string, unknown>>;
   const id = String(event.id ?? '');
@@ -179,7 +180,7 @@ export function formatEventDetail(data: unknown): FormattedResponse {
 
 // --- Drive formatting ---
 
-export function formatFileList(data: unknown): FormattedResponse {
+export function formatFileList(data: unknown): HandlerResponse {
   const raw = data as Record<string, unknown>;
   const items = (raw?.files ?? []) as Record<string, unknown>[];
 
@@ -208,7 +209,7 @@ export function formatFileList(data: unknown): FormattedResponse {
   };
 }
 
-export function formatFileDetail(data: unknown): FormattedResponse {
+export function formatFileDetail(data: unknown): HandlerResponse {
   const file = data as Record<string, unknown>;
   const id = String(file.id ?? '');
   const name = String(file.name ?? '');

@@ -1,32 +1,44 @@
-import { listAccounts, removeAccount, authenticateAndAddAccount } from '../../accounts/registry.js';
+import { listAccounts, removeAccount, authenticateAndAddAccount, type Account } from '../../accounts/registry.js';
 import { nextSteps } from '../formatting/next-steps.js';
 import type { HandlerResponse } from '../handler.js';
+
+interface EnrichedAccount extends Account {
+  hasCredential: boolean;
+}
+
+function formatAccountList(accounts: EnrichedAccount[]): { text: string; refs: Record<string, unknown> } {
+  const lines = accounts.map(a => {
+    const cred = a.hasCredential ? '[x]' : '[ ]';
+    const desc = a.description ? ` — ${a.description}` : '';
+    return `${cred} ${a.email} (${a.category})${desc}`;
+  });
+
+  return {
+    text: `## Accounts (${accounts.length})\n\n${lines.join('\n')}`,
+    refs: {
+      count: accounts.length,
+      accounts: accounts.map(a => a.email),
+      email: accounts[0]?.email,
+    },
+  };
+}
 
 export async function handleAccounts(params: Record<string, unknown>): Promise<HandlerResponse> {
   const operation = params.operation as string;
 
   switch (operation) {
     case 'list': {
-      const accounts = await listAccounts();
+      const accounts = await listAccounts() as EnrichedAccount[];
       if (accounts.length === 0) {
         return {
           text: 'No accounts configured.' + nextSteps('accounts', 'list_empty'),
           refs: { count: 0 },
         };
       }
-      const lines = accounts.map((a: any) => {
-        const cred = a.hasCredential ? '[x]' : '[ ]';
-        const desc = a.description ? ` — ${a.description}` : '';
-        return `${cred} ${a.email} (${a.category})${desc}`;
-      });
+      const formatted = formatAccountList(accounts);
       return {
-        text: `## Accounts (${accounts.length})\n\n${lines.join('\n')}` +
-          nextSteps('accounts', 'list'),
-        refs: {
-          count: accounts.length,
-          accounts: accounts.map((a: any) => a.email),
-          email: accounts[0]?.email,
-        },
+        text: formatted.text + nextSteps('accounts', 'list'),
+        refs: formatted.refs,
       };
     }
 
