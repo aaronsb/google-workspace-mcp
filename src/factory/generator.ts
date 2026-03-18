@@ -29,19 +29,38 @@ import type {
 import type { HandlerResponse } from '../server/formatting/markdown.js';
 
 /**
+ * Module directory for manifest resolution.
+ * Set by registry.ts via setModuleDir() using import.meta.url (ESM only).
+ * Null in Jest (CJS) — falls back to cwd-based resolution.
+ */
+let _moduleDir: string | undefined;
+
+/** Called by registry.ts to inject the ESM module directory. */
+export function setModuleDir(dir: string): void {
+  _moduleDir = dir;
+}
+
+/**
  * Load and parse the manifest YAML.
- * Searches common locations relative to cwd and __dirname fallbacks.
+ * Searches module-relative paths first, then cwd fallbacks.
  */
 export function loadManifest(path?: string): Manifest {
   if (path) {
     return parseYaml(readFileSync(path, 'utf-8')) as Manifest;
   }
 
-  // Try known locations — works from both src/ (ts-jest) and build/ (runtime)
-  const candidates = [
-    resolve(process.cwd(), 'src/factory/manifest.yaml'),
-    resolve(process.cwd(), 'build/factory/manifest.yaml'),
-  ];
+  // Search for manifest relative to known anchors.
+  // moduleDir is injected by registry.ts using import.meta.url (ESM only).
+  // cwd fallbacks handle Jest/dev where cwd is the project root.
+  const candidates: string[] = [];
+
+  if (_moduleDir) {
+    candidates.push(resolve(_moduleDir, 'manifest.yaml'));                    // build/factory/manifest.yaml
+    candidates.push(resolve(_moduleDir, '../../src/factory/manifest.yaml'));   // dev: from build/ to src/
+  }
+
+  candidates.push(resolve(process.cwd(), 'src/factory/manifest.yaml'));
+  candidates.push(resolve(process.cwd(), 'build/factory/manifest.yaml'));
 
   for (const candidate of candidates) {
     try {

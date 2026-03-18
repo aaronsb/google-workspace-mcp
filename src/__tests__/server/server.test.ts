@@ -5,6 +5,14 @@
  * wires handlers correctly and maps responses/errors.
  */
 
+// Mock registry before any server imports — avoids import.meta.url in Jest
+jest.mock('../../factory/registry.js', () => {
+  const { loadManifest, generateTools } = jest.requireActual('../../factory/generator.js');
+  const { patches } = jest.requireActual('../../factory/patches.js');
+  const manifest = loadManifest();
+  return { manifest, generatedTools: generateTools(manifest, patches) };
+});
+
 const mockSetRequestHandler = jest.fn();
 const mockServerConnect = jest.fn();
 
