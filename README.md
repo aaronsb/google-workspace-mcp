@@ -1,22 +1,59 @@
 # Google Workspace MCP Server
 
-An MCP server for Google Workspace that gives AI agents access to Gmail, Calendar, and Drive through a clean, operation-based interface with multi-account support.
+Give AI agents full access to Google Workspace — Gmail, Calendar, Drive, and more — through a single MCP server that handles multi-account credential routing, response formatting for AI consumption, and contextual guidance.
 
-Built on top of Google's official [`@googleworkspace/cli`](https://github.com/googleworkspace/cli) (gws) — all API coverage comes from Google's own tooling, dynamically discovered and always up to date.
+Built on [Google's official Workspace CLI](https://github.com/googleworkspace/cli) (`gws`), which means API coverage grows as Google does. The server uses a manifest-driven factory that turns declarative YAML into fully functional MCP tools — adding a new Google API operation is a config change, not a code change.
 
-## What It Does
+## Why This MCP Server
 
-**5 tools, 17 operations:**
+**For users:** One install gives your AI agent real, authenticated access to your Google accounts. Search email, check your calendar, manage Drive files, chain multi-step workflows — all through natural conversation.
 
-| Tool | Operations | Description |
-|------|-----------|-------------|
-| `manage_accounts` | list, authenticate, remove | Multi-account management |
-| `manage_email` | search, read, send, reply, triage | Gmail with search syntax |
-| `manage_calendar` | list, agenda, create, get, delete | Calendar management |
-| `manage_drive` | search, upload, get, download | Drive file operations |
-| `queue_operations` | — | Chain operations with `$N.field` result references |
+**For teams:** Multi-account support means your agent can work across personal and work accounts simultaneously, with per-account credential isolation and XDG-compliant storage.
 
-Each response includes contextual **next-steps** guidance, helping agents discover follow-up actions naturally.
+**For developers:** The factory architecture means coverage expands fast. Google's Workspace CLI already supports 15+ services and hundreds of API operations. The manifest curates which ones are exposed, patches add domain-specific formatting, and the defaults handle everything else.
+
+## What's Available
+
+**5 tools, 32+ operations across 3 core services:**
+
+| Tool | Operations | What It Does |
+|------|-----------|--------------|
+| `manage_email` | search, read, send, reply, replyAll, forward, triage, trash, untrash, modify, labels, threads, getThread | Full Gmail — search, read, compose, thread management, label management |
+| `manage_calendar` | list, agenda, get, create, quickAdd, update, delete, calendars, freebusy | Calendar CRUD, natural language event creation, availability checks |
+| `manage_drive` | search, get, upload, download, copy, delete, export, listPermissions, share, unshare | File management, Google Docs export, sharing and permissions |
+| `manage_accounts` | list, authenticate, remove, status, refresh, scopes | Multi-account lifecycle — add accounts, manage credentials and scopes |
+| `queue_operations` | — | Chain operations sequentially with `$N.field` result references |
+
+Every response includes **next-steps** guidance — the agent always knows what it can do next.
+
+## How It Works
+
+```
+                          ┌─────────────────────────┐
+MCP Client ──stdio──▶     │  manifest.yaml           │
+                          │  (32 operations declared) │
+                          └────────┬────────────────┘
+                                   │
+                          ┌────────▼────────────────┐
+                          │  Factory Generator       │
+                          │  schemas + handlers      │
+                          └────────┬────────────────┘
+                                   │
+                    ┌──────────────┼──────────────┐
+                    ▼              ▼              ▼
+              ┌──────────┐  ┌──────────┐  ┌──────────┐
+              │  Gmail   │  │ Calendar │  │  Drive   │
+              │  Patch   │  │  Patch   │  │  Patch   │
+              └────┬─────┘  └────┬─────┘  └────┬─────┘
+                   │             │             │
+                   └──────┬──────┘──────┬──────┘
+                          ▼             ▼
+                    Account Router ──▶ gws CLI ──▶ Google APIs
+```
+
+The **factory** reads a YAML manifest and generates MCP tool schemas and request handlers at startup. **Patches** add domain-specific behavior where needed — Gmail search hydration, calendar formatting, Drive file type detection. Operations without patches get sensible defaults automatically.
+
+The underlying engine is Google's `@googleworkspace/cli` — a Rust binary that wraps the full Google Workspace API surface. The MCP server curates which operations to expose and shapes the responses for AI consumption.
 
 ## Install
 
@@ -30,14 +67,14 @@ Or run directly:
 npx @aaronsb/google-workspace-mcp
 ```
 
-This installs everything — the gws Rust CLI binary comes along as a dependency.
+The gws CLI binary is included as a dependency — no separate install needed.
 
 ### Prerequisites
 
 1. **Node.js** 18+
 2. **Google Cloud OAuth credentials** — create at [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials):
    - Create an OAuth 2.0 Client ID (Desktop application)
-   - Enable Gmail, Calendar, and Drive APIs
+   - Enable the APIs you want (Gmail, Calendar, Drive, Sheets, etc.)
 
 3. Set environment variables:
    ```bash
@@ -87,12 +124,6 @@ Add to `.mcp.json`:
 
 ## Usage
 
-Start by listing accounts:
-
-```
-manage_accounts { "operation": "list" }
-```
-
 Add an account (opens browser for OAuth):
 
 ```
@@ -102,36 +133,35 @@ manage_accounts { "operation": "authenticate" }
 Then use any tool with your account email:
 
 ```
-manage_email { "operation": "triage", "email": "you@gmail.com" }
+manage_email    { "operation": "triage", "email": "you@gmail.com" }
 manage_calendar { "operation": "agenda", "email": "you@gmail.com" }
-manage_drive { "operation": "search", "email": "you@gmail.com", "query": "quarterly report" }
+manage_drive    { "operation": "search", "email": "you@gmail.com", "query": "quarterly report" }
 ```
 
-### Queue Operations
+### Multi-Step Workflows
 
-Chain multiple operations in one call with result references:
+Chain operations with result references — the output of one step feeds the next:
 
 ```json
 {
   "operations": [
-    { "tool": "manage_email", "args": { "operation": "search", "email": "you@gmail.com", "query": "from:boss subject:review" } },
-    { "tool": "manage_calendar", "args": { "operation": "agenda", "email": "you@gmail.com" } }
+    { "tool": "manage_email", "args": { "operation": "search", "email": "you@gmail.com", "query": "from:boss subject:review" }},
+    { "tool": "manage_email", "args": { "operation": "read", "email": "you@gmail.com", "messageId": "$0.messageId" }}
   ]
 }
 ```
 
-## Architecture
+## Expanding Coverage
 
-```
-MCP Client → stdio → Server → Handler → gws CLI → Google APIs
-                                  ↓
-                          Account Registry (multi-account credential routing)
+The server discovers operations from the gws CLI, which already supports 15+ Google services (Sheets, Docs, Tasks, People, Chat, and more). Adding coverage is a manifest edit:
+
+```bash
+make manifest-discover   # Find all 287+ available operations
+make manifest-lint       # Validate the curated manifest
+make test                # Verify everything works
 ```
 
-- **Executor** — spawns `gws` as a subprocess with per-account credential routing
-- **Credential bridge** — exports from gws encrypted store to per-account files in XDG-compliant paths
-- **Formatting** — shapes raw API responses for AI context efficiency
-- **Next-steps** — contextual follow-up suggestions in every response
+New operations get default formatting automatically. Add a patch only when you need domain-specific presentation.
 
 ## Data Storage
 
@@ -142,15 +172,7 @@ Follows XDG Base Directory Specification:
 | Account registry | `~/.config/google-workspace-mcp/accounts.json` |
 | Credentials | `~/.local/share/google-workspace-mcp/credentials/` |
 
-## Development
-
-```bash
-npm install
-make build        # Compile TypeScript
-make typecheck    # Type checking only
-make test-unit    # Run unit tests (60 tests)
-make test         # Same as test-unit
-```
+Credentials are per-account files with standard OAuth tokens. No secrets are stored in the project directory.
 
 ## License
 
