@@ -10,11 +10,9 @@
  * Flow: read → see filenames → getAttachment(messageId, filename) → file in workspace
  */
 
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import { execute } from '../../executor/gws.js';
 import { requireString } from '../../server/handlers/validate.js';
-import { ensureWorkspaceDir, resolveWorkspacePath } from '../../executor/workspace.js';
+import { saveToWorkspace, formatFileOutput } from '../../executor/file-output.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
 /** Walk message parts recursively to find attachments. */
@@ -53,12 +51,6 @@ export async function handleGetAttachment(
 ): Promise<HandlerResponse> {
   const messageId = requireString(params, 'messageId');
   const filename = requireString(params, 'filename');
-
-  // Ensure workspace directory exists and is valid
-  const wsStatus = await ensureWorkspaceDir();
-  if (!wsStatus.valid) {
-    throw new Error(`Workspace directory invalid: ${wsStatus.warning}`);
-  }
 
   // Read the message to find the attachment ID for this filename
   const msgResult = await execute([
@@ -100,41 +92,17 @@ export async function handleGetAttachment(
   const base64Standard = base64Data.replace(/-/g, '+').replace(/_/g, '/');
   const buffer = Buffer.from(base64Standard, 'base64');
 
-  // Save to workspace directory (path traversal safe)
-  const outputPath = resolveWorkspacePath(filename);
-  await fs.mkdir(path.dirname(outputPath), { recursive: true });
-  await fs.writeFile(outputPath, buffer);
-
-  // For text-based files, include content inline so containerized agents
-  // (like Claude Desktop) can read it without filesystem access.
-  const textMimeTypes = [
-    'text/', 'application/json', 'application/xml', 'application/javascript',
-    'application/x-yaml', 'application/toml',
-  ];
-  const isText = textMimeTypes.some(t => match.mimeType.startsWith(t))
-    || filename.endsWith('.md') || filename.endsWith('.txt') || filename.endsWith('.csv')
-    || filename.endsWith('.json') || filename.endsWith('.yaml') || filename.endsWith('.yml')
-    || filename.endsWith('.xml') || filename.endsWith('.html') || filename.endsWith('.eml');
-
-  const parts = [
-    `Attachment saved: **${filename}**`,
-    '',
-    `**Path:** ${outputPath}`,
-    `**Size:** ${buffer.length} bytes`,
-  ];
-
-  if (isText && buffer.length < 100_000) {
-    parts.push('', '---', '', '```', buffer.toString('utf-8'), '```');
-  }
+  // Save to workspace and return inline content for text files
+  const output = await saveToWorkspace(filename, buffer, match.mimeType);
 
   return {
-    text: parts.join('\n'),
+    text: formatFileOutput(output),
     refs: {
-      filename,
-      path: outputPath,
-      size: buffer.length,
+      filename: output.filename,
+      path: output.path,
+      size: output.size,
       messageId,
-      ...(isText && buffer.length < 100_000 ? { content: buffer.toString('utf-8') } : {}),
+      ...(output.content ? { content: output.content } : {}),
     },
   };
 }

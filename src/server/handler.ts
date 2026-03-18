@@ -1,4 +1,5 @@
 import { handleAccounts } from './handlers/accounts.js';
+import { handleWorkspace } from './handlers/workspace.js';
 import { handleQueue } from './queue.js';
 import { generatedTools } from '../factory/registry.js';
 
@@ -9,6 +10,7 @@ type ToolHandler = (params: Record<string, unknown>) => Promise<HandlerResponse>
 
 const domainHandlers: Record<string, ToolHandler> = {
   manage_accounts: handleAccounts,
+  manage_workspace: handleWorkspace,
 };
 
 // Register factory-generated handlers
