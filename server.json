@@ -1,12 +1,12 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.aaronsb/google-workspace",
-  "version": "2.0.0-alpha.3",
+  "version": "2.0.0-alpha.4",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@aaronsb/google-workspace-mcp",
-      "version": "2.0.0-alpha.3",
+      "version": "2.0.0-alpha.4",
       "transport": {
         "type": "stdio"
       },
