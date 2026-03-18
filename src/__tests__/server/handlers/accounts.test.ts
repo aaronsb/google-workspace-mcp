@@ -1,3 +1,11 @@
+// Mock registry before accounts handler imports it — avoids import.meta.url in Jest
+jest.mock('../../../factory/registry.js', () => {
+  const { loadManifest, generateTools } = jest.requireActual('../../../factory/generator.js');
+  const { patches } = jest.requireActual('../../../factory/patches.js');
+  const manifest = loadManifest();
+  return { manifest, generatedTools: generateTools(manifest, patches) };
+});
+
 import { handleAccounts } from '../../../server/handlers/accounts.js';
 
 // Mock dependencies

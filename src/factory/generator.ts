@@ -15,6 +15,7 @@ import { execute } from '../executor/gws.js';
 import { requireEmail, requireString, clamp } from '../server/handlers/validate.js';
 import { formatDefault } from './defaults.js';
 import { nextSteps } from '../server/formatting/next-steps.js';
+import { evaluatePolicies } from './safety.js';
 import type {
   Manifest,
   ServiceDef,
@@ -165,18 +166,29 @@ export function generateHandler(
     }
 
     const account = service.requires_email ? requireEmail(params) : '';
+    const ctx: PatchContext = { operation, params, account };
+
+    // Safety policies — run before anything else, including custom handlers.
+    // A blocked operation never reaches the handler or gws.
+    const policyResult = evaluatePolicies([], ctx, service.gws_service);
+    if (policyResult.action === 'block') {
+      return {
+        text: `**Blocked by safety policy:** ${policyResult.reason}`,
+        refs: { blocked: true, policy: policyResult.reason },
+      };
+    }
 
     // Check for a fully custom handler first
     if (patch?.customHandlers?.[operation]) {
       return patch.customHandlers[operation](params, account);
     }
 
-    const ctx: PatchContext = { operation, params, account };
-
     // Build gws args
-    let args = buildArgs(service.gws_service, opDef, params);
+    let args = policyResult.action === 'downgrade' && policyResult.replacementArgs
+      ? policyResult.replacementArgs
+      : buildArgs(service.gws_service, opDef, params);
 
-    // beforeExecute hook
+    // beforeExecute hook (service-specific)
     if (patch?.beforeExecute?.[operation]) {
       args = await patch.beforeExecute[operation](args, ctx);
     }

@@ -2,6 +2,9 @@ import { listAccounts, removeAccount, authenticateAndAddAccount, type Account } 
 import { checkAccountStatus, reauthWithServices } from '../../accounts/auth.js';
 import { exportAndSaveCredential } from '../../accounts/credentials.js';
 import { nextSteps } from '../formatting/next-steps.js';
+import { getActivePolicies } from '../../factory/safety.js';
+import { manifest } from '../../factory/registry.js';
+import { checkWorkspaceStatus } from '../../executor/workspace.js';
 import type { HandlerResponse } from '../handler.js';
 
 interface EnrichedAccount extends Account {
@@ -144,6 +147,53 @@ export async function handleAccounts(params: Record<string, unknown>): Promise<H
       return {
         text: statusText + nextSteps('accounts', 'scopes', { email }),
         refs: { status: result.status, email: result.account, services },
+      };
+    }
+
+    case 'capabilities': {
+      const policies = getActivePolicies();
+      const services = Object.entries(manifest.services).map(([name, def]) => ({
+        service: name,
+        tool: def.tool_name,
+        operations: Object.keys(def.operations),
+      }));
+      const workspace = checkWorkspaceStatus();
+
+      const parts: string[] = [];
+
+      // Services
+      const totalOps = services.reduce((sum, s) => sum + s.operations.length, 0);
+      parts.push(`## Services (${services.length} services, ${totalOps} operations)\n`);
+      for (const s of services) {
+        parts.push(`**${s.tool}** (${s.operations.length}): ${s.operations.join(', ')}`);
+      }
+
+      // Safety policies
+      parts.push('');
+      if (policies.length > 0) {
+        parts.push(`## Safety Policies (${policies.length} active)\n`);
+        for (const p of policies) {
+          parts.push(`- **${p.name}**: ${p.description}`);
+        }
+      } else {
+        parts.push('## Safety Policies\n\nNo safety policies active — all operations are allowed.');
+      }
+
+      // Workspace
+      parts.push('');
+      parts.push('## Workspace Directory\n');
+      parts.push(`**Path:** ${workspace.path}`);
+      parts.push(`**Status:** ${workspace.valid ? 'valid' : 'invalid — ' + workspace.warning}`);
+
+      return {
+        text: parts.join('\n'),
+        refs: {
+          totalServices: services.length,
+          totalOperations: totalOps,
+          activePolicies: policies.map(p => p.name),
+          workspacePath: workspace.path,
+          workspaceValid: workspace.valid,
+        },
       };
     }
 
