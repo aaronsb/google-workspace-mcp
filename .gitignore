@@ -37,3 +37,8 @@ logs/
 coverage/
 commit-message.txt
 discovered-manifest.yaml
+
+# MCPB build artifacts
+*.mcpb
+mcpb/server/
+mcpb/bin/

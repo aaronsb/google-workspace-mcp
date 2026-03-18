@@ -1,0 +1,87 @@
+{
+  "manifest_version": "0.3",
+  "name": "google-workspace-mcp",
+  "display_name": "Google Workspace",
+  "version": "2.0.0-alpha.1",
+  "description": "Give AI agents access to Gmail, Calendar, Drive, and more — with multi-account support and manifest-driven API coverage",
+  "author": {
+    "name": "aaronsb",
+    "url": "https://github.com/aaronsb"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aaronsb/google-workspace-mcp.git"
+  },
+  "homepage": "https://github.com/aaronsb/google-workspace-mcp#readme",
+  "support": "https://github.com/aaronsb/google-workspace-mcp/issues",
+  "license": "MIT",
+  "keywords": [
+    "google-workspace",
+    "gmail",
+    "calendar",
+    "drive",
+    "email",
+    "oauth",
+    "multi-account"
+  ],
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/server/index.js"
+      ],
+      "env": {
+        "GOOGLE_CLIENT_ID": "${user_config.google_client_id}",
+        "GOOGLE_CLIENT_SECRET": "${user_config.google_client_secret}",
+        "GWS_BINARY_PATH": "${__dirname}/bin/gws"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "manage_accounts",
+      "description": "Manage Google Workspace account lifecycle: list, authenticate, check status, refresh credentials, update scopes"
+    },
+    {
+      "name": "manage_email",
+      "description": "Search, read, send, forward, trash, label, and manage Gmail messages and threads"
+    },
+    {
+      "name": "manage_calendar",
+      "description": "List events, view agenda, create, update, delete events, check availability"
+    },
+    {
+      "name": "manage_drive",
+      "description": "Search, upload, download, copy, delete, export, and share Google Drive files"
+    },
+    {
+      "name": "queue_operations",
+      "description": "Chain multiple operations sequentially with result references between steps"
+    }
+  ],
+  "user_config": {
+    "google_client_id": {
+      "type": "string",
+      "title": "Google OAuth Client ID",
+      "description": "Create at https://console.cloud.google.com/apis/credentials — OAuth 2.0 Client ID (Desktop application)",
+      "sensitive": true,
+      "required": true
+    },
+    "google_client_secret": {
+      "type": "string",
+      "title": "Google OAuth Client Secret",
+      "description": "The client secret from your OAuth 2.0 credentials",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ]
+  }
+}
