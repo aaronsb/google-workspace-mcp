@@ -196,8 +196,11 @@ discover_resources() {
 
 # --- Main ---
 
+GWS_VERSION=$($GWS --version 2>&1 | head -1)
+
 echo "# Auto-generated manifest from gws discovery"
 echo "# Generated: $(date -Iseconds)"
+echo "# ${GWS_VERSION}"
 echo "# Compare against src/factory/manifest.yaml to find new operations"
 echo "#"
 echo "# Operations marked with # CURATE comments need human review for:"
