@@ -62,10 +62,10 @@ describe('createServer', () => {
       const names = result.tools.map((t: any) => t.name);
       expect(names).toEqual([
         'manage_accounts',
+        'queue_operations',
         'manage_email',
         'manage_calendar',
         'manage_drive',
-        'queue_operations',
       ]);
     });
 

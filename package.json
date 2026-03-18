@@ -10,7 +10,7 @@
     "build"
   ],
   "scripts": {
-    "build": "tsc --skipLibCheck",
+    "build": "tsc --skipLibCheck && cp src/factory/manifest.yaml build/factory/",
     "type-check": "tsc --noEmit --skipLibCheck",
     "lint": "eslint \"src/**/*.ts\"",
     "watch": "tsc --watch --skipLibCheck",
@@ -19,7 +19,8 @@
   },
   "dependencies": {
     "@googleworkspace/cli": "^0.13.2",
-    "@modelcontextprotocol/sdk": "^0.7.0"
+    "@modelcontextprotocol/sdk": "^0.7.0",
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",

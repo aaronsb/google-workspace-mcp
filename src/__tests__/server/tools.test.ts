@@ -5,10 +5,10 @@ describe('tool registry', () => {
     const names = toolSchemas.map(t => t.name);
     expect(names).toEqual([
       'manage_accounts',
+      'queue_operations',
       'manage_email',
       'manage_calendar',
       'manage_drive',
-      'queue_operations',
     ]);
   });
 
@@ -42,7 +42,7 @@ describe('manage_email schema', () => {
   const props = (tool.inputSchema as any).properties;
 
   it('has operation enum with all email operations', () => {
-    expect(props.operation.enum).toEqual(['search', 'read', 'send', 'reply', 'triage']);
+    expect(props.operation.enum).toEqual(['search', 'read', 'send', 'reply', 'triage', 'forward', 'trash', 'untrash', 'labels']);
   });
 
   it('requires email', () => {
@@ -56,7 +56,7 @@ describe('manage_calendar schema', () => {
   const props = (tool.inputSchema as any).properties;
 
   it('has operation enum with calendar operations', () => {
-    expect(props.operation.enum).toEqual(['list', 'agenda', 'create', 'get', 'delete']);
+    expect(props.operation.enum).toEqual(['list', 'agenda', 'create', 'get', 'delete', 'quickAdd', 'update']);
   });
 });
 
