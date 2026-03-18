@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@googleworkspace/cli": "^0.13.2",
-    "@modelcontextprotocol/sdk": "^0.7.0",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "yaml": "^2.8.2"
   },
   "devDependencies": {
