@@ -46,6 +46,32 @@ export function formatEmailList(data: unknown): HandlerResponse {
   };
 }
 
+/** Extract attachments from message payload parts (recursive). */
+function extractAttachments(parts: unknown[]): Array<{ filename: string; mimeType: string; size: number; attachmentId: string }> {
+  const attachments: Array<{ filename: string; mimeType: string; size: number; attachmentId: string }> = [];
+  for (const part of parts) {
+    const p = part as Record<string, unknown>;
+    const filename = p.filename as string | undefined;
+    const body = p.body as Record<string, unknown> | undefined;
+    const attachmentId = body?.attachmentId as string | undefined;
+
+    if (filename && attachmentId) {
+      attachments.push({
+        filename,
+        mimeType: String(p.mimeType ?? ''),
+        size: Number(body?.size ?? 0),
+        attachmentId,
+      });
+    }
+
+    // Recurse into nested parts
+    if (Array.isArray(p.parts)) {
+      attachments.push(...extractAttachments(p.parts as unknown[]));
+    }
+  }
+  return attachments;
+}
+
 export function formatEmailDetail(data: unknown): HandlerResponse {
   const msg = data as Record<string, unknown>;
   const payload = msg.payload as Record<string, unknown> | undefined;
@@ -74,6 +100,16 @@ export function formatEmailDetail(data: unknown): HandlerResponse {
     parts.push(`**Labels:** ${labels.join(', ')}`);
   }
 
+  // Extract and display attachments
+  const attachments = payload?.parts ? extractAttachments(payload.parts as unknown[]) : [];
+  if (attachments.length > 0) {
+    parts.push('', `**Attachments (${attachments.length}):**`);
+    attachments.forEach((att, i) => {
+      const size = att.size < 1024 ? `${att.size} B` : `${(att.size / 1024).toFixed(1)} KB`;
+      parts.push(`${i + 1}. ${att.filename} (${size})`);
+    });
+  }
+
   parts.push('', snippet);
 
   return {
@@ -85,6 +121,12 @@ export function formatEmailDetail(data: unknown): HandlerResponse {
       from,
       to,
       subject,
+      attachments: attachments.map(a => ({
+        filename: a.filename,
+        attachmentId: a.attachmentId,
+        mimeType: a.mimeType,
+        size: a.size,
+      })),
     },
   };
 }

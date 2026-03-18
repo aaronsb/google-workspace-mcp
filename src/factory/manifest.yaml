@@ -173,6 +173,22 @@ services:
         defaults:
           userId: me
 
+      getAttachment:
+        type: detail
+        description: "download an email attachment to workspace directory (use read first to see attachment list)"
+        resource: users.messages.attachments.get
+        params:
+          messageId:
+            type: string
+            description: "Message ID containing the attachment"
+            required: true
+          filename:
+            type: string
+            description: "Filename to save as (from the read response, e.g. 'invoice_template.md')"
+            required: true
+        defaults:
+          userId: me
+
       modify:
         type: action
         description: "add or remove labels on a message (e.g. archive, mark read/unread)"

@@ -11,6 +11,7 @@ import { execute } from '../../executor/gws.js';
 import { formatEmailList, formatEmailDetail } from '../../server/formatting/markdown.js';
 import { nextSteps } from '../../server/formatting/next-steps.js';
 import { requireString } from '../../server/handlers/validate.js';
+import { handleGetAttachment } from './attachments.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
@@ -233,6 +234,8 @@ export const gmailPatch: ServicePatch = {
         refs: { messageId, labelIds: labels },
       };
     },
+
+    getAttachment: handleGetAttachment,
 
     reply: async (params, account): Promise<HandlerResponse> => {
       const messageId = requireString(params, 'messageId');
