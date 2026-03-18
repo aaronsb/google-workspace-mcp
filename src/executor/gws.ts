@@ -72,6 +72,10 @@ export async function execute(args: string[], options: GwsOptions = {}): Promise
 
   // Resolve gws binary — bundled (mcpb) or npm dependency
   const gwsBinary = resolveGwsBinary();
+  process.stderr.write(`[gws-mcp] exec: ${gwsBinary} ${fullArgs.join(' ')}\n`);
+  if (account) {
+    process.stderr.write(`[gws-mcp] cred: ${env.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE}\n`);
+  }
 
   // Still prepend bin dir to PATH for non-bundled case
   env.PATH = `${resolvePackageBinDir()}:${env.PATH || ''}`;
@@ -89,12 +93,19 @@ export async function execute(args: string[], options: GwsOptions = {}): Promise
     proc.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
 
     const timer = setTimeout(() => {
+      process.stderr.write(`[gws-mcp] timeout: killing gws after ${timeout}ms\n`);
       proc.kill('SIGTERM');
+      // Follow up with SIGKILL if still alive after 3s
+      const killTimer = setTimeout(() => {
+        try { proc.kill('SIGKILL'); } catch { /* already dead */ }
+      }, 3000);
+      killTimer.unref(); // don't keep the event loop alive for this
       settle(() => reject(new GwsError('gws command timed out', GwsExitCode.InternalError, 'timeout', stderr)));
     }, timeout);
 
     proc.on('error', (err) => {
       clearTimeout(timer);
+      process.stderr.write(`[gws-mcp] spawn error: ${err.message}\n`);
       settle(() => reject(new GwsError(
         `Failed to spawn gws: ${err.message}`,
         GwsExitCode.InternalError,
@@ -103,7 +114,12 @@ export async function execute(args: string[], options: GwsOptions = {}): Promise
       )));
     });
 
+    // Ensure child process is cleaned up if the parent exits
+    const cleanup = () => { try { proc.kill('SIGTERM'); } catch { /* already dead */ } };
+    process.once('exit', cleanup);
+
     proc.on('close', (code) => {
+      process.removeListener('exit', cleanup);
       clearTimeout(timer);
       const exitCode = code ?? 1;
       const filteredStderr = filterStderr(stderr);
