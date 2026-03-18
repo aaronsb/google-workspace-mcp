@@ -14,18 +14,19 @@ export interface ToolSchema {
 export const toolSchemas: ToolSchema[] = [
   {
     name: 'manage_accounts',
-    description: 'List, authenticate, or remove Google Workspace accounts. Start here to see which accounts are available.',
+    description: 'Manage Google Workspace account lifecycle: list, authenticate, check status, refresh credentials, update scopes, or remove accounts.',
     inputSchema: {
       type: 'object',
       properties: {
         operation: {
           type: 'string',
-          enum: ['list', 'authenticate', 'remove'],
-          description: 'list: show all accounts | authenticate: add new account (opens browser) | remove: delete account and credentials',
+          enum: ['list', 'authenticate', 'remove', 'status', 'refresh', 'scopes'],
+          description: 'list: show all accounts | authenticate: add new account (opens browser) | remove: delete account and credentials | status: check token validity and scopes | refresh: re-export credentials from gws | scopes: re-auth with different services',
         },
-        email: { type: 'string', description: 'Required for remove' },
+        email: { type: 'string', description: 'Required for remove, status, refresh, scopes' },
         category: { type: 'string', enum: ['personal', 'work', 'other'], description: 'For authenticate (default: personal)' },
         description: { type: 'string', description: 'For authenticate — optional label' },
+        services: { type: 'string', description: 'For scopes — comma-separated service names (e.g. gmail,drive,calendar,sheets)' },
       },
       required: ['operation'],
       additionalProperties: false,

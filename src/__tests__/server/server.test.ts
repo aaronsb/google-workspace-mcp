@@ -104,10 +104,14 @@ describe('createServer', () => {
       });
 
       expect(result.isError).toBe(true);
-      const body = JSON.parse(result.content[0].text);
-      expect(body.error).toBe('Token expired');
-      expect(body.exitCode).toBe(GwsExitCode.AuthError);
-      expect(body.reason).toBe('authError');
+      const text = result.content[0].text as string;
+      // Error JSON is followed by auth remediation guidance
+      expect(text).toContain('"error": "Token expired"');
+      expect(text).toContain(`"exitCode": ${GwsExitCode.AuthError}`);
+      expect(text).toContain('"reason": "authError"');
+      // Auth error should include remediation guidance
+      expect(text).toContain('**Next steps:**');
+      expect(text).toContain('Re-authenticate');
     });
 
     it('maps generic Error to plain error message', async () => {

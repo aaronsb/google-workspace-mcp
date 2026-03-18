@@ -21,9 +21,25 @@ const suggestions: Record<string, Record<string, NextStep[]>> = {
     ],
     authenticate: [
       { description: 'List accounts to verify', tool: 'manage_accounts', example: { operation: 'list' } },
+      { description: 'Check account status', tool: 'manage_accounts', example: { operation: 'status', email: '<email>' } },
     ],
     remove: [
       { description: 'List remaining accounts', tool: 'manage_accounts', example: { operation: 'list' } },
+    ],
+    status: [
+      { description: 'Refresh credentials', tool: 'manage_accounts', example: { operation: 'refresh', email: '<email>' } },
+      { description: 'Update scopes', tool: 'manage_accounts', example: { operation: 'scopes', email: '<email>', services: 'gmail,drive,calendar' } },
+    ],
+    refresh: [
+      { description: 'Verify token is valid', tool: 'manage_accounts', example: { operation: 'status', email: '<email>' } },
+    ],
+    scopes: [
+      { description: 'Verify new scopes', tool: 'manage_accounts', example: { operation: 'status', email: '<email>' } },
+    ],
+    // Auth error guidance — used by server.ts when GwsError has exit code 2
+    auth_error: [
+      { description: 'Re-authenticate account', tool: 'manage_accounts', example: { operation: 'authenticate' } },
+      { description: 'Check account status', tool: 'manage_accounts', example: { operation: 'status', email: '<email>' } },
     ],
   },
   email: {

@@ -6,7 +6,8 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { toolSchemas } from './tools.js';
 import { handleToolCall } from './handler.js';
-import { GwsError } from '../executor/errors.js';
+import { GwsError, GwsExitCode } from '../executor/errors.js';
+import { nextSteps } from './formatting/next-steps.js';
 
 export function createServer(): Server {
   const server = new Server(
@@ -41,13 +42,18 @@ export function createServer(): Server {
       };
     } catch (err) {
       if (err instanceof GwsError) {
+        // Append auth remediation guidance for auth errors
+        const email = (args as Record<string, unknown>)?.email as string | undefined;
+        const guidance = err.exitCode === GwsExitCode.AuthError
+          ? nextSteps('accounts', 'auth_error', email ? { email } : undefined)
+          : '';
         return {
           content: [{ type: 'text', text: JSON.stringify({
             error: err.message,
             exitCode: err.exitCode,
             reason: err.reason,
             stderr: err.stderr,
-          }, null, 2) }],
+          }, null, 2) + guidance }],
           isError: true,
         };
       }
