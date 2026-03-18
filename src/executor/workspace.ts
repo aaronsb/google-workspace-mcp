@@ -15,16 +15,16 @@ const DEFAULT_WORKSPACE = path.join(dataDir(), 'workspace');
 /** Paths that must never be used as the workspace root. */
 const FORBIDDEN_PATHS = [
   // Home directory itself
-  () => process.env.HOME || '',
-  () => process.env.USERPROFILE || '',
-  // Common document directories
-  () => path.join(process.env.HOME || '', 'Documents'),
-  () => path.join(process.env.HOME || '', 'Desktop'),
-  () => path.join(process.env.HOME || '', 'Downloads'),
+  () => process.env.HOME ?? '',
+  () => process.env.USERPROFILE ?? '',
+  // Common document directories (only when HOME/USERPROFILE is set)
+  () => process.env.HOME ? path.join(process.env.HOME, 'Documents') : '',
+  () => process.env.HOME ? path.join(process.env.HOME, 'Desktop') : '',
+  () => process.env.HOME ? path.join(process.env.HOME, 'Downloads') : '',
   // Windows equivalents
-  () => path.join(process.env.USERPROFILE || '', 'Documents'),
-  () => path.join(process.env.USERPROFILE || '', 'Desktop'),
-  () => path.join(process.env.USERPROFILE || '', 'Downloads'),
+  () => process.env.USERPROFILE ? path.join(process.env.USERPROFILE, 'Documents') : '',
+  () => process.env.USERPROFILE ? path.join(process.env.USERPROFILE, 'Desktop') : '',
+  () => process.env.USERPROFILE ? path.join(process.env.USERPROFILE, 'Downloads') : '',
 ];
 
 /** Path substrings that indicate a Google Drive mount. */

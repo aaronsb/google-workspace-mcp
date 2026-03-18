@@ -812,6 +812,8 @@ services:
             description: "Task ID"
             required: true
             maps_to: task
+        defaults:
+          status: completed
 
       delete:
         type: action
