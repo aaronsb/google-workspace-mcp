@@ -1,5 +1,4 @@
 import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import { accountsFilePath, configDir } from '../executor/paths.js';
 import { hasCredential, removeCredential } from './credentials.js';
 import { authenticateAccount, type AuthResult } from './auth.js';
