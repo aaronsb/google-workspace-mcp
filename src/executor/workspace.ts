@@ -117,6 +117,7 @@ export async function ensureWorkspaceDir(): Promise<WorkspaceStatus> {
 export function sanitizeFilename(filename: string): string {
   return filename
     // Remove null bytes and control characters
+    // eslint-disable-next-line no-control-regex
     .replace(/[\x00-\x1f\x7f]/g, '')
     // Remove path separators (prevent directory traversal via filename)
     .replace(/[/\\]/g, '_')

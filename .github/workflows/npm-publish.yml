@@ -22,6 +22,14 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
-      - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Determine npm tag
+        id: npm-tag
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if echo "$VERSION" | grep -qE '(alpha|beta|rc)'; then
+            echo "tag=$(echo "$VERSION" | grep -oE '(alpha|beta|rc)')" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - run: npm publish --provenance --access public --tag ${{ steps.npm-tag.outputs.tag }}

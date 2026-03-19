@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parse as parseYaml } from '../factory/yaml.js';
 import { execute } from '../executor/gws.js';
-import { requireEmail, requireString, clamp } from '../server/handlers/validate.js';
+import { requireEmail, clamp } from '../server/handlers/validate.js';
 import { formatDefault } from './defaults.js';
 import { nextSteps } from '../server/formatting/next-steps.js';
 import { evaluatePolicies } from './safety.js';
@@ -20,7 +20,6 @@ import type {
   Manifest,
   ServiceDef,
   OperationDef,
-  ParamDef,
   ServicePatch,
   PatchContext,
   GeneratedTool,
