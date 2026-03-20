@@ -74,6 +74,12 @@ services:
           bcc:
             type: string
             description: "BCC email(s), comma-separated"
+          attachments:
+            type: string
+            description: "Workspace filenames to attach, comma-separated (files must exist in workspace via manage_workspace)"
+          html:
+            type: boolean
+            description: "Treat body as HTML content (default: plain text)"
         cli_args:
           to: "--to"
           subject: "--subject"
