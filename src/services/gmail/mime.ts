@@ -61,15 +61,24 @@ const MIME_TYPES: Record<string, string> = {
 
 /** Look up MIME type by filename extension. */
 export function lookupMimeType(filename: string): string {
-  const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase();
+  const dotIndex = filename.lastIndexOf('.');
+  if (dotIndex === -1) return 'application/octet-stream';
+  const ext = filename.slice(dotIndex).toLowerCase();
   return MIME_TYPES[ext] ?? 'application/octet-stream';
+}
+
+/** Truncate at first CRLF to prevent MIME header injection. */
+function sanitizeHeader(value: string): string {
+  const crlfIndex = value.search(/[\r\n]/);
+  return crlfIndex === -1 ? value : value.slice(0, crlfIndex);
 }
 
 /** Encode a subject line per RFC 2047 if it contains non-ASCII characters. */
 function encodeSubject(subject: string): string {
+  const safe = sanitizeHeader(subject);
   // eslint-disable-next-line no-control-regex
-  if (/^[\x20-\x7e]*$/.test(subject)) return subject;
-  const encoded = Buffer.from(subject, 'utf-8').toString('base64');
+  if (/^[\x20-\x7e]*$/.test(safe)) return safe;
+  const encoded = Buffer.from(safe, 'utf-8').toString('base64');
   return `=?UTF-8?B?${encoded}?=`;
 }
 
@@ -93,16 +102,16 @@ export function buildMimeMessage(options: MimeMessageOptions): string {
   const { to, subject, body, html, cc, bcc, from, attachments } = options;
   const boundary = `----=_Part_${randomUUID()}`;
 
-  // Headers
+  // Headers (sanitize all values to prevent CRLF injection)
   const headers: string[] = [
     `MIME-Version: 1.0`,
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
-    `To: ${to}`,
+    `To: ${sanitizeHeader(to)}`,
     `Subject: ${encodeSubject(subject)}`,
   ];
-  if (from) headers.push(`From: ${from}`);
-  if (cc) headers.push(`Cc: ${cc}`);
-  if (bcc) headers.push(`Bcc: ${bcc}`);
+  if (from) headers.push(`From: ${sanitizeHeader(from)}`);
+  if (cc) headers.push(`Cc: ${sanitizeHeader(cc)}`);
+  if (bcc) headers.push(`Bcc: ${sanitizeHeader(bcc)}`);
 
   // Body part
   const bodyContentType = html ? 'text/html; charset=UTF-8' : 'text/plain; charset=UTF-8';
@@ -115,13 +124,14 @@ export function buildMimeMessage(options: MimeMessageOptions): string {
     bodyBase64,
   ].join('\r\n');
 
-  // Attachment parts
+  // Attachment parts (sanitize filenames for MIME headers)
   const attachmentParts = attachments.map(att => {
+    const safeName = sanitizeHeader(att.filename).replace(/"/g, '\\"');
     const attBase64 = wrapBase64(att.content.toString('base64'));
     return [
       `--${boundary}`,
-      `Content-Type: ${att.mimeType}; name="${att.filename}"`,
-      `Content-Disposition: attachment; filename="${att.filename}"`,
+      `Content-Type: ${att.mimeType}; name="${safeName}"`,
+      `Content-Disposition: attachment; filename="${safeName}"`,
       `Content-Transfer-Encoding: base64`,
       '',
       attBase64,

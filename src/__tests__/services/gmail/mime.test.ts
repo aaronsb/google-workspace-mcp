@@ -173,6 +173,27 @@ describe('buildMimeMessage', () => {
     expect(decoded).toEqual(binaryContent);
   });
 
+  it('strips CRLF from header values to prevent injection', () => {
+    const raw = buildMimeMessage({
+      to: 'victim@example.com\r\nBcc: attacker@evil.com',
+      subject: 'Injected\r\nBcc: attacker@evil.com',
+      body: 'Hello',
+      from: 'sender@example.com\r\nBcc: attacker@evil.com',
+      attachments: [plainAttachment],
+    });
+
+    const message = decodeRaw(raw);
+    // The injected Bcc should not appear as a separate header
+    expect(message).not.toContain('attacker@evil.com');
+    // The legitimate To header should be sanitized
+    expect(message).toContain('To: victim@example.com');
+  });
+
+  it('handles filenames without extensions', () => {
+    expect(lookupMimeType('Makefile')).toBe('application/octet-stream');
+    expect(lookupMimeType('README')).toBe('application/octet-stream');
+  });
+
   it('throws on messages exceeding 5MB', () => {
     const largeContent = Buffer.alloc(4 * 1024 * 1024); // 4MB → ~5.3MB after base64
 
