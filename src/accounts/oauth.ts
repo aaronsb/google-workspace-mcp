@@ -176,6 +176,7 @@ function listenForCallback(
     });
 
     let redirectUri = '';
+    // eslint-disable-next-line prefer-const -- timer and cleanup have mutual references
     let timer: ReturnType<typeof setTimeout>;
 
     const cleanup = () => {
