@@ -185,6 +185,46 @@ describe('Meet patch formatters', () => {
   });
 });
 
+describe('Meet beforeExecute hooks', () => {
+  it('prefixes conferenceRecords/ on bare parent IDs', async () => {
+    const hook = meetPatch.beforeExecute!.listParticipants;
+    const args = ['meet', 'conferenceRecords', 'participants', 'list', '--params', '{"parent":"abc123","pageSize":100}'];
+    const result = await hook(args, ctx('listParticipants', { conferenceId: 'abc123' }));
+    const params = JSON.parse(result[result.indexOf('--params') + 1]);
+    expect(params.parent).toBe('conferenceRecords/abc123');
+  });
+
+  it('does not double-prefix already-prefixed parent IDs', async () => {
+    const hook = meetPatch.beforeExecute!.listTranscripts;
+    const args = ['meet', 'conferenceRecords', 'transcripts', 'list', '--params', '{"parent":"conferenceRecords/abc123"}'];
+    const result = await hook(args, ctx('listTranscripts', { conferenceId: 'conferenceRecords/abc123' }));
+    const params = JSON.parse(result[result.indexOf('--params') + 1]);
+    expect(params.parent).toBe('conferenceRecords/abc123');
+  });
+
+  it('prefixes conferenceRecords/ on bare name IDs for getConference', async () => {
+    const hook = meetPatch.beforeExecute!.getConference;
+    const args = ['meet', 'conferenceRecords', 'get', '--params', '{"name":"abc123"}'];
+    const result = await hook(args, ctx('getConference', { conferenceId: 'abc123' }));
+    const params = JSON.parse(result[result.indexOf('--params') + 1]);
+    expect(params.name).toBe('conferenceRecords/abc123');
+  });
+
+  it('returns args unchanged when --params is missing', async () => {
+    const hook = meetPatch.beforeExecute!.listParticipants;
+    const args = ['meet', 'conferenceRecords', 'participants', 'list'];
+    const result = await hook(args, ctx('listParticipants'));
+    expect(result).toEqual(args);
+  });
+
+  it('returns args unchanged when --params has no following value', async () => {
+    const hook = meetPatch.beforeExecute!.listRecordings;
+    const args = ['meet', 'conferenceRecords', 'recordings', 'list', '--params'];
+    const result = await hook(args, ctx('listRecordings'));
+    expect(result).toEqual(args);
+  });
+});
+
 describe('Meet custom handlers', () => {
   beforeEach(() => mockExecute.mockReset());
 

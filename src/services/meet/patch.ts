@@ -442,7 +442,7 @@ async function getFullTranscript(
  */
 function prefixResourceName(args: string[], paramKey: string, prefix: string): string[] {
   const idx = args.indexOf('--params');
-  if (idx === -1) return args;
+  if (idx === -1 || idx + 1 >= args.length) return args;
   const gwsParams = JSON.parse(args[idx + 1]);
   if (gwsParams[paramKey] && !String(gwsParams[paramKey]).startsWith(prefix)) {
     gwsParams[paramKey] = `${prefix}${gwsParams[paramKey]}`;
@@ -480,8 +480,18 @@ export const meetPatch: ServicePatch = {
         return formatRecordingList(data);
       case 'listSmartNotes':
         return formatSmartNoteList(data);
-      default:
-        return formatConferenceList(data);
+      default: {
+        // Unknown list operation — return generic format rather than
+        // silently misformatting as a conference list
+        const raw = data as Record<string, unknown>;
+        const items = Object.values(raw).find(Array.isArray) as unknown[] ?? [];
+        return {
+          text: items.length > 0
+            ? `## Results (${items.length})\n\n${JSON.stringify(items, null, 2)}`
+            : 'No results found.',
+          refs: { count: items.length },
+        };
+      }
     }
   },
 
