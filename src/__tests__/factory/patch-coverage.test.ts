@@ -148,6 +148,22 @@ describe('patch coverage', () => {
     expect(driveCustom).toContain('download');
   });
 
+  it('meet core operations have custom formatting', () => {
+    const meetCustom = coverage
+      .filter(e => e.service === 'meet' && e.usesCustomFormat)
+      .map(e => e.operation)
+      .sort();
+
+    expect(meetCustom).toContain('listConferences');
+    expect(meetCustom).toContain('listParticipants');
+    expect(meetCustom).toContain('listTranscripts');
+    expect(meetCustom).toContain('listTranscriptEntries');
+    expect(meetCustom).toContain('listRecordings');
+    expect(meetCustom).toContain('listSmartNotes');
+    expect(meetCustom).toContain('getConference');
+    expect(meetCustom).toContain('getFullTranscript');
+  });
+
   it('gmail search has afterExecute hydration hook', () => {
     const searchEntry = coverage.find(e => e.service === 'gmail' && e.operation === 'search');
     expect(searchEntry?.hasAfterExecute).toBe(true);
