@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import * as path from 'node:path';
-import { credentialPath } from './paths.js';
 import { GwsExitCode, GwsError, parseGwsError } from './errors.js';
+import { getAccessToken } from '../accounts/token-service.js';
 
 export interface GwsResult {
   success: boolean;
@@ -67,7 +67,8 @@ export async function execute(args: string[], options: GwsOptions = {}): Promise
   const env: Record<string, string> = { ...process.env as Record<string, string> };
 
   if (account) {
-    env.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE = credentialPath(account);
+    const accessToken = await getAccessToken(account);
+    env.GOOGLE_WORKSPACE_CLI_TOKEN = accessToken;
   }
 
   const fullArgs = [...args, '--format', format];
@@ -76,7 +77,7 @@ export async function execute(args: string[], options: GwsOptions = {}): Promise
   const gwsBinary = resolveGwsBinary();
   process.stderr.write(`[gws-mcp] exec: ${gwsBinary} ${fullArgs.join(' ')}\n`);
   if (account) {
-    process.stderr.write(`[gws-mcp] cred: ${env.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE}\n`);
+    process.stderr.write(`[gws-mcp] token: [access token for ${account}]\n`);
   }
 
   // Still prepend bin dir to PATH for non-bundled case

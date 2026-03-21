@@ -6,6 +6,14 @@ import { EventEmitter } from 'node:events';
 // Mock child_process.spawn
 jest.mock('node:child_process');
 
+// Mock token service — getAccessToken is called when account is provided
+jest.mock('../../accounts/token-service.js', () => ({
+  getAccessToken: jest.fn().mockResolvedValue('mock-access-token-123'),
+}));
+
+import { getAccessToken } from '../../accounts/token-service.js';
+const mockGetAccessToken = getAccessToken as jest.MockedFunction<typeof getAccessToken>;
+
 function createMockProcess() {
   const proc = new EventEmitter() as any;
   proc.stdout = new EventEmitter();
@@ -20,6 +28,7 @@ describe('execute', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetAccessToken.mockResolvedValue('mock-access-token-123');
   });
 
   it('returns parsed JSON on success', async () => {
@@ -91,20 +100,24 @@ describe('execute', () => {
     await expect(promise).rejects.toThrow('Failed to parse');
   });
 
-  it('sets credential file env var when account is provided', async () => {
+  it('sets GOOGLE_WORKSPACE_CLI_TOKEN when account is provided', async () => {
     const proc = createMockProcess();
     mockSpawn.mockReturnValue(proc as any);
 
     const promise = execute(['gmail', '+triage'], { account: 'user@example.com' });
+
+    // getAccessToken is async — wait a tick for spawn to be called
+    await new Promise(r => setImmediate(r));
 
     proc.stdout.emit('data', Buffer.from('{}'));
     proc.emit('close', 0);
 
     await promise;
 
+    expect(mockGetAccessToken).toHaveBeenCalledWith('user@example.com');
     const spawnCall = mockSpawn.mock.calls[0];
     const env = spawnCall[2]?.env as Record<string, string>;
-    expect(env.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE).toContain('user_at_example_dot_com.json');
+    expect(env.GOOGLE_WORKSPACE_CLI_TOKEN).toBe('mock-access-token-123');
   });
 
   it('appends --format json by default', async () => {
@@ -154,7 +167,7 @@ describe('execute', () => {
     expect(result.data).toBe('ID  Summary\n1   Standup');
   });
 
-  it('does not set credential env var when no account', async () => {
+  it('does not set token env var when no account', async () => {
     const proc = createMockProcess();
     mockSpawn.mockReturnValue(proc as any);
 
@@ -166,7 +179,8 @@ describe('execute', () => {
     await promise;
 
     const env = mockSpawn.mock.calls[0][2]?.env as Record<string, string>;
-    expect(env.GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE).toBeUndefined();
+    expect(env.GOOGLE_WORKSPACE_CLI_TOKEN).toBeUndefined();
+    expect(mockGetAccessToken).not.toHaveBeenCalled();
   });
 
   it('handles empty stdout with json format as undefined data', async () => {
@@ -179,7 +193,6 @@ describe('execute', () => {
     proc.emit('close', 0);
 
     const result = await promise;
-    // Empty stdout with json format → data is the empty string (non-json branch)
     expect(result.success).toBe(true);
   });
 
@@ -190,7 +203,6 @@ describe('execute', () => {
     const promise = execute(['test']);
 
     proc.emit('error', new Error('ENOENT'));
-    // close fires after error in real Node.js
     proc.emit('close', 1);
 
     await expect(promise).rejects.toThrow('Failed to spawn gws');

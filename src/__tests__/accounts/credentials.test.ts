@@ -1,13 +1,10 @@
 import * as fs from 'node:fs/promises';
 import * as credentials from '../../accounts/credentials.js';
 import { credentialPath, credentialsDir } from '../../executor/paths.js';
-import { execute } from '../../executor/gws.js';
 
 jest.mock('node:fs/promises');
-jest.mock('../../executor/gws.js');
 
 const mockFs = jest.mocked(fs);
-const mockExecute = execute as jest.MockedFunction<typeof execute>;
 
 describe('credentials', () => {
   beforeEach(() => {
@@ -77,12 +74,13 @@ describe('credentials', () => {
     });
   });
 
-  describe('exportAndSaveCredential', () => {
-    const validCredential = {
+  describe('saveCredential', () => {
+    const validCredential: credentials.AuthorizedUserCredential = {
       type: 'authorized_user',
       client_id: 'id-123',
       client_secret: 'secret-456',
       refresh_token: 'token-789',
+      scopes: ['https://www.googleapis.com/auth/gmail.modify'],
     };
 
     beforeEach(() => {
@@ -90,18 +88,8 @@ describe('credentials', () => {
       mockFs.writeFile.mockResolvedValue(undefined);
     });
 
-    it('calls gws auth export --unmasked', async () => {
-      mockExecute.mockResolvedValue({ success: true, data: validCredential, stderr: '' });
-
-      await credentials.exportAndSaveCredential('user@example.com');
-
-      expect(mockExecute).toHaveBeenCalledWith(['auth', 'export', '--unmasked']);
-    });
-
     it('creates credentials directory with 0700 permissions', async () => {
-      mockExecute.mockResolvedValue({ success: true, data: validCredential, stderr: '' });
-
-      await credentials.exportAndSaveCredential('user@example.com');
+      await credentials.saveCredential('user@example.com', validCredential);
 
       expect(mockFs.mkdir).toHaveBeenCalledWith(
         expect.any(String),
@@ -110,9 +98,7 @@ describe('credentials', () => {
     });
 
     it('writes credential file with 0600 permissions', async () => {
-      mockExecute.mockResolvedValue({ success: true, data: validCredential, stderr: '' });
-
-      await credentials.exportAndSaveCredential('user@example.com');
+      await credentials.saveCredential('user@example.com', validCredential);
 
       expect(mockFs.writeFile).toHaveBeenCalledWith(
         credentialPath('user@example.com'),
@@ -122,39 +108,26 @@ describe('credentials', () => {
     });
 
     it('returns the credential file path', async () => {
-      mockExecute.mockResolvedValue({ success: true, data: validCredential, stderr: '' });
-
-      const result = await credentials.exportAndSaveCredential('user@example.com');
-
+      const result = await credentials.saveCredential('user@example.com', validCredential);
       expect(result).toBe(credentialPath('user@example.com'));
     });
 
-    it('rejects when gws returns non-authorized_user type', async () => {
-      mockExecute.mockResolvedValue({
-        success: true,
-        data: { type: 'service_account', project_id: 'test' },
-        stderr: '',
-      });
-
-      await expect(
-        credentials.exportAndSaveCredential('user@example.com'),
-      ).rejects.toThrow('authorized_user');
+    it('rejects non-authorized_user type', async () => {
+      const bad = { type: 'service_account', client_id: 'x', client_secret: 'x', refresh_token: 'x' } as any;
+      await expect(credentials.saveCredential('user@example.com', bad)).rejects.toThrow('authorized_user');
     });
 
-    it('rejects when gws returns null data', async () => {
-      mockExecute.mockResolvedValue({ success: true, data: null, stderr: '' });
-
-      await expect(
-        credentials.exportAndSaveCredential('user@example.com'),
-      ).rejects.toThrow('authorized_user');
+    it('rejects null credential', async () => {
+      await expect(credentials.saveCredential('user@example.com', null as any)).rejects.toThrow('authorized_user');
     });
 
-    it('rejects when gws returns empty object', async () => {
-      mockExecute.mockResolvedValue({ success: true, data: {}, stderr: '' });
+    it('preserves scopes in written file', async () => {
+      await credentials.saveCredential('user@example.com', validCredential);
 
-      await expect(
-        credentials.exportAndSaveCredential('user@example.com'),
-      ).rejects.toThrow('authorized_user');
+      const written = JSON.parse(
+        (mockFs.writeFile as jest.Mock).mock.calls[0][1] as string,
+      );
+      expect(written.scopes).toEqual(['https://www.googleapis.com/auth/gmail.modify']);
     });
   });
 

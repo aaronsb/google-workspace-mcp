@@ -208,33 +208,29 @@ export function createServer(): Server {
   return server;
 }
 
-/** Warm up credentials on startup — validates accounts and refreshes tokens. */
+/** Warm up token cache on startup — prefetch access tokens for all accounts. */
 async function warmupAccounts(): Promise<void> {
   try {
     const { listAccounts } = await import('../accounts/registry.js');
+    const { hasCredential } = await import('../accounts/credentials.js');
+    const { warmTokenCache } = await import('../accounts/token-service.js');
     const accounts = await listAccounts();
     if (accounts.length === 0) {
       log('startup: no accounts configured');
       return;
     }
-    log(`startup: warming ${accounts.length} account(s)`);
+    const withCreds: string[] = [];
     for (const account of accounts) {
-      const email = account.email;
-      try {
-        const { hasCredential } = await import('../accounts/credentials.js');
-        if (await hasCredential(email)) {
-          const { execute } = await import('../executor/gws.js');
-          await execute(
-            ['gmail', 'users', 'getProfile', '--params', JSON.stringify({ userId: 'me' })],
-            { account: email },
-          );
-          log(`startup: ${email} — token valid`);
-        } else {
-          log(`startup: ${email} — no credential file`);
-        }
-      } catch (err) {
-        log(`startup: ${email} — token invalid (${(err as Error).message})`);
+      if (await hasCredential(account.email)) {
+        withCreds.push(account.email);
+      } else {
+        log(`startup: ${account.email} — no credential file`);
       }
+    }
+    if (withCreds.length > 0) {
+      log(`startup: warming tokens for ${withCreds.length} account(s)`);
+      await warmTokenCache(withCreds);
+      log(`startup: token warmup complete`);
     }
   } catch (err) {
     log(`startup: warmup failed (${(err as Error).message})`);

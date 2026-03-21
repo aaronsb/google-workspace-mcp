@@ -1,7 +1,7 @@
-import { spawn, execFile } from 'node:child_process';
-import { platform } from 'node:os';
-import { execute, resolveGwsBinary, resolvePackageBinDir } from '../executor/gws.js';
-import { exportAndSaveCredential, readCredential, hasCredential } from './credentials.js';
+import { readCredential, saveCredential, hasCredential } from './credentials.js';
+import { credentialPath } from '../executor/paths.js';
+import { runOAuthFlow, scopesForServices, ALL_SERVICES } from './oauth.js';
+import { getAccessToken, invalidateToken } from './token-service.js';
 
 export interface AuthResult {
   status: 'success' | 'error';
@@ -19,12 +19,34 @@ export interface AccountStatus {
 }
 
 /**
- * Check account status by reading our credential file and validating
- * the token via a lightweight Gmail API call.
- *
- * Note: `gws auth status` is single-account (keyring-based) and ignores
- * GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE. We bypass it entirely and
- * validate against our own per-account credential files.
+ * Authenticate a new account via our own OAuth2 flow.
+ * Requests all service scopes by default.
+ */
+export async function authenticateAccount(
+  clientId: string,
+  clientSecret: string,
+): Promise<AuthResult> {
+  const scopes = scopesForServices(ALL_SERVICES);
+  return runOAuth(clientId, clientSecret, scopes);
+}
+
+/**
+ * Re-authenticate with a specific set of services.
+ * Used by the `scopes` operation as an escape hatch.
+ */
+export async function reauthWithServices(
+  clientId: string,
+  clientSecret: string,
+  services: string,
+): Promise<AuthResult> {
+  const scopes = scopesForServices(services);
+  return runOAuth(clientId, clientSecret, scopes);
+}
+
+/**
+ * Check account status: token validity and granted scopes.
+ * Reads scopes from the credential file (per-account, not from gws keyring).
+ * Validates token by attempting a refresh via the token service.
  */
 export async function checkAccountStatus(email: string): Promise<AccountStatus> {
   const hasCred = await hasCredential(email);
@@ -40,31 +62,14 @@ export async function checkAccountStatus(email: string): Promise<AccountStatus> 
 
   const cred = await readCredential(email);
   const hasRefreshToken = Boolean(cred.refresh_token);
+  const scopes = cred.scopes ?? [];
 
-  // Validate the token with a lightweight API call using this account's credential
   let tokenValid = false;
   try {
-    await execute(
-      ['gmail', 'users', 'getProfile', '--params', JSON.stringify({ userId: 'me' })],
-      { account: email },
-    );
+    await getAccessToken(email);
     tokenValid = true;
   } catch {
     tokenValid = false;
-  }
-
-  // Get scopes from gws auth status. These are the scopes granted to the
-  // OAuth app, not per-account — gws is single-account so we can't get
-  // per-account scopes. But they're useful for showing what services are enabled.
-  let scopes: string[] = [];
-  if (tokenValid) {
-    try {
-      const statusResult = await execute(['auth', 'status']);
-      const statusData = statusResult.data as Record<string, unknown>;
-      scopes = Array.isArray(statusData.scopes) ? statusData.scopes as string[] : [];
-    } catch {
-      // Non-critical — scopes are informational
-    }
   }
 
   return {
@@ -76,84 +81,35 @@ export async function checkAccountStatus(email: string): Promise<AccountStatus> 
   };
 }
 
-export async function authenticateAccount(
-  clientId: string,
-  clientSecret: string,
-): Promise<AuthResult> {
-  return runAuthLogin(clientId, clientSecret, ['auth', 'login']);
-}
-
-export async function reauthWithServices(
-  clientId: string,
-  clientSecret: string,
-  services: string,
-): Promise<AuthResult> {
-  return runAuthLogin(clientId, clientSecret, ['auth', 'login', '-s', services]);
-}
-
 // --- Internal ---
 
-function runAuthLogin(
+async function runOAuth(
   clientId: string,
   clientSecret: string,
-  args: string[],
+  scopes: string[],
 ): Promise<AuthResult> {
-  return new Promise((resolve, reject) => {
-    const env: Record<string, string> = {
-      ...process.env as Record<string, string>,
-      GOOGLE_WORKSPACE_CLI_CLIENT_ID: clientId,
-      GOOGLE_WORKSPACE_CLI_CLIENT_SECRET: clientSecret,
+  try {
+    const result = await runOAuthFlow(clientId, clientSecret, scopes);
+
+    await saveCredential(result.email, {
+      type: 'authorized_user',
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: result.refreshToken,
+      scopes: result.scopes,
+    });
+
+    invalidateToken(result.email);
+
+    return {
+      status: 'success',
+      account: result.email,
+      credentialPath: credentialPath(result.email),
     };
-
-    const gwsBinary = resolveGwsBinary();
-    env.PATH = `${resolvePackageBinDir()}:${env.PATH || ''}`;
-
-    const proc = spawn(gwsBinary, args, {
-      env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    let stdout = '';
-
-    proc.stderr.on('data', (chunk: Buffer) => {
-      const text = chunk.toString();
-      const match = text.match(/https:\/\/accounts\.google\.com\S+/);
-      if (match) openBrowser(match[0]);
-    });
-
-    proc.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-
-    proc.on('error', (err) => {
-      reject(new Error(`Failed to spawn gws auth login: ${err.message}`));
-    });
-
-    proc.on('close', async (code) => {
-      if (code !== 0) {
-        resolve({ status: 'error', error: `gws auth login exited with code ${code}` });
-        return;
-      }
-
-      try {
-        const result = JSON.parse(stdout);
-        const email = result.account as string;
-        if (!email) {
-          resolve({ status: 'error', error: 'No account email in gws auth login response' });
-          return;
-        }
-        const credPath = await exportAndSaveCredential(email);
-        resolve({ status: 'success', account: email, credentialPath: credPath });
-      } catch (err) {
-        resolve({ status: 'error', error: `Failed to process auth result: ${(err as Error).message}` });
-      }
-    });
-  });
-}
-
-function openBrowser(url: string): void {
-  const cmd = platform() === 'darwin' ? 'open'
-            : platform() === 'win32' ? 'start'
-            : 'xdg-open';
-  execFile(cmd, [url], (err) => {
-    if (err) process.stderr.write(`Failed to open browser: ${err.message}\n`);
-  });
+  } catch (err) {
+    return {
+      status: 'error',
+      error: (err as Error).message,
+    };
+  }
 }
