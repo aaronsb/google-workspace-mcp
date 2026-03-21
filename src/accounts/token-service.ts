@@ -11,6 +11,9 @@ interface CachedToken {
 /** In-memory access token cache — lives for the MCP session. */
 const cache = new Map<string, CachedToken>();
 
+/** In-flight refresh promises — deduplicates concurrent requests for the same account. */
+const inflight = new Map<string, Promise<string>>();
+
 export class TokenRefreshError extends Error {
   constructor(
     message: string,
@@ -34,6 +37,20 @@ export async function getAccessToken(email: string): Promise<string> {
     return cached.accessToken;
   }
 
+  // Deduplicate concurrent refresh requests for the same account
+  const pending = inflight.get(email);
+  if (pending) return pending;
+
+  const promise = refreshAccessToken(email);
+  inflight.set(email, promise);
+  try {
+    return await promise;
+  } finally {
+    inflight.delete(email);
+  }
+}
+
+async function refreshAccessToken(email: string): Promise<string> {
   const credential = await readCredential(email);
 
   const response = await fetch(GOOGLE_TOKEN_URL, {
@@ -83,6 +100,7 @@ export async function getAccessToken(email: string): Promise<string> {
 /** Evict a cached token — forces next getAccessToken to refresh. */
 export function invalidateToken(email: string): void {
   cache.delete(email);
+  inflight.delete(email);
 }
 
 /** Prefetch tokens for all given accounts (fire-and-forget, logs errors). */
@@ -104,4 +122,5 @@ export async function warmTokenCache(emails: string[]): Promise<void> {
 /** Visible for testing — clear the entire cache. */
 export function _clearCache(): void {
   cache.clear();
+  inflight.clear();
 }

@@ -8,6 +8,7 @@ export interface AuthResult {
   account?: string;
   credentialPath?: string;
   error?: string;
+  errorType?: string;
 }
 
 export interface AccountStatus {
@@ -110,6 +111,7 @@ async function runOAuth(
     return {
       status: 'error',
       error: (err as Error).message,
+      errorType: (err as Error).name,
     };
   }
 }

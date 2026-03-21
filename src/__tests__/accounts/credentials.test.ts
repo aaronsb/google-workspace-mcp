@@ -45,6 +45,21 @@ describe('credentials', () => {
       mockFs.readFile.mockResolvedValue('not-json{{{');
       await expect(credentials.readCredential('user@example.com')).rejects.toThrow();
     });
+
+    it('throws on wrong credential type', async () => {
+      mockFs.readFile.mockResolvedValue(JSON.stringify({ type: 'service_account', refresh_token: 'x', client_id: 'x', client_secret: 'x' }));
+      await expect(credentials.readCredential('user@example.com')).rejects.toThrow('authorized_user');
+    });
+
+    it('throws on missing refresh_token', async () => {
+      mockFs.readFile.mockResolvedValue(JSON.stringify({ type: 'authorized_user', client_id: 'x', client_secret: 'x' }));
+      await expect(credentials.readCredential('user@example.com')).rejects.toThrow('refresh_token');
+    });
+
+    it('throws on missing client_id', async () => {
+      mockFs.readFile.mockResolvedValue(JSON.stringify({ type: 'authorized_user', refresh_token: 'x', client_secret: 'x' }));
+      await expect(credentials.readCredential('user@example.com')).rejects.toThrow('client_id');
+    });
   });
 
   describe('removeCredential', () => {

@@ -34,7 +34,19 @@ export async function saveCredential(email: string, credential: AuthorizedUserCr
 export async function readCredential(email: string): Promise<AuthorizedUserCredential> {
   const filePath = credentialPath(email);
   const content = await fs.readFile(filePath, 'utf-8');
-  return JSON.parse(content) as AuthorizedUserCredential;
+  const parsed = JSON.parse(content) as Record<string, unknown>;
+
+  if (parsed.type !== 'authorized_user') {
+    throw new Error(`Invalid credential for ${email}: expected type "authorized_user", got "${parsed.type}"`);
+  }
+  if (!parsed.refresh_token || typeof parsed.refresh_token !== 'string') {
+    throw new Error(`Invalid credential for ${email}: missing or invalid refresh_token`);
+  }
+  if (!parsed.client_id || !parsed.client_secret) {
+    throw new Error(`Invalid credential for ${email}: missing client_id or client_secret`);
+  }
+
+  return parsed as unknown as AuthorizedUserCredential;
 }
 
 export async function removeCredential(email: string): Promise<void> {
