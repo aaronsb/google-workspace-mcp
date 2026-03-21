@@ -97,28 +97,22 @@ describe('Meet patch formatters', () => {
       expect(result.refs.transcriptName).toContain('transcripts/t1');
     });
 
-    it('formats transcript entries with who-said-what', () => {
+    it('formats transcript entries with who-said-what collapsed by speaker', () => {
       const data = {
         transcriptEntries: [
-          {
-            participantDisplayName: 'Alice Smith',
-            text: 'Hello everyone',
-            startTime: '2026-03-18T14:01:00Z',
-          },
-          {
-            participantDisplayName: 'Bob Jones',
-            text: 'Hi Alice, lets get started',
-            startTime: '2026-03-18T14:01:30Z',
-          },
+          { participantDisplayName: 'Alice Smith', text: 'Hello everyone', startTime: '2026-03-18T14:01:00Z' },
+          { participantDisplayName: 'Alice Smith', text: 'Lets get started', startTime: '2026-03-18T14:01:05Z' },
+          { participantDisplayName: 'Bob Jones', text: 'Hi Alice', startTime: '2026-03-18T14:01:30Z' },
         ],
       };
 
       const result = meetPatch.formatList!(data, ctx('listTranscriptEntries'));
-      expect(result.text).toContain('Transcript (2 entries)');
+      expect(result.text).toContain('Transcript (3 entries)');
+      // Alice's lines should be collapsed into one block
       expect(result.text).toContain('**Alice Smith**');
-      expect(result.text).toContain('Hello everyone');
+      expect(result.text).toContain('Hello everyone\nLets get started');
       expect(result.text).toContain('**Bob Jones**');
-      expect(result.refs.count).toBe(2);
+      expect(result.refs.count).toBe(3);
     });
 
     it('formats recording list', () => {
@@ -240,6 +234,7 @@ describe('Meet custom handlers', () => {
       expect(result.text).toContain('**Alice Smith**');
       expect(result.text).toContain('Hello');
       expect(result.text).toContain('**Bob Jones**');
+      expect(result.text).toContain('Hi there');
       expect(result.text).toContain('Google Docs');
       expect(result.refs.conferenceId).toBe('abc123');
       expect(result.refs.count).toBe(2);

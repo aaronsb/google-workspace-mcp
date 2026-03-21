@@ -221,6 +221,43 @@ function formatSmartNoteList(data: unknown): HandlerResponse {
   };
 }
 
+// --- Transcript collapsing ---
+
+interface ResolvedEntry {
+  participant: string;
+  text: string;
+  time: string;
+}
+
+/**
+ * Collapse consecutive entries by the same speaker into blocks.
+ * "Alice: Hello" + "Alice: world" → "**Alice** (time):\nHello\nworld"
+ */
+function collapseEntries(entries: ResolvedEntry[]): string[] {
+  const blocks: string[] = [];
+  let currentSpeaker = '';
+  let currentLines: string[] = [];
+  let currentTime = '';
+
+  for (const e of entries) {
+    if (e.participant !== currentSpeaker) {
+      if (currentSpeaker) {
+        blocks.push(`**${currentSpeaker}** (${currentTime}):\n${currentLines.join('\n')}`);
+      }
+      currentSpeaker = e.participant;
+      currentLines = [e.text];
+      currentTime = e.time;
+    } else {
+      currentLines.push(e.text);
+    }
+  }
+  if (currentSpeaker) {
+    blocks.push(`**${currentSpeaker}** (${currentTime}):\n${currentLines.join('\n')}`);
+  }
+
+  return blocks;
+}
+
 // --- Detail formatters ---
 
 function formatTranscriptEntries(data: unknown): HandlerResponse {
@@ -231,15 +268,16 @@ function formatTranscriptEntries(data: unknown): HandlerResponse {
     return { text: 'No transcript entries found.', refs: { count: 0 } };
   }
 
-  const lines = entries.map(e => {
-    const participant = String(e.participantDisplayName ?? e.participant ?? '');
-    const text = String(e.text ?? '');
-    const startTime = shortTime(e.startTime);
-    return `**${participant}** (${startTime}): ${text}`;
-  });
+  const resolved = entries.map(e => ({
+    participant: String(e.participantDisplayName ?? e.participant ?? ''),
+    text: String(e.text ?? ''),
+    time: shortTime(e.startTime),
+  }));
+
+  const blocks = collapseEntries(resolved);
 
   return {
-    text: `## Transcript (${entries.length} entries)\n\n${lines.join('\n')}`,
+    text: `## Transcript (${entries.length} entries)\n\n${blocks.join('\n\n')}`,
     refs: {
       count: entries.length,
       entries: entries.map(e => ({
@@ -345,22 +383,25 @@ async function getFullTranscript(
     if (name && displayName) nameMap.set(name, displayName);
   }
 
-  // Step 4: Format who-said-what with resolved names
-  const lines = entries.map(e => {
+  // Step 4: Format who-said-what with resolved names, collapsed by speaker
+  const resolved = entries.map(e => {
     const rawParticipant = String(e.participant ?? '');
-    const participant = e.participantDisplayName
-      ? String(e.participantDisplayName)
-      : nameMap.get(rawParticipant) ?? rawParticipant.split('/').pop() ?? rawParticipant;
-    const text = String(e.text ?? '');
-    const time = shortTime(e.startTime);
-    return `**${participant}** (${time}): ${text}`;
+    return {
+      participant: e.participantDisplayName
+        ? String(e.participantDisplayName)
+        : nameMap.get(rawParticipant) ?? rawParticipant.split('/').pop() ?? rawParticipant,
+      text: String(e.text ?? ''),
+      time: shortTime(e.startTime),
+    };
   });
+
+  const blocks = collapseEntries(resolved);
 
   const docsUri = (transcripts[0].docsDestination as Record<string, unknown>)?.exportUri;
   const docsLink = docsUri ? `\n\n[Full transcript in Google Docs](${docsUri})` : '';
 
   return {
-    text: `## Transcript (${entries.length} entries)\n\n${lines.join('\n')}${docsLink}` +
+    text: `## Transcript (${entries.length} entries)\n\n${blocks.join('\n\n')}${docsLink}` +
       nextSteps('meet', 'getFullTranscript', { email: account, conferenceId: confId }),
     refs: {
       conferenceId: confId,
