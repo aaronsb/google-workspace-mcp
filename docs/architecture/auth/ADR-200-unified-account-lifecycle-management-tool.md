@@ -3,7 +3,8 @@ status: Accepted
 date: 2026-03-14
 deciders:
   - aaronsb
-related: []
+related:
+  - ADR-201
 ---
 
 # ADR-200: Unified account lifecycle management tool
