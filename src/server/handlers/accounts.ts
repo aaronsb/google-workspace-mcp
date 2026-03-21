@@ -1,6 +1,6 @@
 import { listAccounts, removeAccount, authenticateAndAddAccount, type Account } from '../../accounts/registry.js';
 import { checkAccountStatus, reauthWithServices } from '../../accounts/auth.js';
-import { exportAndSaveCredential } from '../../accounts/credentials.js';
+import { getAccessToken, invalidateToken } from '../../accounts/token-service.js';
 import { nextSteps } from '../formatting/next-steps.js';
 import { getActivePolicies } from '../../factory/safety.js';
 import { manifest } from '../../factory/registry.js';
@@ -123,10 +123,11 @@ export async function handleAccounts(params: Record<string, unknown>): Promise<H
     case 'refresh': {
       const email = params.email as string;
       if (!email) throw new Error('email is required for refresh');
-      const credPath = await exportAndSaveCredential(email);
+      invalidateToken(email);
+      await getAccessToken(email);
       return {
-        text: `Credentials refreshed for ${email}` + nextSteps('accounts', 'refresh', { email }),
-        refs: { status: 'refreshed', email, credentialPath: credPath },
+        text: `Token refreshed for ${email}` + nextSteps('accounts', 'refresh', { email }),
+        refs: { status: 'refreshed', email },
       };
     }
 

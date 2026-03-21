@@ -49,19 +49,14 @@ describeIf('executor (integration)', () => {
     ).rejects.toThrow(GwsError);
   }, 15_000);
 
-  it('maps exit codes correctly on auth error', async () => {
-    // Use a bogus credential file to trigger auth error
-    try {
-      await execute(
+  it('rejects with error for nonexistent account', async () => {
+    // With own OAuth flow, a bogus account fails at token service (no credential file)
+    // before gws is even called
+    await expect(
+      execute(
         ['gmail', 'users', 'messages', 'list', '--params', JSON.stringify({ userId: 'me', maxResults: 1 })],
         { account: 'nonexistent-account@bogus.invalid' },
-      );
-      fail('Should have thrown');
-    } catch (err) {
-      expect(err).toBeInstanceOf(GwsError);
-      // Could be AuthError (2) or InternalError (5) depending on gws behavior
-      // with a missing credential file — either way it should be a GwsError
-      expect((err as GwsError).exitCode).toBeGreaterThan(0);
-    }
+      ),
+    ).rejects.toThrow();
   }, 15_000);
 });

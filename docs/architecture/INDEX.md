@@ -20,4 +20,5 @@ _OAuth, credential management, multi-account_
 
 | ADR | Title | Status |
 |-----|-------|--------|
-| [ADR-200](./auth/ADR-200-unified-account-lifecycle-management-tool.md) | Unified account lifecycle management tool | Draft |
+| [ADR-200](./auth/ADR-200-unified-account-lifecycle-management-tool.md) | Unified account lifecycle management tool | Accepted |
+| [ADR-201](./auth/ADR-201-own-oauth-flow-with-token-service.md) | Own OAuth flow with per-account token service | Accepted |

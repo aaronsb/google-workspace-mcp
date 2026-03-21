@@ -11,17 +11,18 @@ import { handleAccounts } from '../../../server/handlers/accounts.js';
 // Mock dependencies
 jest.mock('../../../accounts/registry.js');
 jest.mock('../../../accounts/auth.js');
-jest.mock('../../../accounts/credentials.js');
+jest.mock('../../../accounts/token-service.js');
 
 import { listAccounts, removeAccount, authenticateAndAddAccount } from '../../../accounts/registry.js';
 import { checkAccountStatus, reauthWithServices } from '../../../accounts/auth.js';
-import { exportAndSaveCredential } from '../../../accounts/credentials.js';
+import { getAccessToken, invalidateToken } from '../../../accounts/token-service.js';
 
 const mockListAccounts = listAccounts as jest.MockedFunction<typeof listAccounts>;
 const mockRemoveAccount = removeAccount as jest.MockedFunction<typeof removeAccount>;
 const mockCheckStatus = checkAccountStatus as jest.MockedFunction<typeof checkAccountStatus>;
 const mockReauth = reauthWithServices as jest.MockedFunction<typeof reauthWithServices>;
-const mockExportCred = exportAndSaveCredential as jest.MockedFunction<typeof exportAndSaveCredential>;
+const mockGetAccessToken = getAccessToken as jest.MockedFunction<typeof getAccessToken>;
+const mockInvalidateToken = invalidateToken as jest.MockedFunction<typeof invalidateToken>;
 
 describe('handleAccounts', () => {
   beforeEach(() => jest.resetAllMocks());
@@ -110,14 +111,15 @@ describe('handleAccounts', () => {
   });
 
   describe('refresh', () => {
-    it('re-exports credentials and returns confirmation', async () => {
-      mockExportCred.mockResolvedValue('/path/to/cred.json');
+    it('invalidates cache and re-fetches token', async () => {
+      mockGetAccessToken.mockResolvedValue('fresh-token');
 
       const result = await handleAccounts({ operation: 'refresh', email: 'a@test.com' });
 
-      expect(result.text).toContain('Credentials refreshed for a@test.com');
+      expect(result.text).toContain('Token refreshed for a@test.com');
       expect(result.refs.status).toBe('refreshed');
-      expect(mockExportCred).toHaveBeenCalledWith('a@test.com');
+      expect(mockInvalidateToken).toHaveBeenCalledWith('a@test.com');
+      expect(mockGetAccessToken).toHaveBeenCalledWith('a@test.com');
     });
 
     it('requires email', async () => {

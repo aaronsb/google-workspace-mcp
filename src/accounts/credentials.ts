@@ -1,13 +1,13 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { credentialPath, credentialsDir } from '../executor/paths.js';
-import { execute } from '../executor/gws.js';
 
 export interface AuthorizedUserCredential {
   type: 'authorized_user';
   client_id: string;
   client_secret: string;
   refresh_token: string;
+  scopes?: string[];
 }
 
 export async function hasCredential(email: string): Promise<boolean> {
@@ -19,13 +19,9 @@ export async function hasCredential(email: string): Promise<boolean> {
   }
 }
 
-export async function exportAndSaveCredential(email: string): Promise<string> {
-  // --unmasked is required; without it gws masks the client_secret
-  const result = await execute(['auth', 'export', '--unmasked']);
-  const credential = result.data as AuthorizedUserCredential;
-
+export async function saveCredential(email: string, credential: AuthorizedUserCredential): Promise<string> {
   if (credential?.type !== 'authorized_user') {
-    throw new Error('gws auth export did not return an authorized_user credential');
+    throw new Error('Credential must have type "authorized_user"');
   }
 
   const filePath = credentialPath(email);
@@ -38,7 +34,19 @@ export async function exportAndSaveCredential(email: string): Promise<string> {
 export async function readCredential(email: string): Promise<AuthorizedUserCredential> {
   const filePath = credentialPath(email);
   const content = await fs.readFile(filePath, 'utf-8');
-  return JSON.parse(content) as AuthorizedUserCredential;
+  const parsed = JSON.parse(content) as Record<string, unknown>;
+
+  if (parsed.type !== 'authorized_user') {
+    throw new Error(`Invalid credential for ${email}: expected type "authorized_user", got "${parsed.type}"`);
+  }
+  if (!parsed.refresh_token || typeof parsed.refresh_token !== 'string') {
+    throw new Error(`Invalid credential for ${email}: missing or invalid refresh_token`);
+  }
+  if (!parsed.client_id || !parsed.client_secret) {
+    throw new Error(`Invalid credential for ${email}: missing client_id or client_secret`);
+  }
+
+  return parsed as unknown as AuthorizedUserCredential;
 }
 
 export async function removeCredential(email: string): Promise<void> {
