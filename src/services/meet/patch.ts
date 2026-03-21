@@ -107,11 +107,9 @@ function formatParticipantList(data: unknown): HandlerResponse {
     const anon = p.anonymousUser as Record<string, unknown> | undefined;
     const phone = p.phoneUser as Record<string, unknown> | undefined;
     const displayName = signedin?.displayName ?? anon?.displayName ?? phone?.displayName ?? '(unknown)';
-    const email = signedin?.user ? String(signedin.user).replace('users/', '') : '';
     const joinTime = shortTime(p.earliestStartTime);
     const leaveTime = shortTime(p.latestEndTime);
-    const emailPart = email ? ` <${email}>` : '';
-    return `${displayName}${emailPart} | ${joinTime} - ${leaveTime}`;
+    return `${displayName} | ${joinTime} - ${leaveTime}`;
   });
 
   return {

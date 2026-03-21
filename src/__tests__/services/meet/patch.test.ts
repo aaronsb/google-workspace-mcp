@@ -68,7 +68,6 @@ describe('Meet patch formatters', () => {
       const result = meetPatch.formatList!(data, ctx('listParticipants'));
       expect(result.text).toContain('Participants (2)');
       expect(result.text).toContain('Alice Smith');
-      expect(result.text).toContain('alice@test.com');
       expect(result.text).toContain('Anonymous Panda');
       expect(result.refs.count).toBe(2);
     });
