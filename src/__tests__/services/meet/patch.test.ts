@@ -195,7 +195,7 @@ describe('Meet custom handlers', () => {
   beforeEach(() => mockExecute.mockReset());
 
   describe('getFullTranscript', () => {
-    it('chains transcripts.list and entries.list', async () => {
+    it('chains transcripts.list, entries.list, and participants.list to resolve names', async () => {
       // Step 1: transcripts.list
       mockExecute.mockResolvedValueOnce({
         success: true,
@@ -207,14 +207,25 @@ describe('Meet custom handlers', () => {
           }],
         },
       });
-      // Step 2: entries.list
+      // Step 2 (parallel): entries.list
       mockExecute.mockResolvedValueOnce({
         success: true,
         stderr: '',
         data: {
           transcriptEntries: [
-            { participantDisplayName: 'Alice', text: 'Hello', startTime: '2026-03-18T14:01:00Z' },
-            { participantDisplayName: 'Bob', text: 'Hi there', startTime: '2026-03-18T14:01:30Z' },
+            { participant: 'conferenceRecords/abc123/participants/111', text: 'Hello', startTime: '2026-03-18T14:01:00Z' },
+            { participant: 'conferenceRecords/abc123/participants/222', text: 'Hi there', startTime: '2026-03-18T14:01:30Z' },
+          ],
+        },
+      });
+      // Step 2 (parallel): participants.list
+      mockExecute.mockResolvedValueOnce({
+        success: true,
+        stderr: '',
+        data: {
+          participants: [
+            { name: 'conferenceRecords/abc123/participants/111', signedinUser: { displayName: 'Alice Smith' } },
+            { name: 'conferenceRecords/abc123/participants/222', signedinUser: { displayName: 'Bob Jones' } },
           ],
         },
       });
@@ -226,20 +237,17 @@ describe('Meet custom handlers', () => {
       );
 
       expect(result.text).toContain('Transcript (2 entries)');
-      expect(result.text).toContain('**Alice**');
+      expect(result.text).toContain('**Alice Smith**');
       expect(result.text).toContain('Hello');
-      expect(result.text).toContain('**Bob**');
+      expect(result.text).toContain('**Bob Jones**');
       expect(result.text).toContain('Google Docs');
       expect(result.refs.conferenceId).toBe('abc123');
       expect(result.refs.count).toBe(2);
 
-      // Verify the chained calls
-      expect(mockExecute).toHaveBeenCalledTimes(2);
+      // Verify the chained calls (3 total: transcripts, then entries + participants in parallel)
+      expect(mockExecute).toHaveBeenCalledTimes(3);
       expect(mockExecute.mock.calls[0][0]).toEqual(
         expect.arrayContaining(['meet', 'conferenceRecords', 'transcripts', 'list']),
-      );
-      expect(mockExecute.mock.calls[1][0]).toEqual(
-        expect.arrayContaining(['meet', 'conferenceRecords', 'transcripts', 'entries', 'list']),
       );
     });
 
@@ -269,10 +277,17 @@ describe('Meet custom handlers', () => {
           transcripts: [{ name: 'conferenceRecords/abc123/transcripts/t1' }],
         },
       });
+      // entries.list (parallel)
       mockExecute.mockResolvedValueOnce({
         success: true,
         stderr: '',
         data: { transcriptEntries: [] },
+      });
+      // participants.list (parallel)
+      mockExecute.mockResolvedValueOnce({
+        success: true,
+        stderr: '',
+        data: { participants: [] },
       });
 
       const handler = meetPatch.customHandlers!.getFullTranscript;

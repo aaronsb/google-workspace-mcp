@@ -309,12 +309,18 @@ async function getFullTranscript(
     };
   }
 
-  // Step 2: Get entries from the first (usually only) transcript
+  // Step 2: Fetch transcript entries and participants in parallel
   const transcriptName = String(transcripts[0].name ?? '');
-  const entriesResult = await execute([
-    'meet', 'conferenceRecords', 'transcripts', 'entries', 'list',
-    '--params', JSON.stringify({ parent: transcriptName, pageSize: 100 }),
-  ], { account, format: 'json' });
+  const [entriesResult, participantsResult] = await Promise.all([
+    execute([
+      'meet', 'conferenceRecords', 'transcripts', 'entries', 'list',
+      '--params', JSON.stringify({ parent: transcriptName, pageSize: 100 }),
+    ], { account, format: 'json' }),
+    execute([
+      'meet', 'conferenceRecords', 'participants', 'list',
+      '--params', JSON.stringify({ parent, pageSize: 100 }),
+    ], { account, format: 'json' }),
+  ]);
 
   const entriesData = entriesResult.data as Record<string, unknown>;
   const entries = (entriesData?.transcriptEntries ?? []) as Array<Record<string, unknown>>;
@@ -326,9 +332,25 @@ async function getFullTranscript(
     };
   }
 
-  // Step 3: Format who-said-what
+  // Step 3: Build participant ID → display name map
+  const participantsData = participantsResult.data as Record<string, unknown>;
+  const participants = (participantsData?.participants ?? []) as Array<Record<string, unknown>>;
+  const nameMap = new Map<string, string>();
+  for (const p of participants) {
+    const name = String(p.name ?? '');
+    const signedin = p.signedinUser as Record<string, unknown> | undefined;
+    const anon = p.anonymousUser as Record<string, unknown> | undefined;
+    const phone = p.phoneUser as Record<string, unknown> | undefined;
+    const displayName = String(signedin?.displayName ?? anon?.displayName ?? phone?.displayName ?? '');
+    if (name && displayName) nameMap.set(name, displayName);
+  }
+
+  // Step 4: Format who-said-what with resolved names
   const lines = entries.map(e => {
-    const participant = String(e.participantDisplayName ?? e.participant ?? '');
+    const rawParticipant = String(e.participant ?? '');
+    const participant = e.participantDisplayName
+      ? String(e.participantDisplayName)
+      : nameMap.get(rawParticipant) ?? rawParticipant.split('/').pop() ?? rawParticipant;
     const text = String(e.text ?? '');
     const time = shortTime(e.startTime);
     return `**${participant}** (${time}): ${text}`;
@@ -345,11 +367,14 @@ async function getFullTranscript(
       transcriptName,
       count: entries.length,
       docsUri: docsUri ?? null,
-      entries: entries.map(e => ({
-        participant: e.participantDisplayName ?? e.participant,
-        text: e.text,
-        startTime: e.startTime,
-      })),
+      entries: entries.map(e => {
+        const raw = String(e.participant ?? '');
+        return {
+          participant: e.participantDisplayName ?? nameMap.get(raw) ?? raw,
+          text: e.text,
+          startTime: e.startTime,
+        };
+      }),
     },
   };
 }
