@@ -349,10 +349,14 @@ async function getFullTranscript(
 
   // Step 2: Fetch transcript entries and participants in parallel
   const transcriptName = String(transcripts[0].name ?? '');
+  const pageToken = params.pageToken ? String(params.pageToken) : undefined;
+  const entriesParams: Record<string, unknown> = { parent: transcriptName, pageSize: 100 };
+  if (pageToken) entriesParams.pageToken = pageToken;
+
   const [entriesResult, participantsResult] = await Promise.all([
     execute([
       'meet', 'conferenceRecords', 'transcripts', 'entries', 'list',
-      '--params', JSON.stringify({ parent: transcriptName, pageSize: 100 }),
+      '--params', JSON.stringify(entriesParams),
     ], { account, format: 'json' }),
     execute([
       'meet', 'conferenceRecords', 'participants', 'list',
@@ -397,16 +401,28 @@ async function getFullTranscript(
 
   const blocks = collapseEntries(resolved);
 
+  const nextPageToken = entriesData.nextPageToken ? String(entriesData.nextPageToken) : null;
   const docsUri = (transcripts[0].docsDestination as Record<string, unknown>)?.exportUri;
-  const docsLink = docsUri ? `\n\n[Full transcript in Google Docs](${docsUri})` : '';
+
+  const isFirstPage = !pageToken;
+  const isLastPage = !nextPageToken;
+
+  const footer: string[] = [];
+  if (docsUri && (isFirstPage || isLastPage)) {
+    footer.push(`\n\n[Full transcript in Google Docs](${docsUri})`);
+  }
+  if (nextPageToken) {
+    footer.push(`\n\n**More entries available.** Continue with: \`manage_meet\` — \`{"operation":"getFullTranscript","email":"${account}","conferenceId":"${confId}","pageToken":"${nextPageToken}"}\``);
+  }
 
   return {
-    text: `## Transcript (${entries.length} entries)\n\n${blocks.join('\n\n')}${docsLink}` +
+    text: `## Transcript (${entries.length} entries)\n\n${blocks.join('\n\n')}${footer.join('')}` +
       nextSteps('meet', 'getFullTranscript', { email: account, conferenceId: confId }),
     refs: {
       conferenceId: confId,
       transcriptName,
       count: entries.length,
+      nextPageToken,
       docsUri: docsUri ?? null,
       entries: entries.map(e => {
         const raw = String(e.participant ?? '');

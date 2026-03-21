@@ -983,13 +983,16 @@ services:
 
       getFullTranscript:
         type: detail
-        description: "get the full who-said-what transcript for a conference (chains transcripts + entries + participant names automatically)"
+        description: "get the full who-said-what transcript for a conference (chains transcripts + entries + participant names automatically). Use pageToken to continue reading."
         resource: conferenceRecords.transcripts.list
         params:
           conferenceId:
             type: string
             description: "Conference record ID (from listConferences)"
             required: true
+          pageToken:
+            type: string
+            description: "Page token from a previous getFullTranscript call to continue reading"
 
       # --- Smart Notes (Gemini) ---
 

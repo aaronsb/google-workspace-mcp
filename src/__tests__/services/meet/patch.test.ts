@@ -239,11 +239,92 @@ describe('Meet custom handlers', () => {
       expect(result.refs.conferenceId).toBe('abc123');
       expect(result.refs.count).toBe(2);
 
+      // No nextPageToken = last page, so Docs link shown
+      expect(result.refs.nextPageToken).toBeNull();
+
       // Verify the chained calls (3 total: transcripts, then entries + participants in parallel)
       expect(mockExecute).toHaveBeenCalledTimes(3);
-      expect(mockExecute.mock.calls[0][0]).toEqual(
-        expect.arrayContaining(['meet', 'conferenceRecords', 'transcripts', 'list']),
+    });
+
+    it('paginates with nextPageToken and shows continue prompt', async () => {
+      mockExecute.mockResolvedValueOnce({
+        success: true, stderr: '',
+        data: {
+          transcripts: [{
+            name: 'conferenceRecords/abc123/transcripts/t1',
+            docsDestination: { exportUri: 'https://docs.google.com/doc/abc' },
+          }],
+        },
+      });
+      mockExecute.mockResolvedValueOnce({
+        success: true, stderr: '',
+        data: {
+          transcriptEntries: [
+            { participant: 'conferenceRecords/abc123/participants/111', text: 'Page one', startTime: '2026-03-18T14:01:00Z' },
+          ],
+          nextPageToken: 'tok_page2',
+        },
+      });
+      mockExecute.mockResolvedValueOnce({
+        success: true, stderr: '',
+        data: { participants: [
+          { name: 'conferenceRecords/abc123/participants/111', signedinUser: { displayName: 'Alice' } },
+        ]},
+      });
+
+      const handler = meetPatch.customHandlers!.getFullTranscript;
+      const result = await handler(
+        { conferenceId: 'abc123', email: 'user@test.com' },
+        'user@test.com',
       );
+
+      // First page: shows Docs link + continue prompt
+      expect(result.text).toContain('Google Docs');
+      expect(result.text).toContain('More entries available');
+      expect(result.text).toContain('tok_page2');
+      expect(result.refs.nextPageToken).toBe('tok_page2');
+    });
+
+    it('passes pageToken to entries API when continuing', async () => {
+      mockExecute.mockResolvedValueOnce({
+        success: true, stderr: '',
+        data: {
+          transcripts: [{
+            name: 'conferenceRecords/abc123/transcripts/t1',
+            docsDestination: { exportUri: 'https://docs.google.com/doc/abc' },
+          }],
+        },
+      });
+      mockExecute.mockResolvedValueOnce({
+        success: true, stderr: '',
+        data: {
+          transcriptEntries: [
+            { participant: 'conferenceRecords/abc123/participants/111', text: 'Last page', startTime: '2026-03-18T14:10:00Z' },
+          ],
+        },
+      });
+      mockExecute.mockResolvedValueOnce({
+        success: true, stderr: '',
+        data: { participants: [
+          { name: 'conferenceRecords/abc123/participants/111', signedinUser: { displayName: 'Alice' } },
+        ]},
+      });
+
+      const handler = meetPatch.customHandlers!.getFullTranscript;
+      const result = await handler(
+        { conferenceId: 'abc123', email: 'user@test.com', pageToken: 'tok_page2' },
+        'user@test.com',
+      );
+
+      // Verify pageToken was passed to entries call
+      const entriesArgs = mockExecute.mock.calls[1][0];
+      const entriesParams = JSON.parse(entriesArgs[entriesArgs.indexOf('--params') + 1]);
+      expect(entriesParams.pageToken).toBe('tok_page2');
+
+      // Last page (no nextPageToken): shows Docs link, no continue prompt
+      expect(result.text).toContain('Google Docs');
+      expect(result.text).not.toContain('More entries available');
+      expect(result.refs.nextPageToken).toBeNull();
     });
 
     it('returns helpful message when no transcripts exist', async () => {
