@@ -81,6 +81,36 @@ const suggestions: Record<string, Record<string, NextStep[]>> = {
       { description: 'View updated schedule', tool: 'manage_calendar', example: { operation: 'list', email: '<email>' } },
     ],
   },
+  meet: {
+    listConferences: [
+      { description: 'Get conference details', tool: 'manage_meet', example: { operation: 'getConference', email: '<email>', conferenceId: '<conferenceId>' } },
+      { description: 'See who attended', tool: 'manage_meet', example: { operation: 'listParticipants', email: '<email>', conferenceId: '<conferenceId>' } },
+      { description: 'Get full transcript', tool: 'manage_meet', example: { operation: 'getFullTranscript', email: '<email>', conferenceId: '<conferenceId>' } },
+    ],
+    getConference: [
+      { description: 'See who attended', tool: 'manage_meet', example: { operation: 'listParticipants', email: '<email>', conferenceId: '<conferenceId>' } },
+      { description: 'Get full transcript', tool: 'manage_meet', example: { operation: 'getFullTranscript', email: '<email>', conferenceId: '<conferenceId>' } },
+      { description: 'List recordings', tool: 'manage_meet', example: { operation: 'listRecordings', email: '<email>', conferenceId: '<conferenceId>' } },
+    ],
+    listParticipants: [
+      { description: 'Get full transcript', tool: 'manage_meet', example: { operation: 'getFullTranscript', email: '<email>', conferenceId: '<conferenceId>' } },
+      { description: 'List recent conferences', tool: 'manage_meet', example: { operation: 'listConferences', email: '<email>' } },
+    ],
+    getFullTranscript: [
+      { description: 'List recordings', tool: 'manage_meet', example: { operation: 'listRecordings', email: '<email>', conferenceId: '<conferenceId>' } },
+      { description: 'Check smart notes', tool: 'manage_meet', example: { operation: 'listSmartNotes', email: '<email>', conferenceId: '<conferenceId>' } },
+    ],
+    listTranscripts: [
+      { description: 'Read transcript entries', tool: 'manage_meet', example: { operation: 'listTranscriptEntries', email: '<email>', transcriptName: '<transcriptName>' } },
+      { description: 'Get full transcript (easier)', tool: 'manage_meet', example: { operation: 'getFullTranscript', email: '<email>', conferenceId: '<conferenceId>' } },
+    ],
+    listRecordings: [
+      { description: 'Get recording details', tool: 'manage_meet', example: { operation: 'getRecording', email: '<email>', recordingName: '<recordingName>' } },
+    ],
+    listSmartNotes: [
+      { description: 'Get smart note details', tool: 'manage_meet', example: { operation: 'getSmartNote', email: '<email>', smartNoteName: '<smartNoteName>' } },
+    ],
+  },
   drive: {
     search: [
       { description: 'Get file details', tool: 'manage_drive', example: { operation: 'get', email: '<email>', fileId: '<id from results>' } },

@@ -83,7 +83,8 @@ describe('generateTools', () => {
     expect(names).toContain('manage_drive');
     expect(names).toContain('manage_sheets');
     expect(names).toContain('manage_tasks');
-    // manage_contacts and manage_meet excluded pending gws auth scope support
+    expect(names).toContain('manage_meet');
+    // manage_contacts excluded pending gws auth scope support
   });
 
   it('each tool has both schema and handler', () => {

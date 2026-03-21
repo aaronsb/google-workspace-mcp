@@ -1,6 +1,6 @@
 # Service manifest — declarative registry for the tool factory (ADR-300).
 # Each entry produces one MCP tool via the generator.
-# gws 0.13.3 — 7 services, 62 operations
+# gws 0.13.3 — 7 services, 63 operations
 #
 # Note: People (contacts) are supported by gws but excluded here
 # because gws auth login doesn't offer contacts.readonly scope.
@@ -978,6 +978,21 @@ services:
             description: "Recording resource name (from listRecordings)"
             required: true
             maps_to: name
+
+      # --- Composite operations ---
+
+      getFullTranscript:
+        type: detail
+        description: "get the full who-said-what transcript for a conference (chains transcripts + entries + participant names automatically). Use pageToken to continue reading."
+        resource: conferenceRecords.transcripts.list
+        params:
+          conferenceId:
+            type: string
+            description: "Conference record ID (from listConferences)"
+            required: true
+          pageToken:
+            type: string
+            description: "Page token from a previous getFullTranscript call to continue reading"
 
       # --- Smart Notes (Gemini) ---
 
