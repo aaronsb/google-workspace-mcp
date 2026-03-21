@@ -356,7 +356,36 @@ async function getFullTranscript(
   };
 }
 
+/**
+ * Prefix a bare conference ID with "conferenceRecords/" in the --params JSON.
+ * The Meet API requires full resource names but agents pass bare IDs.
+ */
+function prefixResourceName(args: string[], paramKey: string, prefix: string): string[] {
+  const idx = args.indexOf('--params');
+  if (idx === -1) return args;
+  const gwsParams = JSON.parse(args[idx + 1]);
+  if (gwsParams[paramKey] && !String(gwsParams[paramKey]).startsWith(prefix)) {
+    gwsParams[paramKey] = `${prefix}${gwsParams[paramKey]}`;
+    args[idx + 1] = JSON.stringify(gwsParams);
+  }
+  return args;
+}
+
+const prefixConferenceParent = async (args: string[]) =>
+  prefixResourceName(args, 'parent', 'conferenceRecords/');
+
+const prefixConferenceName = async (args: string[]) =>
+  prefixResourceName(args, 'name', 'conferenceRecords/');
+
 export const meetPatch: ServicePatch = {
+  beforeExecute: {
+    listParticipants: prefixConferenceParent,
+    listTranscripts: prefixConferenceParent,
+    listRecordings: prefixConferenceParent,
+    listSmartNotes: prefixConferenceParent,
+    getConference: prefixConferenceName,
+  },
+
   formatList: (data: unknown, ctx: PatchContext) => {
     switch (ctx.operation) {
       case 'listConferences':
