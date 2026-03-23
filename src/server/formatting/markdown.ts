@@ -15,6 +15,109 @@ export interface HandlerResponse {
   refs: Record<string, unknown>;
 }
 
+// --- Email body extraction ---
+
+/**
+ * Walk Gmail MIME payload parts to extract the message body.
+ * Prefers text/plain over text/html. Decodes base64url body data.
+ */
+export function extractBodyFromPayload(payload: Record<string, unknown> | undefined): string {
+  if (!payload) return '';
+
+  // Simple (non-multipart) message — body is directly on payload
+  const body = payload.body as Record<string, unknown> | undefined;
+  if (body?.data && !payload.parts) {
+    return decodeBase64Url(String(body.data));
+  }
+
+  // Multipart — walk parts tree, prefer text/plain
+  const parts = payload.parts as Array<Record<string, unknown>> | undefined;
+  if (!parts || parts.length === 0) return '';
+
+  const plain = findPart(parts, 'text/plain');
+  if (plain) return plain;
+
+  const html = findPart(parts, 'text/html');
+  if (html) return stripHtml(html);
+
+  return '';
+}
+
+function findPart(parts: Array<Record<string, unknown>>, mimeType: string): string | null {
+  for (const part of parts) {
+    if (String(part.mimeType ?? '') === mimeType) {
+      const body = part.body as Record<string, unknown> | undefined;
+      if (body?.data) return decodeBase64Url(String(body.data));
+    }
+    // Recurse into nested multipart
+    if (Array.isArray(part.parts)) {
+      const found = findPart(part.parts as Array<Record<string, unknown>>, mimeType);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function decodeBase64Url(data: string): string {
+  // Gmail uses base64url encoding (RFC 4648 §5)
+  const base64 = data.replace(/-/g, '+').replace(/_/g, '/');
+  return Buffer.from(base64, 'base64').toString('utf-8');
+}
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/** Rough token estimate: ~4 chars per token for English text. */
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/** Max body size before we show snippet + size hint instead. ~12k tokens (~50KB). */
+const MAX_BODY_TOKENS = 12_000;
+
+/**
+ * Decide whether to show full body or snippet preview.
+ * Default: full body. Only truncates when body is very large (>~50KB)
+ * to protect the LLM context window from unexpectedly huge emails.
+ */
+function chooseBodyContent(
+  snippet: string,
+  fullBody: string,
+  messageId: string,
+): { text: string; truncated: boolean; fullBodyTokens: number } {
+  if (!fullBody) {
+    return { text: snippet, truncated: false, fullBodyTokens: 0 };
+  }
+
+  const tokens = estimateTokens(fullBody);
+
+  if (tokens <= MAX_BODY_TOKENS) {
+    return { text: fullBody, truncated: false, fullBodyTokens: tokens };
+  }
+
+  // Large email — show snippet with size info so the LLM can decide
+  return {
+    text: `${snippet}\n\n` +
+      `> **Full message is ~${tokens.toLocaleString()} tokens (${(fullBody.length / 1024).toFixed(0)} KB).** ` +
+      `Showing snippet only. To read the full body, re-read message \`${messageId}\` with \`fullBody: true\`.`,
+    truncated: true,
+    fullBodyTokens: tokens,
+  };
+}
+
 // --- Email formatting ---
 
 export function formatEmailList(data: unknown): HandlerResponse {
@@ -22,7 +125,12 @@ export function formatEmailList(data: unknown): HandlerResponse {
   const messages = (raw?.messages ?? raw?.items ?? []) as Record<string, unknown>[];
 
   if (messages.length === 0) {
-    return { text: 'No messages found.', refs: { count: 0 } };
+    const hasEstimate = 'resultSizeEstimate' in (raw ?? {});
+    const query = raw?.query ? ` for query: "${raw.query}"` : '';
+    const text = hasEstimate
+      ? `No messages found${query}.`
+      : `No messages returned. The API response was missing expected fields — this may indicate an authentication or scope issue rather than an empty result.`;
+    return { text, refs: { count: 0, apiResponseValid: hasEstimate } };
   }
 
   const lines = messages.map(msg => {
@@ -85,8 +193,9 @@ export function formatEmailDetail(data: unknown): HandlerResponse {
   const to = getHeader('to');
   const subject = getHeader('subject');
   const date = getHeader('date');
-  const snippet = String(msg.snippet ?? '');
   const labels = (msg.labelIds ?? []) as string[];
+  const snippet = String(msg.snippet ?? '');
+  const fullBody = extractBodyFromPayload(payload);
 
   const parts: string[] = [
     `## ${subject || '(no subject)'}`,
@@ -110,7 +219,9 @@ export function formatEmailDetail(data: unknown): HandlerResponse {
     });
   }
 
-  parts.push('', snippet);
+  // Show snippet preview when body is significantly larger, with token estimate
+  const bodyContent = chooseBodyContent(snippet, fullBody, id);
+  parts.push('', bodyContent.text);
 
   return {
     text: parts.join('\n'),
@@ -121,6 +232,8 @@ export function formatEmailDetail(data: unknown): HandlerResponse {
       from,
       to,
       subject,
+      bodyTruncated: bodyContent.truncated,
+      fullBodyTokens: bodyContent.fullBodyTokens,
       attachments: attachments.map(a => ({
         filename: a.filename,
         attachmentId: a.attachmentId,

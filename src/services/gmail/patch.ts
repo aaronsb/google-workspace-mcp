@@ -10,7 +10,7 @@
 import * as fs from 'node:fs/promises';
 import { execute } from '../../executor/gws.js';
 import { resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
-import { formatEmailList, formatEmailDetail } from '../../server/formatting/markdown.js';
+import { formatEmailList, formatEmailDetail, extractBodyFromPayload } from '../../server/formatting/markdown.js';
 import { nextSteps } from '../../server/formatting/next-steps.js';
 import { requireString } from '../../server/handlers/validate.js';
 import { handleGetAttachment } from './attachments.js';
@@ -141,11 +141,15 @@ function formatThreadDetail(data: unknown): HandlerResponse {
     const from = getHeader('from');
     const date = getHeader('date');
     const subject = getHeader('subject');
+    const bodyText = extractBodyFromPayload(payload);
     const snippet = String(msg.snippet ?? '');
+    // getThread uses format:metadata so body data is usually absent;
+    // fall back to snippet when extraction yields nothing
+    const displayBody = bodyText || snippet;
 
     parts.push(`**${from}** — ${date}`);
     if (subject) parts.push(`Subject: ${subject}`);
-    parts.push(snippet, '');
+    parts.push(displayBody, '');
   }
 
   return {
@@ -176,9 +180,17 @@ export const gmailPatch: ServicePatch = {
       // messages.list returns bare IDs — hydrate with metadata
       const raw = result as Record<string, unknown>;
       const ids = (raw?.messages ?? []) as Array<{ id: string }>;
-      if (ids.length === 0) return { messages: [] };
+      if (ids.length === 0) {
+        // Preserve resultSizeEstimate so formatters can distinguish
+        // "search ran, no matches" from unexpected empty responses
+        return {
+          messages: [],
+          resultSizeEstimate: raw?.resultSizeEstimate ?? 0,
+          query: ctx.params.query ?? '',
+        };
+      }
       const messages = await hydrateMessages(ids, ctx.account);
-      return { messages };
+      return { messages, resultSizeEstimate: raw?.resultSizeEstimate };
     },
   },
 

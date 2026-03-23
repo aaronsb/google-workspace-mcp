@@ -19,10 +19,23 @@ describe('formatEmailList', () => {
     expect(result.refs.messageId).toBe('msg-1');
   });
 
-  it('handles empty messages', () => {
-    expect(formatEmailList({}).text).toBe('No messages found.');
-    expect(formatEmailList({ messages: [] }).text).toBe('No messages found.');
-    expect(formatEmailList({}).refs.count).toBe(0);
+  it('handles empty messages with valid API response', () => {
+    const result = formatEmailList({ messages: [], resultSizeEstimate: 0, query: 'from:nobody' });
+    expect(result.text).toBe('No messages found for query: "from:nobody".');
+    expect(result.refs.count).toBe(0);
+    expect(result.refs.apiResponseValid).toBe(true);
+  });
+
+  it('flags suspicious empty response missing expected fields', () => {
+    const result = formatEmailList({});
+    expect(result.text).toContain('authentication or scope issue');
+    expect(result.refs.apiResponseValid).toBe(false);
+  });
+
+  it('handles valid empty response without query', () => {
+    const result = formatEmailList({ messages: [], resultSizeEstimate: 0 });
+    expect(result.text).toBe('No messages found.');
+    expect(result.refs.apiResponseValid).toBe(true);
   });
 
   it('falls back to items array', () => {
@@ -65,6 +78,53 @@ describe('formatEmailDetail', () => {
     const result = formatEmailDetail({ id: 'msg-1' });
     expect(result.text).toContain('**From:**');
     expect(result.refs.from).toBe('');
+  });
+
+  it('extracts full body from text/plain payload part', () => {
+    const fullText = 'Hello Aaron, your invoice has been approved. Please include your Tax ID on future invoices.';
+    const base64Body = Buffer.from(fullText).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const result = formatEmailDetail({
+      id: 'msg-2', threadId: 'thread-2', snippet: 'Hello Aaron, your invoice has been',
+      payload: {
+        headers: [{ name: 'From', value: 'val@jvl.ca' }, { name: 'Subject', value: 'Invoice' }],
+        mimeType: 'multipart/alternative',
+        parts: [
+          { mimeType: 'text/plain', body: { data: base64Body, size: fullText.length } },
+          { mimeType: 'text/html', body: { data: base64Body, size: fullText.length } },
+        ],
+      },
+    });
+    expect(result.text).toContain('Tax ID on future invoices');
+    expect(result.text).not.toContain('Showing snippet only');
+    expect(result.refs.bodyTruncated).toBe(false);
+  });
+
+  it('falls back to snippet when payload has no body data', () => {
+    const result = formatEmailDetail({
+      id: 'msg-3', snippet: 'Snippet fallback',
+      payload: {
+        headers: [{ name: 'From', value: 'a@b.com' }],
+      },
+    });
+    expect(result.text).toContain('Snippet fallback');
+  });
+
+  it('shows snippet with size hint for very large bodies', () => {
+    // Generate a body larger than 12k tokens (~48KB+)
+    const largeText = 'x'.repeat(60_000);
+    const base64Body = Buffer.from(largeText).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const result = formatEmailDetail({
+      id: 'msg-4', snippet: 'This is the snippet',
+      payload: {
+        headers: [{ name: 'From', value: 'a@b.com' }],
+        body: { data: base64Body, size: largeText.length },
+      },
+    });
+    expect(result.text).toContain('This is the snippet');
+    expect(result.text).toContain('Showing snippet only');
+    expect(result.text).toContain('tokens');
+    expect(result.refs.bodyTruncated).toBe(true);
+    expect(result.refs.fullBodyTokens).toBeGreaterThan(12_000);
   });
 });
 

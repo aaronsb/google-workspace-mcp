@@ -63,7 +63,11 @@ export async function handleEmail(params: Record<string, unknown>): Promise<Hand
       const raw = result.data as Record<string, unknown>;
       const ids = (raw?.messages ?? []) as Array<{ id: string }>;
       const messages = ids.length > 0 ? await hydrateMessages(ids, email) : [];
-      const formatted = formatEmailList({ messages });
+      const formatted = formatEmailList({
+        messages,
+        resultSizeEstimate: raw?.resultSizeEstimate ?? 0,
+        query: params.query ?? '',
+      });
       return {
         text: formatted.text + nextSteps('email', 'search', { email }),
         refs: formatted.refs,

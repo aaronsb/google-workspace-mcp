@@ -68,7 +68,7 @@ describe('handleEmail', () => {
     });
 
     it('handles empty search results without hydration calls', async () => {
-      mockExecute.mockResolvedValueOnce(mockGwsResponse({ messages: [] }));
+      mockExecute.mockResolvedValueOnce(mockGwsResponse({ messages: [], resultSizeEstimate: 0 }));
 
       const result = await handleEmail({ operation: 'search', email: 'user@test.com', query: 'nonexistent' });
 
