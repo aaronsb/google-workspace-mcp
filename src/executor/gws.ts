@@ -1,5 +1,6 @@
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import * as path from 'node:path';
+import { existsSync } from 'node:fs';
 import { GwsExitCode, GwsError, parseGwsError } from './errors.js';
 import { getAccessToken } from '../accounts/token-service.js';
 
@@ -30,6 +31,7 @@ const GWS_BINARY_NAME = IS_WINDOWS ? 'gws.exe' : 'gws';
  *    - If path is a directory, appends platform-appropriate binary name
  *    - If path is a file, uses it directly
  * 2. node_modules/.bin/gws (npm dependency)
+ * 3. System PATH lookup (e.g. ~/.local/bin/gws installed globally)
  */
 export function resolveGwsBinary(): string {
   const envPath = process.env.GWS_BINARY_PATH;
@@ -40,7 +42,42 @@ export function resolveGwsBinary(): string {
     }
     return path.join(envPath, GWS_BINARY_NAME);
   }
-  return path.join(process.cwd(), 'node_modules', '.bin', GWS_BINARY_NAME);
+
+  // Check node_modules/.bin first (npm dependency)
+  const localBin = path.join(process.cwd(), 'node_modules', '.bin', GWS_BINARY_NAME);
+  if (existsSync(localBin)) {
+    return localBin;
+  }
+
+  // Fall back to system PATH (e.g. ~/.local/bin/gws, /usr/local/bin/gws)
+  try {
+    const whichCmd = IS_WINDOWS ? 'where' : 'which';
+    const resolved = execFileSync(whichCmd, [GWS_BINARY_NAME], {
+      encoding: 'utf8',
+      timeout: 5000,
+    }).trim().split('\n')[0]; // `where` on Windows may return multiple lines
+    if (resolved) return resolved;
+  } catch {
+    // Not on PATH either — throw descriptive error below
+  }
+
+  throw new GwsError(
+    `gws binary not found — this tool cannot function without it.\n\n` +
+    `ACTION REQUIRED: The user must install the 'gws' CLI or fix the server configuration. ` +
+    `Do not retry — all operations will fail until this is resolved.\n\n` +
+    `Resolution order checked:\n` +
+    `  1. GWS_BINARY_PATH env var (set automatically by .mcpx extension) — not set\n` +
+    `  2. ./node_modules/.bin/gws (npm dependency) — not found\n` +
+    `  3. System PATH (e.g. ~/.local/bin/gws) — not found\n\n` +
+    `To fix, the user should either:\n` +
+    `  • Install gws: npm install -g @googleworkspace/cli\n` +
+    `  • Or set GWS_BINARY_PATH=/path/to/gws in the MCP server env config\n\n` +
+    `Note: The .mcpx extension distribution bundles gws automatically. ` +
+    `This error only occurs with the npx invocation pattern.`,
+    GwsExitCode.InternalError,
+    'binary_not_found',
+    '',
+  );
 }
 
 // Kept for backward compatibility with tests
