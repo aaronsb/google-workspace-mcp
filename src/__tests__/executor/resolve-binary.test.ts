@@ -61,11 +61,12 @@ describe('resolveGwsBinary', () => {
     expect(mockExecFileSync).toHaveBeenCalledWith('which', ['gws'], expect.any(Object));
   });
 
-  it('throws GwsError with install instructions when binary not found anywhere', () => {
+  it('throws GwsError with agent-friendly instructions when binary not found', () => {
     mockExistsSync.mockReturnValue(false);
     mockExecFileSync.mockImplementation(() => { throw new Error('not found'); });
     expect(() => resolveGwsBinary()).toThrow(GwsError);
     expect(() => resolveGwsBinary()).toThrow(/gws binary not found/);
-    expect(() => resolveGwsBinary()).toThrow(/GWS_BINARY_PATH/);
+    expect(() => resolveGwsBinary()).toThrow(/Do not retry/);
+    expect(() => resolveGwsBinary()).toThrow(/@googleworkspace\/cli/);
   });
 });

@@ -58,19 +58,22 @@ export function resolveGwsBinary(): string {
     }).trim().split('\n')[0]; // `where` on Windows may return multiple lines
     if (resolved) return resolved;
   } catch {
-    // Not on PATH either — fall through to return the local path
-    // so the existing ENOENT handling in execute() catches it
+    // Not on PATH either — throw descriptive error below
   }
 
   throw new GwsError(
-    `gws binary not found.\n\n` +
-    `This server requires the 'gws' CLI. Resolution order:\n` +
-    `  1. GWS_BINARY_PATH env var (set by .mcpx extension)\n` +
-    `  2. ./node_modules/.bin/gws (npm dependency)\n` +
-    `  3. System PATH (e.g. ~/.local/bin/gws)\n\n` +
-    `Install for the current user:\n` +
-    `  npm install -g @anthropic-ai/gws    # lands in ~/.local/bin/ or npm prefix\n\n` +
-    `Or set GWS_BINARY_PATH=/path/to/gws in your MCP server env config.`,
+    `gws binary not found — this tool cannot function without it.\n\n` +
+    `ACTION REQUIRED: The user must install the 'gws' CLI or fix the server configuration. ` +
+    `Do not retry — all operations will fail until this is resolved.\n\n` +
+    `Resolution order checked:\n` +
+    `  1. GWS_BINARY_PATH env var (set automatically by .mcpx extension) — not set\n` +
+    `  2. ./node_modules/.bin/gws (npm dependency) — not found\n` +
+    `  3. System PATH (e.g. ~/.local/bin/gws) — not found\n\n` +
+    `To fix, the user should either:\n` +
+    `  • Install gws: npm install -g @googleworkspace/cli\n` +
+    `  • Or set GWS_BINARY_PATH=/path/to/gws in the MCP server env config\n\n` +
+    `Note: The .mcpx extension distribution bundles gws automatically. ` +
+    `This error only occurs with the npx invocation pattern.`,
     GwsExitCode.InternalError,
     'binary_not_found',
     '',
