@@ -49,6 +49,7 @@ const suggestions: Record<string, Record<string, NextStep[]>> = {
     ],
     read: [
       { description: 'Reply to this email', tool: 'manage_email', example: { operation: 'reply', email: '<email>', messageId: '<messageId>', body: '<reply text>' } },
+      { description: 'Import into scratchpad for editing', tool: 'manage_scratchpad', example: { operation: 'import', source: 'email', sourceParams: { email: '<email>', messageId: '<messageId>' } } },
       { description: 'Search for related emails', tool: 'manage_email', example: { operation: 'search', email: '<email>', query: 'thread:<threadId>' } },
     ],
     send: [
@@ -124,6 +125,24 @@ const suggestions: Record<string, Record<string, NextStep[]>> = {
     ],
     download: [
       { description: 'Search for more files', tool: 'manage_drive', example: { operation: 'search', email: '<email>' } },
+    ],
+  },
+  scratchpad: {
+    create: [
+      { description: 'Add content', tool: 'manage_scratchpad', example: { operation: 'append_lines', scratchpadId: '<scratchpadId>', content: '<text>' } },
+      { description: 'Import from a document', tool: 'manage_scratchpad', example: { operation: 'import', scratchpadId: '<scratchpadId>', source: 'doc', sourceParams: { email: '<email>', documentId: '<documentId>' } } },
+    ],
+    append_lines: [
+      { description: 'View buffer', tool: 'manage_scratchpad', example: { operation: 'view', scratchpadId: '<scratchpadId>' } },
+      { description: 'Send as email', tool: 'manage_scratchpad', example: { operation: 'send', scratchpadId: '<scratchpadId>', target: 'email', targetParams: { email: '<email>', to: '<recipient>', subject: '<subject>' } } },
+    ],
+    send: [
+      { description: 'Send to another target', tool: 'manage_scratchpad', example: { operation: 'send', scratchpadId: '<scratchpadId>', target: 'workspace', targetParams: { filename: '<name>.md' } } },
+      { description: 'Discard scratchpad', tool: 'manage_scratchpad', example: { operation: 'discard', scratchpadId: '<scratchpadId>' } },
+    ],
+    import: [
+      { description: 'View imported content', tool: 'manage_scratchpad', example: { operation: 'view', scratchpadId: '<scratchpadId>' } },
+      { description: 'Edit content', tool: 'manage_scratchpad', example: { operation: 'replace_lines', scratchpadId: '<scratchpadId>', startLine: 1, endLine: 1, content: '<new text>' } },
     ],
   },
 };
