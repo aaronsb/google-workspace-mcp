@@ -8,7 +8,8 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import {
   sendEmail, sendEmailDraft, sendDocCreate, sendDocWrite, sendWorkspace,
-  importEmail, importDoc, importSheet, importDriveFile,
+  sendSheetWrite, sendCalendarEvent, sendTaskCreate,
+  importEmail, importDoc, importSheet, importDriveFile, importMeet,
 } from './adapters/index.js';
 import { execute } from '../../executor/gws.js';
 import { resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
@@ -469,8 +470,10 @@ async function handleImport(params: Record<string, unknown>): Promise<HandlerRes
       return importSheet(scratchpads, id, sourceParams as unknown as Parameters<typeof importSheet>[2]);
     case 'drive_file':
       return importDriveFile(scratchpads, id, sourceParams as unknown as Parameters<typeof importDriveFile>[2]);
+    case 'meet':
+      return importMeet(scratchpads, id, sourceParams as unknown as Parameters<typeof importMeet>[2]);
     default:
-      return error(`Unknown import source: ${source}. Valid sources: doc, email, sheet, drive_file.`);
+      return error(`Unknown import source: ${source}. Valid sources: doc, email, sheet, drive_file, meet.`);
   }
 }
 
@@ -502,8 +505,17 @@ async function handleSend(params: Record<string, unknown>): Promise<HandlerRespo
     case 'workspace':
       result = await sendWorkspace(scratchpads, id, targetParams as unknown as Parameters<typeof sendWorkspace>[2]);
       break;
+    case 'sheet_write':
+      result = await sendSheetWrite(scratchpads, id, targetParams as unknown as Parameters<typeof sendSheetWrite>[2]);
+      break;
+    case 'calendar_event':
+      result = await sendCalendarEvent(scratchpads, id, targetParams as unknown as Parameters<typeof sendCalendarEvent>[2]);
+      break;
+    case 'task_create':
+      result = await sendTaskCreate(scratchpads, id, targetParams as unknown as Parameters<typeof sendTaskCreate>[2]);
+      break;
     default:
-      return error(`Unknown send target: ${target}. Valid targets: email, email_draft, doc_create, doc_write, workspace.`);
+      return error(`Unknown send target: ${target}. Valid targets: email, email_draft, doc_create, doc_write, workspace, sheet_write, calendar_event, task_create.`);
   }
 
   // Discard scratchpad on success if keep=false

@@ -92,7 +92,7 @@ const handCodedSchemas: ToolSchema[] = [
         // import
         sourceParams: { type: 'object', description: 'For import: source-specific parameters (e.g., { documentId, mode } for doc, { messageId } for email)' },
         // send
-        target: { type: 'string', enum: ['email', 'email_draft', 'doc_create', 'doc_write', 'workspace'], description: 'For send: delivery target' },
+        target: { type: 'string', enum: ['email', 'email_draft', 'doc_create', 'doc_write', 'workspace', 'sheet_write', 'calendar_event', 'task_create'], description: 'For send: delivery target' },
         targetParams: { type: 'object', description: 'For send: target-specific parameters (e.g., { email, to, subject } for email, { filename } for workspace)' },
         keep: { type: 'boolean', description: 'For send: keep scratchpad after successful send (default: true)' },
       },
