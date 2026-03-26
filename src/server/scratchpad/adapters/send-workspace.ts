@@ -48,14 +48,31 @@ export async function sendWorkspace(
 
     const size = Buffer.byteLength(content);
 
-    // TODO: Copy attachments alongside the file
+    // Copy attachments alongside the content file
     const attachments = scratchpads.getAttachments(scratchpadId);
-    const attCount = attachments?.size ?? 0;
-    const attNote = attCount > 0 ? `\n${attCount} attachment(s) — copy not yet implemented.` : '';
+    let copiedCount = 0;
+    if (attachments && attachments.size > 0) {
+      const targetDir = path.dirname(filePath);
+      for (const att of attachments.values()) {
+        if (!att.location) continue;
+        try {
+          const destPath = path.join(targetDir, att.filename);
+          // Only copy if source and dest differ (workspace files may already be in place)
+          if (path.resolve(att.location) !== path.resolve(destPath)) {
+            await fs.copyFile(att.location, destPath);
+          }
+          copiedCount++;
+        } catch {
+          // Non-fatal: log but continue
+        }
+      }
+    }
+
+    const attNote = copiedCount > 0 ? `\n${copiedCount} attachment(s) copied alongside.` : '';
 
     return {
       text: `Written to workspace: **${filename}** (${size} bytes)${attNote}\n\n**Path:** ${filePath}`,
-      refs: { scratchpadId, filename, path: filePath, size },
+      refs: { scratchpadId, filename, path: filePath, size, attachmentsCopied: copiedCount },
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

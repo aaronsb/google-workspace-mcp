@@ -155,7 +155,7 @@ export function formatEmailList(data: unknown): HandlerResponse {
 }
 
 /** Extract attachments from message payload parts (recursive). */
-function extractAttachments(parts: unknown[]): Array<{ filename: string; mimeType: string; size: number; attachmentId: string }> {
+export function extractAttachments(parts: unknown[]): Array<{ filename: string; mimeType: string; size: number; attachmentId: string }> {
   const attachments: Array<{ filename: string; mimeType: string; size: number; attachmentId: string }> = [];
   for (const part of parts) {
     const p = part as Record<string, unknown>;

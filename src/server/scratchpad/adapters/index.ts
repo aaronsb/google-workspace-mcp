@@ -11,3 +11,5 @@ export { sendWorkspace } from './send-workspace.js';
 // Import adapters
 export { importEmail } from './import-email.js';
 export { importDoc } from './import-doc.js';
+export { importSheet } from './import-sheet.js';
+export { importDriveFile } from './import-drive.js';

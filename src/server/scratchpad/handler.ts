@@ -4,10 +4,14 @@
  */
 
 import { ScratchpadManager } from './manager.js';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import {
   sendEmail, sendEmailDraft, sendDocCreate, sendDocWrite, sendWorkspace,
-  importEmail, importDoc,
+  importEmail, importDoc, importSheet, importDriveFile,
 } from './adapters/index.js';
+import { resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
+import { lookupMimeType } from '../../services/gmail/mime.js';
 import type { HandlerResponse } from '../handler.js';
 
 const scratchpads = new ScratchpadManager();
@@ -283,7 +287,7 @@ function handleJsonInsert(params: Record<string, unknown>): HandlerResponse {
 
 // ── Attachments ───────────────────────────────────────────
 
-function handleAttach(params: Record<string, unknown>): HandlerResponse {
+async function handleAttach(params: Record<string, unknown>): Promise<HandlerResponse> {
   const id = requireScratchpadId(params);
   if (!id) return scratchpadNotFound(params.scratchpadId as string);
 
@@ -293,13 +297,39 @@ function handleAttach(params: Record<string, unknown>): HandlerResponse {
   const fileId = params.fileId as string | undefined;
   if (!filename && !fileId) return error('filename (for workspace) or fileId (for drive) is required.');
 
-  // TODO: Resolve file metadata (size, mimeType) from workspace or Drive
+  let resolvedFilename: string;
+  let mimeType: string;
+  let size: number;
+  let location: string;
+
+  if (source === 'workspace') {
+    if (!filename) return error('filename is required for workspace attachments.');
+    try {
+      const filePath = resolveWorkspacePath(filename);
+      await verifyPathSafety(filePath);
+      const stat = await fs.stat(filePath);
+      resolvedFilename = filename;
+      mimeType = lookupMimeType(filename);
+      size = stat.size;
+      location = filePath;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return error(`Cannot attach workspace file: ${msg}`);
+    }
+  } else {
+    // Drive attachments — use fileId as identifier, metadata resolved later on send
+    resolvedFilename = fileId ?? 'unknown';
+    mimeType = 'application/octet-stream';
+    size = 0;
+    location = fileId ?? '';
+  }
+
   const result = scratchpads.attach(id, {
     source,
-    filename: filename ?? fileId ?? 'unknown',
-    mimeType: 'application/octet-stream',
-    size: 0,
-    location: filename ?? fileId ?? '',
+    filename: resolvedFilename,
+    mimeType,
+    size,
+    location,
   }, params.afterLine as number | undefined);
 
   if (!result) return scratchpadNotFound(id);
@@ -335,9 +365,9 @@ async function handleImport(params: Record<string, unknown>): Promise<HandlerRes
     case 'doc':
       return importDoc(scratchpads, id, sourceParams as unknown as Parameters<typeof importDoc>[2]);
     case 'sheet':
-      return error('Import from sheet not yet implemented.');
+      return importSheet(scratchpads, id, sourceParams as unknown as Parameters<typeof importSheet>[2]);
     case 'drive_file':
-      return error('Import from drive_file not yet implemented.');
+      return importDriveFile(scratchpads, id, sourceParams as unknown as Parameters<typeof importDriveFile>[2]);
     default:
       return error(`Unknown import source: ${source}. Valid sources: doc, email, sheet, drive_file.`);
   }

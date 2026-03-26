@@ -6,7 +6,10 @@
  * - json: loads native Docs API JSON, sets live binding for round-trip editing
  */
 
+import * as fs from 'node:fs/promises';
 import { execute } from '../../../executor/gws.js';
+import { resolveWorkspacePath } from '../../../executor/workspace.js';
+import { ensureWorkspaceDir } from '../../../executor/workspace.js';
 import type { HandlerResponse } from '../../handler.js';
 import type { ScratchpadManager } from '../manager.js';
 
@@ -49,8 +52,8 @@ async function importDocMarkdown(
 
     const markdown = typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
 
-    // Strip base64 data URIs and register as attachment references
-    const { cleanedLines, attachmentCount } = stripBase64Images(markdown, scratchpads, scratchpadId);
+    // Strip base64 data URIs, save to workspace, register as attachments
+    const { cleanedLines, attachmentCount } = await stripBase64Images(markdown, scratchpads, scratchpadId);
 
     scratchpads.appendRawLines(scratchpadId, cleanedLines);
     scratchpads.setFormat(scratchpadId, 'markdown');
@@ -106,38 +109,57 @@ async function importDocJson(
 }
 
 /**
- * Strip base64 data URIs from markdown and replace with attachment markers.
- * Registers each extracted image in the scratchpad attachment side-table.
+ * Strip base64 data URIs from markdown, save images to workspace,
+ * and register as attachments in the scratchpad side-table.
  */
-function stripBase64Images(
+async function stripBase64Images(
   markdown: string,
   scratchpads: ScratchpadManager,
   scratchpadId: string,
-): { cleanedLines: string[]; attachmentCount: number } {
-  let attachmentCount = 0;
+): Promise<{ cleanedLines: string[]; attachmentCount: number }> {
+  // Collect all matches first (can't use async in replace callback)
+  const pattern = /!\[([^\]]*)\]\(data:(image\/[^;]+);base64,([A-Za-z0-9+/=\s]+)\)/g;
+  const matches: Array<{ full: string; alt: string; mimeType: string; data: string }> = [];
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(markdown)) !== null) {
+    matches.push({ full: match[0], alt: match[1], mimeType: match[2], data: match[3] });
+  }
 
-  // Match ![alt](data:image/...;base64,...) patterns
-  const cleaned = markdown.replace(
-    /!\[([^\]]*)\]\(data:(image\/[^;]+);base64,[A-Za-z0-9+/=\s]+\)/g,
-    (_match, alt: string, mimeType: string) => {
-      attachmentCount++;
-      const refId = `att-${attachmentCount}`;
-      const filename = `image-${attachmentCount}.${mimeType.split('/')[1] ?? 'png'}`;
+  if (matches.length === 0) {
+    return { cleanedLines: markdown.split('\n'), attachmentCount: 0 };
+  }
 
-      // Register in side-table (location is empty — image was inline, not on disk)
-      // TODO: Write base64 data to workspace file and set location
-      scratchpads.attach(scratchpadId, {
-        source: 'import',
-        filename,
-        mimeType,
-        size: 0, // Unknown until extracted to file
-        location: '',
-      });
+  await ensureWorkspaceDir();
+  let cleaned = markdown;
 
-      // Return the marker (attach() also inserts a marker line, so we return just the alt ref)
-      return `![${alt}](att:${refId} "${filename}, from import")`;
-    },
-  );
+  for (let i = 0; i < matches.length; i++) {
+    const { full, alt, mimeType, data } = matches[i];
+    const ext = mimeType.split('/')[1] ?? 'png';
+    const filename = `image-${i + 1}.${ext}`;
 
-  return { cleanedLines: cleaned.split('\n'), attachmentCount };
+    // Decode and write to workspace
+    const buffer = Buffer.from(data.replace(/\s/g, ''), 'base64');
+    const filePath = resolveWorkspacePath(filename);
+    await fs.writeFile(filePath, buffer);
+
+    // Register in side-table with real size and location
+    scratchpads.attach(scratchpadId, {
+      source: 'import',
+      filename,
+      mimeType,
+      size: buffer.length,
+      location: filePath,
+    });
+
+    const refId = `att-${i + 1}`;
+    cleaned = cleaned.replace(full, `![${alt}](att:${refId} "${filename}, ${formatBytes(buffer.length)}, from import")`);
+  }
+
+  return { cleanedLines: cleaned.split('\n'), attachmentCount: matches.length };
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
