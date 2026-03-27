@@ -1,0 +1,46 @@
+name: Build .mcpb release artifacts
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build-mcpb:
+    name: Build .mcpb bundles
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # needed for gh release upload
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Install mcpb CLI
+        run: npm install -g @anthropic-ai/mcpb
+
+      - name: Build .mcpb for all platforms
+        run: make mcpb-all
+
+      - name: Create GitHub Release (if not exists)
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gh release view "$TAG" 2>/dev/null || gh release create "$TAG" --title "$TAG" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload .mcpb artifacts to release
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gh release upload "$TAG" google-workspace-mcp-*.mcpb --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
