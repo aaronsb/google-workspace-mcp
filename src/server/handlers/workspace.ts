@@ -8,6 +8,8 @@
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import { promisify } from 'node:util';
+import { gzip, gunzip } from 'node:zlib';
 import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety, getWorkspaceDir, sanitizePath } from '../../executor/workspace.js';
 import { isTextFile, buildImageBlockFromFile } from '../../executor/file-output.js';
 import type { HandlerResponse } from '../formatting/markdown.js';
@@ -271,6 +273,74 @@ export async function handleWorkspace(params: Record<string, unknown>): Promise<
       return {
         text: `Directory created: **${dirName}/**\n\n**Path:** ${dirPath}`,
         refs: { path: dirPath, name: dirName },
+      };
+    }
+
+    case 'compress': {
+      const filename = params.filename as string;
+      if (!filename) throw new Error('filename is required');
+
+      const srcPath = resolveWorkspacePath(filename);
+      await verifyPathSafety(srcPath);
+
+      const outputName = (params.destination as string) || `${filename}.gz`;
+      const destPath = resolveWorkspacePath(outputName);
+      await fs.mkdir(path.dirname(destPath), { recursive: true });
+
+      const buffer = await fs.readFile(srcPath);
+      const compressed = await promisify(gzip)(buffer);
+      await fs.writeFile(destPath, compressed);
+
+      const ratio = buffer.length > 0
+        ? ((1 - compressed.length / buffer.length) * 100).toFixed(1)
+        : '0';
+
+      return {
+        text: `Compressed: **${filename}** → **${outputName}**\n\n` +
+          `**Original:** ${formatSize(buffer.length)}\n` +
+          `**Compressed:** ${formatSize(compressed.length)} (${ratio}% reduction)\n` +
+          `**Path:** ${destPath}`,
+        refs: {
+          filename: outputName,
+          path: destPath,
+          originalSize: buffer.length,
+          compressedSize: compressed.length,
+          source: filename,
+        },
+      };
+    }
+
+    case 'decompress': {
+      const filename = params.filename as string;
+      if (!filename) throw new Error('filename is required');
+
+      const srcPath = resolveWorkspacePath(filename);
+      await verifyPathSafety(srcPath);
+
+      // Default output: strip .gz extension, or append .out
+      const defaultOutput = filename.endsWith('.gz')
+        ? filename.slice(0, -3)
+        : `${filename}.out`;
+      const outputName = (params.destination as string) || defaultOutput;
+      const destPath = resolveWorkspacePath(outputName);
+      await fs.mkdir(path.dirname(destPath), { recursive: true });
+
+      const buffer = await fs.readFile(srcPath);
+      const decompressed = await promisify(gunzip)(buffer);
+      await fs.writeFile(destPath, decompressed);
+
+      return {
+        text: `Decompressed: **${filename}** → **${outputName}**\n\n` +
+          `**Compressed:** ${formatSize(buffer.length)}\n` +
+          `**Decompressed:** ${formatSize(decompressed.length)}\n` +
+          `**Path:** ${destPath}`,
+        refs: {
+          filename: outputName,
+          path: destPath,
+          compressedSize: buffer.length,
+          decompressedSize: decompressed.length,
+          source: filename,
+        },
       };
     }
 
