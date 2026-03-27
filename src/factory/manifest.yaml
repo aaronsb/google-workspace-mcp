@@ -92,7 +92,7 @@ services:
 
       reply:
         type: action
-        description: "reply to a message (thread-aware, supports attachments)"
+        description: "reply to a message (thread-aware)"
         helper: "+reply"
         params:
           messageId:
@@ -103,12 +103,6 @@ services:
             type: string
             description: "Reply body text"
             required: true
-          attachments:
-            type: string
-            description: "Workspace filenames to attach, comma-separated"
-          draft:
-            type: boolean
-            description: "Save as draft instead of sending"
         cli_args:
           messageId: "--message-id"
           body: "--body"
@@ -129,12 +123,6 @@ services:
           cc:
             type: string
             description: "Additional CC email(s), comma-separated"
-          attachments:
-            type: string
-            description: "Workspace filenames to attach, comma-separated"
-          draft:
-            type: boolean
-            description: "Save as draft instead of sending"
         cli_args:
           messageId: "--message-id"
           body: "--body"
@@ -156,12 +144,6 @@ services:
           body:
             type: string
             description: "Optional note to prepend above forwarded message"
-          attachments:
-            type: string
-            description: "Additional workspace filenames to attach, comma-separated"
-          draft:
-            type: boolean
-            description: "Save as draft instead of sending"
         cli_args:
           messageId: "--message-id"
           to: "--to"

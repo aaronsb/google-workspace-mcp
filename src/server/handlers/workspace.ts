@@ -285,6 +285,7 @@ export async function handleWorkspace(params: Record<string, unknown>): Promise<
 
       const outputName = (params.destination as string) || `${filename}.gz`;
       const destPath = resolveWorkspacePath(outputName);
+      await verifyPathSafety(destPath);
       await fs.mkdir(path.dirname(destPath), { recursive: true });
 
       const buffer = await fs.readFile(srcPath);
@@ -323,6 +324,7 @@ export async function handleWorkspace(params: Record<string, unknown>): Promise<
         : `${filename}.out`;
       const outputName = (params.destination as string) || defaultOutput;
       const destPath = resolveWorkspacePath(outputName);
+      await verifyPathSafety(destPath);
       await fs.mkdir(path.dirname(destPath), { recursive: true });
 
       const buffer = await fs.readFile(srcPath);
