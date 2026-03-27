@@ -9,7 +9,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety, getWorkspaceDir, sanitizePath } from '../../executor/workspace.js';
-import { isTextFile } from '../../executor/file-output.js';
+import { isTextFile, buildImageBlockFromFile } from '../../executor/file-output.js';
 import type { HandlerResponse } from '../formatting/markdown.js';
 
 /** Recursively list files under a directory, returning relative paths. */
@@ -108,6 +108,16 @@ export async function handleWorkspace(params: Record<string, unknown>): Promise<
       const filePath = resolveWorkspacePath(filename);
       await verifyPathSafety(filePath);
       const stat = await fs.stat(filePath);
+
+      // Try image block first (up to 5MB)
+      const imageBlock = await buildImageBlockFromFile(filePath, filename);
+      if (imageBlock) {
+        return {
+          text: `## ${filename}\n\n**Path:** ${filePath}\n**Size:** ${stat.size} bytes\n\n_Image included inline below._`,
+          refs: { filename, path: filePath, size: stat.size },
+          content: [imageBlock],
+        };
+      }
 
       if (stat.size > 100_000) {
         return {

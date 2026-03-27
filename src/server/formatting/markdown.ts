@@ -9,10 +9,19 @@
  *   structured values queue $N.field resolution needs
  */
 
+/** MCP content block for inline image/audio return. */
+export interface ContentBlock {
+  type: 'image' | 'audio';
+  data: string;       // base64-encoded
+  mimeType: string;
+}
+
 /** Shared response shape — markdown text for agents, structured refs for queue $N.field. */
 export interface HandlerResponse {
   text: string;
   refs: Record<string, unknown>;
+  /** Optional content blocks (images, audio) returned alongside text. */
+  content?: ContentBlock[];
 }
 
 // --- Email body extraction ---

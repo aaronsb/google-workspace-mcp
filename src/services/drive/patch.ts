@@ -8,12 +8,14 @@
  */
 
 import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { execute } from '../../executor/gws.js';
 import { formatFileList, formatFileDetail } from '../../server/formatting/markdown.js';
 import { nextSteps } from '../../server/formatting/next-steps.js';
 import { requireString } from '../../server/handlers/validate.js';
 import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
-import { isTextFile, formatFileOutput, type FileOutputResult } from '../../executor/file-output.js';
+import { isTextFile, formatFileOutput, buildImageBlock, buildImageBlockFromFile, isImageFile, getImageMimeType, type FileOutputResult } from '../../executor/file-output.js';
 import type { ServicePatch } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
@@ -28,6 +30,9 @@ async function readWorkspaceFile(filePath: string, filename: string, mimeType?: 
 
   if (isTextFile(filename, mimeType) && stat.size < 100_000) {
     result.content = await fs.readFile(filePath, 'utf-8');
+  } else {
+    const imageBlock = await buildImageBlockFromFile(filePath, filename, mimeType);
+    if (imageBlock) result.imageBlock = imageBlock;
   }
 
   return result;
@@ -88,7 +93,49 @@ export const drivePatch: ServicePatch = {
           size: output.size,
           ...(output.content ? { content: output.content } : {}),
         },
+        ...(output.imageBlock ? { content: [output.imageBlock] } : {}),
       };
+    },
+
+    viewImage: async (params, account): Promise<HandlerResponse> => {
+      const fileId = requireString(params, 'fileId');
+
+      // Get file metadata
+      const metaResult = await execute([
+        'drive', 'files', 'get',
+        '--params', JSON.stringify({ fileId, fields: 'name,mimeType,size' }),
+      ], { account });
+      const meta = metaResult.data as Record<string, unknown>;
+      const filename = String(meta.name || `image-${fileId}`);
+      const mimeType = String(meta.mimeType || '');
+
+      if (!isImageFile(filename, mimeType)) {
+        throw new Error(`File "${filename}" (${mimeType}) is not a viewable image type`);
+      }
+
+      // Download to temp file, read into memory, clean up
+      const tmpPath = path.join(os.tmpdir(), `gws-view-${fileId}-${Date.now()}`);
+      try {
+        await execute([
+          'drive', 'files', 'get',
+          '--params', JSON.stringify({ fileId, alt: 'media' }),
+          '--output', tmpPath,
+        ], { account });
+
+        const buffer = await fs.readFile(tmpPath);
+        const imageBlock = buildImageBlock(buffer, filename, mimeType);
+        if (!imageBlock) {
+          throw new Error(`Image too large to view inline (${(buffer.length / 1024 / 1024).toFixed(1)} MB). Use download instead.`);
+        }
+
+        return {
+          text: `## ${filename}\n\n**Type:** ${mimeType}\n**Size:** ${buffer.length} bytes\n\n_Image displayed inline below. Use download to save to workspace._`,
+          refs: { fileId, filename, mimeType, size: buffer.length },
+          content: [imageBlock],
+        };
+      } finally {
+        await fs.unlink(tmpPath).catch(() => {});
+      }
     },
 
     export: async (params, account): Promise<HandlerResponse> => {
@@ -141,6 +188,7 @@ export const drivePatch: ServicePatch = {
           mimeType,
           ...(output.content ? { content: output.content } : {}),
         },
+        ...(output.imageBlock ? { content: [output.imageBlock] } : {}),
       };
     },
   },

@@ -13,7 +13,7 @@ import { resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace
 import { formatEmailList, formatEmailDetail, extractBodyFromPayload } from '../../server/formatting/markdown.js';
 import { nextSteps } from '../../server/formatting/next-steps.js';
 import { requireString } from '../../server/handlers/validate.js';
-import { handleGetAttachment } from './attachments.js';
+import { handleGetAttachment, handleViewAttachment } from './attachments.js';
 import { buildMimeMessage, lookupMimeType, type MimeAttachment } from './mime.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
@@ -293,6 +293,7 @@ export const gmailPatch: ServicePatch = {
     },
 
     getAttachment: handleGetAttachment,
+    viewAttachment: handleViewAttachment,
 
     reply: async (params, account): Promise<HandlerResponse> => {
       const messageId = requireString(params, 'messageId');
