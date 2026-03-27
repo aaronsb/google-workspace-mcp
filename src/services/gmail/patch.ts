@@ -7,14 +7,12 @@
  * - Custom handlers: send/reply use specific response formatting
  */
 
-import * as fs from 'node:fs/promises';
 import { execute } from '../../executor/gws.js';
 import { resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
 import { formatEmailList, formatEmailDetail, extractBodyFromPayload } from '../../server/formatting/markdown.js';
 import { nextSteps } from '../../server/formatting/next-steps.js';
 import { requireString } from '../../server/handlers/validate.js';
 import { handleGetAttachment, handleViewAttachment } from './attachments.js';
-import { buildMimeMessage, lookupMimeType, type MimeAttachment } from './mime.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
@@ -163,14 +161,12 @@ function formatThreadDetail(data: unknown): HandlerResponse {
   };
 }
 
-/** Load files from workspace, resolve paths safely, return as MIME attachments. */
-async function loadWorkspaceAttachments(filenames: string[]): Promise<MimeAttachment[]> {
+/** Resolve workspace attachment paths safely. Returns absolute paths. */
+async function resolveAttachmentPaths(filenames: string[]): Promise<string[]> {
   return Promise.all(filenames.map(async (name) => {
     const filePath = resolveWorkspacePath(name);
     await verifyPathSafety(filePath);
-    const content = await fs.readFile(filePath);
-    const mimeType = lookupMimeType(name);
-    return { filename: name, mimeType, content };
+    return filePath;
   }));
 }
 
@@ -218,46 +214,44 @@ export const gmailPatch: ServicePatch = {
       const to = requireString(params, 'to');
       const subject = requireString(params, 'subject');
       const body = requireString(params, 'body');
+      const draft = params.draft === true || params.draft === 'true';
       const attachmentNames = params.attachments
         ? String(params.attachments).split(',').map(s => s.trim()).filter(Boolean)
         : [];
 
-      let result;
+      const args = ['gmail', '+send', '--to', to, '--subject', subject, '--body', body];
+      if (params.cc) args.push('--cc', String(params.cc));
+      if (params.bcc) args.push('--bcc', String(params.bcc));
+      if (params.html === true || params.html === 'true') args.push('--html');
+      if (draft || attachmentNames.length > 0) args.push('--draft');
 
-      if (attachmentNames.length === 0) {
-        // No attachments — use the +send helper (simpler, proven)
-        const args = ['gmail', '+send', '--to', to, '--subject', subject, '--body', body];
-        if (params.cc) args.push('--cc', String(params.cc));
-        if (params.bcc) args.push('--bcc', String(params.bcc));
-        if (params.html === true || params.html === 'true') args.push('--html');
-        result = await execute(args, { account });
-      } else {
-        // With attachments — build MIME message and use raw API
-        const attachments = await loadWorkspaceAttachments(attachmentNames);
-        const raw = buildMimeMessage({
-          to, subject, body,
-          html: params.html === true || params.html === 'true',
-          cc: params.cc ? String(params.cc) : undefined,
-          bcc: params.bcc ? String(params.bcc) : undefined,
-          from: account,
-          attachments,
-        });
-
-        result = await execute([
-          'gmail', 'users', 'messages', 'send',
-          '--params', JSON.stringify({ userId: 'me' }),
-          '--json', JSON.stringify({ raw }),
-        ], { account });
+      // Resolve and attach workspace files via gws --attach (uses upload endpoint, 35MB limit)
+      if (attachmentNames.length > 0) {
+        const paths = await resolveAttachmentPaths(attachmentNames);
+        for (const p of paths) {
+          args.push('--attach', p);
+        }
       }
 
+      const result = await execute(args, { account });
       const data = result.data as Record<string, unknown>;
+
       const attachNote = attachmentNames.length > 0
         ? `\n**Attachments:** ${attachmentNames.join(', ')}`
         : '';
+
+      if (draft || attachmentNames.length > 0) {
+        return {
+          text: `Draft created for ${to}.\n\n**Subject:** ${subject}${attachNote}\n**Draft ID:** ${data.id ?? 'unknown'}` +
+            nextSteps('email', 'draft', { email: account }),
+          refs: { id: data.id, draftId: data.id, to, subject, attachments: attachmentNames, isDraft: true },
+        };
+      }
+
       return {
-        text: `Email sent to ${to}.\n\n**Subject:** ${subject}${attachNote}\n**Message ID:** ${data.id ?? 'unknown'}` +
+        text: `Email sent to ${to}.\n\n**Subject:** ${subject}\n**Message ID:** ${data.id ?? 'unknown'}` +
           nextSteps('email', 'send', { email: account }),
-        refs: { id: data.id, threadId: data.threadId, to, subject, attachments: attachmentNames },
+        refs: { id: data.id, threadId: data.threadId, to, subject },
       };
     },
 

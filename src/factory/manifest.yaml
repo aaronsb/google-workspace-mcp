@@ -53,7 +53,7 @@ services:
 
       send:
         type: action
-        description: "compose and send a new email"
+        description: "compose and send a new email (creates draft when attachments present, 35MB attachment limit via upload endpoint)"
         helper: "+send"
         params:
           to:
@@ -76,10 +76,13 @@ services:
             description: "BCC email(s), comma-separated"
           attachments:
             type: string
-            description: "Workspace filenames to attach, comma-separated (files must exist in workspace via manage_workspace)"
+            description: "Workspace filenames to attach, comma-separated (files must exist in workspace via manage_workspace). Creates draft when present."
           html:
             type: boolean
             description: "Treat body as HTML content (default: plain text)"
+          draft:
+            type: boolean
+            description: "Save as draft instead of sending (default: false, forced true when attachments present)"
         cli_args:
           to: "--to"
           subject: "--subject"
@@ -89,7 +92,7 @@ services:
 
       reply:
         type: action
-        description: "reply to a message (thread-aware)"
+        description: "reply to a message (thread-aware, supports attachments)"
         helper: "+reply"
         params:
           messageId:
@@ -100,6 +103,12 @@ services:
             type: string
             description: "Reply body text"
             required: true
+          attachments:
+            type: string
+            description: "Workspace filenames to attach, comma-separated"
+          draft:
+            type: boolean
+            description: "Save as draft instead of sending"
         cli_args:
           messageId: "--message-id"
           body: "--body"
@@ -120,6 +129,12 @@ services:
           cc:
             type: string
             description: "Additional CC email(s), comma-separated"
+          attachments:
+            type: string
+            description: "Workspace filenames to attach, comma-separated"
+          draft:
+            type: boolean
+            description: "Save as draft instead of sending"
         cli_args:
           messageId: "--message-id"
           body: "--body"
@@ -127,7 +142,7 @@ services:
 
       forward:
         type: action
-        description: "forward a message to new recipients"
+        description: "forward a message to new recipients (includes original attachments by default)"
         helper: "+forward"
         params:
           messageId:
@@ -141,6 +156,12 @@ services:
           body:
             type: string
             description: "Optional note to prepend above forwarded message"
+          attachments:
+            type: string
+            description: "Additional workspace filenames to attach, comma-separated"
+          draft:
+            type: boolean
+            description: "Save as draft instead of sending"
         cli_args:
           messageId: "--message-id"
           to: "--to"
