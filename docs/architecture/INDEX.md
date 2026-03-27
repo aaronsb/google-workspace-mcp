@@ -22,3 +22,11 @@ _OAuth, credential management, multi-account_
 |-----|-------|--------|
 | [ADR-200](./auth/ADR-200-unified-account-lifecycle-management-tool.md) | Unified account lifecycle management tool | Accepted |
 | [ADR-201](./auth/ADR-201-own-oauth-flow-with-token-service.md) | Own OAuth flow with per-account token service | Accepted |
+
+## API Surface
+_MCP tools, schemas, progressive disclosure_
+
+| ADR | Title | Status |
+|-----|-------|--------|
+| [ADR-300](./api/ADR-300-service-tool-factory-with-manifest-driven-generation.md) | Service tool factory with manifest-driven generation | Draft |
+| [ADR-301](./api/ADR-301-scratchpad-buffer-for-service-agnostic-content-authoring.md) | Scratchpad Buffer — Service-Agnostic Content Authoring | Draft |

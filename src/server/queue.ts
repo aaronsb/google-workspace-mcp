@@ -6,6 +6,7 @@
  * resolution and text for the final response.
  */
 
+import { advanceEpoch } from './handler.js';
 import type { HandlerResponse } from './handler.js';
 
 type ToolHandler = (params: Record<string, unknown>) => Promise<HandlerResponse>;
@@ -75,6 +76,7 @@ export async function handleQueue(
     }
 
     try {
+      advanceEpoch(); // Each queued operation is a logical tool call
       const response = await handler(resolvedArgs);
       const text = stripNextSteps(response.text);
       results.push({ index: i, tool: op.tool, status: 'success', text, refs: response.refs });

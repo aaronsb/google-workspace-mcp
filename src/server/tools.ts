@@ -54,6 +54,53 @@ const handCodedSchemas: ToolSchema[] = [
     },
   },
   {
+    name: 'manage_scratchpad',
+    description: 'Compose, edit, and deliver text content. Use for any multi-line content: emails, documents, descriptions. Compose in the scratchpad, edit by line or JSON path, attach files, then send to any target. For short one-liners, use the service tool directly instead.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        operation: {
+          type: 'string',
+          enum: [
+            'create', 'view', 'discard', 'list',
+            'insert_lines', 'append_lines', 'replace_lines', 'remove_lines', 'copy_lines',
+            'json_get', 'json_set', 'json_delete', 'json_insert',
+            'attach', 'detach',
+            'import', 'send',
+          ],
+          description: 'create: new buffer | view: show content | discard: free buffer | list: show all | insert_lines/append_lines/replace_lines/remove_lines: line editing | copy_lines: copy from another scratchpad | json_get/json_set/json_delete/json_insert: path-addressed JSON editing | attach/detach: file references | import: load from GWS resource | send: deliver to target',
+        },
+        scratchpadId: { type: 'string', description: 'Scratchpad ID (sp-XXXX). Required for all operations except create and list.' },
+        // create
+        label: { type: 'string', description: 'For create: optional human-readable label' },
+        format: { type: 'string', enum: ['text', 'markdown', 'json', 'csv'], description: 'For create: content format (default: text). Controls validation and addressing mode.' },
+        // line ops
+        content: { type: 'string', description: 'Text content. For create (pre-fill), insert_lines, append_lines, replace_lines.' },
+        afterLine: { type: 'number', description: 'Insert after this line number (0 = prepend). For insert_lines, copy_lines, attach.' },
+        startLine: { type: 'number', description: 'Start of line range (1-based). For replace_lines, remove_lines, copy_lines, view.' },
+        endLine: { type: 'number', description: 'End of line range (inclusive). For replace_lines, remove_lines, copy_lines, view.' },
+        // copy_lines
+        fromScratchpadId: { type: 'string', description: 'For copy_lines: source scratchpad ID' },
+        // json path ops
+        path: { type: 'string', description: 'For json_* ops: JSON path (e.g., $.config.name, $.items[0].value)' },
+        value: { description: 'For json_set, json_insert: value to set or insert (any JSON type)' },
+        // attach
+        source: { type: 'string', description: 'For attach: file source (workspace or drive). For import: resource type (doc, email, sheet, drive_file).' },
+        filename: { type: 'string', description: 'For attach (workspace source): filename in workspace' },
+        fileId: { type: 'string', description: 'For attach (drive source): Drive file ID' },
+        refId: { type: 'string', description: 'For detach: attachment reference ID (att-1, att-2, etc.)' },
+        // import
+        sourceParams: { type: 'object', description: 'For import: source-specific parameters (e.g., { documentId, mode } for doc, { messageId } for email)' },
+        // send
+        target: { type: 'string', enum: ['email', 'email_draft', 'doc_create', 'doc_write', 'workspace', 'sheet_write', 'calendar_event', 'task_create'], description: 'For send: delivery target' },
+        targetParams: { type: 'object', description: 'For send: target-specific parameters (e.g., { email, to, subject } for email, { filename } for workspace)' },
+        keep: { type: 'boolean', description: 'For send: keep scratchpad after successful send (default: true)' },
+      },
+      required: ['operation'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'queue_operations',
     description: 'Execute multiple operations in sequence. Operations run in order with result references ($0.field) to chain outputs. Use for multi-step workflows.',
     inputSchema: {
@@ -66,7 +113,7 @@ const handCodedSchemas: ToolSchema[] = [
             properties: {
               tool: {
                 type: 'string',
-                enum: ['manage_email', 'manage_calendar', 'manage_drive', 'manage_accounts'],
+                enum: ['manage_email', 'manage_calendar', 'manage_drive', 'manage_accounts', 'manage_scratchpad'],
                 description: 'Tool to call',
               },
               args: {
