@@ -25,6 +25,7 @@ const TEXT_EXTENSIONS = [
 ];
 
 /** Image MIME types supported by MCP image content blocks. */
+/** Raster image types returned as MCP image blocks. SVG excluded — it's text/XML. */
 const IMAGE_MIME_MAP: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -32,7 +33,6 @@ const IMAGE_MIME_MAP: Record<string, string> = {
   '.gif': 'image/gif',
   '.webp': 'image/webp',
   '.bmp': 'image/bmp',
-  '.svg': 'image/svg+xml',
 };
 
 const MAX_INLINE_SIZE = 100_000; // 100KB — larger text files are saved only

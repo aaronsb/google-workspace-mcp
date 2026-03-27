@@ -114,7 +114,8 @@ export const drivePatch: ServicePatch = {
       }
 
       // Download to temp file, read into memory, clean up
-      const tmpPath = path.join(os.tmpdir(), `gws-view-${fileId}-${Date.now()}`);
+      const safeId = fileId.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const tmpPath = path.join(os.tmpdir(), `gws-view-${safeId}-${Date.now()}`);
       try {
         await execute([
           'drive', 'files', 'get',

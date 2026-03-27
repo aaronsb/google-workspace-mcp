@@ -12,26 +12,38 @@ import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety, getWorkspac
 import { isTextFile, buildImageBlockFromFile } from '../../executor/file-output.js';
 import type { HandlerResponse } from '../formatting/markdown.js';
 
-/** Recursively list files under a directory, returning relative paths. */
+/** Recursively list files under a directory, returning relative paths. Skips symlinks that escape the workspace. */
 async function listRecursive(root: string, subdir: string = ''): Promise<{ relativePath: string; size: number; isDir: boolean }[]> {
   const entries: { relativePath: string; size: number; isDir: boolean }[] = [];
   const dirPath = subdir ? path.join(root, subdir) : root;
+  const resolvedRoot = path.resolve(root);
 
   let dirents: import('node:fs').Dirent[];
   try {
     dirents = await fs.readdir(dirPath, { withFileTypes: true });
-  } catch {
-    return entries;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return entries;
+    throw err;
   }
 
   for (const dirent of dirents) {
     const rel = subdir ? path.join(subdir, dirent.name) : dirent.name;
+    const fullPath = path.join(root, rel);
+
+    // Verify symlinks don't escape the workspace
+    try {
+      const real = await fs.realpath(fullPath);
+      if (!real.startsWith(resolvedRoot + path.sep) && real !== resolvedRoot) continue;
+    } catch {
+      continue; // Skip broken symlinks
+    }
+
     if (dirent.isDirectory()) {
       entries.push({ relativePath: rel, size: 0, isDir: true });
       const children = await listRecursive(root, rel);
       entries.push(...children);
     } else {
-      const stat = await fs.stat(path.join(root, rel));
+      const stat = await fs.stat(fullPath);
       entries.push({ relativePath: rel, size: stat.size, isDir: false });
     }
   }
@@ -172,8 +184,41 @@ export async function handleWorkspace(params: Record<string, unknown>): Promise<
       const filePath = resolveWorkspacePath(filename);
       await verifyPathSafety(filePath);
 
-      const stat = await fs.stat(filePath);
+      // Prevent deleting the workspace root itself
+      const wsRoot = path.resolve(getWorkspaceDir());
+      if (path.resolve(filePath) === wsRoot) {
+        throw new Error('Cannot delete the workspace root directory');
+      }
+
+      const stat = await fs.lstat(filePath);
+
+      // If it's a symlink, just unlink it (don't follow)
+      if (stat.isSymbolicLink()) {
+        await fs.unlink(filePath);
+        return {
+          text: `Symlink deleted: **${filename}**`,
+          refs: { filename, status: 'deleted', type: 'symlink' },
+        };
+      }
+
       if (stat.isDirectory()) {
+        // Verify no symlinks inside escape the workspace before recursive delete
+        const resolvedRoot = path.resolve(getWorkspaceDir());
+        async function verifyTreeSafety(dir: string): Promise<void> {
+          const entries = await fs.readdir(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const entryPath = path.join(dir, entry.name);
+            const real = await fs.realpath(entryPath);
+            if (!real.startsWith(resolvedRoot + path.sep) && real !== resolvedRoot) {
+              throw new Error(`Cannot delete: "${entry.name}" links outside workspace`);
+            }
+            if (entry.isDirectory() && !entry.isSymbolicLink()) {
+              await verifyTreeSafety(entryPath);
+            }
+          }
+        }
+        await verifyTreeSafety(filePath);
+
         await fs.rm(filePath, { recursive: true });
         return {
           text: `Directory deleted: **${filename}/**`,
