@@ -312,36 +312,18 @@ async function syncIfBound(id: string): Promise<HandlerResponse | null> {
 
   try {
     if (binding.service === 'docs') {
-      // For Docs: the buffer IS the full document JSON.
-      // Push the modified body back via documents.batchUpdate.
-      // Strategy: replace the entire body content from the modified JSON.
-      const doc = JSON.parse(content) as Record<string, unknown>;
-      const body = doc.body as Record<string, unknown> | undefined;
-
-      if (!body?.content) {
-        return error('Cannot sync: document JSON has no body.content');
-      }
-
-      // The Docs API doesn't accept a full JSON replace — it requires batchUpdate requests.
-      // For now: re-fetch to validate our changes took effect locally,
-      // then use the local buffer as source of truth.
-      // Full batchUpdate translation is a future enhancement.
-      // The local mutation is already applied to the buffer.
-
-      // Reload from API to verify consistency
-      const result = await execute([
-        'docs', 'documents', 'get',
-        '--params', JSON.stringify({ documentId: binding.resourceId }),
-      ], { account: binding.account });
-
-      const freshJson = JSON.stringify(result.data, null, 2);
-      const freshLines = freshJson.split('\n');
-
-      // Replace buffer with fresh data
-      const sp = scratchpads.get(id);
-      if (sp) {
-        sp.lines = freshLines;
-      }
+      // Docs API requires batchUpdate with discrete operations (insertText,
+      // deleteContentRange, etc.) — no full JSON replace endpoint.
+      //
+      // Future (#79): translate text content changes (textRun.content) to
+      // deleteContentRange + insertText using startIndex/endIndex from
+      // the JSON structure. Structural changes (add/remove paragraphs)
+      // that batchUpdate rejects should return guidance to use markdown
+      // mode + doc_create instead. One edit per sync cycle with reload.
+      //
+      // For now: local mutations are source of truth. The buffer diverges
+      // from the live doc. Agent can send modified JSON to workspace.
+      return null; // Local mutation already applied
     } else if (binding.service === 'sheets') {
       // For Sheets: the buffer is the values JSON.
       // Push back via spreadsheets.values.update.

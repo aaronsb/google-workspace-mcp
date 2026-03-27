@@ -69,15 +69,17 @@ export async function importEmail(
             const base64Data = String(attData.data ?? '');
             if (!base64Data) continue;
 
-            // Decode and save to workspace
+            // Decode and save to workspace (prefixed to avoid collisions)
             const buffer = Buffer.from(base64Data, 'base64url');
-            const filePath = resolveWorkspacePath(att.filename);
+            const shortId = scratchpadId.replace('sp-', '');
+            const safeFilename = `${shortId}-${att.filename}`;
+            const filePath = resolveWorkspacePath(safeFilename);
             await fs.writeFile(filePath, buffer);
 
             // Register in scratchpad
             scratchpads.attach(scratchpadId, {
               source: 'import',
-              filename: att.filename,
+              filename: safeFilename,
               mimeType: att.mimeType,
               size: buffer.length,
               location: filePath,

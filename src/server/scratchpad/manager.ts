@@ -5,6 +5,8 @@
 
 import { randomUUID } from 'node:crypto';
 import { getEpoch } from '../handler.js';
+import { validate } from './validate.js';
+import { getByPath, setByPath, deleteByPath } from './json-path.js';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -587,11 +589,11 @@ export class ScratchpadManager {
   }
 
   private gc(): void {
+    const expired: string[] = [];
     for (const sp of this.scratchpads.values()) {
-      if (this.isExpired(sp)) {
-        this.scratchpads.delete(sp.id);
-      }
+      if (this.isExpired(sp)) expired.push(sp.id);
     }
+    for (const id of expired) this.scratchpads.delete(id);
   }
 }
 
@@ -675,183 +677,4 @@ function formatRemoveContext(lines: string[], removedAt: number, joinLine: numbe
   return parts.join('\n');
 }
 
-// ── Validation ─────────────────────────────────────────────
-
-/** Run format-specific validation, returning a status string. */
-function validate(lines: string[], format: ScratchpadFormat): string {
-  if (lines.length === 0) return 'Status: empty';
-
-  switch (format) {
-    case 'text':
-      return `Status: valid (${lines.length} lines)`;
-
-    case 'markdown':
-      return validateMarkdown(lines);
-
-    case 'json':
-      return validateJson(lines);
-
-    case 'csv':
-      return validateCsv(lines);
-
-    default:
-      return `Status: valid (${lines.length} lines)`;
-  }
-}
-
-function validateMarkdown(lines: string[]): string {
-  let codeBlockOpen = -1;
-
-  for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trimStart();
-
-    if (trimmed.startsWith('```')) {
-      if (codeBlockOpen === -1) {
-        codeBlockOpen = i + 1;
-      } else {
-        codeBlockOpen = -1;
-      }
-    }
-  }
-
-  if (codeBlockOpen !== -1) {
-    return `Status: invalid at line ${codeBlockOpen} — unclosed code fence`;
-  }
-
-  return `Status: valid (${lines.length} lines)`;
-}
-
-function validateJson(lines: string[]): string {
-  const text = lines.join('\n');
-  try {
-    JSON.parse(text);
-    return `Status: valid (${lines.length} lines)`;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    // V8 JSON.parse errors include position — try to extract line number
-    const posMatch = msg.match(/position (\d+)/);
-    if (posMatch) {
-      const pos = parseInt(posMatch[1], 10);
-      let line = 1;
-      let col = 1;
-      for (let i = 0; i < pos && i < text.length; i++) {
-        if (text[i] === '\n') { line++; col = 1; } else { col++; }
-      }
-      return `Status: invalid at line ${line}:${col} — ${msg.replace(/^.*?position \d+/, '').trim() || 'JSON syntax error'}`;
-    }
-    return `Status: invalid — ${msg}`;
-  }
-}
-
-function validateCsv(lines: string[]): string {
-  const nonEmpty = lines.filter(l => l.trim().length > 0);
-  if (nonEmpty.length === 0) return `Status: valid (${lines.length} lines)`;
-
-  // Count columns in first non-empty row (simple: split on comma outside quotes)
-  const expectedCols = countCsvColumns(nonEmpty[0]);
-
-  for (let i = 1; i < nonEmpty.length; i++) {
-    const cols = countCsvColumns(nonEmpty[i]);
-    if (cols !== expectedCols) {
-      // Find the actual line number in the full buffer
-      const lineNum = lines.indexOf(nonEmpty[i]) + 1;
-      return `Status: invalid at line ${lineNum} — expected ${expectedCols} columns, got ${cols}`;
-    }
-  }
-
-  return `Status: valid (${lines.length} lines, ${expectedCols} columns)`;
-}
-
-/** Count CSV columns handling quoted fields. */
-function countCsvColumns(line: string): number {
-  let cols = 1;
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      inQuotes = !inQuotes;
-    } else if (ch === ',' && !inQuotes) {
-      cols++;
-    }
-  }
-  return cols;
-}
-
-// ── JSON path helpers ──────────────────────────────────────
-
-/** Parse a simple JSON path like $.foo.bar[0].baz into segments. */
-function parsePath(path: string): (string | number)[] {
-  const segments: (string | number)[] = [];
-  // Strip leading $. if present
-  const normalized = path.startsWith('$.') ? path.slice(2) : path.startsWith('$') ? path.slice(1) : path;
-  if (!normalized) return segments;
-
-  const parts = normalized.split(/\.|\[|\]/).filter(Boolean);
-  for (const part of parts) {
-    const num = parseInt(part, 10);
-    if (!isNaN(num) && String(num) === part) {
-      segments.push(num);
-    } else {
-      segments.push(part);
-    }
-  }
-  return segments;
-}
-
-/** Get a value at a parsed path. */
-function getByPath(obj: unknown, path: string): unknown {
-  const segments = parsePath(path);
-  let current: unknown = obj;
-  for (const seg of segments) {
-    if (current === null || current === undefined || typeof current !== 'object') {
-      throw new Error(`Path ${path}: cannot traverse into ${typeof current}`);
-    }
-    current = (current as Record<string, unknown>)[String(seg)];
-  }
-  return current;
-}
-
-/** Set a value at a parsed path. */
-function setByPath(obj: unknown, path: string, value: unknown): void {
-  const segments = parsePath(path);
-  if (segments.length === 0) throw new Error('Cannot set at root path');
-
-  let current: unknown = obj;
-  for (let i = 0; i < segments.length - 1; i++) {
-    if (current === null || current === undefined || typeof current !== 'object') {
-      throw new Error(`Path ${path}: cannot traverse into ${typeof current} at segment ${segments[i]}`);
-    }
-    current = (current as Record<string, unknown>)[String(segments[i])];
-  }
-
-  if (current === null || current === undefined || typeof current !== 'object') {
-    throw new Error(`Path ${path}: parent is not an object`);
-  }
-
-  (current as Record<string, unknown>)[String(segments[segments.length - 1])] = value;
-}
-
-/** Delete a key or array element at a parsed path. */
-function deleteByPath(obj: unknown, path: string): void {
-  const segments = parsePath(path);
-  if (segments.length === 0) throw new Error('Cannot delete root');
-
-  let current: unknown = obj;
-  for (let i = 0; i < segments.length - 1; i++) {
-    if (current === null || current === undefined || typeof current !== 'object') {
-      throw new Error(`Path ${path}: cannot traverse into ${typeof current} at segment ${segments[i]}`);
-    }
-    current = (current as Record<string, unknown>)[String(segments[i])];
-  }
-
-  if (current === null || current === undefined || typeof current !== 'object') {
-    throw new Error(`Path ${path}: parent is not an object`);
-  }
-
-  const lastSeg = segments[segments.length - 1];
-  if (Array.isArray(current) && typeof lastSeg === 'number') {
-    current.splice(lastSeg, 1);
-  } else {
-    delete (current as Record<string, unknown>)[String(lastSeg)];
-  }
-}
+// Validation: ./validate.ts | JSON path: ./json-path.ts

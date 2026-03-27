@@ -135,15 +135,16 @@ async function stripBase64Images(
   for (let i = 0; i < matches.length; i++) {
     const { full, alt, mimeType, data } = matches[i];
     const ext = mimeType.split('/')[1] ?? 'png';
-    const filename = `image-${i + 1}.${ext}`;
+    const shortId = scratchpadId.replace('sp-', '');
+    const filename = `${shortId}-image-${i + 1}.${ext}`;
 
     // Decode and write to workspace
     const buffer = Buffer.from(data.replace(/\s/g, ''), 'base64');
     const filePath = resolveWorkspacePath(filename);
     await fs.writeFile(filePath, buffer);
 
-    // Register in side-table with real size and location
-    scratchpads.attach(scratchpadId, {
+    // Register in side-table — use returned refId to avoid mismatch
+    const attachResult = scratchpads.attach(scratchpadId, {
       source: 'import',
       filename,
       mimeType,
@@ -151,7 +152,7 @@ async function stripBase64Images(
       location: filePath,
     });
 
-    const refId = `att-${i + 1}`;
+    const refId = attachResult?.refId ?? `att-${i + 1}`;
     cleaned = cleaned.replace(full, `![${alt}](att:${refId} "${filename}, ${formatBytes(buffer.length)}, from import")`);
   }
 

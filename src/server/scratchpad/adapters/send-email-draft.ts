@@ -31,9 +31,11 @@ export async function sendEmailDraft(
   }
 
   // Build raw RFC 2822 message for drafts.create
+  // Strip CRLF to prevent header injection
+  const sanitize = (s: string) => s.replace(/[\r\n]/g, '');
   const headers: string[] = [];
-  if (to) headers.push(`To: ${to}`);
-  if (subject) headers.push(`Subject: ${subject}`);
+  if (to) headers.push(`To: ${sanitize(to)}`);
+  if (subject) headers.push(`Subject: ${sanitize(subject)}`);
   headers.push('Content-Type: text/plain; charset=utf-8');
   headers.push('');
   headers.push(content);
