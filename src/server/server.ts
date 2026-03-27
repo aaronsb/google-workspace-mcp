@@ -87,9 +87,13 @@ export function createServer(): Server {
       log(`call: ${name} ${JSON.stringify(args ?? {}).slice(0, 200)}`);
       const result = await handleToolCall(name, (args ?? {}) as Record<string, unknown>);
       log(`done: ${name}`);
-      return {
-        content: [{ type: 'text', text: result.text }],
-      };
+      const content: Array<Record<string, unknown>> = [{ type: 'text', text: result.text }];
+      if (result.content) {
+        for (const block of result.content) {
+          content.push({ type: block.type, data: block.data, mimeType: block.mimeType });
+        }
+      }
+      return { content };
     } catch (err) {
       if (err instanceof GwsError) {
         // Append auth remediation guidance for auth errors

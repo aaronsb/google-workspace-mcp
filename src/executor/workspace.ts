@@ -111,7 +111,7 @@ export async function ensureWorkspaceDir(): Promise<WorkspaceStatus> {
 }
 
 /**
- * Sanitize a filename from external sources (email attachments, Drive metadata).
+ * Sanitize a single filename segment (no path separators).
  * Strips null bytes, control characters, path separators, and other dangerous chars.
  */
 export function sanitizeFilename(filename: string): string {
@@ -133,12 +133,34 @@ export function sanitizeFilename(filename: string): string {
 }
 
 /**
+ * Sanitize a path that may contain directory separators.
+ * Each segment is sanitized individually; empty and traversal segments are rejected.
+ */
+export function sanitizePath(inputPath: string): string {
+  // Normalize separators to forward slash, then split
+  const segments = inputPath.replace(/\\/g, '/').split('/').filter(Boolean);
+
+  if (segments.length === 0) return 'unnamed';
+
+  const sanitized = segments.map(segment => {
+    // Reject traversal segments before sanitization
+    if (segment === '..' || segment === '.') {
+      throw new Error(`Path traversal segment rejected: "${segment}"`);
+    }
+    return sanitizeFilename(segment);
+  });
+
+  return sanitized.join(path.sep);
+}
+
+/**
  * Resolve a file path within the workspace directory.
- * Prevents path traversal (e.g. ../../etc/passwd) and sanitizes the filename.
+ * Supports nested paths (e.g. "reports/q1/summary.csv").
+ * Prevents path traversal and sanitizes each path segment.
  */
 export function resolveWorkspacePath(filename: string): string {
   const dir = getWorkspaceDir();
-  const sanitized = sanitizeFilename(filename);
+  const sanitized = sanitizePath(filename);
   const resolved = path.resolve(dir, sanitized);
 
   // Ensure the resolved path is still inside the workspace

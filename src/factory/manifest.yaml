@@ -195,6 +195,22 @@ services:
         defaults:
           userId: me
 
+      viewAttachment:
+        type: detail
+        description: "view an image attachment inline without saving to workspace (png, jpg, gif, webp). Use for quick preview — use getAttachment to save."
+        resource: users.messages.attachments.get
+        params:
+          messageId:
+            type: string
+            description: "Message ID containing the attachment"
+            required: true
+          filename:
+            type: string
+            description: "Image filename from the read response"
+            required: true
+        defaults:
+          userId: me
+
       modify:
         type: action
         description: "add or remove labels on a message (e.g. archive, mark read/unread)"
@@ -475,6 +491,16 @@ services:
         cli_args:
           name: "--name"
           parentFolderId: "--parent"
+
+      viewImage:
+        type: detail
+        description: "view an image file inline without saving to workspace (png, jpg, gif, webp). Use for quick preview — use download to save."
+        resource: files.get
+        params:
+          fileId:
+            type: string
+            description: "File ID of the image to view"
+            required: true
 
       download:
         type: detail

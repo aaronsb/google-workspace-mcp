@@ -3,14 +3,59 @@
  *
  * The workspace is the exchange point between the MCP server and the agent.
  * Files saved by getAttachment, download, and export land here. The agent
- * can also read, write, and manage files directly.
+ * can also read, write, and manage files directly — including nested directories.
  */
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety, getWorkspaceDir } from '../../executor/workspace.js';
-import { isTextFile } from '../../executor/file-output.js';
+import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety, getWorkspaceDir, sanitizePath } from '../../executor/workspace.js';
+import { isTextFile, buildImageBlockFromFile } from '../../executor/file-output.js';
 import type { HandlerResponse } from '../formatting/markdown.js';
+
+/** Recursively list files under a directory, returning relative paths. Skips symlinks that escape the workspace. */
+async function listRecursive(root: string, subdir: string = ''): Promise<{ relativePath: string; size: number; isDir: boolean }[]> {
+  const entries: { relativePath: string; size: number; isDir: boolean }[] = [];
+  const dirPath = subdir ? path.join(root, subdir) : root;
+  const resolvedRoot = path.resolve(root);
+
+  let dirents: import('node:fs').Dirent[];
+  try {
+    dirents = await fs.readdir(dirPath, { withFileTypes: true });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return entries;
+    throw err;
+  }
+
+  for (const dirent of dirents) {
+    const rel = subdir ? path.join(subdir, dirent.name) : dirent.name;
+    const fullPath = path.join(root, rel);
+
+    // Verify symlinks don't escape the workspace
+    try {
+      const real = await fs.realpath(fullPath);
+      if (!real.startsWith(resolvedRoot + path.sep) && real !== resolvedRoot) continue;
+    } catch {
+      continue; // Skip broken symlinks
+    }
+
+    if (dirent.isDirectory()) {
+      entries.push({ relativePath: rel, size: 0, isDir: true });
+      const children = await listRecursive(root, rel);
+      entries.push(...children);
+    } else {
+      const stat = await fs.stat(fullPath);
+      entries.push({ relativePath: rel, size: stat.size, isDir: false });
+    }
+  }
+
+  return entries;
+}
+
+/** Format a size value for display. */
+function formatSize(size: number): string {
+  if (size < 1024) return `${size} B`;
+  return `${(size / 1024).toFixed(1)} KB`;
+}
 
 export async function handleWorkspace(params: Record<string, unknown>): Promise<HandlerResponse> {
   const operation = params.operation as string;
@@ -23,32 +68,48 @@ export async function handleWorkspace(params: Record<string, unknown>): Promise<
       }
 
       const dir = getWorkspaceDir();
-      let files: string[];
-      try {
-        files = await fs.readdir(dir);
-      } catch {
-        files = [];
+
+      // Optional subdirectory scope
+      let listRoot = dir;
+      if (params.path) {
+        const subPath = sanitizePath(String(params.path));
+        listRoot = path.join(dir, subPath);
+        await verifyPathSafety(listRoot);
       }
 
-      if (files.length === 0) {
+      const entries = await listRecursive(listRoot);
+
+      if (entries.length === 0) {
+        const label = listRoot === dir ? 'Workspace' : `${path.relative(dir, listRoot)}/`;
         return {
-          text: `## Workspace (empty)\n\n**Path:** ${dir}`,
-          refs: { count: 0, path: dir },
+          text: `## ${label} (empty)\n\n**Path:** ${listRoot}`,
+          refs: { count: 0, path: listRoot },
         };
       }
 
-      const entries = await Promise.all(files.map(async (name) => {
-        const filePath = path.join(dir, name);
-        const stat = await fs.stat(filePath);
-        const size = stat.isDirectory() ? 'dir' :
-          stat.size < 1024 ? `${stat.size} B` :
-          `${(stat.size / 1024).toFixed(1)} KB`;
-        return `${name} (${size})`;
-      }));
+      const lines = entries.map(e => {
+        const indent = '  '.repeat(e.relativePath.split(path.sep).length - 1);
+        const label = path.basename(e.relativePath);
+        const suffix = e.isDir ? '/' : ` (${formatSize(e.size)})`;
+        return `${indent}- ${label}${suffix}`;
+      });
+
+      const fileCount = entries.filter(e => !e.isDir).length;
+      const dirCount = entries.filter(e => e.isDir).length;
+      const summary = [
+        `${fileCount} file${fileCount !== 1 ? 's' : ''}`,
+        ...(dirCount > 0 ? [`${dirCount} director${dirCount !== 1 ? 'ies' : 'y'}`] : []),
+      ].join(', ');
 
       return {
-        text: `## Workspace (${files.length} files)\n\n**Path:** ${dir}\n\n${entries.map((e, i) => `${i + 1}. ${e}`).join('\n')}`,
-        refs: { count: files.length, path: dir, files },
+        text: `## Workspace (${summary})\n\n**Path:** ${listRoot}\n\n${lines.join('\n')}`,
+        refs: {
+          count: entries.length,
+          files: fileCount,
+          directories: dirCount,
+          path: listRoot,
+          entries: entries.map(e => e.relativePath),
+        },
       };
     }
 
@@ -59,6 +120,16 @@ export async function handleWorkspace(params: Record<string, unknown>): Promise<
       const filePath = resolveWorkspacePath(filename);
       await verifyPathSafety(filePath);
       const stat = await fs.stat(filePath);
+
+      // Try image block first (up to 5MB)
+      const imageBlock = await buildImageBlockFromFile(filePath, filename);
+      if (imageBlock) {
+        return {
+          text: `## ${filename}\n\n**Path:** ${filePath}\n**Size:** ${stat.size} bytes\n\n_Image included inline below._`,
+          refs: { filename, path: filePath, size: stat.size },
+          content: [imageBlock],
+        };
+      }
 
       if (stat.size > 100_000) {
         return {
@@ -112,11 +183,94 @@ export async function handleWorkspace(params: Record<string, unknown>): Promise<
 
       const filePath = resolveWorkspacePath(filename);
       await verifyPathSafety(filePath);
+
+      // Prevent deleting the workspace root itself
+      const wsRoot = path.resolve(getWorkspaceDir());
+      if (path.resolve(filePath) === wsRoot) {
+        throw new Error('Cannot delete the workspace root directory');
+      }
+
+      const stat = await fs.lstat(filePath);
+
+      // If it's a symlink, just unlink it (don't follow)
+      if (stat.isSymbolicLink()) {
+        await fs.unlink(filePath);
+        return {
+          text: `Symlink deleted: **${filename}**`,
+          refs: { filename, status: 'deleted', type: 'symlink' },
+        };
+      }
+
+      if (stat.isDirectory()) {
+        // Verify no symlinks inside escape the workspace before recursive delete
+        const resolvedRoot = path.resolve(getWorkspaceDir());
+        async function verifyTreeSafety(dir: string): Promise<void> {
+          const entries = await fs.readdir(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const entryPath = path.join(dir, entry.name);
+            const real = await fs.realpath(entryPath);
+            if (!real.startsWith(resolvedRoot + path.sep) && real !== resolvedRoot) {
+              throw new Error(`Cannot delete: "${entry.name}" links outside workspace`);
+            }
+            if (entry.isDirectory() && !entry.isSymbolicLink()) {
+              await verifyTreeSafety(entryPath);
+            }
+          }
+        }
+        await verifyTreeSafety(filePath);
+
+        await fs.rm(filePath, { recursive: true });
+        return {
+          text: `Directory deleted: **${filename}/**`,
+          refs: { filename, status: 'deleted', type: 'directory' },
+        };
+      }
+
       await fs.unlink(filePath);
 
       return {
         text: `File deleted: **${filename}**`,
-        refs: { filename, status: 'deleted' },
+        refs: { filename, status: 'deleted', type: 'file' },
+      };
+    }
+
+    case 'move': {
+      const source = params.source as string;
+      const destination = params.destination as string;
+      if (!source) throw new Error('source is required');
+      if (!destination) throw new Error('destination is required');
+
+      const srcPath = resolveWorkspacePath(source);
+      const destPath = resolveWorkspacePath(destination);
+      await verifyPathSafety(srcPath);
+      await verifyPathSafety(destPath);
+
+      // Ensure destination parent exists
+      await fs.mkdir(path.dirname(destPath), { recursive: true });
+      await fs.rename(srcPath, destPath);
+
+      return {
+        text: `Moved: **${source}** → **${destination}**\n\n**Path:** ${destPath}`,
+        refs: { source, destination, path: destPath },
+      };
+    }
+
+    case 'mkdir': {
+      const dirName = (params.path as string) || (params.filename as string);
+      if (!dirName) throw new Error('path is required');
+
+      const wsStatus = await ensureWorkspaceDir();
+      if (!wsStatus.valid) {
+        throw new Error(`Workspace invalid: ${wsStatus.warning}`);
+      }
+
+      const dirPath = resolveWorkspacePath(dirName);
+      await verifyPathSafety(dirPath);
+      await fs.mkdir(dirPath, { recursive: true, mode: 0o755 });
+
+      return {
+        text: `Directory created: **${dirName}/**\n\n**Path:** ${dirPath}`,
+        refs: { path: dirPath, name: dirName },
       };
     }
 

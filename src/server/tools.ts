@@ -37,17 +37,20 @@ const handCodedSchemas: ToolSchema[] = [
   },
   {
     name: 'manage_workspace',
-    description: 'Read, write, list, or delete files in the workspace directory. The workspace is the exchange point for file operations (attachments, downloads, exports).',
+    description: 'Manage files and directories in the workspace sandbox. Supports nested paths (e.g. "reports/q1/summary.csv"). The workspace is the exchange point for file operations (attachments, downloads, exports).',
     inputSchema: {
       type: 'object',
       properties: {
         operation: {
           type: 'string',
-          enum: ['list', 'read', 'write', 'delete'],
-          description: 'list: show files in workspace | read: get file content | write: save content to file | delete: remove a file',
+          enum: ['list', 'read', 'write', 'delete', 'move', 'mkdir'],
+          description: 'list: show files (recursive) | read: get file content | write: save content to file | delete: remove file or directory | move: move or rename a file/directory | mkdir: create a directory',
         },
-        filename: { type: 'string', description: 'File name (for read, write, delete)' },
+        filename: { type: 'string', description: 'File path, may include directories (for read, write, delete). E.g. "reports/q1/summary.csv"' },
         content: { type: 'string', description: 'File content to write (for write)' },
+        path: { type: 'string', description: 'Directory path (for list: scope to subdirectory, for mkdir: directory to create)' },
+        source: { type: 'string', description: 'Source path (for move)' },
+        destination: { type: 'string', description: 'Destination path (for move). Also used for rename.' },
       },
       required: ['operation'],
       additionalProperties: false,
@@ -113,7 +116,7 @@ const handCodedSchemas: ToolSchema[] = [
             properties: {
               tool: {
                 type: 'string',
-                enum: ['manage_email', 'manage_calendar', 'manage_drive', 'manage_accounts', 'manage_scratchpad'],
+                enum: ['manage_email', 'manage_calendar', 'manage_drive', 'manage_accounts', 'manage_scratchpad', 'manage_workspace'],
                 description: 'Tool to call',
               },
               args: {

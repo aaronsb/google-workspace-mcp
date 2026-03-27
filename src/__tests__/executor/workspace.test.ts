@@ -1,4 +1,4 @@
-import { validateWorkspaceDir, resolveWorkspacePath, getWorkspaceDir, checkWorkspaceStatus } from '../../executor/workspace.js';
+import { validateWorkspaceDir, resolveWorkspacePath, getWorkspaceDir, checkWorkspaceStatus, sanitizePath } from '../../executor/workspace.js';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
@@ -44,6 +44,45 @@ describe('validateWorkspaceDir', () => {
   });
 });
 
+describe('sanitizePath', () => {
+  it('preserves directory separators', () => {
+    expect(sanitizePath('reports/q1/summary.csv')).toBe(path.join('reports', 'q1', 'summary.csv'));
+  });
+
+  it('sanitizes each segment individually', () => {
+    expect(sanitizePath('reports/<bad>/file.txt')).toBe(path.join('reports', '_bad_', 'file.txt'));
+  });
+
+  it('rejects .. traversal segments', () => {
+    expect(() => sanitizePath('../etc/passwd')).toThrow(/traversal/);
+    expect(() => sanitizePath('reports/../../etc/passwd')).toThrow(/traversal/);
+  });
+
+  it('rejects . segments', () => {
+    expect(() => sanitizePath('./file.txt')).toThrow(/traversal/);
+  });
+
+  it('handles empty input', () => {
+    expect(sanitizePath('')).toBe('unnamed');
+  });
+
+  it('collapses empty segments from double slashes', () => {
+    expect(sanitizePath('reports//q1///file.txt')).toBe(path.join('reports', 'q1', 'file.txt'));
+  });
+
+  it('normalizes backslashes', () => {
+    expect(sanitizePath('reports\\q1\\file.txt')).toBe(path.join('reports', 'q1', 'file.txt'));
+  });
+
+  it('strips leading dots from segments', () => {
+    expect(sanitizePath('.hidden/file.txt')).toBe(path.join('hidden', 'file.txt'));
+  });
+
+  it('handles single filename (no separators)', () => {
+    expect(sanitizePath('report.csv')).toBe('report.csv');
+  });
+});
+
 describe('resolveWorkspacePath', () => {
   const origEnv = process.env.WORKSPACE_DIR;
 
@@ -64,22 +103,18 @@ describe('resolveWorkspacePath', () => {
     expect(resolved).toBe('/tmp/test-workspace/report.csv');
   });
 
-  it('resolves filename within workspace (sanitized)', () => {
-    // Slashes in filenames get sanitized to underscores
-    const resolved = resolveWorkspacePath('report.csv');
-    expect(resolved).toBe('/tmp/test-workspace/report.csv');
+  it('resolves nested path within workspace', () => {
+    const resolved = resolveWorkspacePath('reports/q1/summary.csv');
+    expect(resolved).toBe('/tmp/test-workspace/reports/q1/summary.csv');
   });
 
-  it('sanitizes path separators in filenames', () => {
-    // Path separators become underscores — no directory traversal
-    const resolved = resolveWorkspacePath('../../etc/passwd');
-    // Leading dots stripped, slashes become underscores
-    expect(resolved).toBe('/tmp/test-workspace/_.._etc_passwd');
+  it('rejects path traversal via ..', () => {
+    expect(() => resolveWorkspacePath('../../etc/passwd')).toThrow(/traversal/);
   });
 
-  it('sanitizes absolute paths', () => {
-    const resolved = resolveWorkspacePath('/etc/passwd');
-    expect(resolved).toBe('/tmp/test-workspace/_etc_passwd');
+  it('sanitizes dangerous characters in path segments', () => {
+    const resolved = resolveWorkspacePath('reports/<bad>/file.txt');
+    expect(resolved).toBe('/tmp/test-workspace/reports/_bad_/file.txt');
   });
 
   it('sanitizes null bytes and control characters', () => {
