@@ -188,6 +188,7 @@ export async function handleWorkspace(params: Record<string, unknown>): Promise<
       const srcPath = resolveWorkspacePath(source);
       const destPath = resolveWorkspacePath(destination);
       await verifyPathSafety(srcPath);
+      await verifyPathSafety(destPath);
 
       // Ensure destination parent exists
       await fs.mkdir(path.dirname(destPath), { recursive: true });
