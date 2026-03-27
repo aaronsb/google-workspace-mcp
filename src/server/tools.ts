@@ -43,14 +43,14 @@ const handCodedSchemas: ToolSchema[] = [
       properties: {
         operation: {
           type: 'string',
-          enum: ['list', 'read', 'write', 'delete', 'move', 'mkdir'],
-          description: 'list: show files (recursive) | read: get file content | write: save content to file | delete: remove file or directory | move: move or rename a file/directory | mkdir: create a directory',
+          enum: ['list', 'read', 'write', 'delete', 'move', 'mkdir', 'compress', 'decompress'],
+          description: 'list: show files (recursive) | read: get file content | write: save content to file | delete: remove file or directory | move: move or rename a file/directory | mkdir: create a directory | compress: gzip a file | decompress: gunzip a file',
         },
-        filename: { type: 'string', description: 'File path, may include directories (for read, write, delete). E.g. "reports/q1/summary.csv"' },
+        filename: { type: 'string', description: 'File path, may include directories (for read, write, delete, compress, decompress). E.g. "reports/q1/summary.csv"' },
         content: { type: 'string', description: 'File content to write (for write)' },
         path: { type: 'string', description: 'Directory path (for list: scope to subdirectory, for mkdir: directory to create)' },
         source: { type: 'string', description: 'Source path (for move)' },
-        destination: { type: 'string', description: 'Destination path (for move). Also used for rename.' },
+        destination: { type: 'string', description: 'Destination path (for move, compress, decompress). Defaults to filename.gz for compress, strips .gz for decompress.' },
       },
       required: ['operation'],
       additionalProperties: false,
