@@ -37,10 +37,10 @@ export async function sendDocCreate(
   }
 
   try {
-    // Step 1: Create empty doc
+    // Step 1: Create empty doc (title goes in --json request body)
     const createResult = await execute([
       'docs', 'documents', 'create',
-      '--params', JSON.stringify({ requestBody: { title } }),
+      '--json', JSON.stringify({ title }),
     ], { account: email });
 
     const doc = createResult.data as Record<string, unknown>;
