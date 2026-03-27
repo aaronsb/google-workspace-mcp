@@ -1,5 +1,11 @@
+// Mock handler.js to avoid loading registry.ts (which uses import.meta.url)
+jest.mock('../../server/handler.js', () => ({
+  advanceEpoch: jest.fn(() => 1),
+  getEpoch: jest.fn(() => 1),
+}));
+
 import { handleQueue } from '../../server/queue.js';
-import type { HandlerResponse } from '../../server/handler.js';
+import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
 type ToolHandler = (p: Record<string, unknown>) => Promise<HandlerResponse>;
 
