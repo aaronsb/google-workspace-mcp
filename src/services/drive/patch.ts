@@ -14,7 +14,7 @@ import { execute } from '../../executor/gws.js';
 import { formatFileList, formatFileDetail } from '../../server/formatting/markdown.js';
 import { nextSteps } from '../../server/formatting/next-steps.js';
 import { requireString } from '../../server/handlers/validate.js';
-import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
+import { ensureWorkspaceDir, getWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
 import { isTextFile, formatFileOutput, buildImageBlock, buildImageBlockFromFile, isImageFile, getImageMimeType, type FileOutputResult } from '../../executor/file-output.js';
 import type { ServicePatch } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
@@ -76,11 +76,12 @@ export const drivePatch: ServicePatch = {
       await verifyPathSafety(outputPath);
 
       // Download directly to disk via --output (preserves binary integrity)
+      // cwd must match workspace so gws directory-fence accepts the output path
       await execute([
         'drive', 'files', 'get',
         '--params', JSON.stringify({ fileId, alt: 'media' }),
         '--output', outputPath,
-      ], { account });
+      ], { account, cwd: getWorkspaceDir() });
 
       const output = await readWorkspaceFile(outputPath, filename, mimeType);
 
@@ -121,7 +122,7 @@ export const drivePatch: ServicePatch = {
           'drive', 'files', 'get',
           '--params', JSON.stringify({ fileId, alt: 'media' }),
           '--output', tmpPath,
-        ], { account });
+        ], { account, cwd: path.dirname(tmpPath) });
 
         const buffer = await fs.readFile(tmpPath);
         const imageBlock = buildImageBlock(buffer, filename, mimeType);
@@ -171,11 +172,12 @@ export const drivePatch: ServicePatch = {
       await verifyPathSafety(outputPath);
 
       // Export directly to disk via --output (preserves binary integrity)
+      // cwd must match workspace so gws directory-fence accepts the output path
       await execute([
         'drive', 'files', 'export',
         '--params', JSON.stringify({ fileId, mimeType }),
         '--output', outputPath,
-      ], { account });
+      ], { account, cwd: getWorkspaceDir() });
 
       const output = await readWorkspaceFile(outputPath, filename, mimeType);
 
