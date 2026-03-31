@@ -55,22 +55,6 @@ export async function handleDrive(params: Record<string, unknown>): Promise<Hand
       };
     }
 
-    case 'download': {
-      const fileId = requireString(params, 'fileId');
-      const args = [
-        'drive', 'files', 'get',
-        '--params', JSON.stringify({ fileId, alt: 'media' }),
-      ];
-      if (params.outputPath) args.push('--output', String(params.outputPath));
-      await execute(args, { account: email });
-      return {
-        text: `File downloaded: ${fileId}` +
-          (params.outputPath ? ` → ${params.outputPath}` : '') +
-          nextSteps('drive', 'download', { email }),
-        refs: { fileId, status: 'downloaded' },
-      };
-    }
-
     default:
       throw new Error(`Unknown drive operation: ${operation}`);
   }
