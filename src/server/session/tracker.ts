@@ -2,11 +2,18 @@
  * Session tracker — per-account in-memory state for ambient context.
  *
  * Captures baseline workspace counters on first use per account,
- * refreshes on every tool call (fire-and-forget), and exposes
- * current deltas for context injection.
+ * refreshes periodically via fire-and-forget, and exposes current
+ * deltas for context injection.
+ *
+ * Refresh is gated by epoch distance — only polls Google APIs when
+ * at least REFRESH_EPOCH_INTERVAL tool calls have elapsed since the
+ * last refresh, keeping API usage bounded.
  */
 
 import { execute } from '../../executor/gws.js';
+
+/** Minimum epoch distance between refresh polls per account. */
+const REFRESH_EPOCH_INTERVAL = 10;
 
 export interface NextEvent {
   summary: string;
@@ -110,10 +117,11 @@ export class SessionTracker {
     }
   }
 
-  /** Fire-and-forget async refresh. Never throws. */
+  /** Fire-and-forget async refresh, gated by epoch staleness. Never throws. */
   refresh(email: string, epoch: number): void {
     const session = this.sessions.get(email);
     if (!session?.initialized) return;
+    if (epoch - session.lastRefreshedEpoch < REFRESH_EPOCH_INTERVAL) return;
     void this._doRefresh(email, epoch);
   }
 
@@ -137,6 +145,9 @@ export class SessionTracker {
         fetchTodayEmailCount(email),
         fetchNextEvent(email),
       ]);
+
+      // Guard against stale write: a newer refresh may have landed while we awaited
+      if (session.lastRefreshedEpoch > epoch) return;
 
       if (unread.status === 'fulfilled') session.currentUnreadCount = unread.value;
       if (today.status === 'fulfilled') session.currentTodayEmailCount = today.value;

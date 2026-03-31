@@ -102,7 +102,7 @@ describe('SessionTracker', () => {
           items: [{ summary: 'Lunch', start: { dateTime: '2026-03-31T12:00:00Z' } }],
         }));
 
-      tracker.refresh('user@test.com', 2);
+      tracker.refresh('user@test.com', 11); // epoch >= baseline + 10 triggers refresh
       // Wait for fire-and-forget to complete
       await new Promise(r => setTimeout(r, 50));
 
@@ -129,12 +129,27 @@ describe('SessionTracker', () => {
         .mockRejectedValueOnce(new Error('network'))
         .mockRejectedValueOnce(new Error('network'));
 
-      tracker.refresh('user@test.com', 2);
+      tracker.refresh('user@test.com', 11); // epoch >= baseline + 10 triggers refresh
       await new Promise(r => setTimeout(r, 50));
 
       const ctx = tracker.getContext('user@test.com')!;
       expect(ctx.currentUnreadCount).toBe(5);  // retained from baseline
       expect(ctx.currentTodayEmailCount).toBe(12);
+    });
+
+    it('skips refresh when epoch distance < 10', async () => {
+      mockExecute
+        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 5, messages: [] }))
+        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 12, messages: [] }))
+        .mockResolvedValueOnce(mockGwsResponse({ items: [] }));
+
+      await tracker.ensureBaseline('user@test.com', 1);
+      const callCount = mockExecute.mock.calls.length;
+
+      tracker.refresh('user@test.com', 5); // only 4 epochs since baseline
+      await new Promise(r => setTimeout(r, 50));
+
+      expect(mockExecute.mock.calls.length).toBe(callCount); // no new calls
     });
 
     it('skips refresh for uninitialized account', () => {
