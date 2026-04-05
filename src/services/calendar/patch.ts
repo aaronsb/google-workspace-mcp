@@ -93,7 +93,8 @@ export const calendarPatch: ServicePatch = {
       const summary = requireString(params, 'summary');
       const start = requireString(params, 'start');
       const end = requireString(params, 'end');
-      const args = ['calendar', '+insert', '--summary', summary, '--start', start, '--end', end];
+      const calendarId = (params.calendarId as string) || 'primary';
+      const args = ['calendar', '+insert', '--calendar', calendarId, '--summary', summary, '--start', start, '--end', end];
       if (params.description) args.push('--description', String(params.description));
       if (params.location) args.push('--location', String(params.location));
       if (params.attendees) args.push('--attendees', String(params.attendees));
@@ -111,9 +112,10 @@ export const calendarPatch: ServicePatch = {
 
     delete: async (params, account): Promise<HandlerResponse> => {
       const eventId = requireString(params, 'eventId');
+      const calendarId = (params.calendarId as string) || 'primary';
       await execute([
         'calendar', 'events', 'delete',
-        '--params', JSON.stringify({ calendarId: 'primary', eventId }),
+        '--params', JSON.stringify({ calendarId, eventId }),
       ], { account });
       return {
         text: `Event deleted: ${eventId}` + nextSteps('calendar', 'delete', { email: account }),
