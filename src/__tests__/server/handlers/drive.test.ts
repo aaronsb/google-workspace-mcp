@@ -80,10 +80,8 @@ describe('handleDrive', () => {
     });
   });
 
-  // download is handled by the factory + custom handler in drive patch,
-  // not the hand-written handler. See src/services/drive/patch.ts.
-
-  it('rejects unknown operation', async () => {
+  it('rejects unknown operation (including removed download)', async () => {
+    await expect(handleDrive({ operation: 'download', email: 'user@test.com' })).rejects.toThrow('Unknown');
     await expect(handleDrive({ operation: 'nope', email: 'user@test.com' })).rejects.toThrow('Unknown');
   });
 });

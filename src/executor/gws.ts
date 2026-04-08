@@ -14,6 +14,7 @@ export interface GwsOptions {
   account?: string;
   timeout?: number;
   format?: 'json' | 'table' | 'yaml' | 'csv';
+  /** Override the working directory for the gws process. */
   cwd?: string;
 }
 
@@ -125,7 +126,7 @@ export async function execute(args: string[], options: GwsOptions = {}): Promise
     let settled = false;
     const settle = (fn: () => void) => { if (!settled) { settled = true; fn(); } };
 
-    const proc = spawn(gwsBinary, fullArgs, { env, stdio: ['ignore', 'pipe', 'pipe'], ...(cwd ? { cwd } : {}) });
+    const proc = spawn(gwsBinary, fullArgs, { env, cwd, stdio: ['ignore', 'pipe', 'pipe'] });
 
     let stdout = '';
     let stderr = '';

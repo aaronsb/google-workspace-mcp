@@ -4,7 +4,9 @@
  * so the agent can review before sending. Without attachments, sends directly.
  */
 
+import * as path from 'node:path';
 import { execute } from '../../../executor/gws.js';
+import { getWorkspaceDir } from '../../../executor/workspace.js';
 import type { HandlerResponse } from '../../handler.js';
 import type { ScratchpadManager } from '../manager.js';
 import { nextSteps } from '../../formatting/next-steps.js';
@@ -45,14 +47,18 @@ export async function sendEmail(
     if (bcc) args.push('--bcc', bcc);
 
     // Attachments present → create draft (gws handles MIME + upload endpoint, 35MB limit)
+    // gws validates --attach paths are within cwd, so set cwd to workspace dir
+    let execOptions: { account: string; cwd?: string } = { account: email };
     if (attachmentPaths.length > 0) {
+      const wsDir = getWorkspaceDir();
       args.push('--draft');
       for (const p of attachmentPaths) {
-        args.push('--attach', p);
+        args.push('--attach', path.relative(wsDir, p));
       }
+      execOptions = { account: email, cwd: wsDir };
     }
 
-    const result = await execute(args, { account: email });
+    const result = await execute(args, execOptions);
     const data = result.data as Record<string, unknown>;
 
     if (attachmentPaths.length > 0) {

@@ -3,7 +3,9 @@
  * Uses gws +send --draft for proper MIME construction and attachment support.
  */
 
+import * as path from 'node:path';
 import { execute } from '../../../executor/gws.js';
+import { getWorkspaceDir } from '../../../executor/workspace.js';
 import type { HandlerResponse } from '../../handler.js';
 import type { ScratchpadManager } from '../manager.js';
 
@@ -44,12 +46,18 @@ export async function sendEmailDraft(
   const attachmentPaths = attachments
     ? [...attachments.values()].filter(a => a.location).map(a => a.location)
     : [];
-  for (const p of attachmentPaths) {
-    args.push('--attach', p);
+  // gws validates --attach paths are within cwd, so set cwd to workspace dir
+  let execOptions: { account: string; cwd?: string } = { account: email };
+  if (attachmentPaths.length > 0) {
+    const wsDir = getWorkspaceDir();
+    for (const p of attachmentPaths) {
+      args.push('--attach', path.relative(wsDir, p));
+    }
+    execOptions = { account: email, cwd: wsDir };
   }
 
   try {
-    const result = await execute(args, { account: email });
+    const result = await execute(args, execOptions);
     const data = result.data as Record<string, unknown>;
     const draftId = data.id ?? 'unknown';
     const attNote = attachmentPaths.length > 0

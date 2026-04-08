@@ -7,8 +7,9 @@
  * - Custom handlers: send/reply use specific response formatting
  */
 
+import * as path from 'node:path';
 import { execute } from '../../executor/gws.js';
-import { resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
+import { resolveWorkspacePath, verifyPathSafety, getWorkspaceDir } from '../../executor/workspace.js';
 import { formatEmailList, formatEmailDetail, extractBodyFromPayload } from '../../server/formatting/markdown.js';
 import { nextSteps } from '../../server/formatting/next-steps.js';
 import { requireString } from '../../server/handlers/validate.js';
@@ -161,12 +162,13 @@ function formatThreadDetail(data: unknown): HandlerResponse {
   };
 }
 
-/** Resolve workspace attachment paths safely. Returns absolute paths. */
-async function resolveAttachmentPaths(filenames: string[]): Promise<string[]> {
+/** Resolve and validate workspace attachment filenames. Returns sanitized relative names. */
+async function validateAttachments(filenames: string[]): Promise<string[]> {
   return Promise.all(filenames.map(async (name) => {
     const filePath = resolveWorkspacePath(name);
     await verifyPathSafety(filePath);
-    return filePath;
+    // Return the relative path within workspace (gws --attach uses relative paths from cwd)
+    return path.relative(getWorkspaceDir(), filePath);
   }));
 }
 
@@ -226,14 +228,17 @@ export const gmailPatch: ServicePatch = {
       if (draft || attachmentNames.length > 0) args.push('--draft');
 
       // Resolve and attach workspace files via gws --attach (uses upload endpoint, 35MB limit)
+      // gws validates that --attach paths are within cwd, so we set cwd to workspace dir
+      let execOptions: { account: string; cwd?: string } = { account };
       if (attachmentNames.length > 0) {
-        const paths = await resolveAttachmentPaths(attachmentNames);
-        for (const p of paths) {
+        const relPaths = await validateAttachments(attachmentNames);
+        for (const p of relPaths) {
           args.push('--attach', p);
         }
+        execOptions = { account, cwd: getWorkspaceDir() };
       }
 
-      const result = await execute(args, { account });
+      const result = await execute(args, execOptions);
       const data = result.data as Record<string, unknown>;
 
       const attachNote = attachmentNames.length > 0
