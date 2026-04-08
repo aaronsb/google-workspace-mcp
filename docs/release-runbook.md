@@ -20,7 +20,10 @@ Both trigger on `push: tags: ['v*']`.
 ```bash
 git checkout main && git pull
 make check          # types + all tests must pass
+make coverage       # review gws CLI coverage gaps (advisory, non-blocking)
 ```
+
+The coverage report shows what the manifest exposes vs the full gws CLI surface. Review parameter gaps on covered operations — missing params like `supportsAllDrives` can cause user-facing issues. Run `make coverage-update` after adding new operations to refresh the baseline.
 
 ### 2. Bump version
 

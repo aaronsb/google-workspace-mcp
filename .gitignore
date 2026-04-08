@@ -33,8 +33,9 @@ Thumbs.db
 logs/
 *.log
 
-# Test coverage
+# Test coverage (jest output, not src/coverage/)
 coverage/
+!src/coverage/
 commit-message.txt
 discovered-manifest.yaml
 
