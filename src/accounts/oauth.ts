@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { randomBytes } from 'node:crypto';
-import { execFile } from 'node:child_process';
+import { exec, execFile } from 'node:child_process';
 import { platform } from 'node:os';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/auth';
@@ -224,10 +224,19 @@ function buildAuthUrl(
 }
 
 export function openBrowser(url: string): void {
-  const cmd = platform() === 'darwin' ? 'open'
-            : platform() === 'win32' ? 'start'
-            : 'xdg-open';
-  execFile(cmd, [url], (err) => {
-    if (err) process.stderr.write(`[gws-mcp] Failed to open browser: ${err.message}\n`);
-  });
+  const onError = (err: Error | null) => {
+    if (!err) return;
+    process.stderr.write(`[gws-mcp] Failed to open browser: ${err.message}\n`);
+    process.stderr.write(`[gws-mcp] Open this URL manually:\n${url}\n`);
+  };
+
+  if (platform() === 'win32') {
+    // 'start' is a cmd.exe built-in, not a standalone executable —
+    // must invoke via cmd /c. The empty "" is the window title argument
+    // that start requires before a quoted URL.
+    exec(`cmd /c start "" "${url}"`, onError);
+  } else {
+    const cmd = platform() === 'darwin' ? 'open' : 'xdg-open';
+    execFile(cmd, [url], onError);
+  }
 }
