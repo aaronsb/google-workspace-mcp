@@ -63,7 +63,7 @@ export const drivePatch: ServicePatch = {
       // Get file metadata for filename and mime type
       const metaResult = await execute([
         'drive', 'files', 'get',
-        '--params', JSON.stringify({ fileId, fields: 'name,mimeType' }),
+        '--params', JSON.stringify({ fileId, fields: 'name,mimeType', supportsAllDrives: true }),
       ], { account });
       const meta = metaResult.data as Record<string, unknown>;
       const filename = String(params.outputPath || meta.name || `file-${fileId}`);
@@ -79,7 +79,7 @@ export const drivePatch: ServicePatch = {
       // cwd must match workspace so gws directory-fence accepts the output path
       await execute([
         'drive', 'files', 'get',
-        '--params', JSON.stringify({ fileId, alt: 'media' }),
+        '--params', JSON.stringify({ fileId, alt: 'media', supportsAllDrives: true }),
         '--output', outputPath,
       ], { account, cwd: getWorkspaceDir() });
 
@@ -104,7 +104,7 @@ export const drivePatch: ServicePatch = {
       // Get file metadata
       const metaResult = await execute([
         'drive', 'files', 'get',
-        '--params', JSON.stringify({ fileId, fields: 'name,mimeType,size' }),
+        '--params', JSON.stringify({ fileId, fields: 'name,mimeType,size', supportsAllDrives: true }),
       ], { account });
       const meta = metaResult.data as Record<string, unknown>;
       const filename = String(meta.name || `image-${fileId}`);
@@ -120,7 +120,7 @@ export const drivePatch: ServicePatch = {
       try {
         await execute([
           'drive', 'files', 'get',
-          '--params', JSON.stringify({ fileId, alt: 'media' }),
+          '--params', JSON.stringify({ fileId, alt: 'media', supportsAllDrives: true }),
           '--output', tmpPath,
         ], { account, cwd: path.dirname(tmpPath) });
 
@@ -159,7 +159,7 @@ export const drivePatch: ServicePatch = {
       // Get source file name
       const metaResult = await execute([
         'drive', 'files', 'get',
-        '--params', JSON.stringify({ fileId, fields: 'name' }),
+        '--params', JSON.stringify({ fileId, fields: 'name', supportsAllDrives: true }),
       ], { account });
       const meta = metaResult.data as Record<string, unknown>;
       const baseName = String(meta.name || `export-${fileId}`).replace(/\.[^.]+$/, '');
@@ -175,7 +175,7 @@ export const drivePatch: ServicePatch = {
       // cwd must match workspace so gws directory-fence accepts the output path
       await execute([
         'drive', 'files', 'export',
-        '--params', JSON.stringify({ fileId, mimeType }),
+        '--params', JSON.stringify({ fileId, mimeType, supportsAllDrives: true }),
         '--output', outputPath,
       ], { account, cwd: getWorkspaceDir() });
 
