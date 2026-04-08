@@ -1,6 +1,7 @@
 .DEFAULT_GOAL := help
 .PHONY: help test test-all test-unit test-integration build clean typecheck \
         manifest-discover manifest-diff manifest-lint \
+        coverage coverage-update \
         mcpb mcpb-all version-sync publish-all \
         release-patch release-minor release-major check
 
@@ -65,6 +66,14 @@ manifest-lint: ## Validate manifest YAML syntax and structure
 		} \
 		console.log('  Total: ' + ops + ' operations across ' + Object.keys(m.services).length + ' services'); \
 	"
+
+# --- Coverage analysis ---
+
+coverage: build ## Analyze gws CLI coverage vs curated manifest
+	node build/coverage/analyze.js
+
+coverage-update: build ## Update coverage baseline from current gws surface
+	node build/coverage/analyze.js --update
 
 # --- MCPB packaging ---
 
