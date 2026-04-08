@@ -13,7 +13,7 @@ import { ELIGIBLE_SERVICES, SKIP_PARAMS } from './types.js';
 function buildCoveredPaths(manifest: Manifest): Map<string, { service: string; opName: string; params: Set<string> }> {
   const covered = new Map<string, { service: string; opName: string; params: Set<string> }>();
 
-  for (const [serviceName, serviceDef] of Object.entries(manifest.services)) {
+  for (const [_serviceName, serviceDef] of Object.entries(manifest.services)) {
     for (const [opName, opDef] of Object.entries(serviceDef.operations)) {
       const path = opDef.resource || opDef.helper;
       if (!path) continue;

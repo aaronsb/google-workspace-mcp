@@ -206,7 +206,7 @@ export async function handleWorkspace(params: Record<string, unknown>): Promise<
       if (stat.isDirectory()) {
         // Verify no symlinks inside escape the workspace before recursive delete
         const resolvedRoot = path.resolve(getWorkspaceDir());
-        async function verifyTreeSafety(dir: string): Promise<void> {
+        const verifyTreeSafety = async (dir: string): Promise<void> => {
           const entries = await fs.readdir(dir, { withFileTypes: true });
           for (const entry of entries) {
             const entryPath = path.join(dir, entry.name);
@@ -218,7 +218,7 @@ export async function handleWorkspace(params: Record<string, unknown>): Promise<
               await verifyTreeSafety(entryPath);
             }
           }
-        }
+        };
         await verifyTreeSafety(filePath);
 
         await fs.rm(filePath, { recursive: true });

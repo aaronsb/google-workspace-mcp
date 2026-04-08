@@ -5,7 +5,6 @@
 
 import { ScratchpadManager } from './manager.js';
 import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import {
   sendEmail, sendEmailDraft, sendDocCreate, sendDocWrite, sendWorkspace,
   sendSheetWrite, sendCalendarEvent, sendTaskCreate,

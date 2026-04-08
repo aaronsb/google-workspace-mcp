@@ -15,7 +15,7 @@ import { formatFileList, formatFileDetail } from '../../server/formatting/markdo
 import { nextSteps } from '../../server/formatting/next-steps.js';
 import { requireString } from '../../server/handlers/validate.js';
 import { ensureWorkspaceDir, getWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
-import { isTextFile, formatFileOutput, buildImageBlock, buildImageBlockFromFile, isImageFile, getImageMimeType, type FileOutputResult } from '../../executor/file-output.js';
+import { isTextFile, formatFileOutput, buildImageBlock, buildImageBlockFromFile, isImageFile, type FileOutputResult } from '../../executor/file-output.js';
 import type { ServicePatch } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 

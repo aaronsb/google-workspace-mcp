@@ -62,23 +62,23 @@ download_binary() {
 case "$PLATFORM" in
   darwin-arm64)
     echo "Fetching gws ${VERSION} for macOS ARM64..."
-    download_binary "gws-aarch64-apple-darwin.tar.gz" "gws"
+    download_binary "google-workspace-cli-aarch64-apple-darwin.tar.gz" "gws"
     ;;
   darwin-x64)
     echo "Fetching gws ${VERSION} for macOS x64..."
-    download_binary "gws-x86_64-apple-darwin.tar.gz" "gws"
+    download_binary "google-workspace-cli-x86_64-apple-darwin.tar.gz" "gws"
     ;;
   linux-arm64)
     echo "Fetching gws ${VERSION} for Linux ARM64..."
-    download_binary "gws-aarch64-unknown-linux-gnu.tar.gz" "gws"
+    download_binary "google-workspace-cli-aarch64-unknown-linux-gnu.tar.gz" "gws"
     ;;
   linux-x64)
     echo "Fetching gws ${VERSION} for Linux x64..."
-    download_binary "gws-x86_64-unknown-linux-gnu.tar.gz" "gws"
+    download_binary "google-workspace-cli-x86_64-unknown-linux-gnu.tar.gz" "gws"
     ;;
   windows-x64)
     echo "Fetching gws ${VERSION} for Windows x64..."
-    download_binary "gws-x86_64-pc-windows-msvc.zip" "gws.exe"
+    download_binary "google-workspace-cli-x86_64-pc-windows-msvc.zip" "gws.exe"
     ;;
   all)
     # Build all platform bundles — creates one mcpb per platform
