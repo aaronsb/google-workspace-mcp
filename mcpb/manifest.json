@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "google-workspace-mcp",
   "display_name": "Google Workspace",
-  "version": "2.5.1",
+  "version": "2.5.2",
   "description": "Give AI agents access to Gmail, Calendar, Drive, and more — with multi-account support and manifest-driven API coverage",
   "author": {
     "name": "aaronsb",
