@@ -17,7 +17,7 @@ export const docsPatch: ServicePatch = {
       const documentId = requireString(params, 'documentId');
       const text = requireString(params, 'text');
       const index = Number(params.index);
-      if (!Number.isFinite(index) || index < 1) {
+      if (!Number.isInteger(index) || index < 1) {
         throw new Error('index must be a positive integer (1 = start of document body)');
       }
 

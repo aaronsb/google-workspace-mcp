@@ -228,12 +228,17 @@ export const drivePatch: ServicePatch = {
       const commentId = requireString(params, 'commentId');
       const resolved = params.resolved !== false;
 
-      // To resolve: set content to existing + resolve action
-      // The Drive API resolves by updating with resolved=true via the comment's action
-      const body: Record<string, unknown> = {};
-      if (resolved) {
-        body.content = '';  // content is required but preserved server-side
-      }
+      // Fetch existing comment to preserve content when updating
+      const existing = await execute([
+        'drive', 'comments', 'get',
+        '--params', JSON.stringify({
+          fileId,
+          commentId,
+          fields: 'content',
+          supportsAllDrives: true,
+        }),
+      ], { account });
+      const existingData = existing.data as Record<string, unknown>;
 
       const result = await execute([
         'drive', 'comments', 'update',
@@ -243,7 +248,10 @@ export const drivePatch: ServicePatch = {
           fields: 'id, content, resolved',
           supportsAllDrives: true,
         }),
-        '--json', JSON.stringify({ ...body, resolved }),
+        '--json', JSON.stringify({
+          content: existingData.content || '',
+          resolved,
+        }),
       ], { account });
       const data = result.data as Record<string, unknown>;
       return {
