@@ -480,6 +480,8 @@ services:
             maps_to: pageSize
         defaults:
           fields: "files(id, name, mimeType, modifiedTime, size, webViewLink)"
+          supportsAllDrives: true
+          includeItemsFromAllDrives: true
 
       get:
         type: detail
@@ -492,6 +494,7 @@ services:
             required: true
         defaults:
           fields: "id, name, mimeType, modifiedTime, size, webViewLink, owners, shared, parents"
+          supportsAllDrives: true
 
       # --- File operations ---
 
@@ -523,6 +526,8 @@ services:
             type: string
             description: "File ID of the image to view"
             required: true
+        defaults:
+          supportsAllDrives: true
 
       download:
         type: detail
@@ -538,6 +543,7 @@ services:
             description: "Local path to save the file"
         defaults:
           alt: media
+          supportsAllDrives: true
 
       copy:
         type: action
@@ -551,6 +557,8 @@ services:
           name:
             type: string
             description: "Name for the copy"
+        defaults:
+          supportsAllDrives: true
 
       delete:
         type: action
@@ -561,6 +569,8 @@ services:
             type: string
             description: "File ID to delete"
             required: true
+        defaults:
+          supportsAllDrives: true
 
       export:
         type: action
@@ -578,6 +588,8 @@ services:
           outputPath:
             type: string
             description: "Local path to save exported file"
+        defaults:
+          supportsAllDrives: true
 
       # --- Sharing ---
 
@@ -590,6 +602,8 @@ services:
             type: string
             description: "File ID"
             required: true
+        defaults:
+          supportsAllDrives: true
 
       share:
         type: action
@@ -609,6 +623,8 @@ services:
             description: "Permission level"
             enum: [reader, commenter, writer, organizer]
             default: reader
+        defaults:
+          supportsAllDrives: true
 
       unshare:
         type: action
@@ -623,6 +639,8 @@ services:
             type: string
             description: "Permission ID to remove (from listPermissions)"
             required: true
+        defaults:
+          supportsAllDrives: true
 
   # ========================================================================
   # Sheets
