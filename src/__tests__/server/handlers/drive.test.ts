@@ -80,22 +80,8 @@ describe('handleDrive', () => {
     });
   });
 
-  describe('download', () => {
-    it('requires fileId', async () => {
-      await expect(handleDrive({ operation: 'download', email: 'user@test.com' })).rejects.toThrow('fileId');
-    });
-
-    it('passes outputPath when provided', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse({}));
-      const result = await handleDrive({ operation: 'download', email: 'user@test.com', fileId: 'file-1', outputPath: '/tmp/out.pdf' });
-
-      const args = mockExecute.mock.calls[0][0];
-      expect(args).toContain('--output');
-      expect(args[args.indexOf('--output') + 1]).toBe('/tmp/out.pdf');
-      expect(result.text).toContain('File downloaded');
-      expect(result.text).toContain('/tmp/out.pdf');
-    });
-  });
+  // download is handled by the factory + custom handler in drive patch,
+  // not the hand-written handler. See src/services/drive/patch.ts.
 
   it('rejects unknown operation', async () => {
     await expect(handleDrive({ operation: 'nope', email: 'user@test.com' })).rejects.toThrow('Unknown');
