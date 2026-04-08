@@ -287,9 +287,12 @@ services:
 
       list:
         type: list
-        description: "upcoming events on primary calendar"
+        description: "upcoming events — defaults to primary calendar, use calendarId to target a specific calendar (use 'calendars' operation to discover IDs)"
         resource: events.list
         params:
+          calendarId:
+            type: string
+            description: "Calendar ID to query (default: 'primary'). Use 'calendars' operation to list available IDs."
           timeMin:
             type: string
             description: "Start of range (ISO 8601) — defaults to today"
@@ -320,6 +323,9 @@ services:
         description: "full event details by ID"
         resource: events.get
         params:
+          calendarId:
+            type: string
+            description: "Calendar ID (default: 'primary')"
           eventId:
             type: string
             description: "Event ID"
@@ -334,6 +340,9 @@ services:
         description: "create a new calendar event"
         helper: "+insert"
         params:
+          calendarId:
+            type: string
+            description: "Calendar ID (default: 'primary')"
           summary:
             type: string
             description: "Event title"
@@ -356,6 +365,7 @@ services:
             type: string
             description: "Comma-separated attendee emails"
         cli_args:
+          calendarId: "--calendar"
           summary: "--summary"
           start: "--start"
           end: "--end"
@@ -368,6 +378,9 @@ services:
         description: "create event from natural language (e.g. 'Lunch with Alice tomorrow at noon')"
         resource: events.quickAdd
         params:
+          calendarId:
+            type: string
+            description: "Calendar ID (default: 'primary')"
           text:
             type: string
             description: "Natural language event description"
@@ -380,6 +393,9 @@ services:
         description: "update an existing event (patch semantics — only changed fields needed)"
         resource: events.patch
         params:
+          calendarId:
+            type: string
+            description: "Calendar ID (default: 'primary')"
           eventId:
             type: string
             description: "Event ID to update"
@@ -407,6 +423,9 @@ services:
         description: "delete an event"
         resource: events.delete
         params:
+          calendarId:
+            type: string
+            description: "Calendar ID (default: 'primary')"
           eventId:
             type: string
             description: "Event ID to delete"
