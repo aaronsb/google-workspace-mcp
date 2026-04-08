@@ -195,6 +195,87 @@ export const drivePatch: ServicePatch = {
       };
     },
 
+    listComments: async (params, account): Promise<HandlerResponse> => {
+      const fileId = requireString(params, 'fileId');
+      const includeDeleted = params.includeDeleted ? 'true' : 'false';
+
+      const result = await execute([
+        'drive', 'comments', 'list',
+        '--params', JSON.stringify({
+          fileId,
+          includeDeleted,
+          fields: 'comments(id, content, htmlContent, author(displayName, emailAddress), createdTime, modifiedTime, resolved, quotedFileContent, replies(id, content, author(displayName), createdTime)), nextPageToken',
+          supportsAllDrives: true,
+        }),
+      ], { account });
+      const data = result.data as Record<string, unknown>;
+      const comments = (data.comments || []) as Array<Record<string, unknown>>;
+
+      if (comments.length === 0) {
+        return {
+          text: 'No comments on this file.' +
+            nextSteps('drive', 'listComments', { email: account }),
+          refs: { fileId, count: 0 },
+        };
+      }
+
+      const lines = comments.map((c) => {
+        const author = (c.author as Record<string, unknown>)?.displayName || 'Unknown';
+        const resolved = c.resolved ? ' [RESOLVED]' : '';
+        const quoted = c.quotedFileContent
+          ? `\n  > "${(c.quotedFileContent as Record<string, unknown>).value}"`
+          : '';
+        const replies = (c.replies || []) as Array<Record<string, unknown>>;
+        const replyLines = replies.map((r) => {
+          const rAuthor = (r.author as Record<string, unknown>)?.displayName || 'Unknown';
+          return `  - **${rAuthor}:** ${r.content}`;
+        }).join('\n');
+
+        return `- **${author}**${resolved}: ${c.content}${quoted}` +
+          (replyLines ? `\n${replyLines}` : '') +
+          `\n  _ID: ${c.id}_`;
+      });
+
+      return {
+        text: `## Comments (${comments.length})\n\n${lines.join('\n\n')}` +
+          nextSteps('drive', 'listComments', { email: account }),
+        refs: { fileId, count: comments.length },
+      };
+    },
+
+    getComment: async (params, account): Promise<HandlerResponse> => {
+      const fileId = requireString(params, 'fileId');
+      const commentId = requireString(params, 'commentId');
+
+      const result = await execute([
+        'drive', 'comments', 'get',
+        '--params', JSON.stringify({
+          fileId,
+          commentId,
+          fields: 'id, content, htmlContent, author(displayName, emailAddress), createdTime, modifiedTime, resolved, quotedFileContent, replies(id, content, htmlContent, author(displayName), createdTime)',
+          supportsAllDrives: true,
+        }),
+      ], { account });
+      const c = result.data as Record<string, unknown>;
+      const author = (c.author as Record<string, unknown>)?.displayName || 'Unknown';
+      const resolved = c.resolved ? ' [RESOLVED]' : '';
+      const quoted = c.quotedFileContent
+        ? `\n> "${(c.quotedFileContent as Record<string, unknown>).value}"`
+        : '';
+      const replies = (c.replies || []) as Array<Record<string, unknown>>;
+      const replyLines = replies.map((r) => {
+        const rAuthor = (r.author as Record<string, unknown>)?.displayName || 'Unknown';
+        return `- **${rAuthor}** (${r.createdTime}): ${r.content}`;
+      }).join('\n');
+
+      return {
+        text: `## Comment by ${author}${resolved}\n\n${c.content}${quoted}\n\n**Created:** ${c.createdTime}\n**Modified:** ${c.modifiedTime}` +
+          (replyLines ? `\n\n### Replies\n\n${replyLines}` : '') +
+          nextSteps('drive', 'getComment', { email: account }),
+        refs: { commentId: c.id, fileId, resolved: c.resolved },
+      };
+    },
+
     addComment: async (params, account): Promise<HandlerResponse> => {
       const fileId = requireString(params, 'fileId');
       const content = requireString(params, 'content');
@@ -255,9 +336,9 @@ export const drivePatch: ServicePatch = {
       ], { account });
       const data = result.data as Record<string, unknown>;
       return {
-        text: `Comment ${resolved ? 'resolved' : 'reopened'}.\n\n**ID:** ${data.id}\n**Resolved:** ${data.resolved}` +
+        text: `Comment ${resolved ? 'resolved' : 'reopened'}.\n\n**ID:** ${data.id}\n**Resolved:** ${resolved}` +
           nextSteps('drive', 'resolveComment', { email: account }),
-        refs: { commentId: data.id, fileId, resolved: data.resolved },
+        refs: { commentId: data.id, fileId, resolved },
       };
     },
 
