@@ -44,7 +44,7 @@ async function main(): Promise<void> {
 
   // Update baseline if requested
   if (doUpdate) {
-    const newBaseline = generateBaseline(report, baseline);
+    const newBaseline = generateBaseline(report, discovered, baseline);
     const path = writeBaseline(newBaseline);
     process.stderr.write(`[coverage] Baseline updated: ${path}\n`);
   }

@@ -1,77 +1,9 @@
 {
   "gwsVersion": "gws 0.22.5",
-  "generatedAt": "2026-04-08T15:22:03.016Z",
+  "generatedAt": "2026-04-08T15:29:29.080Z",
   "services": {
     "drive": {
       "operations": {
-        "files.copy": {
-          "status": "covered",
-          "params": {
-            "ignoreDefaultVisibility": "gap",
-            "includeLabels": "gap",
-            "includePermissionsForView": "gap",
-            "keepRevisionForever": "gap",
-            "ocrLanguage": "gap",
-            "supportsAllDrives": "gap"
-          }
-        },
-        "files.delete": {
-          "status": "covered",
-          "params": {
-            "supportsAllDrives": "gap"
-          }
-        },
-        "files.get": {
-          "status": "covered",
-          "params": {
-            "acknowledgeAbuse": "gap",
-            "includeLabels": "gap",
-            "includePermissionsForView": "gap",
-            "supportsAllDrives": "gap"
-          }
-        },
-        "files.list": {
-          "status": "covered",
-          "params": {
-            "corpora": "gap",
-            "driveId": "gap",
-            "includeItemsFromAllDrives": "gap",
-            "includeLabels": "gap",
-            "includePermissionsForView": "gap",
-            "orderBy": "gap",
-            "pageToken": "gap",
-            "spaces": "gap",
-            "supportsAllDrives": "gap"
-          }
-        },
-        "permissions.create": {
-          "status": "covered",
-          "params": {
-            "emailMessage": "gap",
-            "moveToNewOwnersRoot": "gap",
-            "sendNotificationEmail": "gap",
-            "supportsAllDrives": "gap",
-            "transferOwnership": "gap",
-            "useDomainAdminAccess": "gap"
-          }
-        },
-        "permissions.delete": {
-          "status": "covered",
-          "params": {
-            "supportsAllDrives": "gap",
-            "useDomainAdminAccess": "gap"
-          }
-        },
-        "permissions.list": {
-          "status": "covered",
-          "params": {
-            "includePermissionsForView": "gap",
-            "pageSize": "gap",
-            "pageToken": "gap",
-            "supportsAllDrives": "gap",
-            "useDomainAdminAccess": "gap"
-          }
-        },
         "about.get": {
           "status": "gap"
         },
@@ -144,8 +76,25 @@
         "drives.update": {
           "status": "gap"
         },
+        "files.copy": {
+          "status": "covered",
+          "params": {
+            "ignoreDefaultVisibility": "gap",
+            "includeLabels": "gap",
+            "includePermissionsForView": "gap",
+            "keepRevisionForever": "gap",
+            "ocrLanguage": "gap",
+            "supportsAllDrives": "gap"
+          }
+        },
         "files.create": {
           "status": "gap"
+        },
+        "files.delete": {
+          "status": "covered",
+          "params": {
+            "supportsAllDrives": "gap"
+          }
         },
         "files.download": {
           "status": "gap"
@@ -153,8 +102,34 @@
         "files.emptyTrash": {
           "status": "gap"
         },
+        "files.export": {
+          "status": "gap"
+        },
         "files.generateIds": {
           "status": "gap"
+        },
+        "files.get": {
+          "status": "covered",
+          "params": {
+            "acknowledgeAbuse": "gap",
+            "includeLabels": "gap",
+            "includePermissionsForView": "gap",
+            "supportsAllDrives": "gap"
+          }
+        },
+        "files.list": {
+          "status": "covered",
+          "params": {
+            "corpora": "gap",
+            "driveId": "gap",
+            "includeItemsFromAllDrives": "gap",
+            "includeLabels": "gap",
+            "includePermissionsForView": "gap",
+            "orderBy": "gap",
+            "pageToken": "gap",
+            "spaces": "gap",
+            "supportsAllDrives": "gap"
+          }
         },
         "files.listLabels": {
           "status": "gap"
@@ -171,8 +146,36 @@
         "operations.get": {
           "status": "gap"
         },
+        "permissions.create": {
+          "status": "covered",
+          "params": {
+            "emailMessage": "gap",
+            "moveToNewOwnersRoot": "gap",
+            "sendNotificationEmail": "gap",
+            "supportsAllDrives": "gap",
+            "transferOwnership": "gap",
+            "useDomainAdminAccess": "gap"
+          }
+        },
+        "permissions.delete": {
+          "status": "covered",
+          "params": {
+            "supportsAllDrives": "gap",
+            "useDomainAdminAccess": "gap"
+          }
+        },
         "permissions.get": {
           "status": "gap"
+        },
+        "permissions.list": {
+          "status": "covered",
+          "params": {
+            "includePermissionsForView": "gap",
+            "pageSize": "gap",
+            "pageToken": "gap",
+            "supportsAllDrives": "gap",
+            "useDomainAdminAccess": "gap"
+          }
         },
         "permissions.update": {
           "status": "gap"
@@ -218,11 +221,20 @@
         },
         "teamdrives.update": {
           "status": "gap"
+        },
+        "+upload": {
+          "status": "gap"
         }
       }
     },
     "sheets": {
       "operations": {
+        "spreadsheets.batchUpdate": {
+          "status": "gap"
+        },
+        "spreadsheets.create": {
+          "status": "gap"
+        },
         "spreadsheets.get": {
           "status": "covered",
           "params": {
@@ -230,26 +242,6 @@
             "includeGridData": "gap",
             "ranges": "gap"
           }
-        },
-        "spreadsheets.values.get": {
-          "status": "covered",
-          "params": {
-            "dateTimeRenderOption": "gap",
-            "majorDimension": "gap",
-            "valueRenderOption": "gap"
-          }
-        },
-        "spreadsheets.values.update": {
-          "status": "covered",
-          "params": {
-            "includeValuesInResponse": "gap",
-            "responseDateTimeRenderOption": "gap",
-            "responseValueRenderOption": "gap",
-            "valueInputOption": "gap"
-          }
-        },
-        "spreadsheets.batchUpdate": {
-          "status": "gap"
         },
         "spreadsheets.getByDataFilter": {
           "status": "gap"
@@ -286,47 +278,34 @@
         },
         "spreadsheets.values.clear": {
           "status": "gap"
+        },
+        "spreadsheets.values.get": {
+          "status": "covered",
+          "params": {
+            "dateTimeRenderOption": "gap",
+            "majorDimension": "gap",
+            "valueRenderOption": "gap"
+          }
+        },
+        "spreadsheets.values.update": {
+          "status": "covered",
+          "params": {
+            "includeValuesInResponse": "gap",
+            "responseDateTimeRenderOption": "gap",
+            "responseValueRenderOption": "gap",
+            "valueInputOption": "gap"
+          }
+        },
+        "+append": {
+          "status": "gap"
+        },
+        "+read": {
+          "status": "gap"
         }
       }
     },
     "gmail": {
       "operations": {
-        "users.messages.get": {
-          "status": "covered",
-          "params": {
-            "format": "gap",
-            "metadataHeaders": "gap"
-          }
-        },
-        "users.messages.list": {
-          "status": "covered",
-          "params": {
-            "includeSpamTrash": "gap",
-            "labelIds": "gap",
-            "pageToken": "gap"
-          }
-        },
-        "users.messages.attachments.get": {
-          "status": "covered",
-          "params": {
-            "id": "gap"
-          }
-        },
-        "users.threads.get": {
-          "status": "covered",
-          "params": {
-            "format": "gap",
-            "metadataHeaders": "gap"
-          }
-        },
-        "users.threads.list": {
-          "status": "covered",
-          "params": {
-            "includeSpamTrash": "gap",
-            "labelIds": "gap",
-            "pageToken": "gap"
-          }
-        },
         "users.getProfile": {
           "status": "gap"
         },
@@ -366,6 +345,9 @@
         "users.labels.get": {
           "status": "gap"
         },
+        "users.labels.list": {
+          "status": "gap"
+        },
         "users.labels.patch": {
           "status": "gap"
         },
@@ -381,14 +363,44 @@
         "users.messages.delete": {
           "status": "gap"
         },
+        "users.messages.get": {
+          "status": "covered",
+          "params": {
+            "format": "gap",
+            "metadataHeaders": "gap"
+          }
+        },
         "users.messages.import": {
           "status": "gap"
         },
         "users.messages.insert": {
           "status": "gap"
         },
+        "users.messages.list": {
+          "status": "covered",
+          "params": {
+            "includeSpamTrash": "gap",
+            "labelIds": "gap",
+            "pageToken": "gap"
+          }
+        },
+        "users.messages.modify": {
+          "status": "gap"
+        },
         "users.messages.send": {
           "status": "gap"
+        },
+        "users.messages.trash": {
+          "status": "gap"
+        },
+        "users.messages.untrash": {
+          "status": "gap"
+        },
+        "users.messages.attachments.get": {
+          "status": "covered",
+          "params": {
+            "id": "gap"
+          }
         },
         "users.settings.getAutoForwarding": {
           "status": "gap"
@@ -528,6 +540,21 @@
         "users.threads.delete": {
           "status": "gap"
         },
+        "users.threads.get": {
+          "status": "covered",
+          "params": {
+            "format": "gap",
+            "metadataHeaders": "gap"
+          }
+        },
+        "users.threads.list": {
+          "status": "covered",
+          "params": {
+            "includeSpamTrash": "gap",
+            "labelIds": "gap",
+            "pageToken": "gap"
+          }
+        },
         "users.threads.modify": {
           "status": "gap"
         },
@@ -537,6 +564,21 @@
         "users.threads.untrash": {
           "status": "gap"
         },
+        "+send": {
+          "status": "gap"
+        },
+        "+triage": {
+          "status": "gap"
+        },
+        "+reply": {
+          "status": "gap"
+        },
+        "+forward": {
+          "status": "gap"
+        },
+        "+read": {
+          "status": "gap"
+        },
         "+watch": {
           "status": "gap"
         }
@@ -544,69 +586,6 @@
     },
     "calendar": {
       "operations": {
-        "calendarList.list": {
-          "status": "covered",
-          "params": {
-            "maxResults": "gap",
-            "minAccessRole": "gap",
-            "pageToken": "gap",
-            "showDeleted": "gap",
-            "showHidden": "gap",
-            "syncToken": "gap"
-          }
-        },
-        "events.delete": {
-          "status": "covered",
-          "params": {
-            "sendNotifications": "gap",
-            "sendUpdates": "gap"
-          }
-        },
-        "events.get": {
-          "status": "covered",
-          "params": {
-            "alwaysIncludeEmail": "gap",
-            "maxAttendees": "gap",
-            "timeZone": "gap"
-          }
-        },
-        "events.list": {
-          "status": "covered",
-          "params": {
-            "alwaysIncludeEmail": "gap",
-            "eventTypes": "gap",
-            "iCalUID": "gap",
-            "maxAttendees": "gap",
-            "orderBy": "gap",
-            "pageToken": "gap",
-            "privateExtendedProperty": "gap",
-            "sharedExtendedProperty": "gap",
-            "showDeleted": "gap",
-            "showHiddenInvitations": "gap",
-            "singleEvents": "gap",
-            "syncToken": "gap",
-            "timeZone": "gap",
-            "updatedMin": "gap"
-          }
-        },
-        "events.patch": {
-          "status": "covered",
-          "params": {
-            "alwaysIncludeEmail": "gap",
-            "conferenceDataVersion": "gap",
-            "maxAttendees": "gap",
-            "sendNotifications": "gap",
-            "sendUpdates": "gap",
-            "supportsAttachments": "gap"
-          }
-        },
-        "events.quickAdd": {
-          "status": "covered",
-          "params": {
-            "sendNotifications": "gap",
-            "sendUpdates": "gap"
-          }
-        },
         "acl.delete": {
           "status": "gap"
         },
@@ -636,6 +615,17 @@
         },
         "calendarList.insert": {
           "status": "gap"
+        },
+        "calendarList.list": {
+          "status": "covered",
+          "params": {
+            "maxResults": "gap",
+            "minAccessRole": "gap",
+            "pageToken": "gap",
+            "showDeleted": "gap",
+            "showHidden": "gap",
+            "syncToken": "gap"
+          }
         },
         "calendarList.patch": {
           "status": "gap"
@@ -673,6 +663,21 @@
         "colors.get": {
           "status": "gap"
         },
+        "events.delete": {
+          "status": "covered",
+          "params": {
+            "sendNotifications": "gap",
+            "sendUpdates": "gap"
+          }
+        },
+        "events.get": {
+          "status": "covered",
+          "params": {
+            "alwaysIncludeEmail": "gap",
+            "maxAttendees": "gap",
+            "timeZone": "gap"
+          }
+        },
         "events.import": {
           "status": "gap"
         },
@@ -682,13 +687,53 @@
         "events.instances": {
           "status": "gap"
         },
+        "events.list": {
+          "status": "covered",
+          "params": {
+            "alwaysIncludeEmail": "gap",
+            "eventTypes": "gap",
+            "iCalUID": "gap",
+            "maxAttendees": "gap",
+            "orderBy": "gap",
+            "pageToken": "gap",
+            "privateExtendedProperty": "gap",
+            "sharedExtendedProperty": "gap",
+            "showDeleted": "gap",
+            "showHiddenInvitations": "gap",
+            "singleEvents": "gap",
+            "syncToken": "gap",
+            "timeZone": "gap",
+            "updatedMin": "gap"
+          }
+        },
         "events.move": {
           "status": "gap"
+        },
+        "events.patch": {
+          "status": "covered",
+          "params": {
+            "alwaysIncludeEmail": "gap",
+            "conferenceDataVersion": "gap",
+            "maxAttendees": "gap",
+            "sendNotifications": "gap",
+            "sendUpdates": "gap",
+            "supportsAttachments": "gap"
+          }
+        },
+        "events.quickAdd": {
+          "status": "covered",
+          "params": {
+            "sendNotifications": "gap",
+            "sendUpdates": "gap"
+          }
         },
         "events.update": {
           "status": "gap"
         },
         "events.watch": {
+          "status": "gap"
+        },
+        "freebusy.query": {
           "status": "gap"
         },
         "settings.get": {
@@ -699,11 +744,23 @@
         },
         "settings.watch": {
           "status": "gap"
+        },
+        "+insert": {
+          "status": "gap"
+        },
+        "+agenda": {
+          "status": "gap"
         }
       }
     },
     "docs": {
       "operations": {
+        "documents.batchUpdate": {
+          "status": "gap"
+        },
+        "documents.create": {
+          "status": "gap"
+        },
         "documents.get": {
           "status": "covered",
           "params": {
@@ -711,7 +768,7 @@
             "suggestionsViewMode": "gap"
           }
         },
-        "documents.batchUpdate": {
+        "+write": {
           "status": "gap"
         }
       }
@@ -737,12 +794,36 @@
     },
     "tasks": {
       "operations": {
+        "tasklists.delete": {
+          "status": "gap"
+        },
+        "tasklists.get": {
+          "status": "gap"
+        },
+        "tasklists.insert": {
+          "status": "gap"
+        },
         "tasklists.list": {
           "status": "covered",
           "params": {
             "maxResults": "gap",
             "pageToken": "gap"
           }
+        },
+        "tasklists.patch": {
+          "status": "gap"
+        },
+        "tasklists.update": {
+          "status": "gap"
+        },
+        "tasks.clear": {
+          "status": "gap"
+        },
+        "tasks.delete": {
+          "status": "gap"
+        },
+        "tasks.get": {
+          "status": "gap"
         },
         "tasks.insert": {
           "status": "covered",
@@ -765,16 +846,10 @@
             "updatedMin": "gap"
           }
         },
-        "tasklists.patch": {
-          "status": "gap"
-        },
-        "tasklists.update": {
-          "status": "gap"
-        },
-        "tasks.clear": {
-          "status": "gap"
-        },
         "tasks.move": {
+          "status": "gap"
+        },
+        "tasks.patch": {
           "status": "gap"
         },
         "tasks.update": {
@@ -994,6 +1069,9 @@
         },
         "users.spaces.threads.getThreadReadState": {
           "status": "gap"
+        },
+        "+send": {
+          "status": "gap"
         }
       }
     },
@@ -1024,40 +1102,10 @@
     },
     "meet": {
       "operations": {
+        "conferenceRecords.get": {
+          "status": "gap"
+        },
         "conferenceRecords.list": {
-          "status": "covered",
-          "params": {
-            "pageToken": "gap"
-          }
-        },
-        "conferenceRecords.participants.list": {
-          "status": "covered",
-          "params": {
-            "pageToken": "gap"
-          }
-        },
-        "conferenceRecords.recordings.list": {
-          "status": "covered",
-          "params": {
-            "pageSize": "gap",
-            "pageToken": "gap"
-          }
-        },
-        "conferenceRecords.smartNotes.list": {
-          "status": "covered",
-          "params": {
-            "pageSize": "gap",
-            "pageToken": "gap"
-          }
-        },
-        "conferenceRecords.transcripts.list": {
-          "status": "covered",
-          "params": {
-            "pageSize": "gap",
-            "parent": "gap"
-          }
-        },
-        "conferenceRecords.transcripts.entries.list": {
           "status": "covered",
           "params": {
             "pageToken": "gap"
@@ -1066,14 +1114,56 @@
         "conferenceRecords.participants.get": {
           "status": "gap"
         },
+        "conferenceRecords.participants.list": {
+          "status": "covered",
+          "params": {
+            "pageToken": "gap"
+          }
+        },
         "conferenceRecords.participants.participantSessions.get": {
           "status": "gap"
         },
         "conferenceRecords.participants.participantSessions.list": {
           "status": "gap"
         },
+        "conferenceRecords.recordings.get": {
+          "status": "gap"
+        },
+        "conferenceRecords.recordings.list": {
+          "status": "covered",
+          "params": {
+            "pageSize": "gap",
+            "pageToken": "gap"
+          }
+        },
+        "conferenceRecords.smartNotes.get": {
+          "status": "gap"
+        },
+        "conferenceRecords.smartNotes.list": {
+          "status": "covered",
+          "params": {
+            "pageSize": "gap",
+            "pageToken": "gap"
+          }
+        },
+        "conferenceRecords.transcripts.get": {
+          "status": "gap"
+        },
+        "conferenceRecords.transcripts.list": {
+          "status": "covered",
+          "params": {
+            "pageSize": "gap",
+            "parent": "gap"
+          }
+        },
         "conferenceRecords.transcripts.entries.get": {
           "status": "gap"
+        },
+        "conferenceRecords.transcripts.entries.list": {
+          "status": "covered",
+          "params": {
+            "pageToken": "gap"
+          }
         },
         "spaces.create": {
           "status": "gap"
@@ -1091,14 +1181,6 @@
     },
     "events": {
       "operations": {
-        "tasks.get": {
-          "status": "covered",
-          "params": {
-            "historyLength": "gap",
-            "name": "gap",
-            "tenant": "gap"
-          }
-        },
         "message.stream": {
           "status": "gap"
         },
@@ -1125,6 +1207,14 @@
         },
         "tasks.cancel": {
           "status": "gap"
+        },
+        "tasks.get": {
+          "status": "covered",
+          "params": {
+            "historyLength": "gap",
+            "name": "gap",
+            "tenant": "gap"
+          }
         },
         "tasks.subscribe": {
           "status": "gap"

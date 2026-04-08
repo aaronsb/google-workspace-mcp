@@ -12,10 +12,15 @@ import {
 } from './types.js';
 
 const TIMEOUT = 10_000;
+let cachedBinary: string | undefined;
+
+function getBinary(): string {
+  if (!cachedBinary) cachedBinary = resolveGwsBinary();
+  return cachedBinary;
+}
 
 function gws(args: string[]): string {
-  const binary = resolveGwsBinary();
-  return execFileSync(binary, args, {
+  return execFileSync(getBinary(), args, {
     encoding: 'utf8',
     timeout: TIMEOUT,
     env: { ...process.env },
@@ -24,8 +29,7 @@ function gws(args: string[]): string {
 
 function gwsSafe(args: string[]): string | null {
   try {
-    const binary = resolveGwsBinary();
-    return execFileSync(binary, args, {
+    return execFileSync(getBinary(), args, {
       encoding: 'utf8',
       timeout: TIMEOUT,
       env: { ...process.env },
@@ -125,7 +129,12 @@ function discoverResource(
 
   for (const method of methods) {
     const resourcePath = `${parentPath}.${method}`;
-    const schemaOutput = gwsSafe(['schema', `${service}.${parentPath}.${method}`]);
+    // gws schema uses flat resource names (e.g. drive.replies.list),
+    // not nested CLI paths (e.g. drive.comments.replies.list).
+    // Try the full path first, fall back to leaf resource + method.
+    const leafResource = parts[parts.length - 1];
+    const schemaOutput = gwsSafe(['schema', `${service}.${parentPath}.${method}`])
+      || (parts.length > 1 ? gwsSafe(['schema', `${service}.${leafResource}.${method}`]) : null);
 
     let params: Record<string, DiscoveredParam> = {};
     let description = '';
