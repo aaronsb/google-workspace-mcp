@@ -194,5 +194,86 @@ export const drivePatch: ServicePatch = {
         ...(output.imageBlock ? { content: [output.imageBlock] } : {}),
       };
     },
+
+    addComment: async (params, account): Promise<HandlerResponse> => {
+      const fileId = requireString(params, 'fileId');
+      const content = requireString(params, 'content');
+      const quotedText = params.quotedText ? String(params.quotedText) : undefined;
+
+      const body: Record<string, unknown> = { content };
+      if (quotedText) {
+        body.quotedFileContent = { value: quotedText };
+      }
+
+      const result = await execute([
+        'drive', 'comments', 'create',
+        '--params', JSON.stringify({
+          fileId,
+          fields: 'id, content, htmlContent, author(displayName), createdTime, quotedFileContent',
+          supportsAllDrives: true,
+        }),
+        '--json', JSON.stringify(body),
+      ], { account });
+      const data = result.data as Record<string, unknown>;
+      return {
+        text: `Comment added.\n\n**ID:** ${data.id}\n**Content:** ${data.content}` +
+          (quotedText ? `\n**Anchored to:** "${quotedText}"` : '') +
+          nextSteps('drive', 'addComment', { email: account }),
+        refs: { commentId: data.id, fileId },
+      };
+    },
+
+    resolveComment: async (params, account): Promise<HandlerResponse> => {
+      const fileId = requireString(params, 'fileId');
+      const commentId = requireString(params, 'commentId');
+      const resolved = params.resolved !== false;
+
+      // To resolve: set content to existing + resolve action
+      // The Drive API resolves by updating with resolved=true via the comment's action
+      const body: Record<string, unknown> = {};
+      if (resolved) {
+        body.content = '';  // content is required but preserved server-side
+      }
+
+      const result = await execute([
+        'drive', 'comments', 'update',
+        '--params', JSON.stringify({
+          fileId,
+          commentId,
+          fields: 'id, content, resolved',
+          supportsAllDrives: true,
+        }),
+        '--json', JSON.stringify({ ...body, resolved }),
+      ], { account });
+      const data = result.data as Record<string, unknown>;
+      return {
+        text: `Comment ${resolved ? 'resolved' : 'reopened'}.\n\n**ID:** ${data.id}\n**Resolved:** ${data.resolved}` +
+          nextSteps('drive', 'resolveComment', { email: account }),
+        refs: { commentId: data.id, fileId, resolved: data.resolved },
+      };
+    },
+
+    replyToComment: async (params, account): Promise<HandlerResponse> => {
+      const fileId = requireString(params, 'fileId');
+      const commentId = requireString(params, 'commentId');
+      const content = requireString(params, 'content');
+
+      const result = await execute([
+        'drive', 'replies', 'create',
+        '--params', JSON.stringify({
+          fileId,
+          commentId,
+          fields: 'id, content, htmlContent, author(displayName), createdTime',
+          supportsAllDrives: true,
+        }),
+        '--json', JSON.stringify({ content }),
+      ], { account });
+      const data = result.data as Record<string, unknown>;
+      return {
+        text: `Reply added.\n\n**ID:** ${data.id}\n**Content:** ${data.content}` +
+          nextSteps('drive', 'replyToComment', { email: account }),
+        refs: { replyId: data.id, commentId, fileId },
+      };
+    },
   },
 };

@@ -456,7 +456,7 @@ services:
 
   drive:
     tool_name: manage_drive
-    description: "Search, upload, download, share, or manage files in Google Drive."
+    description: "Search, upload, download, share, comment on, or manage files in Google Drive."
     requires_email: true
     gws_service: drive
     operations:
@@ -642,6 +642,103 @@ services:
         defaults:
           supportsAllDrives: true
 
+      # --- Comments ---
+
+      listComments:
+        type: list
+        description: "list comments on a file"
+        resource: comments.list
+        params:
+          fileId:
+            type: string
+            description: "File ID"
+            required: true
+          includeDeleted:
+            type: boolean
+            description: "Include deleted comments (default: false)"
+        defaults:
+          fields: "comments(id, content, htmlContent, author(displayName, emailAddress), createdTime, modifiedTime, resolved, quotedFileContent, replies(id, content, htmlContent, author(displayName), createdTime)), nextPageToken"
+          supportsAllDrives: true
+
+      getComment:
+        type: detail
+        description: "get a specific comment by ID"
+        resource: comments.get
+        params:
+          fileId:
+            type: string
+            description: "File ID"
+            required: true
+          commentId:
+            type: string
+            description: "Comment ID"
+            required: true
+        defaults:
+          fields: "id, content, htmlContent, author(displayName, emailAddress), createdTime, modifiedTime, resolved, quotedFileContent, replies(id, content, htmlContent, author(displayName), createdTime)"
+          supportsAllDrives: true
+
+      addComment:
+        type: action
+        description: "add a comment to a file (optionally anchored to quoted text)"
+        resource: comments.create
+        params:
+          fileId:
+            type: string
+            description: "File ID"
+            required: true
+          content:
+            type: string
+            description: "Comment text"
+            required: true
+          quotedText:
+            type: string
+            description: "Text to anchor the comment to (optional — if provided, comment is anchored to first occurrence)"
+        defaults:
+          fields: "id, content, htmlContent, author(displayName), createdTime, quotedFileContent"
+          supportsAllDrives: true
+
+      resolveComment:
+        type: action
+        description: "resolve or reopen a comment"
+        resource: comments.update
+        params:
+          fileId:
+            type: string
+            description: "File ID"
+            required: true
+          commentId:
+            type: string
+            description: "Comment ID"
+            required: true
+          resolved:
+            type: boolean
+            description: "true to resolve, false to reopen"
+            required: true
+        defaults:
+          fields: "id, content, resolved"
+          supportsAllDrives: true
+
+      replyToComment:
+        type: action
+        description: "reply to an existing comment"
+        resource: replies.create
+        params:
+          fileId:
+            type: string
+            description: "File ID"
+            required: true
+          commentId:
+            type: string
+            description: "Comment ID to reply to"
+            required: true
+          content:
+            type: string
+            description: "Reply text"
+            required: true
+        defaults:
+          fields: "id, content, htmlContent, author(displayName), createdTime"
+          supportsAllDrives: true
+
   # ========================================================================
   # Sheets
   # ========================================================================
@@ -739,7 +836,7 @@ services:
 
   docs:
     tool_name: manage_docs
-    description: "Read and write Google Docs documents."
+    description: "Read, write, insert, and find-replace text in Google Docs documents."
     requires_email: true
     gws_service: docs
     operations:
@@ -775,6 +872,46 @@ services:
         cli_args:
           documentId: "--document"
           text: "--text"
+
+      insertText:
+        type: action
+        description: "insert text at a specific position in a document"
+        resource: documents.batchUpdate
+        params:
+          documentId:
+            type: string
+            description: "Document ID"
+            required: true
+          text:
+            type: string
+            description: "Text to insert"
+            required: true
+          index:
+            type: number
+            description: "Character index to insert at (1 = start of document body)"
+            required: true
+
+      replaceText:
+        type: action
+        description: "find and replace text in a document"
+        resource: documents.batchUpdate
+        params:
+          documentId:
+            type: string
+            description: "Document ID"
+            required: true
+          findText:
+            type: string
+            description: "Text to find"
+            required: true
+          replaceWith:
+            type: string
+            description: "Replacement text"
+            required: true
+          matchCase:
+            type: boolean
+            description: "Case-sensitive match (default: true)"
+            default: true
 
   # ========================================================================
   # Tasks
