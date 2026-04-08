@@ -1,22 +1,47 @@
 /**
  * Session context formatter — builds a markdown footer with ambient
- * workspace awareness (email deltas, next calendar event).
+ * workspace awareness (email deltas, next calendar event, available accounts).
  */
 
 import type { SessionTracker } from './tracker.js';
 
+/** Cached account list — populated once on first context call, then reused. */
+let cachedAccounts: Array<{ email: string; category: string }> | null = null;
+
+/** Load configured accounts (once per process). */
+async function getConfiguredAccounts(): Promise<Array<{ email: string; category: string }>> {
+  if (cachedAccounts) return cachedAccounts;
+  try {
+    const { listAccounts } = await import('../../accounts/registry.js');
+    const accounts = await listAccounts();
+    cachedAccounts = accounts.map(a => ({ email: a.email, category: a.category }));
+  } catch {
+    cachedAccounts = [];
+  }
+  return cachedAccounts;
+}
+
 /** Format the session context footer for a tool response. */
-export function sessionContext(
+export async function sessionContext(
   _toolName: string,
   email: string | undefined,
   tracker: SessionTracker,
-): string {
+): Promise<string> {
   if (!email) return '';
 
   const session = tracker.getContext(email);
   if (!session?.initialized) return '';
 
   const lines: string[] = [];
+
+  // Available accounts (shown on every response so agent knows what's configured)
+  const accounts = await getConfiguredAccounts();
+  if (accounts.length > 1) {
+    const accountList = accounts
+      .map(a => a.email === email ? `**${a.email}** (active)` : a.email)
+      .join(', ');
+    lines.push(`- Accounts: ${accountList}`);
+  }
 
   // Email delta
   const delta = session.currentUnreadCount - session.baselineUnreadCount;

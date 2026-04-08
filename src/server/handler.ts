@@ -53,7 +53,7 @@ export async function handleToolCall(
     if (queueEmail) {
       await tracker.ensureBaseline(queueEmail, currentEpoch);
       tracker.refresh(queueEmail, currentEpoch);
-      const ctx = sessionContext(toolName, queueEmail, tracker);
+      const ctx = await sessionContext(toolName, queueEmail, tracker);
       if (ctx) result.text += ctx;
     }
     return result;
@@ -74,7 +74,7 @@ export async function handleToolCall(
 
   if (email) {
     tracker.refresh(email, currentEpoch);
-    const ctx = sessionContext(toolName, email, tracker);
+    const ctx = await sessionContext(toolName, email, tracker);
     if (ctx) result.text += ctx;
   }
 

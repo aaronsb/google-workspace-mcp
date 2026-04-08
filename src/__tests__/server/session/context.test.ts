@@ -25,100 +25,100 @@ function baseSession(overrides: Partial<AccountSession> = {}): AccountSession {
 }
 
 describe('sessionContext', () => {
-  it('returns empty string when email is undefined', () => {
+  it('returns empty string when email is undefined', async () => {
     const tracker = new SessionTracker();
-    expect(sessionContext('manage_email', undefined, tracker)).toBe('');
+    expect(await sessionContext('manage_email', undefined, tracker)).toBe('');
   });
 
-  it('returns empty string for unknown account', () => {
+  it('returns empty string for unknown account', async () => {
     const tracker = new SessionTracker();
-    expect(sessionContext('manage_email', 'nobody@test.com', tracker)).toBe('');
+    expect(await sessionContext('manage_email', 'nobody@test.com', tracker)).toBe('');
   });
 
-  it('returns empty string for uninitialized session', () => {
+  it('returns empty string for uninitialized session', async () => {
     const tracker = trackerWith('u@t.com', baseSession({ initialized: false }));
-    expect(sessionContext('manage_email', 'u@t.com', tracker)).toBe('');
+    expect(await sessionContext('manage_email', 'u@t.com', tracker)).toBe('');
   });
 
-  it('shows positive email delta', () => {
+  it('shows positive email delta', async () => {
     const tracker = trackerWith('u@t.com', baseSession({
       baselineUnreadCount: 10,
       currentUnreadCount: 13,
       currentTodayEmailCount: 25,
     }));
 
-    const result = sessionContext('manage_email', 'u@t.com', tracker);
+    const result = await sessionContext('manage_email', 'u@t.com', tracker);
     expect(result).toContain('3 new unread emails since session start');
     expect(result).toContain('13 unread');
     expect(result).toContain('25 today');
   });
 
-  it('shows singular for delta of 1', () => {
+  it('shows singular for delta of 1', async () => {
     const tracker = trackerWith('u@t.com', baseSession({
       baselineUnreadCount: 10,
       currentUnreadCount: 11,
     }));
 
-    const result = sessionContext('manage_email', 'u@t.com', tracker);
+    const result = await sessionContext('manage_email', 'u@t.com', tracker);
     expect(result).toContain('1 new unread email since session start');
   });
 
-  it('shows negative delta (user read emails)', () => {
+  it('shows negative delta (user read emails)', async () => {
     const tracker = trackerWith('u@t.com', baseSession({
       baselineUnreadCount: 10,
       currentUnreadCount: 8,
     }));
 
-    const result = sessionContext('manage_email', 'u@t.com', tracker);
+    const result = await sessionContext('manage_email', 'u@t.com', tracker);
     expect(result).toContain('2 fewer unread since session start');
   });
 
-  it('shows zero delta', () => {
+  it('shows zero delta', async () => {
     const tracker = trackerWith('u@t.com', baseSession());
 
-    const result = sessionContext('manage_email', 'u@t.com', tracker);
+    const result = await sessionContext('manage_email', 'u@t.com', tracker);
     expect(result).toContain('No new unread emails since session start');
   });
 
-  it('shows next event with relative time', () => {
+  it('shows next event with relative time', async () => {
     const inThirty = new Date(Date.now() + 30 * 60_000).toISOString();
     const tracker = trackerWith('u@t.com', baseSession({
       nextEvent: { summary: 'Standup', startTime: inThirty },
     }));
 
-    const result = sessionContext('manage_email', 'u@t.com', tracker);
+    const result = await sessionContext('manage_email', 'u@t.com', tracker);
     expect(result).toContain('Next: "Standup" in 30 min');
   });
 
-  it('shows next event with absolute time when >2h away', () => {
+  it('shows next event with absolute time when >2h away', async () => {
     const inFive = new Date(Date.now() + 5 * 60 * 60_000).toISOString();
     const tracker = trackerWith('u@t.com', baseSession({
       nextEvent: { summary: 'Lunch', startTime: inFive },
     }));
 
-    const result = sessionContext('manage_email', 'u@t.com', tracker);
+    const result = await sessionContext('manage_email', 'u@t.com', tracker);
     expect(result).toContain('Next: "Lunch" at');
     expect(result).toMatch(/at \d{1,2}:\d{2}\s*(AM|PM)/);
   });
 
-  it('shows "no more events" when nextEvent is null', () => {
+  it('shows "no more events" when nextEvent is null', async () => {
     const tracker = trackerWith('u@t.com', baseSession({ nextEvent: null }));
 
-    const result = sessionContext('manage_email', 'u@t.com', tracker);
+    const result = await sessionContext('manage_email', 'u@t.com', tracker);
     expect(result).toContain('No more events today');
   });
 
-  it('includes section header with email', () => {
+  it('includes section header with email', async () => {
     const tracker = trackerWith('user@example.com', baseSession());
 
-    const result = sessionContext('manage_email', 'user@example.com', tracker);
+    const result = await sessionContext('manage_email', 'user@example.com', tracker);
     expect(result).toContain('**Session context** (user@example.com):');
   });
 
-  it('starts with separator', () => {
+  it('starts with separator', async () => {
     const tracker = trackerWith('u@t.com', baseSession());
 
-    const result = sessionContext('manage_email', 'u@t.com', tracker);
+    const result = await sessionContext('manage_email', 'u@t.com', tracker);
     expect(result).toMatch(/^\n\n---\n/);
   });
 });
