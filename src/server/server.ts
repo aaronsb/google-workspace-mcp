@@ -12,6 +12,7 @@ import { GwsError, GwsExitCode } from '../executor/errors.js';
 import { nextSteps } from './formatting/next-steps.js';
 import { manifest } from '../factory/registry.js';
 import { checkWorkspaceStatus } from '../executor/workspace.js';
+import { VERSION } from '../version.js';
 
 import {
   configurePolicies,
@@ -60,7 +61,7 @@ export function createServer(): Server {
   const server = new Server(
     {
       name: '@aaronsb/google-workspace-mcp',
-      version: '2.0.0-alpha.1',
+      version: VERSION,
     },
     {
       capabilities: {
@@ -142,6 +143,12 @@ export function createServer(): Server {
           description: 'File I/O workspace directory status and path',
           mimeType: 'application/json',
         },
+        {
+          uri: 'gws://config/version',
+          name: 'Server Version',
+          description: 'Build version of the google-workspace-mcp server',
+          mimeType: 'application/json',
+        },
       ],
     };
   });
@@ -200,6 +207,16 @@ export function createServer(): Server {
             uri,
             mimeType: 'application/json',
             text: JSON.stringify(status, null, 2),
+          }],
+        };
+      }
+
+      case 'gws://config/version': {
+        return {
+          contents: [{
+            uri,
+            mimeType: 'application/json',
+            text: JSON.stringify({ name: '@aaronsb/google-workspace-mcp', version: VERSION }, null, 2),
           }],
         };
       }

@@ -5,6 +5,7 @@ import { nextSteps } from '../formatting/next-steps.js';
 import { getActivePolicies } from '../../factory/safety.js';
 import { manifest } from '../../factory/registry.js';
 import { checkWorkspaceStatus } from '../../executor/workspace.js';
+import { VERSION } from '../../version.js';
 import type { HandlerResponse } from '../handler.js';
 
 interface EnrichedAccount extends Account {
@@ -162,6 +163,9 @@ export async function handleAccounts(params: Record<string, unknown>): Promise<H
 
       const parts: string[] = [];
 
+      // Version
+      parts.push(`## Server Version\n\n**@aaronsb/google-workspace-mcp** v${VERSION}\n`);
+
       // Services
       const totalOps = services.reduce((sum, s) => sum + s.operations.length, 0);
       parts.push(`## Services (${services.length} services, ${totalOps} operations)\n`);
@@ -189,6 +193,7 @@ export async function handleAccounts(params: Record<string, unknown>): Promise<H
       return {
         text: parts.join('\n'),
         refs: {
+          version: VERSION,
           totalServices: services.length,
           totalOperations: totalOps,
           activePolicies: policies.map(p => p.name),
