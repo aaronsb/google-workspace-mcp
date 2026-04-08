@@ -14,6 +14,7 @@ export interface GwsOptions {
   account?: string;
   timeout?: number;
   format?: 'json' | 'table' | 'yaml' | 'csv';
+  cwd?: string;
 }
 
 const DEFAULT_TIMEOUT = 120_000; // Hard ceiling (2min) — process dies after this regardless
@@ -99,7 +100,7 @@ function filterStderr(stderr: string): string {
 }
 
 export async function execute(args: string[], options: GwsOptions = {}): Promise<GwsResult> {
-  const { account, timeout = DEFAULT_TIMEOUT, format = 'json' } = options;
+  const { account, timeout = DEFAULT_TIMEOUT, format = 'json', cwd } = options;
 
   const env: Record<string, string> = { ...process.env as Record<string, string> };
 
@@ -124,7 +125,7 @@ export async function execute(args: string[], options: GwsOptions = {}): Promise
     let settled = false;
     const settle = (fn: () => void) => { if (!settled) { settled = true; fn(); } };
 
-    const proc = spawn(gwsBinary, fullArgs, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = spawn(gwsBinary, fullArgs, { env, stdio: ['ignore', 'pipe', 'pipe'], ...(cwd ? { cwd } : {}) });
 
     let stdout = '';
     let stderr = '';
