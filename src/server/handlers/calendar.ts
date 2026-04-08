@@ -12,10 +12,11 @@ export async function handleCalendar(params: Record<string, unknown>): Promise<H
     case 'list': {
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const calendarId = (params.calendarId as string) || 'primary';
       const result = await execute([
         'calendar', 'events', 'list',
         '--params', JSON.stringify({
-          calendarId: 'primary',
+          calendarId,
           timeMin: params.timeMin || todayStart,
           timeMax: params.timeMax || undefined,
           maxResults: clamp(params.maxResults, 10, 50),
@@ -68,9 +69,10 @@ export async function handleCalendar(params: Record<string, unknown>): Promise<H
 
     case 'get': {
       const eventId = requireString(params, 'eventId');
+      const calendarId = (params.calendarId as string) || 'primary';
       const result = await execute([
         'calendar', 'events', 'get',
-        '--params', JSON.stringify({ calendarId: 'primary', eventId }),
+        '--params', JSON.stringify({ calendarId, eventId }),
       ], { account: email });
       const formatted = formatEventDetail(result.data);
       return {
@@ -81,9 +83,10 @@ export async function handleCalendar(params: Record<string, unknown>): Promise<H
 
     case 'delete': {
       const eventId = requireString(params, 'eventId');
+      const calendarId = (params.calendarId as string) || 'primary';
       await execute([
         'calendar', 'events', 'delete',
-        '--params', JSON.stringify({ calendarId: 'primary', eventId }),
+        '--params', JSON.stringify({ calendarId, eventId }),
       ], { account: email });
       return {
         text: `Event deleted: ${eventId}` + nextSteps('calendar', 'delete', { email }),

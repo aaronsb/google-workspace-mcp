@@ -111,9 +111,10 @@ export const calendarPatch: ServicePatch = {
 
     delete: async (params, account): Promise<HandlerResponse> => {
       const eventId = requireString(params, 'eventId');
+      const calendarId = (params.calendarId as string) || 'primary';
       await execute([
         'calendar', 'events', 'delete',
-        '--params', JSON.stringify({ calendarId: 'primary', eventId }),
+        '--params', JSON.stringify({ calendarId, eventId }),
       ], { account });
       return {
         text: `Event deleted: ${eventId}` + nextSteps('calendar', 'delete', { email: account }),
