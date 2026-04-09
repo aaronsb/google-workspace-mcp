@@ -65,12 +65,18 @@ function formatEventListWithCalendar(data: unknown, ctx: PatchContext): HandlerR
 /** Format freebusy response into readable busy/free blocks. */
 function formatFreeBusy(data: unknown, ctx: PatchContext): HandlerResponse {
   const raw = data as Record<string, unknown>;
-  const calendars = (raw?.calendars ?? {}) as Record<string, { busy?: Array<{ start: string; end: string }> }>;
+  const calendars = (raw?.calendars ?? {}) as Record<string, { busy?: Array<{ start: string; end: string }>; errors?: Array<{ domain: string; reason: string }> }>;
 
   const parts: string[] = ['## Availability\n'];
   const allBusy: Array<{ calendar: string; start: string; end: string }> = [];
 
   for (const [calId, info] of Object.entries(calendars)) {
+    // Surface API errors (e.g., permission denied on a calendar)
+    if (info.errors && info.errors.length > 0) {
+      const reasons = info.errors.map(e => e.reason).join(', ');
+      parts.push(`**${calId}**: ⚠ Unable to check (${reasons})`);
+      continue;
+    }
     const busy = info.busy ?? [];
     if (busy.length === 0) {
       parts.push(`**${calId}**: Free for entire range`);
@@ -167,18 +173,19 @@ export const calendarPatch: ServicePatch = {
       const timeMin = requireString(params, 'timeMin');
       const timeMax = requireString(params, 'timeMax');
 
-      // Build calendar items list from attendees + own calendar
+      // Build calendar items list from attendees + own calendar (deduplicated)
+      const seen = new Set<string>([account]);
       const items: Array<{ id: string }> = [{ id: account }];
+      const addItem = (id: string) => { if (!seen.has(id)) { seen.add(id); items.push({ id }); } };
+
       if (params.attendees) {
-        const emails = String(params.attendees).split(',').map(e => e.trim()).filter(Boolean);
-        for (const email of emails) {
-          items.push({ id: email });
+        for (const email of String(params.attendees).split(',').map(e => e.trim()).filter(Boolean)) {
+          addItem(email);
         }
       }
       if (params.calendarId) {
-        const ids = String(params.calendarId).split(',').map(e => e.trim()).filter(Boolean);
-        for (const id of ids) {
-          if (!items.some(i => i.id === id)) items.push({ id });
+        for (const id of String(params.calendarId).split(',').map(e => e.trim()).filter(Boolean)) {
+          addItem(id);
         }
       }
 
