@@ -2,9 +2,10 @@
  * Calendar patch — domain-specific hooks for the calendar service.
  *
  * Key customizations:
- * - List: default timeMin to today start
- * - Agenda: raw text passthrough with event refs extraction
- * - Create: custom response formatting with event details
+ * - List: default timeMin to today start, include calendarId in output
+ * - Agenda: rich helper with day-range params, calendarId per event
+ * - Freebusy: custom handler (POST body via --json, not --params)
+ * - Create: custom response formatting with event details + --meet flag
  * - Delete: custom confirmation message
  */
 
@@ -42,6 +43,78 @@ function formatCalendarList(data: unknown): HandlerResponse {
   };
 }
 
+/** Format event list with calendarId enrichment. */
+function formatEventListWithCalendar(data: unknown, ctx: PatchContext): HandlerResponse {
+  const result = formatEventList(data);
+  const calendarId = (ctx.params.calendarId as string) || 'primary';
+
+  // Enrich refs with calendarId so follow-up get calls work on shared calendars
+  result.refs = { ...result.refs, calendarId };
+
+  // Add calendarId hint to output when not primary
+  if (calendarId !== 'primary') {
+    result.text = result.text.replace(
+      /^## Events/,
+      `## Events (calendar: ${calendarId})`,
+    );
+  }
+
+  return result;
+}
+
+/** Format freebusy response into readable busy/free blocks. */
+function formatFreeBusy(data: unknown, ctx: PatchContext): HandlerResponse {
+  const raw = data as Record<string, unknown>;
+  const calendars = (raw?.calendars ?? {}) as Record<string, { busy?: Array<{ start: string; end: string }> }>;
+
+  const parts: string[] = ['## Availability\n'];
+  const allBusy: Array<{ calendar: string; start: string; end: string }> = [];
+
+  for (const [calId, info] of Object.entries(calendars)) {
+    const busy = info.busy ?? [];
+    if (busy.length === 0) {
+      parts.push(`**${calId}**: Free for entire range`);
+    } else {
+      parts.push(`**${calId}**: ${busy.length} busy block${busy.length !== 1 ? 's' : ''}`);
+      for (const block of busy) {
+        const start = new Date(block.start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        const end = new Date(block.end).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        parts.push(`  - ${start} – ${end}`);
+        allBusy.push({ calendar: calId, start: block.start, end: block.end });
+      }
+    }
+  }
+
+  return {
+    text: parts.join('\n') + nextSteps('calendar', 'freebusy', { email: ctx.account }),
+    refs: {
+      calendars: Object.keys(calendars),
+      busyBlocks: allBusy,
+      timeMin: ctx.params.timeMin,
+      timeMax: ctx.params.timeMax,
+    },
+  };
+}
+
+/** Format agenda events with calendarId per event. */
+function formatAgenda(data: unknown, account: string): HandlerResponse {
+  const raw = data as Record<string, unknown>;
+  const events = (raw?.events ?? []) as Array<Record<string, unknown>>;
+  const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+
+  return {
+    text: text + nextSteps('calendar', 'agenda', { email: account }),
+    refs: {
+      count: events.length,
+      eventId: events[0]?.id as string | undefined,
+      events: events.map((e: Record<string, unknown>) => ({
+        id: e.id,
+        calendarId: e.calendarId ?? (e.organizer && (e.organizer as Record<string, unknown>).email),
+      })),
+    },
+  };
+}
+
 export const calendarPatch: ServicePatch = {
   beforeExecute: {
     list: async (args, ctx) => {
@@ -68,25 +141,51 @@ export const calendarPatch: ServicePatch = {
       case 'calendars':
         return formatCalendarList(data);
       default:
-        return formatEventList(data);
+        return formatEventListWithCalendar(data, ctx);
     }
   },
   formatDetail: (data: unknown) => formatEventDetail(data),
 
   customHandlers: {
     agenda: async (params, account): Promise<HandlerResponse> => {
-      const result = await execute(['calendar', '+agenda'], { account });
-      const data = result.data as Record<string, unknown> | undefined;
-      const text = typeof result.data === 'string' ? result.data : JSON.stringify(result.data, null, 2);
-      const events = Array.isArray(data?.events) ? data.events : [];
-      return {
-        text: text + nextSteps('calendar', 'agenda', { email: account }),
-        refs: {
-          count: events.length,
-          eventId: events[0]?.id,
-          events: events.map((e: Record<string, unknown>) => e.id),
-        },
-      };
+      const args = ['calendar', '+agenda'];
+
+      // Day-range flags
+      if (params.tomorrow) args.push('--tomorrow');
+      else if (params.week) args.push('--week');
+      else if (params.days) args.push('--days', String(params.days));
+      else args.push('--today');
+
+      // Calendar filter
+      if (params.calendarId) args.push('--calendar', String(params.calendarId));
+
+      const result = await execute(args, { account });
+      return formatAgenda(result.data, account);
+    },
+
+    freebusy: async (params, account): Promise<HandlerResponse> => {
+      const timeMin = requireString(params, 'timeMin');
+      const timeMax = requireString(params, 'timeMax');
+
+      // Build calendar items list from attendees + own calendar
+      const items: Array<{ id: string }> = [{ id: account }];
+      if (params.attendees) {
+        const emails = String(params.attendees).split(',').map(e => e.trim()).filter(Boolean);
+        for (const email of emails) {
+          items.push({ id: email });
+        }
+      }
+      if (params.calendarId) {
+        const ids = String(params.calendarId).split(',').map(e => e.trim()).filter(Boolean);
+        for (const id of ids) {
+          if (!items.some(i => i.id === id)) items.push({ id });
+        }
+      }
+
+      const body = { timeMin, timeMax, items };
+      const args = ['calendar', 'freebusy', 'query', '--json', JSON.stringify(body)];
+      const result = await execute(args, { account });
+      return formatFreeBusy(result.data, { operation: 'freebusy', params, account });
     },
 
     create: async (params, account): Promise<HandlerResponse> => {
@@ -98,15 +197,18 @@ export const calendarPatch: ServicePatch = {
       if (params.description) args.push('--description', String(params.description));
       if (params.location) args.push('--location', String(params.location));
       if (params.attendees) args.push('--attendees', String(params.attendees));
+      if (params.meet) args.push('--meet');
       const result = await execute(args, { account });
       const data = result.data as Record<string, unknown>;
+      const meetLink = params.meet ? ' (with Google Meet)' : '';
       return {
-        text: `Event created: **${summary}**\n\n` +
+        text: `Event created: **${summary}**${meetLink}\n\n` +
           `**When:** ${start} – ${end}\n` +
           (params.location ? `**Where:** ${params.location}\n` : '') +
+          `**Calendar:** ${calendarId}\n` +
           `**Event ID:** ${data.id ?? 'unknown'}` +
           nextSteps('calendar', 'create', { email: account }),
-        refs: { id: data.id, eventId: data.id, summary, start, end },
+        refs: { id: data.id, eventId: data.id, calendarId, summary, start, end },
       };
     },
 
