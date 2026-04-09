@@ -107,6 +107,29 @@ export const calendarInsertResponse = {
   htmlLink: 'https://calendar.google.com/event?eid=xxx',
 };
 
+export const calendarFreeBusyResponse = {
+  calendars: {
+    'user@test.com': {
+      busy: [
+        { start: '2026-04-09T14:00:00Z', end: '2026-04-09T15:00:00Z' },
+        { start: '2026-04-09T16:00:00Z', end: '2026-04-09T16:30:00Z' },
+      ],
+    },
+    'colleague@test.com': {
+      busy: [],
+    },
+  },
+};
+
+export const calendarFreeBusyErrorResponse = {
+  calendars: {
+    'user@test.com': { busy: [] },
+    'private@test.com': {
+      errors: [{ domain: 'calendar', reason: 'notFound' }],
+    },
+  },
+};
+
 // --- Drive contract responses ---
 
 export const driveFileListResponse = {
