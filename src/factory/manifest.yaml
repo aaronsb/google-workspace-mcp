@@ -315,17 +315,30 @@ services:
 
       agenda:
         type: list
-        description: "today's schedule at a glance (all calendars)"
+        description: "today's schedule at a glance (all calendars). Returns calendarId per event for follow-up get calls."
         helper: "+agenda"
+        params:
+          calendarId:
+            type: string
+            description: "Filter to a specific calendar name or ID"
+          days:
+            type: number
+            description: "Number of days ahead to show (default: today only)"
+          tomorrow:
+            type: boolean
+            description: "Show tomorrow's events instead of today"
+          week:
+            type: boolean
+            description: "Show this week's events"
 
       get:
         type: detail
-        description: "full event details by ID"
+        description: "full event details by ID. For shared calendar events, calendarId is required (use agenda or list to discover it)."
         resource: events.get
         params:
           calendarId:
             type: string
-            description: "Calendar ID (default: 'primary')"
+            description: "Calendar ID (default: 'primary'). Required for events on shared calendars."
           eventId:
             type: string
             description: "Event ID"
@@ -364,6 +377,9 @@ services:
           attendees:
             type: string
             description: "Comma-separated attendee emails"
+          meet:
+            type: boolean
+            description: "Add a Google Meet video conference link to the event"
         cli_args:
           calendarId: "--calendar"
           summary: "--summary"
@@ -442,7 +458,7 @@ services:
 
       freebusy:
         type: detail
-        description: "check availability (free/busy) for a time range"
+        description: "check availability (free/busy) for a time range. Automatically includes own calendar; add attendees to check others."
         resource: freebusy.query
         params:
           timeMin:
@@ -453,6 +469,12 @@ services:
             type: string
             description: "End of range (ISO 8601)"
             required: true
+          attendees:
+            type: string
+            description: "Comma-separated email addresses to check availability for"
+          calendarId:
+            type: string
+            description: "Comma-separated calendar IDs to check (in addition to own calendar)"
 
   drive:
     tool_name: manage_drive
