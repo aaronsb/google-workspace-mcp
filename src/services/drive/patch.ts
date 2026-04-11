@@ -75,6 +75,9 @@ export const drivePatch: ServicePatch = {
       const outputPath = resolveWorkspacePath(filename);
       await verifyPathSafety(outputPath);
 
+      // Ensure parent directories exist (outputPath may contain subdirectories)
+      await fs.mkdir(path.dirname(outputPath), { recursive: true });
+
       // Download directly to disk via --output (preserves binary integrity)
       // cwd must match workspace so gws directory-fence accepts the output path
       await execute([
@@ -170,6 +173,9 @@ export const drivePatch: ServicePatch = {
       if (!wsStatus.valid) throw new Error(`Workspace invalid: ${wsStatus.warning}`);
       const outputPath = resolveWorkspacePath(filename);
       await verifyPathSafety(outputPath);
+
+      // Ensure parent directories exist (outputPath may contain subdirectories)
+      await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
       // Export directly to disk via --output (preserves binary integrity)
       // cwd must match workspace so gws directory-fence accepts the output path
