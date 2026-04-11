@@ -36,6 +36,8 @@ const mockExecute = execute as jest.MockedFunction<typeof execute>;
 describe('drivePatch custom handlers', () => {
   beforeEach(async () => {
     mockExecute.mockReset();
+    // Start with a clean workspace — only the root dir exists
+    await fs.rm(tmpWorkspace, { recursive: true, force: true });
     await fs.mkdir(tmpWorkspace, { recursive: true });
   });
 
@@ -45,18 +47,20 @@ describe('drivePatch custom handlers', () => {
 
   describe('export', () => {
     it('creates parent directories before calling gws', async () => {
-      // First call: get file metadata; second call: export
-      mockExecute
-        .mockResolvedValueOnce({ success: true, data: { name: 'Report.gdoc' }, stderr: '' })
-        .mockResolvedValueOnce({ success: true, data: {}, stderr: '' });
-
-      // Write a dummy file so readWorkspaceFile finds something
       const outputPath = path.join(tmpWorkspace, 'subdir', 'Report.txt');
-      await fs.mkdir(path.dirname(outputPath), { recursive: true });
-      await fs.writeFile(outputPath, 'exported content');
 
       const { resolveWorkspacePath } = require('../../executor/workspace.js');
       (resolveWorkspacePath as jest.Mock).mockReturnValue(outputPath);
+
+      // First call: get file metadata
+      // Second call: export — simulate gws writing the file
+      mockExecute
+        .mockResolvedValueOnce({ success: true, data: { name: 'Report.gdoc' }, stderr: '' })
+        .mockImplementationOnce(async () => {
+          // gws would write the file here — parent dir must already exist
+          await fs.writeFile(outputPath, 'exported content');
+          return { success: true, data: {}, stderr: '' };
+        });
 
       const handler = drivePatch.customHandlers!.export!;
       await handler(
@@ -64,26 +68,51 @@ describe('drivePatch custom handlers', () => {
         'user@test.com',
       );
 
-      // The export call (second execute) should have --output pointing to the nested path
+      // The export call should have --output pointing to the nested path
       const exportCall = mockExecute.mock.calls[1][0];
       expect(exportCall).toContain('--output');
       expect(exportCall[exportCall.indexOf('--output') + 1]).toBe(outputPath);
-
-      // Parent directory must exist (we created it, but the handler also calls mkdir)
-      const parentExists = await fs.stat(path.dirname(outputPath)).then(() => true).catch(() => false);
-      expect(parentExists).toBe(true);
     });
 
-    it('works with flat filename (no subdirectory)', async () => {
-      mockExecute
-        .mockResolvedValueOnce({ success: true, data: { name: 'Doc' }, stderr: '' })
-        .mockResolvedValueOnce({ success: true, data: {}, stderr: '' });
-
-      const outputPath = path.join(tmpWorkspace, 'Doc.pdf');
-      await fs.writeFile(outputPath, 'pdf content');
+    it('handler mkdir is required — without it gws write would fail', async () => {
+      const outputPath = path.join(tmpWorkspace, 'deep', 'nested', 'Doc.txt');
 
       const { resolveWorkspacePath } = require('../../executor/workspace.js');
       (resolveWorkspacePath as jest.Mock).mockReturnValue(outputPath);
+
+      // Verify the parent directory does NOT exist before handler runs
+      const parentBefore = await fs.stat(path.dirname(outputPath)).catch(() => null);
+      expect(parentBefore).toBeNull();
+
+      mockExecute
+        .mockResolvedValueOnce({ success: true, data: { name: 'Doc' }, stderr: '' })
+        .mockImplementationOnce(async () => {
+          // Parent directory must exist at this point (handler created it)
+          const stat = await fs.stat(path.dirname(outputPath));
+          expect(stat.isDirectory()).toBe(true);
+          await fs.writeFile(outputPath, 'content');
+          return { success: true, data: {}, stderr: '' };
+        });
+
+      const handler = drivePatch.customHandlers!.export!;
+      await handler(
+        { fileId: 'abc123', mimeType: 'text/plain' },
+        'user@test.com',
+      );
+    });
+
+    it('works with flat filename (no subdirectory)', async () => {
+      const outputPath = path.join(tmpWorkspace, 'Doc.pdf');
+
+      const { resolveWorkspacePath } = require('../../executor/workspace.js');
+      (resolveWorkspacePath as jest.Mock).mockReturnValue(outputPath);
+
+      mockExecute
+        .mockResolvedValueOnce({ success: true, data: { name: 'Doc' }, stderr: '' })
+        .mockImplementationOnce(async () => {
+          await fs.writeFile(outputPath, 'pdf content');
+          return { success: true, data: {}, stderr: '' };
+        });
 
       const handler = drivePatch.customHandlers!.export!;
       const result = await handler(
@@ -98,16 +127,24 @@ describe('drivePatch custom handlers', () => {
 
   describe('download', () => {
     it('creates parent directories before calling gws', async () => {
-      mockExecute
-        .mockResolvedValueOnce({ success: true, data: { name: 'photo.png', mimeType: 'image/png' }, stderr: '' })
-        .mockResolvedValueOnce({ success: true, data: {}, stderr: '' });
-
       const outputPath = path.join(tmpWorkspace, 'images', 'photo.png');
-      await fs.mkdir(path.dirname(outputPath), { recursive: true });
-      await fs.writeFile(outputPath, 'png data');
 
       const { resolveWorkspacePath } = require('../../executor/workspace.js');
       (resolveWorkspacePath as jest.Mock).mockReturnValue(outputPath);
+
+      // Verify parent does NOT exist before handler runs
+      const parentBefore = await fs.stat(path.dirname(outputPath)).catch(() => null);
+      expect(parentBefore).toBeNull();
+
+      mockExecute
+        .mockResolvedValueOnce({ success: true, data: { name: 'photo.png', mimeType: 'image/png' }, stderr: '' })
+        .mockImplementationOnce(async () => {
+          // Parent directory must exist at this point
+          const stat = await fs.stat(path.dirname(outputPath));
+          expect(stat.isDirectory()).toBe(true);
+          await fs.writeFile(outputPath, 'png data');
+          return { success: true, data: {}, stderr: '' };
+        });
 
       const handler = drivePatch.customHandlers!.download!;
       await handler(
