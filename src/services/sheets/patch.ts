@@ -183,6 +183,30 @@ function formatAppendAction(data: unknown): HandlerResponse {
 // --- Custom handlers ---
 
 /**
+ * Parse user-friendly `values` (CSV for one row) or `jsonValues` (JSON 2D
+ * array) params into the shape the Sheets API body needs. Shared by
+ * updateValues and append since both take the same input shape.
+ */
+function parseValuesInput(params: Record<string, unknown>, opLabel: string): unknown[][] {
+  if (typeof params.jsonValues === 'string' && params.jsonValues.trim()) {
+    try {
+      const parsed = JSON.parse(params.jsonValues);
+      if (!Array.isArray(parsed) || !parsed.every(Array.isArray)) {
+        throw new Error('jsonValues must be a JSON 2D array, e.g. [["a","b"],["c","d"]]');
+      }
+      return parsed;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Invalid jsonValues: ${message}`);
+    }
+  }
+  if (typeof params.values === 'string' && params.values.trim()) {
+    return [parseCsvLine(params.values)];
+  }
+  throw new Error(`${opLabel} requires either values (CSV row) or jsonValues (JSON 2D array)`);
+}
+
+/**
  * updateValues — write a 2D values array to a range.
  *
  * The manifest/factory can't express request bodies, so this handler
@@ -200,23 +224,7 @@ async function updateValuesHandler(
     ? String(params.valueInputOption)
     : 'USER_ENTERED';
 
-  let values: unknown[][];
-  if (typeof params.jsonValues === 'string' && params.jsonValues.trim()) {
-    try {
-      const parsed = JSON.parse(params.jsonValues);
-      if (!Array.isArray(parsed) || !parsed.every(Array.isArray)) {
-        throw new Error('jsonValues must be a JSON 2D array, e.g. [["a","b"],["c","d"]]');
-      }
-      values = parsed;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw new Error(`Invalid jsonValues: ${message}`);
-    }
-  } else if (typeof params.values === 'string' && params.values.trim()) {
-    values = [parseCsvLine(params.values)];
-  } else {
-    throw new Error('updateValues requires either values (CSV row) or jsonValues (JSON 2D array)');
-  }
+  const values = parseValuesInput(params, 'updateValues');
 
   const result = await execute([
     'sheets', 'spreadsheets', 'values', 'update',
@@ -238,6 +246,35 @@ async function updateValuesHandler(
     text: parts.join(''),
     refs: { spreadsheetId, updatedRange, updatedRows, updatedCells, updatedColumns, valueInputOption },
   };
+}
+
+/**
+ * append — add rows after existing data in a range.
+ *
+ * The gws `+append` helper has no --range flag and always hits Sheet1.
+ * This handler uses the underlying spreadsheets.values.append resource
+ * so callers can target a specific tab. Accepts the same values /
+ * jsonValues / valueInputOption shape as updateValues.
+ */
+async function appendHandler(
+  params: Record<string, unknown>,
+  account: string,
+): Promise<HandlerResponse> {
+  const spreadsheetId = requireString(params, 'spreadsheetId');
+  const range = params.range ? String(params.range) : 'Sheet1';
+  const valueInputOption = params.valueInputOption
+    ? String(params.valueInputOption)
+    : 'USER_ENTERED';
+
+  const values = parseValuesInput(params, 'append');
+
+  const result = await execute([
+    'sheets', 'spreadsheets', 'values', 'append',
+    '--params', JSON.stringify({ spreadsheetId, range, valueInputOption }),
+    '--json', JSON.stringify({ range, majorDimension: 'ROWS', values }),
+  ], { account });
+
+  return formatAppendAction(result.data);
 }
 
 /** Parse a sheetId param — Google assigns integers and `0` is valid. */
@@ -463,6 +500,7 @@ export const sheetsPatch: ServicePatch = {
 
   customHandlers: {
     updateValues: updateValuesHandler,
+    append: appendHandler,
     addSheet: addSheetHandler,
     renameSheet: renameSheetHandler,
     deleteSheet: deleteSheetHandler,

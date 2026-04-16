@@ -235,6 +235,103 @@ describe('sheetsPatch customHandlers.updateValues', () => {
   });
 });
 
+describe('sheetsPatch customHandlers.append', () => {
+  beforeEach(() => mockExecute.mockReset());
+
+  const apiResponse = {
+    success: true,
+    data: {
+      spreadsheetId: 'sheet123',
+      tableRange: "'Q2 Metrics'!A1:C3",
+      updates: {
+        updatedRange: "'Q2 Metrics'!A4:C4",
+        updatedRows: 1,
+        updatedColumns: 3,
+        updatedCells: 3,
+      },
+    },
+    stderr: '',
+  } as const;
+
+  it('hits spreadsheets.values.append (not the +append helper)', async () => {
+    mockExecute.mockResolvedValueOnce(apiResponse);
+    const handler = sheetsPatch.customHandlers!.append!;
+
+    await handler(
+      { spreadsheetId: 'sheet123', range: 'Q2 Metrics', jsonValues: '[["a","b","c"]]' },
+      'user@test.com',
+    );
+
+    const args = mockExecute.mock.calls[0][0];
+    expect(args.slice(0, 4)).toEqual(['sheets', 'spreadsheets', 'values', 'append']);
+    // Sanity: make sure we did NOT fall back to the helper form
+    expect(args).not.toContain('+append');
+  });
+
+  it('passes range through --params (fixes the Sheet1-only bug)', async () => {
+    mockExecute.mockResolvedValueOnce(apiResponse);
+    const handler = sheetsPatch.customHandlers!.append!;
+
+    await handler(
+      { spreadsheetId: 'sheet123', range: 'Q2 Metrics!A:Z', jsonValues: '[["a","b"]]' },
+      'user@test.com',
+    );
+
+    const args = mockExecute.mock.calls[0][0];
+    const params = JSON.parse(args[args.indexOf('--params') + 1]);
+    expect(params.range).toBe('Q2 Metrics!A:Z');
+    expect(params.valueInputOption).toBe('USER_ENTERED');
+  });
+
+  it('defaults range to Sheet1 when omitted (backward compatible)', async () => {
+    mockExecute.mockResolvedValueOnce(apiResponse);
+    const handler = sheetsPatch.customHandlers!.append!;
+
+    await handler(
+      { spreadsheetId: 'sheet123', jsonValues: '[["a"]]' },
+      'user@test.com',
+    );
+
+    const params = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--params') + 1]);
+    expect(params.range).toBe('Sheet1');
+  });
+
+  it('accepts CSV values for single-row appends', async () => {
+    mockExecute.mockResolvedValueOnce(apiResponse);
+    const handler = sheetsPatch.customHandlers!.append!;
+
+    await handler(
+      { spreadsheetId: 'sheet123', range: 'Q2 Metrics', values: 'Alice,100,true' },
+      'user@test.com',
+    );
+
+    const body = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--json') + 1]);
+    expect(body.values).toEqual([['Alice', '100', 'true']]);
+  });
+
+  it('surfaces the updated range from the response', async () => {
+    mockExecute.mockResolvedValueOnce(apiResponse);
+    const handler = sheetsPatch.customHandlers!.append!;
+
+    const res = await handler(
+      { spreadsheetId: 'sheet123', range: 'Q2 Metrics', jsonValues: '[["a","b","c"]]' },
+      'user@test.com',
+    );
+
+    expect(res.text).toContain("'Q2 Metrics'!A4:C4");
+    expect(res.refs.updatedRows).toBe(1);
+    expect(res.refs.updatedCells).toBe(3);
+  });
+
+  it('rejects missing values input', async () => {
+    const handler = sheetsPatch.customHandlers!.append!;
+    await expect(
+      handler({ spreadsheetId: 'sheet123', range: 'Q2 Metrics' }, 'user@test.com'),
+    ).rejects.toThrow(/append requires .* values .* jsonValues/);
+    expect(mockExecute).not.toHaveBeenCalled();
+  });
+});
+
 // --- Tab management (batchUpdate-based customHandlers) ---
 
 /** Assert batchUpdate was called with the expected single-request body. */

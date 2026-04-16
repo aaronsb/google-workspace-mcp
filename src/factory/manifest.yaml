@@ -806,23 +806,27 @@ services:
 
       append:
         type: action
-        description: "append rows to a spreadsheet"
-        helper: "+append"
+        description: "append rows to a spreadsheet (rows land after the last row of existing data in the target range)"
+        resource: spreadsheets.values.append
         params:
           spreadsheetId:
             type: string
             description: "Spreadsheet ID"
             required: true
+          range:
+            type: string
+            description: "Target range; defaults to 'Sheet1'. Use 'MyTab' or 'MyTab!A:Z' to append to a specific tab."
           values:
             type: string
             description: "Comma-separated values for a single row (e.g. 'Alice,100,true')"
           jsonValues:
             type: string
-            description: "JSON array of rows for bulk insert (e.g. '[[\"a\",\"b\"],[\"c\",\"d\"]]')"
-        cli_args:
-          spreadsheetId: "--spreadsheet"
-          values: "--values"
-          jsonValues: "--json-values"
+            description: "JSON 2D array of rows for bulk insert (e.g. '[[\"a\",\"b\"],[\"c\",\"d\"]]')"
+          valueInputOption:
+            type: string
+            description: "How input is interpreted: USER_ENTERED (default, parses formulas/types) or RAW"
+            enum: [USER_ENTERED, RAW]
+            default: USER_ENTERED
 
       getValues:
         type: detail
