@@ -1,16 +1,20 @@
-# Exclude dev artifacts from .mcpb bundle
+# Exclude dev artifacts from .mcpb bundle.
+# Leading `/` anchors patterns to the bundle root so they do NOT match
+# nested paths. Unanchored `docs/` in v2.6.0 matched server/services/docs/
+# and dropped the compiled Docs service handler from the bundle,
+# crashing the server at import time. Anchor everything directory-shaped.
 *.map
 *.test.js
 *.test.d.ts
-__tests__/
-.github/
-docs/
-scripts/
-src/
-*.md
-.eslintrc*
-tsconfig.json
-jest.config*
-Makefile
-discovered-manifest.yaml
-.claude/
+/__tests__/
+/.github/
+/docs/
+/scripts/
+/src/
+/.claude/
+/.eslintrc*
+/tsconfig.json
+/jest.config*
+/Makefile
+/discovered-manifest.yaml
+/*.md
