@@ -15,26 +15,11 @@
  */
 
 import { execute } from '../../executor/gws.js';
-import { nextSteps } from '../../server/formatting/next-steps.js';
 import { requireString } from '../../server/handlers/validate.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
 // --- Helpers ---
-
-/**
- * Build a string-only context map for next-steps placeholder resolution.
- * The factory path builds an equivalent map internally; custom handlers
- * skip that path, so we reconstruct it here to keep placeholders like
- * `<spreadsheetId>` and `<range>` resolving in the guidance footer.
- */
-function handlerContext(params: Record<string, unknown>, account: string): Record<string, string> {
-  const ctx: Record<string, string> = { email: account };
-  for (const [key, value] of Object.entries(params)) {
-    if (typeof value === 'string') ctx[key] = value;
-  }
-  return ctx;
-}
 
 /** Escape a pipe so it doesn't break the markdown table. */
 function escapeCell(val: unknown): string {
@@ -258,7 +243,7 @@ async function updateValuesHandler(
   parts.push(`\n**Cells:** ${updatedCells}`, `\n**Value input:** ${valueInputOption}`);
 
   return {
-    text: parts.join('') + nextSteps('sheets', 'updateValues', handlerContext(params, account)),
+    text: parts.join(''),
     refs: { spreadsheetId, updatedRange, updatedRows, updatedCells, updatedColumns, valueInputOption },
   };
 }
@@ -289,11 +274,7 @@ async function appendHandler(
     '--json', JSON.stringify({ range, majorDimension: 'ROWS', values }),
   ], { account });
 
-  const formatted = formatAppendAction(result.data);
-  return {
-    ...formatted,
-    text: formatted.text + nextSteps('sheets', 'append', handlerContext(params, account)),
-  };
+  return formatAppendAction(result.data);
 }
 
 /** Parse a sheetId param — Google assigns integers and `0` is valid. */
@@ -364,8 +345,7 @@ async function addSheetHandler(
   const grid = (addedProps.gridProperties ?? {}) as Record<string, unknown>;
 
   return {
-    text: `Sheet added: **${newTitle}**\n\n**Sheet ID:** ${newSheetId}\n**Rows:** ${grid.rowCount ?? '?'}\n**Columns:** ${grid.columnCount ?? '?'}` +
-      nextSteps('sheets', 'addSheet', handlerContext(params, account)),
+    text: `Sheet added: **${newTitle}**\n\n**Sheet ID:** ${newSheetId}\n**Rows:** ${grid.rowCount ?? '?'}\n**Columns:** ${grid.columnCount ?? '?'}`,
     refs: { spreadsheetId, sheetId: newSheetId, title: newTitle },
   };
 }
@@ -387,8 +367,7 @@ async function renameSheetHandler(
   }, account);
 
   return {
-    text: `Sheet renamed.\n\n**Sheet ID:** ${sheetId}\n**New title:** ${title}` +
-      nextSteps('sheets', 'renameSheet', handlerContext(params, account)),
+    text: `Sheet renamed.\n\n**Sheet ID:** ${sheetId}\n**New title:** ${title}`,
     refs: { spreadsheetId, sheetId, title },
   };
 }
@@ -404,8 +383,7 @@ async function deleteSheetHandler(
   await runBatchUpdate(spreadsheetId, { deleteSheet: { sheetId } }, account);
 
   return {
-    text: `Sheet deleted.\n\n**Sheet ID:** ${sheetId}` +
-      nextSteps('sheets', 'deleteSheet', handlerContext(params, account)),
+    text: `Sheet deleted.\n\n**Sheet ID:** ${sheetId}`,
     refs: { spreadsheetId, sheetId, deleted: true },
   };
 }
@@ -433,8 +411,7 @@ async function duplicateSheetHandler(
   const newProps = ((reply.duplicateSheet as Record<string, unknown>)?.properties ?? {}) as Record<string, unknown>;
 
   return {
-    text: `Sheet duplicated.\n\n**Source sheet ID:** ${sourceSheetId}\n**New sheet ID:** ${newProps.sheetId ?? 'unknown'}\n**New title:** ${newProps.title ?? newSheetName ?? '?'}` +
-      nextSteps('sheets', 'duplicateSheet', handlerContext(params, account)),
+    text: `Sheet duplicated.\n\n**Source sheet ID:** ${sourceSheetId}\n**New sheet ID:** ${newProps.sheetId ?? 'unknown'}\n**New title:** ${newProps.title ?? newSheetName ?? '?'}`,
     refs: { spreadsheetId, sourceSheetId, sheetId: newProps.sheetId, title: newProps.title },
   };
 }
@@ -455,8 +432,7 @@ async function renameSpreadsheetHandler(
   }, account);
 
   return {
-    text: `Spreadsheet renamed.\n\n**Spreadsheet ID:** ${spreadsheetId}\n**New title:** ${title}` +
-      nextSteps('sheets', 'renameSpreadsheet', handlerContext(params, account)),
+    text: `Spreadsheet renamed.\n\n**Spreadsheet ID:** ${spreadsheetId}\n**New title:** ${title}`,
     refs: { spreadsheetId, title },
   };
 }
@@ -481,8 +457,7 @@ async function copySheetToHandler(
 
   const data = (result.data ?? {}) as Record<string, unknown>;
   return {
-    text: `Sheet copied.\n\n**Source:** ${spreadsheetId} (sheet ${sheetId})\n**Destination:** ${destinationSpreadsheetId}\n**New sheet ID:** ${data.sheetId ?? 'unknown'}\n**New title:** ${data.title ?? '?'}` +
-      nextSteps('sheets', 'copySheetTo', handlerContext(params, account)),
+    text: `Sheet copied.\n\n**Source:** ${spreadsheetId} (sheet ${sheetId})\n**Destination:** ${destinationSpreadsheetId}\n**New sheet ID:** ${data.sheetId ?? 'unknown'}\n**New title:** ${data.title ?? '?'}`,
     refs: {
       spreadsheetId,
       sourceSheetId: sheetId,

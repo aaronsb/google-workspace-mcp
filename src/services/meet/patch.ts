@@ -10,7 +10,6 @@
  */
 
 import { execute } from '../../executor/gws.js';
-import { nextSteps } from '../../server/formatting/next-steps.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
@@ -416,8 +415,7 @@ async function getFullTranscript(
   }
 
   return {
-    text: `## Transcript (${entries.length} entries)\n\n${blocks.join('\n\n')}${footer.join('')}` +
-      nextSteps('meet', 'getFullTranscript', { email: account, conferenceId: confId }),
+    text: `## Transcript (${entries.length} entries)\n\n${blocks.join('\n\n')}${footer.join('')}`,
     refs: {
       conferenceId: confId,
       transcriptName,

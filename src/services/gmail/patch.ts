@@ -11,7 +11,6 @@ import * as path from 'node:path';
 import { execute } from '../../executor/gws.js';
 import { resolveWorkspacePath, verifyPathSafety, getWorkspaceDir } from '../../executor/workspace.js';
 import { formatEmailList, formatEmailDetail, extractBodyFromPayload } from '../../server/formatting/markdown.js';
-import { nextSteps } from '../../server/formatting/next-steps.js';
 import { requireString } from '../../server/handlers/validate.js';
 import { handleGetAttachment, handleViewAttachment } from './attachments.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
@@ -247,15 +246,13 @@ export const gmailPatch: ServicePatch = {
 
       if (draft || attachmentNames.length > 0) {
         return {
-          text: `Draft created for ${to}.\n\n**Subject:** ${subject}${attachNote}\n**Draft ID:** ${data.id ?? 'unknown'}` +
-            nextSteps('email', 'draft', { email: account }),
+          text: `Draft created for ${to}.\n\n**Subject:** ${subject}${attachNote}\n**Draft ID:** ${data.id ?? 'unknown'}`,
           refs: { id: data.id, draftId: data.id, to, subject, attachments: attachmentNames, isDraft: true },
         };
       }
 
       return {
-        text: `Email sent to ${to}.\n\n**Subject:** ${subject}\n**Message ID:** ${data.id ?? 'unknown'}` +
-          nextSteps('email', 'send', { email: account }),
+        text: `Email sent to ${to}.\n\n**Subject:** ${subject}\n**Message ID:** ${data.id ?? 'unknown'}`,
         refs: { id: data.id, threadId: data.threadId, to, subject },
       };
     },
@@ -285,8 +282,7 @@ export const gmailPatch: ServicePatch = {
       const data = result.data as Record<string, unknown>;
       const labels = (data.labelIds ?? []) as string[];
       return {
-        text: `Labels updated on ${messageId}.\n\n**Current labels:** ${labels.join(', ') || '(none)'}` +
-          nextSteps('email', 'modify', { email: account }),
+        text: `Labels updated on ${messageId}.\n\n**Current labels:** ${labels.join(', ') || '(none)'}`,
         refs: { messageId, labelIds: labels },
       };
     },
@@ -302,8 +298,7 @@ export const gmailPatch: ServicePatch = {
       ], { account });
       const data = result.data as Record<string, unknown>;
       return {
-        text: `Reply sent.\n\n**Message ID:** ${data.id ?? 'unknown'}` +
-          nextSteps('email', 'reply', { email: account }),
+        text: `Reply sent.\n\n**Message ID:** ${data.id ?? 'unknown'}`,
         refs: { id: data.id, threadId: data.threadId, messageId },
       };
     },
