@@ -38,3 +38,5 @@ _MCP tools, schemas, progressive disclosure_
 | [ADR-300](./api/ADR-300-service-tool-factory-with-manifest-driven-generation.md) | Service tool factory with manifest-driven generation | Draft |
 | [ADR-301](./api/ADR-301-scratchpad-buffer-for-service-agnostic-content-authoring.md) | Scratchpad Buffer — Service-Agnostic Content Authoring | Draft |
 | [ADR-302](./api/ADR-302-scratchpad-html-format-and-format-aware-validation.md) | Scratchpad HTML Format and Format-Aware Validation | Draft |
+| [ADR-303](./api/ADR-303-auto-append-next-steps-in-factory-generator.md) | Auto-append next-steps in factory generator | Draft |
+| [ADR-304](./api/ADR-304-split-manifest-yaml-into-per-service-files.md) | Split manifest.yaml into per-service files | Draft |
