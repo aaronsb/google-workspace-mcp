@@ -226,6 +226,33 @@ describe('sheetsPatch customHandlers.updateValues', () => {
     expect(mockExecute).not.toHaveBeenCalled();
   });
 
+  it('parses CSV values with quoted fields containing commas', async () => {
+    mockExecute.mockResolvedValueOnce(okResponse);
+    const handler = sheetsPatch.customHandlers!.updateValues!;
+
+    await handler(
+      { spreadsheetId: 'sheet123', range: 'Sheet1!A1', values: '"Smith, John",42,"Remote, WFH"' },
+      'user@test.com',
+    );
+
+    const body = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--json') + 1]);
+    expect(body.values).toEqual([['Smith, John', '42', 'Remote, WFH']]);
+  });
+
+  it('parses CSV values with escaped double quotes', async () => {
+    mockExecute.mockResolvedValueOnce(okResponse);
+    const handler = sheetsPatch.customHandlers!.updateValues!;
+
+    // Google-style CSV escaping: "" inside a quoted field = literal "
+    await handler(
+      { spreadsheetId: 'sheet123', range: 'Sheet1!A1', values: '"She said ""hi""",ok' },
+      'user@test.com',
+    );
+
+    const body = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--json') + 1]);
+    expect(body.values).toEqual([['She said "hi"', 'ok']]);
+  });
+
   it('requires either values or jsonValues', async () => {
     const handler = sheetsPatch.customHandlers!.updateValues!;
     await expect(
@@ -568,5 +595,69 @@ describe('sheetsPatch customHandlers.copySheetTo', () => {
     expect(body).toEqual({ destinationSpreadsheetId: 'dstSheet' });
     expect(res.refs.destinationSpreadsheetId).toBe('dstSheet');
     expect(res.refs.sheetId).toBe(500);
+  });
+
+  it('rejects missing destinationSpreadsheetId', async () => {
+    const handler = sheetsPatch.customHandlers!.copySheetTo!;
+    await expect(
+      handler({ spreadsheetId: 'srcSheet', sheetId: 5 }, 'user@test.com'),
+    ).rejects.toThrow(/destinationSpreadsheetId is required/);
+    expect(mockExecute).not.toHaveBeenCalled();
+  });
+
+  it('propagates gws execution errors', async () => {
+    mockExecute.mockRejectedValueOnce(new Error('destination spreadsheet not found'));
+    const handler = sheetsPatch.customHandlers!.copySheetTo!;
+    await expect(
+      handler(
+        { spreadsheetId: 'srcSheet', sheetId: 5, destinationSpreadsheetId: 'missing' },
+        'user@test.com',
+      ),
+    ).rejects.toThrow(/destination spreadsheet not found/);
+  });
+});
+
+describe('sheetsPatch — nextSteps guidance (regression for PR #103 review)', () => {
+  beforeEach(() => mockExecute.mockReset());
+
+  it('updateValues appends next-steps footer to response text', async () => {
+    mockExecute.mockResolvedValueOnce({
+      success: true,
+      data: { spreadsheetId: 'sheet123', updatedRange: 'Sheet1!A1:B1', updatedRows: 1, updatedColumns: 2, updatedCells: 2 },
+      stderr: '',
+    });
+    const handler = sheetsPatch.customHandlers!.updateValues!;
+    const res = await handler(
+      { spreadsheetId: 'sheet123', range: 'Sheet1!A1', jsonValues: '[["a","b"]]' },
+      'user@test.com',
+    );
+    expect(res.text).toContain('Next steps:');
+    expect(res.text).toContain('manage_sheets');
+  });
+
+  it('addSheet appends next-steps footer', async () => {
+    mockExecute.mockResolvedValueOnce({
+      success: true,
+      data: { replies: [{ addSheet: { properties: { sheetId: 42, title: 'T', gridProperties: {} } } }] },
+      stderr: '',
+    });
+    const handler = sheetsPatch.customHandlers!.addSheet!;
+    const res = await handler(
+      { spreadsheetId: 'sheet123', title: 'T' },
+      'user@test.com',
+    );
+    expect(res.text).toContain('Next steps:');
+  });
+
+  it('resolves spreadsheetId placeholder from handler context', async () => {
+    mockExecute.mockResolvedValueOnce({ success: true, data: { replies: [{}] }, stderr: '' });
+    const handler = sheetsPatch.customHandlers!.renameSheet!;
+    const res = await handler(
+      { spreadsheetId: 'sheet-xyz', sheetId: 0, title: 'Main' },
+      'user@test.com',
+    );
+    // Next-steps entry for renameSheet references <spreadsheetId> — verify resolution
+    expect(res.text).toContain('sheet-xyz');
+    expect(res.text).not.toContain('<spreadsheetId>');
   });
 });
