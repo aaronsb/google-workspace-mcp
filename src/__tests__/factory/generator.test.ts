@@ -215,3 +215,75 @@ describe('generateHandler', () => {
     expect(result.refs).toHaveProperty('count', 2);
   });
 });
+
+// ADR-303: the generator appends next-steps for custom handlers, so patches
+// no longer need to call nextSteps() inline. This is the architectural
+// guarantee that replaces the per-handler regression tests.
+describe('generateHandler — custom-handler next-steps wrapping', () => {
+  const manifest = loadManifest();
+
+  beforeEach(() => mockExecute.mockReset());
+
+  it('appends next-steps to a custom handler response', async () => {
+    // sheets.addSheet is a customHandler — its handler return has no footer,
+    // but the factory should wrap with one from the next-steps registry.
+    mockExecute.mockResolvedValueOnce({
+      success: true,
+      data: { replies: [{ addSheet: { properties: { sheetId: 42, title: 'T', gridProperties: {} } } }] },
+      stderr: '',
+    });
+
+    const handler = generateHandler(manifest.services.sheets, patches.sheets);
+    const result = await handler({
+      operation: 'addSheet',
+      email: 'u@t.com',
+      spreadsheetId: 'sheet-123',
+      title: 'T',
+    });
+
+    expect(result.text).toContain('Sheet added');
+    expect(result.text).toContain('Next steps:');
+  });
+
+  it('resolves placeholder values from the input params on custom handlers', async () => {
+    mockExecute.mockResolvedValueOnce({
+      success: true,
+      data: { replies: [{}] },
+      stderr: '',
+    });
+
+    const handler = generateHandler(manifest.services.sheets, patches.sheets);
+    const result = await handler({
+      operation: 'renameSheet',
+      email: 'u@t.com',
+      spreadsheetId: 'sheet-xyz',
+      sheetId: 0,
+      title: 'Main',
+    });
+
+    // The sheets.renameSheet next-steps entry references <spreadsheetId> —
+    // the generator's contextMap should have resolved it.
+    expect(result.text).toContain('sheet-xyz');
+    expect(result.text).not.toContain('<spreadsheetId>');
+  });
+
+  it('does not double-append next-steps (regression for ADR-303 migration)', async () => {
+    mockExecute.mockResolvedValueOnce({
+      success: true,
+      data: { replies: [{ addSheet: { properties: { sheetId: 99, title: 'Q', gridProperties: {} } } }] },
+      stderr: '',
+    });
+
+    const handler = generateHandler(manifest.services.sheets, patches.sheets);
+    const result = await handler({
+      operation: 'addSheet',
+      email: 'u@t.com',
+      spreadsheetId: 'sheet-123',
+      title: 'Q',
+    });
+
+    // Exactly one footer marker in the response
+    const matches = result.text.match(/---\n\*\*Next steps:\*\*/g) ?? [];
+    expect(matches.length).toBe(1);
+  });
+});

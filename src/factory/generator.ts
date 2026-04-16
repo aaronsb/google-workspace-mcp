@@ -177,9 +177,28 @@ export function generateHandler(
       };
     }
 
-    // Check for a fully custom handler first
+    // Context map for next-steps placeholder resolution — built once,
+    // used whether the request goes through a custom handler or the
+    // factory path.
+    const contextMap: Record<string, string> = { email: account };
+    for (const [key, value] of Object.entries(params)) {
+      if (typeof value === 'string') contextMap[key] = value;
+    }
+
+    const framingFooter = (): string =>
+      patch?.nextSteps
+        ? patch.nextSteps(operation, contextMap)
+        : nextSteps(domain, operation, contextMap);
+
+    // Check for a fully custom handler first. The generator still owns
+    // framing (next-steps append) — handlers produce the response text;
+    // the factory frames it. See ADR-303.
     if (patch?.customHandlers?.[operation]) {
-      return patch.customHandlers[operation](params, account);
+      const response = await patch.customHandlers[operation](params, account);
+      return {
+        ...response,
+        text: response.text + framingFooter(),
+      };
     }
 
     // Build gws args
@@ -201,13 +220,6 @@ export function generateHandler(
       data = await patch.afterExecute[operation](data, ctx);
     }
 
-    // Format response
-    const contextMap: Record<string, string> = { email: account };
-    // Add relevant param values to context for next-steps placeholder resolution
-    for (const [key, value] of Object.entries(params)) {
-      if (typeof value === 'string') contextMap[key] = value;
-    }
-
     let formatted: HandlerResponse;
 
     // Check for patch formatters by operation type
@@ -221,14 +233,9 @@ export function generateHandler(
       formatted = formatDefault(data, opDef);
     }
 
-    // Append next-steps
-    const stepsText = patch?.nextSteps
-      ? patch.nextSteps(operation, contextMap)
-      : nextSteps(domain, operation, contextMap);
-
     return {
-      text: formatted.text + stepsText,
-      refs: formatted.refs,
+      ...formatted,
+      text: formatted.text + framingFooter(),
     };
   };
 }

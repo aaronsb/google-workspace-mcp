@@ -12,7 +12,6 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { execute } from '../../executor/gws.js';
 import { formatFileList, formatFileDetail } from '../../server/formatting/markdown.js';
-import { nextSteps } from '../../server/formatting/next-steps.js';
 import { requireString } from '../../server/handlers/validate.js';
 import { ensureWorkspaceDir, getWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
 import { isTextFile, formatFileOutput, buildImageBlock, buildImageBlockFromFile, isImageFile, type FileOutputResult } from '../../executor/file-output.js';
@@ -51,8 +50,7 @@ export const drivePatch: ServicePatch = {
       const result = await execute(args, { account });
       const data = result.data as Record<string, unknown>;
       return {
-        text: `File uploaded: **${data.name ?? filePath}**\n\n**File ID:** ${data.id ?? 'unknown'}` +
-          nextSteps('drive', 'upload', { email: account }),
+        text: `File uploaded: **${data.name ?? filePath}**\n\n**File ID:** ${data.id ?? 'unknown'}`,
         refs: { id: data.id, fileId: data.id, name: data.name },
       };
     },
@@ -89,7 +87,7 @@ export const drivePatch: ServicePatch = {
       const output = await readWorkspaceFile(outputPath, filename, mimeType);
 
       return {
-        text: formatFileOutput(output) + nextSteps('drive', 'download', { email: account }),
+        text: formatFileOutput(output),
         refs: {
           fileId,
           filename: output.filename,
@@ -188,7 +186,7 @@ export const drivePatch: ServicePatch = {
       const output = await readWorkspaceFile(outputPath, filename, mimeType);
 
       return {
-        text: formatFileOutput(output) + nextSteps('drive', 'export', { email: account }),
+        text: formatFileOutput(output),
         refs: {
           fileId,
           filename: output.filename,
@@ -219,8 +217,7 @@ export const drivePatch: ServicePatch = {
 
       if (comments.length === 0) {
         return {
-          text: 'No comments on this file.' +
-            nextSteps('drive', 'listComments', { email: account }),
+          text: 'No comments on this file.',
           refs: { fileId, count: 0 },
         };
       }
@@ -243,8 +240,7 @@ export const drivePatch: ServicePatch = {
       });
 
       return {
-        text: `## Comments (${comments.length})\n\n${lines.join('\n\n')}` +
-          nextSteps('drive', 'listComments', { email: account }),
+        text: `## Comments (${comments.length})\n\n${lines.join('\n\n')}`,
         refs: { fileId, count: comments.length },
       };
     },
@@ -276,8 +272,7 @@ export const drivePatch: ServicePatch = {
 
       return {
         text: `## Comment by ${author}${resolved}\n\n${c.content}${quoted}\n\n**Created:** ${c.createdTime}\n**Modified:** ${c.modifiedTime}` +
-          (replyLines ? `\n\n### Replies\n\n${replyLines}` : '') +
-          nextSteps('drive', 'getComment', { email: account }),
+          (replyLines ? `\n\n### Replies\n\n${replyLines}` : ''),
         refs: { commentId: c.id, fileId, resolved: c.resolved },
       };
     },
@@ -304,8 +299,7 @@ export const drivePatch: ServicePatch = {
       const data = result.data as Record<string, unknown>;
       return {
         text: `Comment added.\n\n**ID:** ${data.id}\n**Content:** ${data.content}` +
-          (quotedText ? `\n**Anchored to:** "${quotedText}"` : '') +
-          nextSteps('drive', 'addComment', { email: account }),
+          (quotedText ? `\n**Anchored to:** "${quotedText}"` : ''),
         refs: { commentId: data.id, fileId },
       };
     },
@@ -342,8 +336,7 @@ export const drivePatch: ServicePatch = {
       ], { account });
       const data = result.data as Record<string, unknown>;
       return {
-        text: `Comment ${resolved ? 'resolved' : 'reopened'}.\n\n**ID:** ${data.id}\n**Resolved:** ${resolved}` +
-          nextSteps('drive', 'resolveComment', { email: account }),
+        text: `Comment ${resolved ? 'resolved' : 'reopened'}.\n\n**ID:** ${data.id}\n**Resolved:** ${resolved}`,
         refs: { commentId: data.id, fileId, resolved },
       };
     },
@@ -365,8 +358,7 @@ export const drivePatch: ServicePatch = {
       ], { account });
       const data = result.data as Record<string, unknown>;
       return {
-        text: `Reply added.\n\n**ID:** ${data.id}\n**Content:** ${data.content}` +
-          nextSteps('drive', 'replyToComment', { email: account }),
+        text: `Reply added.\n\n**ID:** ${data.id}\n**Content:** ${data.content}`,
         refs: { replyId: data.id, commentId, fileId },
       };
     },
