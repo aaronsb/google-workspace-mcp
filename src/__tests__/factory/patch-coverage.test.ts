@@ -148,6 +148,20 @@ describe('patch coverage', () => {
     expect(driveCustom).toContain('download');
   });
 
+  it('sheets core operations have custom formatting', () => {
+    const sheetsCustom = coverage
+      .filter(e => e.service === 'sheets' && e.usesCustomFormat)
+      .map(e => e.operation)
+      .sort();
+
+    expect(sheetsCustom).toContain('get');
+    expect(sheetsCustom).toContain('read');
+    expect(sheetsCustom).toContain('getValues');
+    expect(sheetsCustom).toContain('create');
+    expect(sheetsCustom).toContain('append');
+    expect(sheetsCustom).toContain('updateValues');
+  });
+
   it('meet core operations have custom formatting', () => {
     const meetCustom = coverage
       .filter(e => e.service === 'meet' && e.usesCustomFormat)

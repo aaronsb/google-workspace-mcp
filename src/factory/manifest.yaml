@@ -851,6 +851,17 @@ services:
             type: string
             description: "A1 notation range to write to"
             required: true
+          values:
+            type: string
+            description: "Comma-separated values for a single row (e.g. 'Alice,100,true')"
+          jsonValues:
+            type: string
+            description: "JSON 2D array of rows (e.g. '[[\"a\",\"b\"],[\"c\",\"d\"]]'). Use for multi-row writes."
+          valueInputOption:
+            type: string
+            description: "How input is interpreted: USER_ENTERED (default, parses formulas/types) or RAW"
+            enum: [USER_ENTERED, RAW]
+            default: USER_ENTERED
 
   # ========================================================================
   # Docs
