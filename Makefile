@@ -95,6 +95,7 @@ mcpb: build ## Build .mcpb for current platform (PLATFORM=linux-x64 etc.)
 	rm -f mcpb/server/package.json mcpb/server/package-lock.json
 	./scripts/download-gws-binary.sh $(PLATFORM) $(GWS_VERSION)
 	mcpb pack mcpb google-workspace-mcp-$(PLATFORM).mcpb
+	node scripts/verify-mcpb.cjs google-workspace-mcp-$(PLATFORM).mcpb
 	@echo ""
 	@echo "Built: google-workspace-mcp-$(PLATFORM).mcpb ($$(du -h google-workspace-mcp-$(PLATFORM).mcpb | cut -f1))"
 
