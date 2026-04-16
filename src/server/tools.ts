@@ -116,7 +116,7 @@ const handCodedSchemas: ToolSchema[] = [
             properties: {
               tool: {
                 type: 'string',
-                enum: ['manage_email', 'manage_calendar', 'manage_drive', 'manage_accounts', 'manage_scratchpad', 'manage_workspace'],
+                enum: ['manage_email', 'manage_calendar', 'manage_drive', 'manage_sheets', 'manage_docs', 'manage_tasks', 'manage_meet', 'manage_accounts', 'manage_scratchpad', 'manage_workspace'],
                 description: 'Tool to call',
               },
               args: {

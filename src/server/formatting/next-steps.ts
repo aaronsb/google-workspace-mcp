@@ -127,6 +127,52 @@ const suggestions: Record<string, Record<string, NextStep[]>> = {
       { description: 'Search for more files', tool: 'manage_drive', example: { operation: 'search', email: '<email>' } },
     ],
   },
+  sheets: {
+    create: [
+      { description: 'Write values', tool: 'manage_sheets', example: { operation: 'updateValues', email: '<email>', spreadsheetId: '<spreadsheetId>', range: 'Sheet1!A1', jsonValues: '[["header1","header2"]]' } },
+      { description: 'Append rows', tool: 'manage_sheets', example: { operation: 'append', email: '<email>', spreadsheetId: '<spreadsheetId>', jsonValues: '[["a","b"]]' } },
+    ],
+    get: [
+      { description: 'Read a range', tool: 'manage_sheets', example: { operation: 'read', email: '<email>', spreadsheetId: '<spreadsheetId>', range: '<Sheet1!A1:Z>' } },
+      { description: 'Append rows', tool: 'manage_sheets', example: { operation: 'append', email: '<email>', spreadsheetId: '<spreadsheetId>', jsonValues: '[["a","b"]]' } },
+    ],
+    read: [
+      { description: 'Write values to a range', tool: 'manage_sheets', example: { operation: 'updateValues', email: '<email>', spreadsheetId: '<spreadsheetId>', range: '<range>', jsonValues: '[["a","b"]]' } },
+      { description: 'Append more rows', tool: 'manage_sheets', example: { operation: 'append', email: '<email>', spreadsheetId: '<spreadsheetId>', jsonValues: '[["a","b"]]' } },
+    ],
+    getValues: [
+      { description: 'Write values to a range', tool: 'manage_sheets', example: { operation: 'updateValues', email: '<email>', spreadsheetId: '<spreadsheetId>', range: '<range>', jsonValues: '[["a","b"]]' } },
+    ],
+    append: [
+      { description: 'Read back what was written', tool: 'manage_sheets', example: { operation: 'read', email: '<email>', spreadsheetId: '<spreadsheetId>', range: '<Sheet1!A1:Z>' } },
+    ],
+    updateValues: [
+      { description: 'Read back what was written', tool: 'manage_sheets', example: { operation: 'read', email: '<email>', spreadsheetId: '<spreadsheetId>', range: '<range>' } },
+    ],
+    addSheet: [
+      { description: 'Write to the new tab', tool: 'manage_sheets', example: { operation: 'updateValues', email: '<email>', spreadsheetId: '<spreadsheetId>', range: '<NewTab!A1>', jsonValues: '[["a","b"]]' } },
+      { description: 'Inspect all tabs', tool: 'manage_sheets', example: { operation: 'get', email: '<email>', spreadsheetId: '<spreadsheetId>' } },
+    ],
+    renameSheet: [
+      { description: 'Verify new tab name', tool: 'manage_sheets', example: { operation: 'get', email: '<email>', spreadsheetId: '<spreadsheetId>' } },
+    ],
+    deleteSheet: [
+      { description: 'Verify remaining tabs', tool: 'manage_sheets', example: { operation: 'get', email: '<email>', spreadsheetId: '<spreadsheetId>' } },
+    ],
+    duplicateSheet: [
+      { description: 'Read back copied data', tool: 'manage_sheets', example: { operation: 'read', email: '<email>', spreadsheetId: '<spreadsheetId>', range: '<NewTab!A1:Z>' } },
+    ],
+    renameSpreadsheet: [
+      { description: 'Verify the new title', tool: 'manage_sheets', example: { operation: 'get', email: '<email>', spreadsheetId: '<spreadsheetId>' } },
+    ],
+    clearValues: [
+      { description: 'Confirm range is empty', tool: 'manage_sheets', example: { operation: 'read', email: '<email>', spreadsheetId: '<spreadsheetId>', range: '<range>' } },
+      { description: 'Write new values', tool: 'manage_sheets', example: { operation: 'updateValues', email: '<email>', spreadsheetId: '<spreadsheetId>', range: '<range>', jsonValues: '[["a","b"]]' } },
+    ],
+    copySheetTo: [
+      { description: 'Open the destination spreadsheet', tool: 'manage_sheets', example: { operation: 'get', email: '<email>', spreadsheetId: '<destinationSpreadsheetId>' } },
+    ],
+  },
   scratchpad: {
     create: [
       { description: 'Add content', tool: 'manage_scratchpad', example: { operation: 'append_lines', scratchpadId: '<scratchpadId>', content: '<text>' } },
