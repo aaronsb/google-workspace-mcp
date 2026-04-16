@@ -228,6 +228,194 @@ async function updateValuesHandler(
   };
 }
 
+/** Parse a sheetId param — Google assigns integers and `0` is valid. */
+function requireSheetId(params: Record<string, unknown>, field = 'sheetId'): number {
+  const raw = params[field];
+  if (raw === undefined || raw === null || raw === '') {
+    throw new Error(`${field} is required (integer, from manage_sheets get)`);
+  }
+  const n = Number(raw);
+  if (!Number.isInteger(n)) {
+    throw new Error(`${field} must be an integer, got: ${String(raw)}`);
+  }
+  return n;
+}
+
+/** Run a single-request batchUpdate and return the first reply. */
+async function runBatchUpdate(
+  spreadsheetId: string,
+  request: Record<string, unknown>,
+  account: string,
+): Promise<Record<string, unknown>> {
+  const result = await execute([
+    'sheets', 'spreadsheets', 'batchUpdate',
+    '--params', JSON.stringify({ spreadsheetId }),
+    '--json', JSON.stringify({ requests: [request] }),
+  ], { account });
+  const data = (result.data ?? {}) as Record<string, unknown>;
+  const replies = (data.replies as Array<Record<string, unknown>> | undefined) ?? [];
+  return replies[0] ?? {};
+}
+
+/**
+ * addSheet — append a new tab. Accepts `title`, optional `rowCount`/`columnCount`
+ * and `index` (position among tabs). Returns the new sheetId.
+ */
+async function addSheetHandler(
+  params: Record<string, unknown>,
+  account: string,
+): Promise<HandlerResponse> {
+  const spreadsheetId = requireString(params, 'spreadsheetId');
+  const title = requireString(params, 'title');
+  const properties: Record<string, unknown> = { title };
+
+  if (params.index !== undefined && params.index !== null && params.index !== '') {
+    const idx = Number(params.index);
+    if (!Number.isInteger(idx) || idx < 0) {
+      throw new Error('index must be a non-negative integer');
+    }
+    properties.index = idx;
+  }
+
+  const rowCount = params.rowCount !== undefined && params.rowCount !== '' ? Number(params.rowCount) : undefined;
+  const columnCount = params.columnCount !== undefined && params.columnCount !== '' ? Number(params.columnCount) : undefined;
+  if (rowCount !== undefined || columnCount !== undefined) {
+    properties.gridProperties = {
+      ...(rowCount !== undefined ? { rowCount } : {}),
+      ...(columnCount !== undefined ? { columnCount } : {}),
+    };
+  }
+
+  const reply = await runBatchUpdate(spreadsheetId, { addSheet: { properties } }, account);
+  const addedProps = ((reply.addSheet as Record<string, unknown>)?.properties ?? {}) as Record<string, unknown>;
+  const newSheetId = addedProps.sheetId;
+  const newTitle = addedProps.title ?? title;
+  const grid = (addedProps.gridProperties ?? {}) as Record<string, unknown>;
+
+  return {
+    text: `Sheet added: **${newTitle}**\n\n**Sheet ID:** ${newSheetId}\n**Rows:** ${grid.rowCount ?? '?'}\n**Columns:** ${grid.columnCount ?? '?'}`,
+    refs: { spreadsheetId, sheetId: newSheetId, title: newTitle },
+  };
+}
+
+/** renameSheet — update a tab's title. */
+async function renameSheetHandler(
+  params: Record<string, unknown>,
+  account: string,
+): Promise<HandlerResponse> {
+  const spreadsheetId = requireString(params, 'spreadsheetId');
+  const sheetId = requireSheetId(params);
+  const title = requireString(params, 'title');
+
+  await runBatchUpdate(spreadsheetId, {
+    updateSheetProperties: {
+      properties: { sheetId, title },
+      fields: 'title',
+    },
+  }, account);
+
+  return {
+    text: `Sheet renamed.\n\n**Sheet ID:** ${sheetId}\n**New title:** ${title}`,
+    refs: { spreadsheetId, sheetId, title },
+  };
+}
+
+/** deleteSheet — remove a tab. Irreversible. */
+async function deleteSheetHandler(
+  params: Record<string, unknown>,
+  account: string,
+): Promise<HandlerResponse> {
+  const spreadsheetId = requireString(params, 'spreadsheetId');
+  const sheetId = requireSheetId(params);
+
+  await runBatchUpdate(spreadsheetId, { deleteSheet: { sheetId } }, account);
+
+  return {
+    text: `Sheet deleted.\n\n**Sheet ID:** ${sheetId}`,
+    refs: { spreadsheetId, sheetId, deleted: true },
+  };
+}
+
+/** duplicateSheet — copy a tab within the same spreadsheet. */
+async function duplicateSheetHandler(
+  params: Record<string, unknown>,
+  account: string,
+): Promise<HandlerResponse> {
+  const spreadsheetId = requireString(params, 'spreadsheetId');
+  const sourceSheetId = requireSheetId(params, 'sheetId');
+  const newSheetName = params.title ? String(params.title) : undefined;
+
+  const request: Record<string, unknown> = { duplicateSheet: { sourceSheetId } };
+  if (newSheetName) (request.duplicateSheet as Record<string, unknown>).newSheetName = newSheetName;
+  if (params.index !== undefined && params.index !== '') {
+    const idx = Number(params.index);
+    if (!Number.isInteger(idx) || idx < 0) {
+      throw new Error('index must be a non-negative integer');
+    }
+    (request.duplicateSheet as Record<string, unknown>).insertSheetIndex = idx;
+  }
+
+  const reply = await runBatchUpdate(spreadsheetId, request, account);
+  const newProps = ((reply.duplicateSheet as Record<string, unknown>)?.properties ?? {}) as Record<string, unknown>;
+
+  return {
+    text: `Sheet duplicated.\n\n**Source sheet ID:** ${sourceSheetId}\n**New sheet ID:** ${newProps.sheetId ?? 'unknown'}\n**New title:** ${newProps.title ?? newSheetName ?? '?'}`,
+    refs: { spreadsheetId, sourceSheetId, sheetId: newProps.sheetId, title: newProps.title },
+  };
+}
+
+/** renameSpreadsheet — rename the spreadsheet (the doc title, not a tab). */
+async function renameSpreadsheetHandler(
+  params: Record<string, unknown>,
+  account: string,
+): Promise<HandlerResponse> {
+  const spreadsheetId = requireString(params, 'spreadsheetId');
+  const title = requireString(params, 'title');
+
+  await runBatchUpdate(spreadsheetId, {
+    updateSpreadsheetProperties: {
+      properties: { title },
+      fields: 'title',
+    },
+  }, account);
+
+  return {
+    text: `Spreadsheet renamed.\n\n**Spreadsheet ID:** ${spreadsheetId}\n**New title:** ${title}`,
+    refs: { spreadsheetId, title },
+  };
+}
+
+/**
+ * copySheetTo — copy a tab to another spreadsheet.
+ * spreadsheets.sheets.copyTo takes a --json body with destinationSpreadsheetId.
+ */
+async function copySheetToHandler(
+  params: Record<string, unknown>,
+  account: string,
+): Promise<HandlerResponse> {
+  const spreadsheetId = requireString(params, 'spreadsheetId');
+  const sheetId = requireSheetId(params);
+  const destinationSpreadsheetId = requireString(params, 'destinationSpreadsheetId');
+
+  const result = await execute([
+    'sheets', 'spreadsheets', 'sheets', 'copyTo',
+    '--params', JSON.stringify({ spreadsheetId, sheetId }),
+    '--json', JSON.stringify({ destinationSpreadsheetId }),
+  ], { account });
+
+  const data = (result.data ?? {}) as Record<string, unknown>;
+  return {
+    text: `Sheet copied.\n\n**Source:** ${spreadsheetId} (sheet ${sheetId})\n**Destination:** ${destinationSpreadsheetId}\n**New sheet ID:** ${data.sheetId ?? 'unknown'}\n**New title:** ${data.title ?? '?'}`,
+    refs: {
+      spreadsheetId,
+      sourceSheetId: sheetId,
+      destinationSpreadsheetId,
+      sheetId: data.sheetId,
+      title: data.title,
+    },
+  };
+}
+
 // --- Patch export ---
 
 export const sheetsPatch: ServicePatch = {
@@ -261,5 +449,11 @@ export const sheetsPatch: ServicePatch = {
 
   customHandlers: {
     updateValues: updateValuesHandler,
+    addSheet: addSheetHandler,
+    renameSheet: renameSheetHandler,
+    deleteSheet: deleteSheetHandler,
+    duplicateSheet: duplicateSheetHandler,
+    renameSpreadsheet: renameSpreadsheetHandler,
+    copySheetTo: copySheetToHandler,
   },
 };

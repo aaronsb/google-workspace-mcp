@@ -224,3 +224,242 @@ describe('sheetsPatch customHandlers.updateValues', () => {
     expect(mockExecute).not.toHaveBeenCalled();
   });
 });
+
+// --- Tab management (batchUpdate-based customHandlers) ---
+
+/** Assert batchUpdate was called with the expected single-request body. */
+function expectBatchUpdateCall(
+  call: readonly string[],
+  expectedSpreadsheetId: string,
+  expectedRequest: Record<string, unknown>,
+): void {
+  expect(call.slice(0, 3)).toEqual(['sheets', 'spreadsheets', 'batchUpdate']);
+  const params = JSON.parse(call[call.indexOf('--params') + 1]);
+  expect(params).toEqual({ spreadsheetId: expectedSpreadsheetId });
+  const body = JSON.parse(call[call.indexOf('--json') + 1]);
+  expect(body).toEqual({ requests: [expectedRequest] });
+}
+
+describe('sheetsPatch customHandlers.addSheet', () => {
+  beforeEach(() => mockExecute.mockReset());
+
+  it('sends addSheet with title and returns the new sheetId', async () => {
+    mockExecute.mockResolvedValueOnce({
+      success: true,
+      data: {
+        replies: [{
+          addSheet: { properties: { sheetId: 42, title: 'Logs', gridProperties: { rowCount: 1000, columnCount: 26 } } },
+        }],
+      },
+      stderr: '',
+    });
+    const handler = sheetsPatch.customHandlers!.addSheet!;
+
+    const res = await handler(
+      { spreadsheetId: 'sheet123', title: 'Logs' },
+      'user@test.com',
+    );
+
+    expectBatchUpdateCall(mockExecute.mock.calls[0][0], 'sheet123', {
+      addSheet: { properties: { title: 'Logs' } },
+    });
+    expect(res.text).toContain('**Sheet ID:** 42');
+    expect(res.text).toContain('Logs');
+    expect(res.refs.sheetId).toBe(42);
+  });
+
+  it('passes gridProperties when rowCount/columnCount provided', async () => {
+    mockExecute.mockResolvedValueOnce({
+      success: true,
+      data: { replies: [{ addSheet: { properties: { sheetId: 1, title: 'Big', gridProperties: { rowCount: 500, columnCount: 10 } } } }] },
+      stderr: '',
+    });
+    const handler = sheetsPatch.customHandlers!.addSheet!;
+    await handler(
+      { spreadsheetId: 'sheet123', title: 'Big', rowCount: 500, columnCount: 10 },
+      'user@test.com',
+    );
+    const body = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--json') + 1]);
+    expect(body.requests[0].addSheet.properties.gridProperties).toEqual({ rowCount: 500, columnCount: 10 });
+  });
+
+  it('passes index when provided', async () => {
+    mockExecute.mockResolvedValueOnce({
+      success: true,
+      data: { replies: [{ addSheet: { properties: { sheetId: 2, title: 'First', gridProperties: {} } } }] },
+      stderr: '',
+    });
+    const handler = sheetsPatch.customHandlers!.addSheet!;
+    await handler(
+      { spreadsheetId: 'sheet123', title: 'First', index: 0 },
+      'user@test.com',
+    );
+    const body = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--json') + 1]);
+    expect(body.requests[0].addSheet.properties.index).toBe(0);
+  });
+
+  it('rejects missing title', async () => {
+    const handler = sheetsPatch.customHandlers!.addSheet!;
+    await expect(handler({ spreadsheetId: 'sheet123' }, 'user@test.com'))
+      .rejects.toThrow(/title is required/);
+    expect(mockExecute).not.toHaveBeenCalled();
+  });
+});
+
+describe('sheetsPatch customHandlers.renameSheet', () => {
+  beforeEach(() => mockExecute.mockReset());
+
+  it('sends updateSheetProperties with title fieldmask', async () => {
+    mockExecute.mockResolvedValueOnce({ success: true, data: { replies: [{}] }, stderr: '' });
+    const handler = sheetsPatch.customHandlers!.renameSheet!;
+
+    const res = await handler(
+      { spreadsheetId: 'sheet123', sheetId: 7, title: 'Renamed' },
+      'user@test.com',
+    );
+
+    expectBatchUpdateCall(mockExecute.mock.calls[0][0], 'sheet123', {
+      updateSheetProperties: {
+        properties: { sheetId: 7, title: 'Renamed' },
+        fields: 'title',
+      },
+    });
+    expect(res.text).toContain('**Sheet ID:** 7');
+    expect(res.text).toContain('**New title:** Renamed');
+  });
+
+  it('accepts sheetId = 0 (valid Google Sheets ID)', async () => {
+    mockExecute.mockResolvedValueOnce({ success: true, data: { replies: [{}] }, stderr: '' });
+    const handler = sheetsPatch.customHandlers!.renameSheet!;
+    await handler(
+      { spreadsheetId: 'sheet123', sheetId: 0, title: 'Main' },
+      'user@test.com',
+    );
+    const body = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--json') + 1]);
+    expect(body.requests[0].updateSheetProperties.properties.sheetId).toBe(0);
+  });
+
+  it('rejects non-integer sheetId', async () => {
+    const handler = sheetsPatch.customHandlers!.renameSheet!;
+    await expect(
+      handler({ spreadsheetId: 'sheet123', sheetId: 'abc', title: 'X' }, 'user@test.com'),
+    ).rejects.toThrow(/sheetId must be an integer/);
+  });
+
+  it('rejects missing sheetId', async () => {
+    const handler = sheetsPatch.customHandlers!.renameSheet!;
+    await expect(
+      handler({ spreadsheetId: 'sheet123', title: 'X' }, 'user@test.com'),
+    ).rejects.toThrow(/sheetId is required/);
+  });
+});
+
+describe('sheetsPatch customHandlers.deleteSheet', () => {
+  beforeEach(() => mockExecute.mockReset());
+
+  it('sends deleteSheet with the sheetId', async () => {
+    mockExecute.mockResolvedValueOnce({ success: true, data: { replies: [{}] }, stderr: '' });
+    const handler = sheetsPatch.customHandlers!.deleteSheet!;
+
+    const res = await handler(
+      { spreadsheetId: 'sheet123', sheetId: 99 },
+      'user@test.com',
+    );
+
+    expectBatchUpdateCall(mockExecute.mock.calls[0][0], 'sheet123', {
+      deleteSheet: { sheetId: 99 },
+    });
+    expect(res.refs.deleted).toBe(true);
+  });
+});
+
+describe('sheetsPatch customHandlers.duplicateSheet', () => {
+  beforeEach(() => mockExecute.mockReset());
+
+  it('sends duplicateSheet with source id and optional name/index', async () => {
+    mockExecute.mockResolvedValueOnce({
+      success: true,
+      data: { replies: [{ duplicateSheet: { properties: { sheetId: 101, title: 'Logs Copy' } } }] },
+      stderr: '',
+    });
+    const handler = sheetsPatch.customHandlers!.duplicateSheet!;
+
+    const res = await handler(
+      { spreadsheetId: 'sheet123', sheetId: 10, title: 'Logs Copy', index: 2 },
+      'user@test.com',
+    );
+
+    expectBatchUpdateCall(mockExecute.mock.calls[0][0], 'sheet123', {
+      duplicateSheet: {
+        sourceSheetId: 10,
+        newSheetName: 'Logs Copy',
+        insertSheetIndex: 2,
+      },
+    });
+    expect(res.refs.sheetId).toBe(101);
+  });
+
+  it('omits optional fields when not provided', async () => {
+    mockExecute.mockResolvedValueOnce({
+      success: true,
+      data: { replies: [{ duplicateSheet: { properties: { sheetId: 102, title: 'Copy of Logs' } } }] },
+      stderr: '',
+    });
+    const handler = sheetsPatch.customHandlers!.duplicateSheet!;
+    await handler(
+      { spreadsheetId: 'sheet123', sheetId: 10 },
+      'user@test.com',
+    );
+    const body = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--json') + 1]);
+    expect(body.requests[0].duplicateSheet).toEqual({ sourceSheetId: 10 });
+  });
+});
+
+describe('sheetsPatch customHandlers.renameSpreadsheet', () => {
+  beforeEach(() => mockExecute.mockReset());
+
+  it('sends updateSpreadsheetProperties with title fieldmask', async () => {
+    mockExecute.mockResolvedValueOnce({ success: true, data: { replies: [{}] }, stderr: '' });
+    const handler = sheetsPatch.customHandlers!.renameSpreadsheet!;
+
+    const res = await handler(
+      { spreadsheetId: 'sheet123', title: 'Q2 Budget' },
+      'user@test.com',
+    );
+
+    expectBatchUpdateCall(mockExecute.mock.calls[0][0], 'sheet123', {
+      updateSpreadsheetProperties: {
+        properties: { title: 'Q2 Budget' },
+        fields: 'title',
+      },
+    });
+    expect(res.refs.title).toBe('Q2 Budget');
+  });
+});
+
+describe('sheetsPatch customHandlers.copySheetTo', () => {
+  beforeEach(() => mockExecute.mockReset());
+
+  it('calls sheets.copyTo with destination in --json body', async () => {
+    mockExecute.mockResolvedValueOnce({
+      success: true,
+      data: { sheetId: 500, title: 'Imported Logs' },
+      stderr: '',
+    });
+    const handler = sheetsPatch.customHandlers!.copySheetTo!;
+
+    const res = await handler(
+      { spreadsheetId: 'srcSheet', sheetId: 5, destinationSpreadsheetId: 'dstSheet' },
+      'user@test.com',
+    );
+
+    const args = mockExecute.mock.calls[0][0];
+    expect(args.slice(0, 4)).toEqual(['sheets', 'spreadsheets', 'sheets', 'copyTo']);
+    const params = JSON.parse(args[args.indexOf('--params') + 1]);
+    expect(params).toEqual({ spreadsheetId: 'srcSheet', sheetId: 5 });
+    const body = JSON.parse(args[args.indexOf('--json') + 1]);
+    expect(body).toEqual({ destinationSpreadsheetId: 'dstSheet' });
+    expect(res.refs.destinationSpreadsheetId).toBe('dstSheet');
+    expect(res.refs.sheetId).toBe(500);
+  });
+});

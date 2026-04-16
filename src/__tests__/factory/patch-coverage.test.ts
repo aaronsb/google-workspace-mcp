@@ -154,12 +154,20 @@ describe('patch coverage', () => {
       .map(e => e.operation)
       .sort();
 
+    // Data ops
     expect(sheetsCustom).toContain('get');
     expect(sheetsCustom).toContain('read');
     expect(sheetsCustom).toContain('getValues');
     expect(sheetsCustom).toContain('create');
     expect(sheetsCustom).toContain('append');
     expect(sheetsCustom).toContain('updateValues');
+    // Tab management
+    expect(sheetsCustom).toContain('addSheet');
+    expect(sheetsCustom).toContain('renameSheet');
+    expect(sheetsCustom).toContain('deleteSheet');
+    expect(sheetsCustom).toContain('duplicateSheet');
+    expect(sheetsCustom).toContain('renameSpreadsheet');
+    expect(sheetsCustom).toContain('copySheetTo');
   });
 
   it('meet core operations have custom formatting', () => {

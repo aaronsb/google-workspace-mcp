@@ -149,6 +149,29 @@ const suggestions: Record<string, Record<string, NextStep[]>> = {
     updateValues: [
       { description: 'Read back what was written', tool: 'manage_sheets', example: { operation: 'read', email: '<email>', spreadsheetId: '<spreadsheetId>', range: '<range>' } },
     ],
+    addSheet: [
+      { description: 'Write to the new tab', tool: 'manage_sheets', example: { operation: 'updateValues', email: '<email>', spreadsheetId: '<spreadsheetId>', range: '<NewTab!A1>', jsonValues: '[["a","b"]]' } },
+      { description: 'Inspect all tabs', tool: 'manage_sheets', example: { operation: 'get', email: '<email>', spreadsheetId: '<spreadsheetId>' } },
+    ],
+    renameSheet: [
+      { description: 'Verify new tab name', tool: 'manage_sheets', example: { operation: 'get', email: '<email>', spreadsheetId: '<spreadsheetId>' } },
+    ],
+    deleteSheet: [
+      { description: 'Verify remaining tabs', tool: 'manage_sheets', example: { operation: 'get', email: '<email>', spreadsheetId: '<spreadsheetId>' } },
+    ],
+    duplicateSheet: [
+      { description: 'Read back copied data', tool: 'manage_sheets', example: { operation: 'read', email: '<email>', spreadsheetId: '<spreadsheetId>', range: '<NewTab!A1:Z>' } },
+    ],
+    renameSpreadsheet: [
+      { description: 'Verify the new title', tool: 'manage_sheets', example: { operation: 'get', email: '<email>', spreadsheetId: '<spreadsheetId>' } },
+    ],
+    clearValues: [
+      { description: 'Confirm range is empty', tool: 'manage_sheets', example: { operation: 'read', email: '<email>', spreadsheetId: '<spreadsheetId>', range: '<range>' } },
+      { description: 'Write new values', tool: 'manage_sheets', example: { operation: 'updateValues', email: '<email>', spreadsheetId: '<spreadsheetId>', range: '<range>', jsonValues: '[["a","b"]]' } },
+    ],
+    copySheetTo: [
+      { description: 'Open the destination spreadsheet', tool: 'manage_sheets', example: { operation: 'get', email: '<email>', spreadsheetId: '<destinationSpreadsheetId>' } },
+    ],
   },
   scratchpad: {
     create: [
