@@ -11,7 +11,6 @@
 
 import { execute } from '../../executor/gws.js';
 import { formatEventList, formatEventDetail } from '../../server/formatting/markdown.js';
-import { nextSteps } from '../../server/formatting/next-steps.js';
 import { requireString } from '../../server/handlers/validate.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
@@ -92,7 +91,7 @@ function formatFreeBusy(data: unknown, ctx: PatchContext): HandlerResponse {
   }
 
   return {
-    text: parts.join('\n') + nextSteps('calendar', 'freebusy', { email: ctx.account }),
+    text: parts.join('\n'),
     refs: {
       calendars: Object.keys(calendars),
       busyBlocks: allBusy,
@@ -109,7 +108,7 @@ function formatAgenda(data: unknown, account: string): HandlerResponse {
   const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
 
   return {
-    text: text + nextSteps('calendar', 'agenda', { email: account }),
+    text,
     refs: {
       count: events.length,
       eventId: events[0]?.id as string | undefined,
@@ -213,8 +212,7 @@ export const calendarPatch: ServicePatch = {
           `**When:** ${start} – ${end}\n` +
           (params.location ? `**Where:** ${params.location}\n` : '') +
           `**Calendar:** ${calendarId}\n` +
-          `**Event ID:** ${data.id ?? 'unknown'}` +
-          nextSteps('calendar', 'create', { email: account }),
+          `**Event ID:** ${data.id ?? 'unknown'}`,
         refs: { id: data.id, eventId: data.id, calendarId, summary, start, end },
       };
     },
@@ -227,7 +225,7 @@ export const calendarPatch: ServicePatch = {
         '--params', JSON.stringify({ calendarId, eventId }),
       ], { account });
       return {
-        text: `Event deleted: ${eventId}` + nextSteps('calendar', 'delete', { email: account }),
+        text: `Event deleted: ${eventId}`,
         refs: { eventId, status: 'deleted' },
       };
     },

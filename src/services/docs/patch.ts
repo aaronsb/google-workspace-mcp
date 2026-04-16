@@ -6,7 +6,6 @@
  */
 
 import { execute } from '../../executor/gws.js';
-import { nextSteps } from '../../server/formatting/next-steps.js';
 import { requireString } from '../../server/handlers/validate.js';
 import type { ServicePatch } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
@@ -37,8 +36,7 @@ export const docsPatch: ServicePatch = {
       ], { account });
 
       return {
-        text: `Text inserted at index ${index}.\n\n**Document:** ${documentId}\n**Inserted:** ${text.length} characters` +
-          nextSteps('docs', 'insertText', { email: account }),
+        text: `Text inserted at index ${index}.\n\n**Document:** ${documentId}\n**Inserted:** ${text.length} characters`,
         refs: { documentId, index, length: text.length },
       };
     },
@@ -74,8 +72,7 @@ export const docsPatch: ServicePatch = {
       const occurrences = replaceReply?.occurrencesChanged || 0;
 
       return {
-        text: `Text replaced.\n\n**Document:** ${documentId}\n**Found:** "${findText}"\n**Replaced with:** "${replaceWith}"\n**Occurrences:** ${occurrences}` +
-          nextSteps('docs', 'replaceText', { email: account }),
+        text: `Text replaced.\n\n**Document:** ${documentId}\n**Found:** "${findText}"\n**Replaced with:** "${replaceWith}"\n**Occurrences:** ${occurrences}`,
         refs: { documentId, occurrences },
       };
     },

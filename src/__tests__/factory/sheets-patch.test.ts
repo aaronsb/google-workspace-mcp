@@ -617,47 +617,6 @@ describe('sheetsPatch customHandlers.copySheetTo', () => {
   });
 });
 
-describe('sheetsPatch — nextSteps guidance (regression for PR #103 review)', () => {
-  beforeEach(() => mockExecute.mockReset());
-
-  it('updateValues appends next-steps footer to response text', async () => {
-    mockExecute.mockResolvedValueOnce({
-      success: true,
-      data: { spreadsheetId: 'sheet123', updatedRange: 'Sheet1!A1:B1', updatedRows: 1, updatedColumns: 2, updatedCells: 2 },
-      stderr: '',
-    });
-    const handler = sheetsPatch.customHandlers!.updateValues!;
-    const res = await handler(
-      { spreadsheetId: 'sheet123', range: 'Sheet1!A1', jsonValues: '[["a","b"]]' },
-      'user@test.com',
-    );
-    expect(res.text).toContain('Next steps:');
-    expect(res.text).toContain('manage_sheets');
-  });
-
-  it('addSheet appends next-steps footer', async () => {
-    mockExecute.mockResolvedValueOnce({
-      success: true,
-      data: { replies: [{ addSheet: { properties: { sheetId: 42, title: 'T', gridProperties: {} } } }] },
-      stderr: '',
-    });
-    const handler = sheetsPatch.customHandlers!.addSheet!;
-    const res = await handler(
-      { spreadsheetId: 'sheet123', title: 'T' },
-      'user@test.com',
-    );
-    expect(res.text).toContain('Next steps:');
-  });
-
-  it('resolves spreadsheetId placeholder from handler context', async () => {
-    mockExecute.mockResolvedValueOnce({ success: true, data: { replies: [{}] }, stderr: '' });
-    const handler = sheetsPatch.customHandlers!.renameSheet!;
-    const res = await handler(
-      { spreadsheetId: 'sheet-xyz', sheetId: 0, title: 'Main' },
-      'user@test.com',
-    );
-    // Next-steps entry for renameSheet references <spreadsheetId> — verify resolution
-    expect(res.text).toContain('sheet-xyz');
-    expect(res.text).not.toContain('<spreadsheetId>');
-  });
-});
+// Next-steps framing is now handled by the factory generator (ADR-303)
+// rather than each custom handler. See generator.test.ts for the regression
+// test that custom-handler responses receive the footer via the wrapper.
