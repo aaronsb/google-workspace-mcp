@@ -147,6 +147,18 @@ function formatCreateAction(data: unknown): HandlerResponse {
   };
 }
 
+function formatClearAction(data: unknown): HandlerResponse {
+  const raw = (data ?? {}) as Record<string, unknown>;
+  const spreadsheetId = String(raw.spreadsheetId ?? '');
+  const clearedRange = String(raw.clearedRange ?? '');
+  return {
+    text: clearedRange
+      ? `Range cleared.\n\n**Range:** ${clearedRange}`
+      : 'Range cleared.',
+    refs: { spreadsheetId, clearedRange },
+  };
+}
+
 function formatAppendAction(data: unknown): HandlerResponse {
   const raw = (data ?? {}) as Record<string, unknown>;
   const spreadsheetId = String(raw.spreadsheetId ?? '');
@@ -437,6 +449,8 @@ export const sheetsPatch: ServicePatch = {
         return formatCreateAction(data);
       case 'append':
         return formatAppendAction(data);
+      case 'clearValues':
+        return formatClearAction(data);
       default: {
         const raw = (data ?? {}) as Record<string, unknown>;
         return {

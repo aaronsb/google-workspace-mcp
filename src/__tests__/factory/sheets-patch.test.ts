@@ -100,6 +100,16 @@ describe('sheetsPatch formatAction', () => {
     expect(res.refs.spreadsheetId).toBe('new1');
   });
 
+  it('clearValues surfaces the clearedRange', () => {
+    const res = sheetsPatch.formatAction!(
+      { spreadsheetId: 'sheet123', clearedRange: "'Q2'!A1:C3" },
+      ctx('clearValues'),
+    );
+    expect(res.text).toContain('Range cleared');
+    expect(res.text).toContain("**Range:** 'Q2'!A1:C3");
+    expect(res.refs.clearedRange).toBe("'Q2'!A1:C3");
+  });
+
   it('append surfaces updatedRange/rows/cells', () => {
     const res = sheetsPatch.formatAction!(
       {
