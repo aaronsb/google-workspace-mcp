@@ -42,7 +42,11 @@ export async function sendCalendarEvent(
     '--description', content,
   ];
   if (location) args.push('--location', location);
-  if (attendees) args.push('--attendees', attendees);
+  if (attendees) {
+    for (const email of String(attendees).split(',').map(e => e.trim()).filter(Boolean)) {
+      args.push('--attendee', email);
+    }
+  }
 
   try {
     const result = await execute(args, { account: email });

@@ -55,7 +55,11 @@ export async function handleCalendar(params: Record<string, unknown>): Promise<H
       const args = ['calendar', '+insert', '--calendar', calendarId, '--summary', summary, '--start', start, '--end', end];
       if (params.description) args.push('--description', String(params.description));
       if (params.location) args.push('--location', String(params.location));
-      if (params.attendees) args.push('--attendees', String(params.attendees));
+      if (params.attendees) {
+        for (const email of String(params.attendees).split(',').map(e => e.trim()).filter(Boolean)) {
+          args.push('--attendee', email);
+        }
+      }
       const result = await execute(args, { account: email });
       const data = result.data as Record<string, unknown>;
       return {

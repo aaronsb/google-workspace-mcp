@@ -63,12 +63,15 @@ describe('handleCalendar', () => {
       await handleCalendar({
         operation: 'create', email: 'user@test.com',
         summary: 'Meeting', start: '2026-03-14T10:00:00Z', end: '2026-03-14T11:00:00Z',
-        location: 'Room A', attendees: 'a@b.com',
+        location: 'Room A', attendees: 'a@b.com, c@d.com',
       });
 
       const args = mockExecute.mock.calls[0][0];
       expect(args).toContain('--location');
-      expect(args).toContain('--attendees');
+      expect(args).toContain('--attendee');
+      expect(args).toContain('a@b.com');
+      expect(args).toContain('c@d.com');
+      expect(args).not.toContain('--attendees');
     });
 
     it('returns markdown with event details', async () => {
