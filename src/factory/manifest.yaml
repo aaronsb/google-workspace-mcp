@@ -387,7 +387,7 @@ services:
           end: "--end"
           description: "--description"
           location: "--location"
-          attendees: "--attendees"
+          attendees: "--attendee"
 
       quickAdd:
         type: action
@@ -431,6 +431,12 @@ services:
           location:
             type: string
             description: "Updated location"
+          attendees:
+            type: string
+            description: "Comma-separated attendee emails. REPLACES the existing attendee list entirely (Google events.patch overwrites arrays). Pass an empty string to clear all attendees."
+          meet:
+            type: boolean
+            description: "Add a Google Meet video conference link. Note: Google Calendar does not allow removing an existing Meet link via patch; omit or set false to leave the link untouched."
         defaults:
           calendarId: primary
 
@@ -629,7 +635,7 @@ services:
 
       share:
         type: action
-        description: "share a file with a user or group"
+        description: "share a file with a user, group, domain, or anyone"
         resource: permissions.create
         params:
           fileId:
@@ -638,13 +644,20 @@ services:
             required: true
           shareEmail:
             type: string
-            description: "Email address to share with"
-            required: true
+            description: "Email address (required when type is 'user' or 'group'). Omit for 'domain' (use 'domain' param) or 'anyone'."
           role:
             type: string
             description: "Permission level"
             enum: [reader, commenter, writer, organizer]
             default: reader
+          type:
+            type: string
+            description: "Permission type (default: 'user'). Use 'group' for Google Groups, 'domain' to share with an entire G Suite domain, 'anyone' for public links."
+            enum: [user, group, domain, anyone]
+            default: user
+          domain:
+            type: string
+            description: "Domain name (required when type is 'domain')."
         defaults:
           supportsAllDrives: true
 

@@ -125,6 +125,113 @@ describe('drivePatch custom handlers', () => {
     });
   });
 
+  describe('share', () => {
+    it('sends type + role + emailAddress as JSON body, not via --params', async () => {
+      mockExecute.mockResolvedValueOnce({
+        success: true,
+        data: { id: 'perm-1', emailAddress: 'bob@test.com', role: 'reader', type: 'user' },
+        stderr: '',
+      });
+
+      const handler = drivePatch.customHandlers!.share!;
+      await handler(
+        { fileId: 'file-1', shareEmail: 'bob@test.com', role: 'reader' },
+        'user@test.com',
+      );
+
+      const args = mockExecute.mock.calls[0][0];
+      expect(args.slice(0, 3)).toEqual(['drive', 'permissions', 'create']);
+      expect(args).toContain('--json');
+
+      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      // type MUST be in the body — omitting it caused
+      // "The permission type field is required." on every share call.
+      expect(body.type).toBe('user');
+      expect(body.role).toBe('reader');
+      expect(body.emailAddress).toBe('bob@test.com');
+
+      // --params should only carry query params, not the permission body.
+      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
+      expect(queryParams.fileId).toBe('file-1');
+      expect(queryParams.type).toBeUndefined();
+      expect(queryParams.role).toBeUndefined();
+    });
+
+    it("defaults type to 'user' when not provided", async () => {
+      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'perm-1' }, stderr: '' });
+
+      const handler = drivePatch.customHandlers!.share!;
+      await handler(
+        { fileId: 'file-1', shareEmail: 'bob@test.com' },
+        'user@test.com',
+      );
+
+      const args = mockExecute.mock.calls[0][0];
+      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      expect(body.type).toBe('user');
+      expect(body.role).toBe('reader'); // default from manifest flows through
+    });
+
+    it('rejects user/group share without shareEmail', async () => {
+      const handler = drivePatch.customHandlers!.share!;
+      await expect(handler({ fileId: 'file-1' }, 'user@test.com')).rejects.toThrow('shareEmail');
+      await expect(handler({ fileId: 'file-1', type: 'group' }, 'user@test.com')).rejects.toThrow('shareEmail');
+    });
+
+    it("uses domain field when type is 'domain'", async () => {
+      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'perm-1' }, stderr: '' });
+
+      const handler = drivePatch.customHandlers!.share!;
+      await handler(
+        { fileId: 'file-1', type: 'domain', domain: 'acme.com', role: 'writer' },
+        'user@test.com',
+      );
+
+      const args = mockExecute.mock.calls[0][0];
+      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      expect(body.type).toBe('domain');
+      expect(body.domain).toBe('acme.com');
+      expect(body.emailAddress).toBeUndefined();
+    });
+
+    it("requires domain when type is 'domain'", async () => {
+      const handler = drivePatch.customHandlers!.share!;
+      await expect(
+        handler({ fileId: 'file-1', type: 'domain' }, 'user@test.com'),
+      ).rejects.toThrow('domain');
+    });
+
+    it("accepts type 'anyone' with no target", async () => {
+      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'perm-1' }, stderr: '' });
+
+      const handler = drivePatch.customHandlers!.share!;
+      await handler(
+        { fileId: 'file-1', type: 'anyone', role: 'reader' },
+        'user@test.com',
+      );
+
+      const args = mockExecute.mock.calls[0][0];
+      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      expect(body.type).toBe('anyone');
+      expect(body.emailAddress).toBeUndefined();
+      expect(body.domain).toBeUndefined();
+    });
+
+    it('suppresses email notifications by default for user/group shares', async () => {
+      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'perm-1' }, stderr: '' });
+
+      const handler = drivePatch.customHandlers!.share!;
+      await handler(
+        { fileId: 'file-1', shareEmail: 'bob@test.com' },
+        'user@test.com',
+      );
+
+      const args = mockExecute.mock.calls[0][0];
+      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
+      expect(queryParams.sendNotificationEmail).toBe(false);
+    });
+  });
+
   describe('download', () => {
     it('creates parent directories before calling gws', async () => {
       const outputPath = path.join(tmpWorkspace, 'images', 'photo.png');

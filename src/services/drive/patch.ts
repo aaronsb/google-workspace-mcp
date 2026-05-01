@@ -341,6 +341,65 @@ export const drivePatch: ServicePatch = {
       };
     },
 
+    share: async (params, account): Promise<HandlerResponse> => {
+      // Drive v3 permissions.create requires the permission body (type, role,
+      // emailAddress|domain) to be POSTed as the request body, not passed
+      // through query --params. The generator's default buildResourceArgs
+      // collapses everything into --params, which makes the API reject the
+      // call with "The permission type field is required." This handler sends
+      // the body via --json.
+      const fileId = requireString(params, 'fileId');
+      const role = (params.role as string) || 'reader';
+      const type = (params.type as string) || 'user';
+
+      const body: Record<string, unknown> = { role, type };
+
+      if (type === 'user' || type === 'group') {
+        const email = (params.shareEmail as string) || '';
+        if (!email) {
+          throw new Error(`share requires shareEmail when type is '${type}'`);
+        }
+        body.emailAddress = email;
+      } else if (type === 'domain') {
+        const domain = (params.domain as string) || '';
+        if (!domain) {
+          throw new Error("share requires the 'domain' param when type is 'domain'");
+        }
+        body.domain = domain;
+      }
+      // type === 'anyone' needs no additional fields.
+
+      const queryParams: Record<string, unknown> = {
+        fileId,
+        supportsAllDrives: true,
+      };
+      // Skip the noisy "notify by email" default — the caller didn't ask for it.
+      if (type === 'user' || type === 'group') {
+        queryParams.sendNotificationEmail = false;
+      }
+
+      const result = await execute([
+        'drive', 'permissions', 'create',
+        '--params', JSON.stringify(queryParams),
+        '--json', JSON.stringify(body),
+      ], { account });
+      const data = result.data as Record<string, unknown>;
+
+      const target =
+        type === 'user' || type === 'group'
+          ? (body.emailAddress as string)
+          : type === 'domain'
+            ? (body.domain as string)
+            : 'anyone with the link';
+
+      return {
+        text: `File shared with **${target}** as ${role} (${type}).\n\n` +
+          `**File ID:** ${fileId}\n` +
+          `**Permission ID:** ${data.id ?? 'unknown'}`,
+        refs: { fileId, permissionId: data.id, role, type, target },
+      };
+    },
+
     replyToComment: async (params, account): Promise<HandlerResponse> => {
       const fileId = requireString(params, 'fileId');
       const commentId = requireString(params, 'commentId');
