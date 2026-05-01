@@ -23,7 +23,9 @@ const STALL_TIMEOUT = 30_000;   // Kill if no stdout/stderr activity for 30s
                                 // (generous: gws may do OAuth refresh, API pagination, cold start)
 
 const IS_WINDOWS = process.platform === 'win32';
-const GWS_BINARY_NAME = IS_WINDOWS ? 'gws.exe' : 'gws';
+// Prefer the native .exe (direct spawn, no shell needed).
+// Fall back to the .cmd wrapper used by legacy npm distributions.
+const GWS_BINARY_NAMES = IS_WINDOWS ? ['gws.exe', 'gws.cmd'] : ['gws'];
 
 /**
  * Resolve gws binary location.
@@ -39,28 +41,36 @@ export function resolveGwsBinary(): string {
   const envPath = process.env.GWS_BINARY_PATH;
   if (envPath) {
     // Support both direct binary path and directory path
-    if (envPath.endsWith('.exe') || envPath.endsWith('/gws') || envPath.endsWith('\\gws')) {
+    if (envPath.endsWith('.exe') || envPath.endsWith('/gws') || envPath.endsWith('\\gws') || envPath.endsWith('.cmd')) {
       return envPath;
     }
-    return path.join(envPath, GWS_BINARY_NAME);
+    // Try each candidate name under the directory
+    for (const name of GWS_BINARY_NAMES) {
+      const candidate = path.join(envPath, name);
+      if (existsSync(candidate)) return candidate;
+    }
+    return path.join(envPath, GWS_BINARY_NAMES[0]);
   }
 
-  // Check node_modules/.bin first (npm dependency)
-  const localBin = path.join(process.cwd(), 'node_modules', '.bin', GWS_BINARY_NAME);
-  if (existsSync(localBin)) {
-    return localBin;
+  // Check node_modules/.bin first (npm dependency) — try each candidate
+  const binDir = resolvePackageBinDir();
+  for (const name of GWS_BINARY_NAMES) {
+    const candidate = path.join(binDir, name);
+    if (existsSync(candidate)) return candidate;
   }
 
-  // Fall back to system PATH (e.g. ~/.local/bin/gws, /usr/local/bin/gws)
-  try {
-    const whichCmd = IS_WINDOWS ? 'where' : 'which';
-    const resolved = execFileSync(whichCmd, [GWS_BINARY_NAME], {
-      encoding: 'utf8',
-      timeout: 5000,
-    }).trim().split('\n')[0]; // `where` on Windows may return multiple lines
-    if (resolved) return resolved;
-  } catch {
-    // Not on PATH either — throw descriptive error below
+  // Fall back to system PATH
+  const whichCmd = IS_WINDOWS ? 'where' : 'which';
+  for (const name of GWS_BINARY_NAMES) {
+    try {
+      const resolved = execFileSync(whichCmd, [name], {
+        encoding: 'utf8',
+        timeout: 5000,
+      }).trim().split('\n')[0]; // `where` on Windows may return multiple lines
+      if (resolved) return resolved;
+    } catch {
+      // Not found under this name — try next candidate
+    }
   }
 
   throw new GwsError(
@@ -122,11 +132,21 @@ export async function execute(args: string[], options: GwsOptions = {}): Promise
   // Still prepend bin dir to PATH for non-bundled case
   env.PATH = `${resolvePackageBinDir()}:${env.PATH || ''}`;
 
+  // On Windows, .cmd files cannot be spawned directly — they require cmd.exe to interpret them.
+  // Using spawn with shell:true would work but joins all args into one unquoted command string,
+  // silently splitting any value that contains a space into separate tokens (breaking multi-word
+  // calendar summaries, locations, --params JSON payloads, etc.).
+  // Invoking cmd.exe directly with /c lets Node pass each argument as a discrete item so
+  // CreateProcess handles quoting correctly.
+  const isCmd = IS_WINDOWS && gwsBinary.endsWith('.cmd');
+  const spawnBin  = isCmd ? 'cmd.exe' : gwsBinary;
+  const spawnArgs = isCmd ? ['/c', gwsBinary, ...fullArgs] : fullArgs;
+
   return new Promise((resolve, reject) => {
     let settled = false;
     const settle = (fn: () => void) => { if (!settled) { settled = true; fn(); } };
 
-    const proc = spawn(gwsBinary, fullArgs, { env, cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = spawn(spawnBin, spawnArgs, { env, cwd, stdio: ['ignore', 'pipe', 'pipe'] });
 
     let stdout = '';
     let stderr = '';
