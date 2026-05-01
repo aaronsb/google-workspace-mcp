@@ -282,5 +282,133 @@ describe('calendarPatch', () => {
 
       expect(result.refs.calendarId).toBe('primary');
     });
+
+    it('passes attendees via --attendee (singular) — gws rejects the plural form', async () => {
+      mockExecute.mockResolvedValue(mockGwsResponse(calendarInsertResponse));
+      await calendarPatch.customHandlers!.create(
+        { summary: 'X', start: 'Y', end: 'Z', attendees: 'a@b.com,c@d.com' },
+        'user@test.com',
+      );
+
+      const args = mockExecute.mock.calls[0][0];
+      expect(args).toContain('--attendee');
+      expect(args).not.toContain('--attendees');
+      const idx = args.indexOf('--attendee');
+      expect(args[idx + 1]).toBe('a@b.com,c@d.com');
+    });
+  });
+
+  describe('update custom handler', () => {
+    it('requires eventId', async () => {
+      await expect(
+        calendarPatch.customHandlers!.update({ summary: 'X' }, 'user@test.com'),
+      ).rejects.toThrow('eventId');
+    });
+
+    it('rejects updates with no fields to change', async () => {
+      await expect(
+        calendarPatch.customHandlers!.update({ eventId: 'evt-1' }, 'user@test.com'),
+      ).rejects.toThrow('at least one field');
+    });
+
+    it('routes via events.patch with --params and --json', async () => {
+      mockExecute.mockResolvedValue(mockGwsResponse({ id: 'evt-1', summary: 'New title' }));
+      await calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', summary: 'New title' },
+        'user@test.com',
+      );
+
+      const args = mockExecute.mock.calls[0][0];
+      expect(args.slice(0, 3)).toEqual(['calendar', 'events', 'patch']);
+      expect(args).toContain('--params');
+      expect(args).toContain('--json');
+
+      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
+      expect(queryParams).toEqual({ calendarId: 'primary', eventId: 'evt-1' });
+
+      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      expect(body).toEqual({ summary: 'New title' });
+    });
+
+    it('maps start and end to dateTime objects', async () => {
+      mockExecute.mockResolvedValue(mockGwsResponse({ id: 'evt-1' }));
+      await calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', start: '2026-05-01T10:00:00Z', end: '2026-05-01T11:00:00Z' },
+        'user@test.com',
+      );
+
+      const args = mockExecute.mock.calls[0][0];
+      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      expect(body.start).toEqual({ dateTime: '2026-05-01T10:00:00Z' });
+      expect(body.end).toEqual({ dateTime: '2026-05-01T11:00:00Z' });
+    });
+
+    it('converts comma-separated attendees string into array of {email}', async () => {
+      mockExecute.mockResolvedValue(mockGwsResponse({ id: 'evt-1' }));
+      await calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', attendees: 'a@b.com, c@d.com , e@f.com' },
+        'user@test.com',
+      );
+
+      const args = mockExecute.mock.calls[0][0];
+      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      expect(body.attendees).toEqual([
+        { email: 'a@b.com' },
+        { email: 'c@d.com' },
+        { email: 'e@f.com' },
+      ]);
+    });
+
+    it('clears attendees when attendees is an empty string', async () => {
+      mockExecute.mockResolvedValue(mockGwsResponse({ id: 'evt-1' }));
+      await calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', attendees: '' },
+        'user@test.com',
+      );
+
+      const args = mockExecute.mock.calls[0][0];
+      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      expect(body.attendees).toEqual([]);
+    });
+
+    it('adds conferenceData + conferenceDataVersion=1 when meet: true', async () => {
+      mockExecute.mockResolvedValue(mockGwsResponse({ id: 'evt-1', hangoutLink: 'https://meet.google.com/abc' }));
+      await calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', meet: true },
+        'user@test.com',
+      );
+
+      const args = mockExecute.mock.calls[0][0];
+      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
+      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+
+      expect(queryParams.conferenceDataVersion).toBe(1);
+      expect(body.conferenceData).toBeDefined();
+      expect(body.conferenceData.createRequest.conferenceSolutionKey.type).toBe('hangoutsMeet');
+    });
+
+    it('honors explicit calendarId', async () => {
+      mockExecute.mockResolvedValue(mockGwsResponse({ id: 'evt-1' }));
+      await calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', summary: 'X', calendarId: 'shared@test.com' },
+        'user@test.com',
+      );
+
+      const args = mockExecute.mock.calls[0][0];
+      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
+      expect(queryParams.calendarId).toBe('shared@test.com');
+    });
+
+    it('lists changed fields in response text and refs', async () => {
+      mockExecute.mockResolvedValue(mockGwsResponse({ id: 'evt-1', summary: 'New' }));
+      const result = await calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', summary: 'New', location: 'Room B' },
+        'user@test.com',
+      );
+
+      expect(result.text).toContain('summary');
+      expect(result.text).toContain('location');
+      expect(result.refs.changed).toEqual(['summary', 'location']);
+    });
   });
 });

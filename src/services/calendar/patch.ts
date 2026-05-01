@@ -202,7 +202,10 @@ export const calendarPatch: ServicePatch = {
       const args = ['calendar', '+insert', '--calendar', calendarId, '--summary', summary, '--start', start, '--end', end];
       if (params.description) args.push('--description', String(params.description));
       if (params.location) args.push('--location', String(params.location));
-      if (params.attendees) args.push('--attendees', String(params.attendees));
+      // `gws calendar +insert` expects `--attendee` (singular) — the CLI accepts the flag repeatedly,
+      // but a single comma-separated value also works. Using `--attendees` (plural) errors out at the
+      // CLI layer with "unexpected argument '--attendees' found; tip: a similar argument exists: '--attendee'".
+      if (params.attendees) args.push('--attendee', String(params.attendees));
       if (params.meet) args.push('--meet');
       const result = await execute(args, { account });
       const data = result.data as Record<string, unknown>;
@@ -227,6 +230,79 @@ export const calendarPatch: ServicePatch = {
       return {
         text: `Event deleted: ${eventId}`,
         refs: { eventId, status: 'deleted' },
+      };
+    },
+
+    update: async (params, account): Promise<HandlerResponse> => {
+      // events.patch takes `calendarId` + `eventId` via --params (path/query)
+      // and the changed fields as a JSON body via --json. The manifest-driven
+      // generator only emits --params, so without this handler the body is
+      // empty and Google returns 200 without applying anything — silently.
+      const eventId = requireString(params, 'eventId');
+      const calendarId = (params.calendarId as string) || 'primary';
+
+      const body: Record<string, unknown> = {};
+      if (params.summary !== undefined) body.summary = String(params.summary);
+      if (params.description !== undefined) body.description = String(params.description);
+      if (params.location !== undefined) body.location = String(params.location);
+      if (params.start !== undefined) body.start = { dateTime: String(params.start) };
+      if (params.end !== undefined) body.end = { dateTime: String(params.end) };
+
+      // attendees: comma-separated string → array of {email} objects.
+      // Google events.patch replaces the attendees array wholesale (no diff semantics),
+      // so the caller must re-supply every guest they want kept.
+      if (params.attendees !== undefined) {
+        const attendeeList = String(params.attendees)
+          .split(',')
+          .map(e => e.trim())
+          .filter(Boolean);
+        body.attendees = attendeeList.map(email => ({ email }));
+      }
+
+      // Build --params: note the conferenceDataVersion=1 requirement when creating a Meet link.
+      const queryParams: Record<string, unknown> = { calendarId, eventId };
+
+      // Optional Meet link attach. Google Calendar does not allow removing a Meet link
+      // via events.patch, so we only handle the "add" case.
+      if (params.meet) {
+        const requestId = `meet-${eventId}-${Date.now()}`;
+        body.conferenceData = {
+          createRequest: {
+            requestId,
+            conferenceSolutionKey: { type: 'hangoutsMeet' },
+          },
+        };
+        queryParams.conferenceDataVersion = 1;
+      }
+
+      if (Object.keys(body).length === 0) {
+        throw new Error(
+          'update requires at least one field to change: summary, start, end, description, location, attendees, or meet',
+        );
+      }
+
+      const result = await execute([
+        'calendar', 'events', 'patch',
+        '--params', JSON.stringify(queryParams),
+        '--json', JSON.stringify(body),
+      ], { account });
+      const data = result.data as Record<string, unknown>;
+
+      const changed = Object.keys(body);
+      const meetLink = data.hangoutLink ? `\n**Meet:** ${data.hangoutLink}` : '';
+      return {
+        text: `Event updated: **${data.summary ?? eventId}**\n\n` +
+          `**Event ID:** ${data.id ?? eventId}\n` +
+          `**Calendar:** ${calendarId}\n` +
+          `**Fields changed:** ${changed.join(', ')}` +
+          meetLink,
+        refs: {
+          id: data.id,
+          eventId: data.id ?? eventId,
+          calendarId,
+          changed,
+          ...(data.hangoutLink ? { meetLink: data.hangoutLink } : {}),
+        },
       };
     },
   },
