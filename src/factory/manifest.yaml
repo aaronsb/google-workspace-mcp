@@ -821,12 +821,16 @@ services:
 
       create:
         type: action
-        description: "create a new empty spreadsheet"
+        description: "create a new spreadsheet (optionally with a title)"
         resource: spreadsheets.create
+        params:
+          title:
+            type: string
+            description: "Spreadsheet title (defaults to 'Untitled spreadsheet')"
 
       read:
         type: detail
-        description: "read cell values from a range"
+        description: "read cell values from a range; rendered rows are prefixed with their sheet row number (e.g. 'R3: …') since blank rows are otherwise invisible"
         helper: "+read"
         params:
           spreadsheetId:
@@ -867,7 +871,7 @@ services:
 
       getValues:
         type: detail
-        description: "get values from a specific range (raw API)"
+        description: "get values from a specific range (raw API); rendered rows are prefixed with their sheet row number (e.g. 'R3: …')"
         resource: spreadsheets.values.get
         params:
           spreadsheetId:

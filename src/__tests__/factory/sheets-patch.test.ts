@@ -18,7 +18,7 @@ const ctx = (operation: string): PatchContext => ({
 });
 
 describe('sheetsPatch formatDetail', () => {
-  it('read renders the values array as a markdown table', () => {
+  it('read renders the values array with sheet row-number prefixes', () => {
     const data = {
       range: "'Clean Logs'!A1:C2",
       majorDimension: 'ROWS',
@@ -29,20 +29,58 @@ describe('sheetsPatch formatDetail', () => {
     };
     const res = sheetsPatch.formatDetail!(data, ctx('read'));
     expect(res.text).toContain("'Clean Logs'!A1:C2");
-    expect(res.text).toContain('Date | Level | Message');
-    expect(res.text).toContain('2026-04-15 | INFO | started');
+    expect(res.text).toContain('R1: Date | Level | Message');
+    expect(res.text).toContain('R2: 2026-04-15 | INFO | started');
     expect(res.text).toContain('**Rows:** 2');
     expect(res.text).toContain('**Columns:** 3');
     expect(res.refs.values).toEqual(data.values);
     expect(res.refs.rowCount).toBe(2);
+    expect(res.refs.startRow).toBe(1);
   });
 
-  it('getValues uses the same values renderer', () => {
+  it('numbers rows from the start of the requested range, not from 1', () => {
+    // The Sheets API omits leading-blank rows from `values`; the response
+    // `range` is what tells you where row 1 of the array actually sits.
+    const res = sheetsPatch.formatDetail!(
+      {
+        range: "'Invoice'!G2:H4",
+        majorDimension: 'ROWS',
+        values: [['4/20/2026', ''], ['Aaron Bockelie', ''], ['', '$1,234']],
+      },
+      ctx('read'),
+    );
+    expect(res.text).toContain('R2: 4/20/2026 |');
+    expect(res.text).toContain('R3: Aaron Bockelie |');
+    expect(res.text).toContain('R4:  | $1,234');
+    expect(res.refs.startRow).toBe(2);
+  });
+
+  it('renders a fully-blank row as a bare Rn: so it is visible', () => {
+    const res = sheetsPatch.formatDetail!(
+      { range: 'Sheet1!A1:B3', majorDimension: 'ROWS', values: [[], [], ['data', 'here']] },
+      ctx('getValues'),
+    );
+    expect(res.text).toContain('R1:\n');
+    expect(res.text).toContain('R2:\n');
+    expect(res.text).toContain('R3: data | here');
+  });
+
+  it('pads row numbers so the colons line up across digit widths', () => {
+    const values = Array.from({ length: 11 }, (_, i) => [`v${i + 1}`]);
+    const res = sheetsPatch.formatDetail!(
+      { range: 'Sheet1!A1:A11', majorDimension: 'ROWS', values },
+      ctx('read'),
+    );
+    expect(res.text).toContain('R 1: v1');
+    expect(res.text).toContain('R11: v11');
+  });
+
+  it('getValues uses the same row-prefixed renderer', () => {
     const res = sheetsPatch.formatDetail!(
       { range: 'Sheet1!A1:B1', majorDimension: 'ROWS', values: [['a', 'b']] },
       ctx('getValues'),
     );
-    expect(res.text).toContain('a | b');
+    expect(res.text).toContain('R1: a | b');
   });
 
   it('read handles empty range gracefully', () => {
@@ -59,7 +97,7 @@ describe('sheetsPatch formatDetail', () => {
       { range: 'S!A1', majorDimension: 'ROWS', values: [['a|b', 'c']] },
       ctx('read'),
     );
-    expect(res.text).toContain('a\\|b | c');
+    expect(res.text).toContain('R1: a\\|b | c');
   });
 
   it('get renders spreadsheet metadata including sheet tabs', () => {
@@ -127,6 +165,53 @@ describe('sheetsPatch formatAction', () => {
     expect(res.text).toContain('**Rows:** 1');
     expect(res.text).toContain('**Cells:** 3');
     expect(res.refs.updatedRange).toBe('Sheet1!A5:C5');
+  });
+});
+
+describe('sheetsPatch customHandlers.create', () => {
+  beforeEach(() => {
+    mockExecute.mockReset();
+  });
+
+  it('sends title in the request body so the new sheet is named', async () => {
+    mockExecute.mockResolvedValueOnce({
+      success: true,
+      data: {
+        spreadsheetId: 'new-1',
+        spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/new-1',
+        properties: { title: 'Q3 Forecast' },
+        sheets: [{ properties: { title: 'Sheet1' } }],
+      },
+      stderr: '',
+    });
+
+    const handler = sheetsPatch.customHandlers!.create!;
+    const res = await handler({ title: 'Q3 Forecast' }, 'user@test.com');
+
+    const args = mockExecute.mock.calls[0][0];
+    expect(args.slice(0, 3)).toEqual(['sheets', 'spreadsheets', 'create']);
+    const body = JSON.parse(args[args.indexOf('--json') + 1]);
+    // title goes under properties.title in the create body — not as a query param.
+    expect(body).toEqual({ properties: { title: 'Q3 Forecast' } });
+
+    expect(res.text).toContain('Spreadsheet created: **Q3 Forecast**');
+    expect(res.text).toContain('**Spreadsheet ID:** new-1');
+    expect(res.refs.spreadsheetId).toBe('new-1');
+    expect(res.refs.title).toBe('Q3 Forecast');
+  });
+
+  it('omits --json entirely when no title is given (Untitled spreadsheet)', async () => {
+    mockExecute.mockResolvedValueOnce({
+      success: true,
+      data: { spreadsheetId: 'new-2', properties: { title: 'Untitled spreadsheet' }, sheets: [] },
+      stderr: '',
+    });
+
+    const handler = sheetsPatch.customHandlers!.create!;
+    await handler({}, 'user@test.com');
+
+    const args = mockExecute.mock.calls[0][0];
+    expect(args).toEqual(['sheets', 'spreadsheets', 'create']);
   });
 });
 
