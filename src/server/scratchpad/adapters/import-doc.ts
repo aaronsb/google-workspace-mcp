@@ -84,7 +84,9 @@ async function importDocJson(
       '--params', JSON.stringify({ documentId }),
     ], { account: email });
 
-    const json = JSON.stringify(result.data, null, 2);
+    const doc = result.data as Record<string, unknown>;
+    const revisionId = typeof doc.revisionId === 'string' ? doc.revisionId : undefined;
+    const json = JSON.stringify(doc, null, 2);
     const lines = json.split('\n');
 
     scratchpads.appendRawLines(scratchpadId, lines);
@@ -93,11 +95,12 @@ async function importDocJson(
       service: 'docs',
       resourceId: documentId,
       account: email,
+      revisionId,  // optimistic-concurrency seed for batchUpdate (#79)
     });
 
     return {
-      text: `Imported doc as JSON (${lines.length} lines) into scratchpad ${scratchpadId}.\nLive-bound to docs/${documentId} — json_set mutations will apply directly.`,
-      refs: { scratchpadId, documentId, format: 'json', linesImported: lines.length, bound: true },
+      text: `Imported doc as JSON (${lines.length} lines) into scratchpad ${scratchpadId}.\nLive-bound to docs/${documentId} — json_set mutations push back via batchUpdate.`,
+      refs: { scratchpadId, documentId, format: 'json', linesImported: lines.length, bound: true, revisionId },
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

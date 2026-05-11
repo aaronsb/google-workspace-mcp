@@ -3,7 +3,8 @@
  * See ADR-301: Scratchpad Buffer — Service-Agnostic Content Authoring.
  */
 
-import { ScratchpadManager } from './manager.js';
+import { ScratchpadManager, type LiveBinding } from './manager.js';
+import { translateMutation, isRejection, type DocsSyncIntent } from './docs-sync.js';
 import * as fs from 'node:fs/promises';
 import {
   sendEmail, sendEmailDraft, sendDocCreate, sendDocWrite, sendWorkspace,
@@ -253,14 +254,18 @@ async function handleJsonSet(params: Record<string, unknown>): Promise<HandlerRe
   if (!jsonPath) return error('path is required for json_set.');
   if (!('value' in params)) return error('value is required for json_set.');
 
-  // Local mutation first
+  // For docs-bound scratchpads, pre-validate the mutation before applying
+  // locally — unsupported paths shouldn't strand the buffer divergent.
+  const docsResult = await maybeHandleDocsBoundMutation(id, {
+    op: 'set', path: jsonPath, value: params.value,
+  });
+  if (docsResult) return docsResult;
+
+  // Non-docs flow: mutate, then sync (sheets pushes; unbound is a no-op).
   const result = scratchpads.jsonSet(id, jsonPath, params.value);
   if (!result) return scratchpadNotFound(id);
-
-  // If live-bound, push to API and reload
   const syncResult = await syncIfBound(id);
   if (syncResult) return syncResult;
-
   return { text: formatMutation(result), refs: { scratchpadId: id } };
 }
 
@@ -271,12 +276,13 @@ async function handleJsonDelete(params: Record<string, unknown>): Promise<Handle
   const jsonPath = params.path as string | undefined;
   if (!jsonPath) return error('path is required for json_delete.');
 
+  const docsResult = await maybeHandleDocsBoundMutation(id, { op: 'delete', path: jsonPath });
+  if (docsResult) return docsResult;
+
   const result = scratchpads.jsonDelete(id, jsonPath);
   if (!result) return scratchpadNotFound(id);
-
   const syncResult = await syncIfBound(id);
   if (syncResult) return syncResult;
-
   return { text: formatMutation(result), refs: { scratchpadId: id } };
 }
 
@@ -288,13 +294,98 @@ async function handleJsonInsert(params: Record<string, unknown>): Promise<Handle
   if (!jsonPath) return error('path is required for json_insert.');
   if (!('value' in params)) return error('value is required for json_insert.');
 
+  const docsResult = await maybeHandleDocsBoundMutation(id, {
+    op: 'insert', path: jsonPath, value: params.value,
+  });
+  if (docsResult) return docsResult;
+
   const result = scratchpads.jsonInsert(id, jsonPath, params.value);
   if (!result) return scratchpadNotFound(id);
-
   const syncResult = await syncIfBound(id);
   if (syncResult) return syncResult;
-
   return { text: formatMutation(result), refs: { scratchpadId: id } };
+}
+
+/**
+ * For docs-bound scratchpads, translate the intent, push via batchUpdate,
+ * reload, and return the response. Returns null when the scratchpad isn't
+ * docs-bound (caller falls through to the existing non-docs flow).
+ *
+ * The mutation is pre-validated against the BEFORE buffer so unsupported
+ * paths reject without mutating local state (#79).
+ */
+async function maybeHandleDocsBoundMutation(
+  id: string,
+  intent: Omit<DocsSyncIntent, 'beforeJson'>,
+): Promise<HandlerResponse | null> {
+  const binding = scratchpads.getBinding(id);
+  if (binding?.service !== 'docs') return null;
+
+  const before = scratchpads.getContent(id);
+  if (before === null) return scratchpadNotFound(id);
+
+  const translated = translateMutation({ ...intent, beforeJson: before }, binding.revisionId);
+  if (isRejection(translated)) {
+    return error(`json_${intent.op} rejected: ${translated.reason}`);
+  }
+
+  // Apply the mutation locally now that we know it's translatable.
+  const result = applyMutation(id, intent);
+  if (!result) return scratchpadNotFound(id);
+
+  // Push to the Docs API.
+  try {
+    await execute([
+      'docs', 'documents', 'batchUpdate',
+      '--params', JSON.stringify({ documentId: binding.resourceId }),
+      '--json', JSON.stringify(translated.body),
+    ], { account: binding.account });
+  } catch (err) {
+    // The buffer has the local change; the doc doesn't. Match the sheets
+    // error contract — agent retries or discards.
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      text: `Sync failed: ${message}\nLocal buffer still has your changes. Retry or use scratchpad reset to discard.`,
+      refs: { error: true, scratchpadId: id },
+    };
+  }
+
+  // Reload the buffer from the doc — the doc is the source of truth.
+  // This also picks up the new revisionId for the next sync.
+  await reloadDocsBuffer(id, binding);
+
+  return {
+    text: `${formatMutation(result)}\n_Synced: ${translated.summary}_`,
+    refs: { scratchpadId: id, synced: true, summary: translated.summary },
+  };
+}
+
+/** Dispatch the local mutation matching the intent's op. */
+function applyMutation(
+  id: string,
+  intent: Omit<DocsSyncIntent, 'beforeJson'>,
+): ReturnType<ScratchpadManager['jsonSet']> {
+  switch (intent.op) {
+    case 'set':    return scratchpads.jsonSet(id, intent.path, intent.value);
+    case 'delete': return scratchpads.jsonDelete(id, intent.path);
+    case 'insert': return scratchpads.jsonInsert(id, intent.path, intent.value);
+  }
+}
+
+/** Re-fetch the doc, replace the buffer, and update the binding's revisionId. */
+async function reloadDocsBuffer(id: string, binding: LiveBinding): Promise<void> {
+  const result = await execute([
+    'docs', 'documents', 'get',
+    '--params', JSON.stringify({ documentId: binding.resourceId }),
+  ], { account: binding.account });
+  const doc = result.data as Record<string, unknown>;
+  const freshJson = JSON.stringify(doc, null, 2);
+  const sp = scratchpads.get(id);
+  if (!sp) return;
+  sp.lines = freshJson.split('\n');
+  if (sp.binding) {
+    sp.binding.revisionId = typeof doc.revisionId === 'string' ? doc.revisionId : undefined;
+  }
 }
 
 /**
@@ -311,18 +402,12 @@ async function syncIfBound(id: string): Promise<HandlerResponse | null> {
 
   try {
     if (binding.service === 'docs') {
-      // Docs API requires batchUpdate with discrete operations (insertText,
-      // deleteContentRange, etc.) — no full JSON replace endpoint.
-      //
-      // Future (#79): translate text content changes (textRun.content) to
-      // deleteContentRange + insertText using startIndex/endIndex from
-      // the JSON structure. Structural changes (add/remove paragraphs)
-      // that batchUpdate rejects should return guidance to use markdown
-      // mode + doc_create instead. One edit per sync cycle with reload.
-      //
-      // For now: local mutations are source of truth. The buffer diverges
-      // from the live doc. Agent can send modified JSON to workspace.
-      return null; // Local mutation already applied
+      // Docs JSON-mode mutations are handled upstream by
+      // maybeHandleDocsBoundMutation, which translates the intent into
+      // a batchUpdate request, pushes, and reloads. Reaching this point
+      // means a non-json operation on a docs-bound scratchpad — nothing
+      // to sync (those op types don't reflect into the doc anyway).
+      return null;
     } else if (binding.service === 'sheets') {
       // For Sheets: the buffer is the values JSON.
       // Push back via spreadsheets.values.update.
