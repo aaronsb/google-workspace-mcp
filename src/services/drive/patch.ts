@@ -341,6 +341,56 @@ export const drivePatch: ServicePatch = {
       };
     },
 
+    listPermissions: async (params, account): Promise<HandlerResponse> => {
+      // permissions.list returns `{ permissions: [...] }`, not `{ files: [...] }`,
+      // so the generic drive list formatter (formatFileList) reported "No files
+      // found" for every call. This handler fetches the permission fields the
+      // default response omits (role, emailAddress, domain) and renders them.
+      const fileId = requireString(params, 'fileId');
+
+      const result = await execute([
+        'drive', 'permissions', 'list',
+        '--params', JSON.stringify({
+          fileId,
+          fields: 'permissions(id, type, role, emailAddress, domain, displayName, deleted, pendingOwner)',
+          supportsAllDrives: true,
+        }),
+      ], { account });
+      const data = result.data as Record<string, unknown>;
+      const permissions = (data.permissions || []) as Array<Record<string, unknown>>;
+
+      if (permissions.length === 0) {
+        return {
+          text: `No sharing permissions on file ${fileId}.`,
+          refs: { fileId, count: 0 },
+        };
+      }
+
+      const lines = permissions.map((p) => {
+        const id = String(p.id ?? '');
+        const type = String(p.type ?? '');
+        const role = String(p.role ?? '');
+        const target =
+          p.emailAddress ? String(p.emailAddress)
+            : p.domain ? String(p.domain)
+              : type === 'anyone' ? 'anyone with the link'
+                : p.displayName ? String(p.displayName)
+                  : '';
+        const flags = `${p.pendingOwner ? ' [pending owner]' : ''}${p.deleted ? ' [deleted account]' : ''}`;
+        return `${id} | ${role} | ${type}${target ? ' | ' + target : ''}${flags}`;
+      });
+
+      return {
+        text: `## Permissions on ${fileId} (${permissions.length})\n\n${lines.join('\n')}`,
+        refs: {
+          fileId,
+          count: permissions.length,
+          permissionId: String(permissions[0]?.id ?? ''),
+          permissions: permissions.map((p) => String(p.id ?? '')),
+        },
+      };
+    },
+
     share: async (params, account): Promise<HandlerResponse> => {
       // Drive v3 permissions.create requires the permission body (type, role,
       // emailAddress|domain) to be POSTed as the request body, not passed
