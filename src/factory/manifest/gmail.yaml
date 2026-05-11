@@ -29,7 +29,7 @@ operations:
 
   read:
     type: detail
-    description: "get full email by ID"
+    description: "get full email by ID. Pass bodyFormat: 'html' when the plain-text part is a stub (marketing email, invitations, booking confirmations) and the dates/codes you need only exist in the HTML — returned HTML is sanitized and wrapped in a Spotlighting block (ADR-305)."
     resource: users.messages.get
     params:
       messageId:
@@ -37,6 +37,12 @@ operations:
         description: "Email message ID"
         required: true
         maps_to: id
+      bodyFormat:
+        type: string
+        description: "How to render the message body. 'plain' (default) returns text/plain or a crude HTML-strip fallback. 'html' returns the text/html part sanitized — useful when the plain-text part is empty/stub."
+        enum: [plain, html]
+        default: plain
+        client_only: true
     defaults:
       userId: me
 

@@ -109,6 +109,64 @@ describe('formatEmailDetail', () => {
     expect(result.text).toContain('Snippet fallback');
   });
 
+  it('with bodyFormat: html, prefers text/html and returns it sanitized + wrapped', () => {
+    const htmlBody = '<p>The party is <b>Saturday at 7pm</b>.</p><script>alert(1)</script>';
+    const base64 = (s: string) => Buffer.from(s).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const result = formatEmailDetail({
+      id: 'msg-html', threadId: 'th', snippet: 'View this email',
+      payload: {
+        headers: [{ name: 'From', value: 'invites@paperlesspost.com' }, { name: 'Subject', value: 'You\'re invited' }],
+        mimeType: 'multipart/alternative',
+        parts: [
+          { mimeType: 'text/plain', body: { data: base64('View this email in your browser.'), size: 32 } },
+          { mimeType: 'text/html', body: { data: base64(htmlBody), size: htmlBody.length } },
+        ],
+      },
+    }, { bodyFormat: 'html' });
+    expect(result.text).toContain('Saturday at 7pm');
+    expect(result.text).toContain('<gmail_content trust="untrusted">');
+    expect(result.text).not.toContain('<script>');
+    expect(result.text).not.toContain('alert(1)');
+    // Crucially: the stub text/plain body ("View this email in your browser") is bypassed.
+    expect(result.text).not.toContain('View this email in your browser');
+  });
+
+  it('with bodyFormat: html and no html part, falls back to the text/plain part', () => {
+    const plain = 'Just plain text here.';
+    const base64 = (s: string) => Buffer.from(s).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const result = formatEmailDetail({
+      id: 'msg-plain-only',
+      payload: {
+        headers: [{ name: 'From', value: 'a@b.com' }],
+        mimeType: 'multipart/alternative',
+        parts: [
+          { mimeType: 'text/plain', body: { data: base64(plain), size: plain.length } },
+        ],
+      },
+    }, { bodyFormat: 'html' });
+    expect(result.text).toContain('Just plain text here');
+    expect(result.text).not.toContain('<gmail_content');
+  });
+
+  it('default bodyFormat (plain) is unchanged — no Spotlighting wrapper, no HTML', () => {
+    const plain = 'Hello plain world.';
+    const base64 = (s: string) => Buffer.from(s).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const result = formatEmailDetail({
+      id: 'msg-default',
+      payload: {
+        headers: [{ name: 'From', value: 'a@b.com' }],
+        mimeType: 'multipart/alternative',
+        parts: [
+          { mimeType: 'text/plain', body: { data: base64(plain), size: plain.length } },
+          { mimeType: 'text/html', body: { data: base64('<p>Hello <b>HTML</b> world.</p>'), size: 30 } },
+        ],
+      },
+    });
+    expect(result.text).toContain('Hello plain world');
+    expect(result.text).not.toContain('<gmail_content');
+    expect(result.text).not.toContain('<p>');
+  });
+
   it('shows snippet with size hint for very large bodies', () => {
     // Generate a body larger than 12k tokens (~48KB+)
     const largeText = 'x'.repeat(60_000);

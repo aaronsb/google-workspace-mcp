@@ -17,6 +17,12 @@ export interface ParamDef {
   /** Maps this param name to a different key in the gws --params JSON. */
   maps_to?: string;
   enum?: string[];
+  /**
+   * If true, the param is for the formatter/handler only and is NOT forwarded
+   * to the gws CLI. Used for client-side controls like `bodyFormat` (ADR-305)
+   * that affect rendering, not the API call itself.
+   */
+  client_only?: boolean;
 }
 
 /** Hydration config — fetch detail for each item in a list result. */

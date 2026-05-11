@@ -294,6 +294,7 @@ function buildResourceArgs(
 
   if (opDef.params) {
     for (const [paramName, paramDef] of Object.entries(opDef.params)) {
+      if (paramDef.client_only) continue; // formatter-only; never reaches gws
       const value = params[paramName];
       const targetKey = paramDef.maps_to ?? paramName;
 
@@ -331,6 +332,7 @@ function buildHelperArgs(
   // Check for required params that aren't in cli_args — those are positional
   if (opDef.params) {
     for (const [paramName, paramDef] of Object.entries(opDef.params)) {
+      if (paramDef.client_only) continue; // formatter-only; never reaches gws
       const value = params[paramName];
       if (value === undefined || value === null) continue;
 

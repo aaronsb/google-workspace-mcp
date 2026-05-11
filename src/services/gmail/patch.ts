@@ -10,7 +10,7 @@
 import * as path from 'node:path';
 import { execute } from '../../executor/gws.js';
 import { resolveWorkspacePath, verifyPathSafety, getWorkspaceDir } from '../../executor/workspace.js';
-import { formatEmailList, formatEmailDetail, extractBodyFromPayload } from '../../server/formatting/markdown.js';
+import { formatEmailList, formatEmailDetail, extractBodyFromPayload, type EmailBodyFormat } from '../../server/formatting/markdown.js';
 import { requireString } from '../../server/handlers/validate.js';
 import { handleGetAttachment, handleViewAttachment } from './attachments.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
@@ -205,8 +205,13 @@ export const gmailPatch: ServicePatch = {
     switch (ctx.operation) {
       case 'getThread':
         return formatThreadDetail(data);
-      default:
-        return formatEmailDetail(data);
+      default: {
+        // `read` accepts an optional bodyFormat — 'plain' (default, current
+        // behavior) or 'html' (sanitized HTML for content the text-strip
+        // loses; see ADR-305).
+        const bodyFormat = (ctx.params.bodyFormat as EmailBodyFormat | undefined) ?? 'plain';
+        return formatEmailDetail(data, { bodyFormat });
+      }
     }
   },
 
