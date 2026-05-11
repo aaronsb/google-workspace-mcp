@@ -17,6 +17,13 @@ export interface LiveBinding {
   service: 'docs' | 'sheets';
   resourceId: string;
   account: string;
+  /**
+   * Doc revision at import time (Docs only). Sent as
+   * `writeControl.requiredRevisionId` on batchUpdate so the API rejects
+   * stale writes when a collaborator has edited the doc since import.
+   * Updated after every successful sync+reload (issue #79).
+   */
+  revisionId?: string;
 }
 
 /** File reference tracked in the attachment side-table. */
