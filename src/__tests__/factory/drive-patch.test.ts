@@ -232,6 +232,81 @@ describe('drivePatch custom handlers', () => {
     });
   });
 
+  describe('listPermissions', () => {
+    it('hits permissions.list and requests the fields the API omits by default', async () => {
+      mockExecute.mockResolvedValueOnce({
+        success: true,
+        data: {
+          permissions: [
+            { id: 'owner-perm', type: 'user', role: 'owner', emailAddress: 'me@test.com' },
+            { id: 'reader-perm', type: 'user', role: 'reader', emailAddress: 'bob@test.com' },
+          ],
+        },
+        stderr: '',
+      });
+
+      const handler = drivePatch.customHandlers!.listPermissions!;
+      const result = await handler({ fileId: 'file-1' }, 'me@test.com');
+
+      const args = mockExecute.mock.calls[0][0];
+      expect(args.slice(0, 3)).toEqual(['drive', 'permissions', 'list']);
+      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
+      expect(queryParams.fileId).toBe('file-1');
+      // Without an explicit fields mask the Drive API returns only id/type — not
+      // role or emailAddress — which made the listing useless.
+      expect(queryParams.fields).toContain('role');
+      expect(queryParams.fields).toContain('emailAddress');
+
+      expect(result.text).toContain('Permissions on file-1 (2)');
+      expect(result.text).toContain('owner-perm | owner | user | me@test.com');
+      expect(result.text).toContain('reader-perm | reader | user | bob@test.com');
+      expect(result.refs.count).toBe(2);
+      // A list has no canonical "the" permission — no singular permissionId ref.
+      expect(result.refs.permissionId).toBeUndefined();
+      expect(result.refs.permissions).toEqual([
+        { permissionId: 'owner-perm', type: 'user', role: 'owner', target: 'me@test.com' },
+        { permissionId: 'reader-perm', type: 'user', role: 'reader', target: 'bob@test.com' },
+      ]);
+    });
+
+    it('reports an empty permission list without claiming "No files found"', async () => {
+      mockExecute.mockResolvedValueOnce({ success: true, data: { permissions: [] }, stderr: '' });
+
+      const handler = drivePatch.customHandlers!.listPermissions!;
+      const result = await handler({ fileId: 'file-2' }, 'me@test.com');
+
+      expect(result.text).toContain('No sharing permissions on file file-2');
+      expect(result.text).not.toContain('No files found');
+      expect(result.refs.count).toBe(0);
+      expect(result.refs.permissions).toEqual([]);
+    });
+
+    it('labels anyone-with-link, pending-owner, deleted, and domain/displayName targets', async () => {
+      mockExecute.mockResolvedValueOnce({
+        success: true,
+        data: {
+          permissions: [
+            { id: 'anyone-perm', type: 'anyone', role: 'reader' },
+            { id: 'pending-perm', type: 'user', role: 'writer', emailAddress: 'new@test.com', pendingOwner: true },
+            { id: 'domain-perm', type: 'domain', role: 'reader', domain: 'acme.com' },
+            { id: 'group-perm', type: 'group', role: 'commenter', displayName: 'Eng Team' },
+            { id: 'gone-perm', type: 'user', role: 'reader', emailAddress: 'old@test.com', deleted: true },
+          ],
+        },
+        stderr: '',
+      });
+
+      const handler = drivePatch.customHandlers!.listPermissions!;
+      const result = await handler({ fileId: 'file-3' }, 'me@test.com');
+
+      expect(result.text).toContain('anyone-perm | reader | anyone | anyone with the link');
+      expect(result.text).toContain('[pending owner]');
+      expect(result.text).toContain('domain-perm | reader | domain | acme.com');
+      expect(result.text).toContain('group-perm | commenter | group | Eng Team');
+      expect(result.text).toContain('gone-perm | reader | user | old@test.com [deleted account]');
+    });
+  });
+
   describe('download', () => {
     it('creates parent directories before calling gws', async () => {
       const outputPath = path.join(tmpWorkspace, 'images', 'photo.png');
