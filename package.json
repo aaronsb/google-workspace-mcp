@@ -14,7 +14,7 @@
     "build"
   ],
   "scripts": {
-    "build": "tsc --skipLibCheck && cp src/factory/manifest.yaml build/factory/",
+    "build": "tsc --skipLibCheck && rm -rf build/factory/manifest && cp -r src/factory/manifest build/factory/manifest",
     "type-check": "tsc --noEmit --skipLibCheck",
     "lint": "eslint \"src/**/*.ts\"",
     "watch": "tsc --watch --skipLibCheck",

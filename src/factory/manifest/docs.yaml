@@ -1,0 +1,77 @@
+tool_name: manage_docs
+description: "Read, write, insert, and find-replace text in Google Docs documents."
+requires_email: true
+gws_service: docs
+operations:
+
+  get:
+    type: detail
+    description: "get document content and metadata"
+    resource: documents.get
+    params:
+      documentId:
+        type: string
+        description: "Document ID"
+        required: true
+
+  create:
+    type: action
+    description: "create a new blank document"
+    resource: documents.create
+
+  write:
+    type: action
+    description: "append text to the end of a document"
+    helper: "+write"
+    params:
+      documentId:
+        type: string
+        description: "Document ID"
+        required: true
+      text:
+        type: string
+        description: "Text to append (plain text)"
+        required: true
+    cli_args:
+      documentId: "--document"
+      text: "--text"
+
+  insertText:
+    type: action
+    description: "insert text at a specific position in a document"
+    resource: documents.batchUpdate
+    params:
+      documentId:
+        type: string
+        description: "Document ID"
+        required: true
+      text:
+        type: string
+        description: "Text to insert"
+        required: true
+      index:
+        type: number
+        description: "Character index to insert at (1 = start of document body)"
+        required: true
+
+  replaceText:
+    type: action
+    description: "find and replace text in a document"
+    resource: documents.batchUpdate
+    params:
+      documentId:
+        type: string
+        description: "Document ID"
+        required: true
+      findText:
+        type: string
+        description: "Text to find"
+        required: true
+      replaceWith:
+        type: string
+        description: "Replacement text"
+        required: true
+      matchCase:
+        type: boolean
+        description: "Case-sensitive match (default: true)"
+        default: true

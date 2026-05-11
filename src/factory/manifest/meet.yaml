@@ -1,0 +1,159 @@
+tool_name: manage_meet
+description: "Browse past Google Meet conferences, participants, transcripts, recordings, and AI-generated smart notes. Requires Workspace Business Standard+ for transcripts/recordings."
+requires_email: true
+gws_service: meet
+operations:
+
+  # --- Conference records ---
+
+  listConferences:
+    type: list
+    description: "list recent meeting conferences (default: descending by start time)"
+    resource: conferenceRecords.list
+    params:
+      filter:
+        type: string
+        description: "EBNF filter (e.g. 'space.meeting_code = \"abc-mnop-xyz\"' or 'start_time>=\"2026-01-01T00:00:00Z\"')"
+      maxResults:
+        type: number
+        description: "Max conferences to return (default: 25, max: 100)"
+        default: 25
+        max: 100
+        maps_to: pageSize
+
+  getConference:
+    type: detail
+    description: "get details of a specific conference"
+    resource: conferenceRecords.get
+    params:
+      conferenceId:
+        type: string
+        description: "Conference record ID (from listConferences)"
+        required: true
+        maps_to: name
+
+  # --- Participants ---
+
+  listParticipants:
+    type: list
+    description: "list who attended a conference"
+    resource: conferenceRecords.participants.list
+    params:
+      conferenceId:
+        type: string
+        description: "Conference record ID"
+        required: true
+        maps_to: parent
+      filter:
+        type: string
+        description: "Filter (e.g. 'latest_end_time IS NULL' for active participants)"
+      maxResults:
+        type: number
+        description: "Max participants (default: 100, max: 250)"
+        default: 100
+        max: 250
+        maps_to: pageSize
+
+  # --- Transcripts ---
+
+  listTranscripts:
+    type: list
+    description: "list transcripts for a conference (requires Workspace Business Standard+)"
+    resource: conferenceRecords.transcripts.list
+    params:
+      conferenceId:
+        type: string
+        description: "Conference record ID"
+        required: true
+        maps_to: parent
+
+  getTranscript:
+    type: detail
+    description: "get transcript metadata including Google Docs destination"
+    resource: conferenceRecords.transcripts.get
+    params:
+      transcriptName:
+        type: string
+        description: "Transcript resource name (from listTranscripts)"
+        required: true
+        maps_to: name
+
+  listTranscriptEntries:
+    type: list
+    description: "get structured transcript text — who said what, with timestamps"
+    resource: conferenceRecords.transcripts.entries.list
+    params:
+      transcriptName:
+        type: string
+        description: "Transcript resource name (e.g. conferenceRecords/.../transcripts/...)"
+        required: true
+        maps_to: parent
+      maxResults:
+        type: number
+        description: "Max entries per page (default: 10, max: 100)"
+        default: 100
+        max: 100
+        maps_to: pageSize
+
+  # --- Recordings ---
+
+  listRecordings:
+    type: list
+    description: "list recordings for a conference (saved as MP4 in Drive)"
+    resource: conferenceRecords.recordings.list
+    params:
+      conferenceId:
+        type: string
+        description: "Conference record ID"
+        required: true
+        maps_to: parent
+
+  getRecording:
+    type: detail
+    description: "get recording metadata including Drive file ID and playback link"
+    resource: conferenceRecords.recordings.get
+    params:
+      recordingName:
+        type: string
+        description: "Recording resource name (from listRecordings)"
+        required: true
+        maps_to: name
+
+  # --- Composite operations ---
+
+  getFullTranscript:
+    type: detail
+    description: "get the full who-said-what transcript for a conference (chains transcripts + entries + participant names automatically). Use pageToken to continue reading."
+    resource: conferenceRecords.transcripts.list
+    params:
+      conferenceId:
+        type: string
+        description: "Conference record ID (from listConferences)"
+        required: true
+      pageToken:
+        type: string
+        description: "Page token from a previous getFullTranscript call to continue reading"
+
+  # --- Smart Notes (Gemini) ---
+
+  listSmartNotes:
+    type: list
+    description: "list Gemini-generated smart notes for a conference"
+    resource: conferenceRecords.smartNotes.list
+    params:
+      conferenceId:
+        type: string
+        description: "Conference record ID"
+        required: true
+        maps_to: parent
+
+  getSmartNote:
+    type: detail
+    description: "get smart note metadata including Google Docs destination"
+    resource: conferenceRecords.smartNotes.get
+    params:
+      smartNoteName:
+        type: string
+        description: "Smart note resource name (from listSmartNotes)"
+        required: true
+        maps_to: name

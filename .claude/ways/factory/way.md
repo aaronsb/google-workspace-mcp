@@ -1,7 +1,7 @@
 ---
 description: Service factory manifest expansion, patch development, operation coverage
 vocabulary: manifest operation patch formatter service factory coverage gws yaml generator handler hooks custom hydration schema defaults lint discover curate
-pattern: manifest\.yaml|patch\.ts|factory|coverage
+pattern: manifest|patch\.ts|factory|coverage
 files: src/factory/|src/services/
 ---
 # Service Factory Development
@@ -11,19 +11,19 @@ The MCP server uses a three-layer factory architecture (ADR-300). Understanding 
 ## Architecture
 
 ```
-manifest.yaml → generator.ts → MCP tool schemas + handlers
-                    ↑
-              patches (optional per-service hooks)
+src/factory/manifest/*.yaml → generator.ts → MCP tool schemas + handlers
+                                  ↑
+                            patches (optional per-service hooks)
 ```
 
-- **Manifest** (`src/factory/manifest.yaml`) — declares services, operations, params, defaults
-- **Generator** (`src/factory/generator.ts`) — reads manifest, produces schemas + handlers
+- **Manifest** (`src/factory/manifest/<service>.yaml`) — one file per service (ADR-304), each file's root being that service's definition: operations, params, defaults
+- **Generator** (`src/factory/generator.ts`) — `loadManifest()` enumerates the manifest directory and produces schemas + handlers
 - **Patches** (`src/services/{service}/patch.ts`) — domain-specific hooks for formatting, hydration, custom logic
 - **Registry** (`src/factory/registry.ts`) — shared singleton, imported by handler.ts and tools.ts
 
 ## Adding a New Operation (YAML only)
 
-Most operations need only a manifest entry. Add under the service's `operations:` block:
+Most operations need only a manifest entry. Add under the `operations:` block in `src/factory/manifest/<service>.yaml`:
 
 ```yaml
 operationName:
@@ -87,7 +87,8 @@ customHandlers: {
 | `make manifest-discover` | Walk gws CLI, emit all 287+ discovered operations |
 | `make manifest-diff` | Diff discovered vs curated manifest |
 | `make test` | Run unit tests (includes factory + patch coverage) |
-| `make build` | Compile + copy manifest to build/ |
+| `make build` | Compile + copy `src/factory/manifest/` to `build/factory/manifest/` |
+| Adding a new service | Drop a new `src/factory/manifest/<service>.yaml` — the loader picks it up; no generator change |
 
 ## Patch Coverage
 
@@ -98,7 +99,7 @@ The `patch-coverage.test.ts` test reports which operations have custom formattin
 ```bash
 make manifest-discover          # generates discovered-manifest.yaml
 # Find the operation you want in discovered-manifest.yaml
-# Copy the entry to src/factory/manifest.yaml
+# Copy the entry into src/factory/manifest/<service>.yaml
 # Curate: improve description, add defaults, add param mappings
 make manifest-lint               # validate
 npm test                         # verify

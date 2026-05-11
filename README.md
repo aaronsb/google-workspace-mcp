@@ -30,8 +30,8 @@ Every response includes **next-steps** guidance — the agent always knows what 
 
 ```
                           ┌─────────────────────────┐
-MCP Client ──stdio──▶     │  manifest.yaml           │
-                          │  (52 operations declared) │
+MCP Client ──stdio──▶     │  manifest/*.yaml         │
+                          │  (one file per service)  │
                           └────────┬────────────────┘
                                    │
                           ┌────────▼────────────────┐

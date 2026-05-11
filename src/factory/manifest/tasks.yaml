@@ -1,0 +1,137 @@
+tool_name: manage_tasks
+description: "Manage task lists and tasks in Google Tasks."
+requires_email: true
+gws_service: tasks
+operations:
+
+  # --- Task lists ---
+
+  listTaskLists:
+    type: list
+    description: "list all task lists"
+    resource: tasklists.list
+
+  getTaskList:
+    type: detail
+    description: "get a task list by ID"
+    resource: tasklists.get
+    params:
+      taskListId:
+        type: string
+        description: "Task list ID"
+        required: true
+        maps_to: tasklist
+
+  createTaskList:
+    type: action
+    description: "create a new task list"
+    resource: tasklists.insert
+
+  deleteTaskList:
+    type: action
+    description: "delete a task list and all its tasks"
+    resource: tasklists.delete
+    params:
+      taskListId:
+        type: string
+        description: "Task list ID to delete"
+        required: true
+        maps_to: tasklist
+
+  # --- Tasks ---
+
+  list:
+    type: list
+    description: "list tasks in a task list"
+    resource: tasks.list
+    params:
+      taskListId:
+        type: string
+        description: "Task list ID (use listTaskLists to find)"
+        required: true
+        maps_to: tasklist
+      showCompleted:
+        type: boolean
+        description: "Include completed tasks (default: true)"
+      maxResults:
+        type: number
+        description: "Max tasks to return (default: 20, max: 100)"
+        default: 20
+        max: 100
+
+  get:
+    type: detail
+    description: "get a specific task"
+    resource: tasks.get
+    params:
+      taskListId:
+        type: string
+        description: "Task list ID"
+        required: true
+        maps_to: tasklist
+      taskId:
+        type: string
+        description: "Task ID"
+        required: true
+        maps_to: task
+
+  create:
+    type: action
+    description: "create a new task"
+    resource: tasks.insert
+    params:
+      taskListId:
+        type: string
+        description: "Task list ID"
+        required: true
+        maps_to: tasklist
+
+  update:
+    type: action
+    description: "update a task (patch semantics)"
+    resource: tasks.patch
+    params:
+      taskListId:
+        type: string
+        description: "Task list ID"
+        required: true
+        maps_to: tasklist
+      taskId:
+        type: string
+        description: "Task ID"
+        required: true
+        maps_to: task
+
+  complete:
+    type: action
+    description: "mark a task as completed"
+    resource: tasks.patch
+    params:
+      taskListId:
+        type: string
+        description: "Task list ID"
+        required: true
+        maps_to: tasklist
+      taskId:
+        type: string
+        description: "Task ID"
+        required: true
+        maps_to: task
+    defaults:
+      status: completed
+
+  delete:
+    type: action
+    description: "delete a task"
+    resource: tasks.delete
+    params:
+      taskListId:
+        type: string
+        description: "Task list ID"
+        required: true
+        maps_to: tasklist
+      taskId:
+        type: string
+        description: "Task ID to delete"
+        required: true
+        maps_to: task

@@ -1,0 +1,204 @@
+tool_name: manage_calendar
+description: "List events, view agenda, check availability, or manage calendar events."
+requires_email: true
+gws_service: calendar
+operations:
+
+  # --- Event viewing ---
+
+  list:
+    type: list
+    description: "upcoming events — defaults to primary calendar, use calendarId to target a specific calendar (use 'calendars' operation to discover IDs)"
+    resource: events.list
+    params:
+      calendarId:
+        type: string
+        description: "Calendar ID to query (default: 'primary'). Use 'calendars' operation to list available IDs."
+      timeMin:
+        type: string
+        description: "Start of range (ISO 8601) — defaults to today"
+      timeMax:
+        type: string
+        description: "End of range (ISO 8601)"
+      maxResults:
+        type: number
+        description: "Max events (default: 10, max: 50)"
+        default: 10
+        max: 50
+      query:
+        type: string
+        description: "Free-text search terms to filter events"
+        maps_to: q
+    defaults:
+      calendarId: primary
+      singleEvents: true
+      orderBy: startTime
+
+  agenda:
+    type: list
+    description: "today's schedule at a glance (all calendars). Returns calendarId per event for follow-up get calls."
+    helper: "+agenda"
+    params:
+      calendarId:
+        type: string
+        description: "Filter to a specific calendar name or ID"
+      days:
+        type: number
+        description: "Number of days ahead to show (default: today only)"
+      tomorrow:
+        type: boolean
+        description: "Show tomorrow's events instead of today"
+      week:
+        type: boolean
+        description: "Show this week's events"
+
+  get:
+    type: detail
+    description: "full event details by ID. For shared calendar events, calendarId is required (use agenda or list to discover it)."
+    resource: events.get
+    params:
+      calendarId:
+        type: string
+        description: "Calendar ID (default: 'primary'). Required for events on shared calendars."
+      eventId:
+        type: string
+        description: "Event ID"
+        required: true
+    defaults:
+      calendarId: primary
+
+  # --- Event management ---
+
+  create:
+    type: action
+    description: "create a new calendar event"
+    helper: "+insert"
+    params:
+      calendarId:
+        type: string
+        description: "Calendar ID (default: 'primary')"
+      summary:
+        type: string
+        description: "Event title"
+        required: true
+      start:
+        type: string
+        description: "Start time (ISO 8601)"
+        required: true
+      end:
+        type: string
+        description: "End time (ISO 8601)"
+        required: true
+      description:
+        type: string
+        description: "Event description or notes"
+      location:
+        type: string
+        description: "Event location"
+      attendees:
+        type: string
+        description: "Comma-separated attendee emails"
+      meet:
+        type: boolean
+        description: "Add a Google Meet video conference link to the event"
+    cli_args:
+      calendarId: "--calendar"
+      summary: "--summary"
+      start: "--start"
+      end: "--end"
+      description: "--description"
+      location: "--location"
+      attendees: "--attendee"
+
+  quickAdd:
+    type: action
+    description: "create event from natural language (e.g. 'Lunch with Alice tomorrow at noon')"
+    resource: events.quickAdd
+    params:
+      calendarId:
+        type: string
+        description: "Calendar ID (default: 'primary')"
+      text:
+        type: string
+        description: "Natural language event description"
+        required: true
+    defaults:
+      calendarId: primary
+
+  update:
+    type: action
+    description: "update an existing event (patch semantics — only changed fields needed)"
+    resource: events.patch
+    params:
+      calendarId:
+        type: string
+        description: "Calendar ID (default: 'primary')"
+      eventId:
+        type: string
+        description: "Event ID to update"
+        required: true
+      summary:
+        type: string
+        description: "Updated event title"
+      start:
+        type: string
+        description: "Updated start time (ISO 8601)"
+      end:
+        type: string
+        description: "Updated end time (ISO 8601)"
+      description:
+        type: string
+        description: "Updated description"
+      location:
+        type: string
+        description: "Updated location"
+      attendees:
+        type: string
+        description: "Comma-separated attendee emails. REPLACES the existing attendee list entirely (Google events.patch overwrites arrays). Pass an empty string to clear all attendees."
+      meet:
+        type: boolean
+        description: "Add a Google Meet video conference link. Note: Google Calendar does not allow removing an existing Meet link via patch; omit or set false to leave the link untouched."
+    defaults:
+      calendarId: primary
+
+  delete:
+    type: action
+    description: "delete an event"
+    resource: events.delete
+    params:
+      calendarId:
+        type: string
+        description: "Calendar ID (default: 'primary')"
+      eventId:
+        type: string
+        description: "Event ID to delete"
+        required: true
+    defaults:
+      calendarId: primary
+
+  # --- Calendar management ---
+
+  calendars:
+    type: list
+    description: "list all calendars the user has access to"
+    resource: calendarList.list
+
+  freebusy:
+    type: detail
+    description: "check availability (free/busy) for a time range. Automatically includes own calendar; add attendees to check others."
+    resource: freebusy.query
+    params:
+      timeMin:
+        type: string
+        description: "Start of range (ISO 8601)"
+        required: true
+      timeMax:
+        type: string
+        description: "End of range (ISO 8601)"
+        required: true
+      attendees:
+        type: string
+        description: "Comma-separated email addresses to check availability for"
+      calendarId:
+        type: string
+        description: "Comma-separated calendar IDs to check (in addition to own calendar)"
