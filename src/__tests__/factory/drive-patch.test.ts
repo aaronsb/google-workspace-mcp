@@ -386,6 +386,35 @@ describe('drivePatch custom handlers', () => {
       expect(queryParams.removeParents).toBe('old-folder');
     });
 
+    it('rename + move in one call populates both --json (name) and --params (parents)', async () => {
+      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'file-4', name: 'Moved.pdf', parents: ['dest'] }, stderr: '' });
+
+      const handler = drivePatch.customHandlers!.update!;
+      const result = await handler(
+        { fileId: 'file-4', name: 'Moved.pdf', addParents: 'dest', removeParents: 'src' },
+        'user@test.com',
+      );
+
+      const args = mockExecute.mock.calls[0][0];
+      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      expect(body.name).toBe('Moved.pdf');
+      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
+      expect(queryParams.addParents).toBe('dest');
+      expect(queryParams.removeParents).toBe('src');
+      expect(result.text).toContain('File updated: **Moved.pdf**');
+      expect(result.text).toContain('**Parents:** dest');
+      expect(result.refs.parents).toEqual(['dest']);
+    });
+
+    it('omits refs.parents when the API response has none', async () => {
+      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'file-5', name: 'R.pdf' }, stderr: '' });
+
+      const handler = drivePatch.customHandlers!.update!;
+      const result = await handler({ fileId: 'file-5', name: 'R.pdf' }, 'user@test.com');
+
+      expect('parents' in result.refs).toBe(false);
+    });
+
     it('rejects a no-op update (none of name/addParents/removeParents)', async () => {
       const handler = drivePatch.customHandlers!.update!;
       await expect(handler({ fileId: 'file-3' }, 'user@test.com')).rejects.toThrow(/name.*addParents.*removeParents/);

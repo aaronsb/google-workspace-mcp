@@ -120,7 +120,12 @@ export const drivePatch: ServicePatch = {
       return {
         text: `File updated: **${data.name ?? fileId}**\n\n**File ID:** ${data.id ?? fileId}` +
           (parents ? `\n**Parents:** ${parents.join(', ')}` : ''),
-        refs: { fileId: data.id ?? fileId, id: data.id ?? fileId, name: data.name, parents },
+        refs: {
+          fileId: data.id ?? fileId,
+          id: data.id ?? fileId,
+          name: data.name,
+          ...(parents ? { parents } : {}),
+        },
       };
     },
 
