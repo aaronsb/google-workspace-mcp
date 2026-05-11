@@ -141,6 +141,66 @@ describe('sanitizeHtmlForAgent — CSS-hidden element removal', () => {
   });
 });
 
+describe('sanitizeHtmlForAgent — known bypass forms (regression guard)', () => {
+  // Real-world variants that bypassed earlier versions of the filter. Each
+  // test asserts the smuggled text does NOT survive the sanitizer.
+  const smuggle = (html: string) => sanitizeHtmlForAgent(html, { source: 'gmail' });
+
+  it('display:none !important (the canonical marketing-email form)', () => {
+    const out = smuggle('<p>visible</p><div style="display:none !important">smuggled</div>');
+    expect(out).not.toContain('smuggled');
+  });
+
+  it('visibility:hidden !important and opacity:0 !important', () => {
+    expect(smuggle('<span style="visibility:hidden!important">a</span>')).not.toContain('a</span>');
+    expect(smuggle('<span style="opacity:0 !important">b</span>')).not.toContain('b</span>');
+  });
+
+  it('HTML5 boolean `hidden` attribute', () => {
+    expect(smuggle('<p hidden>smuggled</p>visible')).not.toContain('smuggled');
+  });
+
+  it('off-screen via top/bottom (the original regex only covered left/right)', () => {
+    expect(smuggle('<p style="position:absolute;top:-9999px">smuggled</p>')).not.toContain('smuggled');
+    expect(smuggle('<p style="position:absolute;bottom:-9999px">smuggled</p>')).not.toContain('smuggled');
+  });
+
+  it('positive off-screen text-indent (off to the right)', () => {
+    expect(smuggle('<p style="text-indent:9999px">smuggled</p>')).not.toContain('smuggled');
+  });
+
+  it('font-size:0 in non-px units (pt, %, vh)', () => {
+    expect(smuggle('<span style="font-size:0pt">a</span>visible')).not.toContain('a</span>');
+    expect(smuggle('<span style="font-size:0%">b</span>visible')).not.toContain('b</span>');
+    expect(smuggle('<span style="font-size:0vh">c</span>visible')).not.toContain('c</span>');
+  });
+
+  it('collapsed boxes (width:0, height:0, max-height:0)', () => {
+    expect(smuggle('<div style="width:0">smuggled</div>')).not.toContain('smuggled');
+    expect(smuggle('<div style="height:0">smuggled</div>')).not.toContain('smuggled');
+    expect(smuggle('<div style="max-height:0">smuggled</div>')).not.toContain('smuggled');
+  });
+
+  it('clip and clip-path zero-rect hide patterns', () => {
+    expect(smuggle('<p style="clip:rect(0,0,0,0)">smuggled</p>')).not.toContain('smuggled');
+    expect(smuggle('<p style="clip-path:inset(50%)">smuggled</p>')).not.toContain('smuggled');
+  });
+
+  it('transform:scale(0) and transform:translateX(-N)', () => {
+    expect(smuggle('<p style="transform:scale(0)">smuggled</p>')).not.toContain('smuggled');
+    expect(smuggle('<p style="transform:translateX(-9999px)">smuggled</p>')).not.toContain('smuggled');
+  });
+
+  it('throws on a non-allowlisted source (Spotlighting wrapper integrity)', () => {
+    expect(() => sanitizeHtmlForAgent('<p>x</p>', { source: 'bogus' as never }))
+      .toThrow(/invalid source/);
+    // The forgery shape from the review write-up — proves the type assertion
+    // doesn't reach the wrapper.
+    expect(() => sanitizeHtmlForAgent('<p>x</p>', { source: 'gmail><script>alert(1)</script><x' as never }))
+      .toThrow(/invalid source/);
+  });
+});
+
 describe('sanitizeHtmlForAgent — Unicode injection char removal', () => {
   it('strips zero-width characters (ZWSP, ZWNJ, ZWJ, WJ, BOM)', () => {
     // U+200B, U+200C, U+200D, U+2060, U+FEFF interleaved with visible text

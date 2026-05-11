@@ -51,21 +51,57 @@ const ALLOWED_ATTRS: Record<string, string[]> = {
   // intentionally omitted everywhere else — no class, no id, no style, no event handlers
 };
 
-/** Drop elements that are CSS-hidden — these are the prompt-injection vehicle. */
+/**
+ * Drop elements that are CSS-hidden — these are the prompt-injection vehicle.
+ *
+ * Each pattern terminates on `;`, `!` (for `!important`), or end-of-string,
+ * since `display:none !important` is the canonical marketing-email form and
+ * the original regex's `;`-only terminator missed it.
+ */
 function isCssHidden(_tag: string, attribs: Record<string, string>): boolean {
   if (attribs['aria-hidden'] === 'true') return true;
+  // HTML5 boolean `hidden` attribute — semantically `display:none`, same threat.
+  if (attribs.hidden !== undefined) return true;
+
   const style = (attribs.style ?? '').toLowerCase().replace(/\s+/g, '');
   if (!style) return false;
-  return (
-    /(?:^|;)display:none(?:;|$)/.test(style) ||
-    /(?:^|;)visibility:hidden(?:;|$)/.test(style) ||
-    /(?:^|;)opacity:0(?:\.0+)?(?:;|$)/.test(style) ||
-    /text-indent:-\d{4,}/.test(style) ||
-    /left:-\d{4,}/.test(style) ||
-    /right:-\d{4,}/.test(style) ||
-    /font-size:0(?:px|em|rem)?(?:;|$)/.test(style)
-  );
+
+  // `display:none` / `visibility:hidden`, including !important.
+  if (/(?:^|;)display:none(?:[;!]|$)/.test(style)) return true;
+  if (/(?:^|;)visibility:hidden(?:[;!]|$)/.test(style)) return true;
+
+  // opacity:0 (with optional decimal zeros). 0.01-style "almost zero" is left
+  // alone — visually different and a legitimate styling value in normal email.
+  if (/(?:^|;)opacity:0(?:\.0+)?(?:[;!]|$)/.test(style)) return true;
+
+  // font-size:0 with any (or no) unit — px, em, rem, pt, %, vh, vw, ex, ch.
+  if (/(?:^|;)font-size:0(?:\.0+)?[a-z%]*(?:[;!]|$)/.test(style)) return true;
+
+  // Off-screen positioning. Negative ≥3 digits on any positioning axis OR a
+  // negative text-indent in the same range; positive 3+ digits also catches
+  // `text-indent:9999px` (off to the right of the viewport).
+  if (/(?:^|;)(?:text-indent|left|right|top|bottom):-\d{3,}/.test(style)) return true;
+  if (/(?:^|;)text-indent:\d{3,}/.test(style)) return true;
+
+  // Collapsed boxes — width/height 0 (any unit). Combined with overflow:hidden
+  // or even alone these render no visible content.
+  if (/(?:^|;)(?:width|height|max-width|max-height):0(?:[a-z%]*)(?:[;!]|$)/.test(style)) return true;
+
+  // Clip and clip-path zero-rect hide patterns.
+  if (/(?:^|;)clip:rect\(0(?:px)?,0(?:px)?,0(?:px)?,0(?:px)?\)/.test(style)) return true;
+  if (/(?:^|;)clip-path:inset\(50%\)/.test(style)) return true;
+
+  // Transforms that hide content: scale(0), large negative translate.
+  if (/(?:^|;)transform:scale\(0(?:\.0+)?(?:,\s*0(?:\.0+)?)?\)/.test(style)) return true;
+  if (/(?:^|;)transform:translate(?:x|y)?\(-\d{3,}/.test(style)) return true;
+
+  return false;
 }
+
+/** Runtime validation — the Spotlighting wrapper is forgeable if `source` is computed. */
+const ALLOWED_SOURCES: ReadonlySet<SanitizeSource> = new Set([
+  'gmail', 'docs', 'drive', 'scratchpad-import',
+]);
 
 // Unicode characters that don't render but can carry meaning to an LLM.
 // Tag Block (U+E0000–U+E007F): used in published prompt-smuggling attacks.
@@ -90,6 +126,12 @@ function stripInjectionChars(s: string): string {
  */
 export function sanitizeHtmlForAgent(html: string, options: SanitizeOptions): string {
   const { source } = options;
+  // Spotlighting wrapper integrity depends on `source` being one of the known
+  // values — types vanish at runtime, so guard here in case a future caller
+  // ever passes a config- or input-derived string.
+  if (!ALLOWED_SOURCES.has(source)) {
+    throw new Error(`sanitizeHtmlForAgent: invalid source ${JSON.stringify(source)}`);
+  }
   const input = html ?? '';
 
   const sanitized = sanitizeHtml(input, {
