@@ -99,6 +99,9 @@ function formatValuesDetail(data: unknown): HandlerResponse {
 
   const header = range ? `## ${range}` : '## Values';
   const meta = `**Rows:** ${rowCount} | **Columns:** ${colCount} | **Major dimension:** ${majorDimension}`;
+  // `read` / `getValues` always come back ROWS-major (neither op exposes a
+  // majorDimension param), so the Rn: row-number prefix is always meaningful.
+  // If a COLUMNS-major path is ever added, the prefix would need to become Cn:.
   const table = renderValuesTable(values, startRow);
 
   return {
@@ -542,6 +545,8 @@ export const sheetsPatch: ServicePatch = {
   formatAction: (data: unknown, ctx: PatchContext): HandlerResponse => {
     switch (ctx.operation) {
       case 'create':
+        // Unreachable for live calls — customHandlers.create intercepts first.
+        // Kept as the action-formatter fallback (and covered directly by tests).
         return formatCreateAction(data);
       case 'append':
         return formatAppendAction(data);
