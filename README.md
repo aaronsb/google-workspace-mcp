@@ -1,5 +1,10 @@
 # Google Workspace MCP Server
 
+[![npm version](https://img.shields.io/npm/v/@aaronsb/google-workspace-mcp?logo=npm&label=npm)](https://www.npmjs.com/package/@aaronsb/google-workspace-mcp)
+[![Latest release](https://img.shields.io/github/v/release/aaronsb/google-workspace-mcp?include_prereleases&label=release)](https://github.com/aaronsb/google-workspace-mcp/releases)
+[![Node](https://img.shields.io/node/v/@aaronsb/google-workspace-mcp?logo=node.js&label=node)](https://nodejs.org)
+[![License](https://img.shields.io/github/license/aaronsb/google-workspace-mcp)](LICENSE)
+
 Give AI agents full access to Google Workspace — Gmail, Calendar, Drive, and more — through a single MCP server that handles multi-account credential routing, response formatting for AI consumption, and contextual guidance.
 
 Built on [Google's official Workspace CLI](https://github.com/googleworkspace/cli) (`gws`), which means API coverage grows as Google does. The server uses a manifest-driven factory that turns declarative YAML into fully functional MCP tools — adding a new Google API operation is a config change, not a code change.
