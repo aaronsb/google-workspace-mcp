@@ -56,12 +56,13 @@ manifest-diff: manifest-discover ## Diff discovered operations against curated m
 		let out = 'services:\n'; \
 		for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.yaml')).sort()) { \
 			out += '  ' + path.basename(f, '.yaml') + ':\n'; \
-			const body = fs.readFileSync(path.join(dir, f), 'utf-8').replace(/^(?!\$)/gm, '    '); \
-			out += body.endsWith('\n') ? body : body + '\n'; \
+			out += fs.readFileSync(path.join(dir, f), 'utf-8') \
+				.split('\n').map(l => l === '' ? '' : '    ' + l).join('\n'); \
+			if (!out.endsWith('\n')) out += '\n'; \
 		} \
-		fs.writeFileSync(require('os').tmpdir() + '/gws-curated-manifest-reassembled.yaml', out); \
+		fs.writeFileSync('/tmp/gws-curated-manifest-reassembled.yaml', out); \
 	"
-	@diff --color=auto -u "$$(node -p 'require(\"os\").tmpdir()')/gws-curated-manifest-reassembled.yaml" discovered-manifest.yaml || true
+	@diff --color=auto -u /tmp/gws-curated-manifest-reassembled.yaml discovered-manifest.yaml || true
 
 manifest-lint: ## Validate manifest YAML syntax and structure
 	@node -e " \
@@ -104,7 +105,6 @@ mcpb: build ## Build .mcpb for current platform (PLATFORM=linux-x64 etc.)
 	rm -rf mcpb/server mcpb/bin
 	mkdir -p mcpb/server
 	cp -r build/* mcpb/server/
-	cp src/factory/manifest/*.yaml mcpb/server/factory/manifest/
 	cp package.json mcpb/server/package.json
 	cd mcpb/server && npm install --production --ignore-scripts --silent
 	rm -f mcpb/server/package.json mcpb/server/package-lock.json

@@ -1,7 +1,3 @@
-# ========================================================================
-# Sheets
-# ========================================================================
-
 tool_name: manage_sheets
 description: "Read, write, and manage Google Sheets spreadsheets."
 requires_email: true

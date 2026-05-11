@@ -1,7 +1,3 @@
-# ========================================================================
-# Docs
-# ========================================================================
-
 tool_name: manage_docs
 description: "Read, write, insert, and find-replace text in Google Docs documents."
 requires_email: true
