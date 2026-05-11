@@ -575,7 +575,7 @@ services:
 
       copy:
         type: action
-        description: "create a copy of a file"
+        description: "create a copy of a file (set name to rename the copy; parentFolderId to place it in a folder)"
         resource: files.copy
         params:
           fileId:
@@ -584,7 +584,31 @@ services:
             required: true
           name:
             type: string
-            description: "Name for the copy"
+            description: "Name for the copy (without it, Drive names it 'Copy of <original>')"
+          parentFolderId:
+            type: string
+            description: "Folder ID to place the copy in (defaults to the source's folder)"
+        defaults:
+          supportsAllDrives: true
+
+      update:
+        type: action
+        description: "rename a file (set name) and/or move it between folders (addParents / removeParents — to move, set both)"
+        resource: files.update
+        params:
+          fileId:
+            type: string
+            description: "File ID to update"
+            required: true
+          name:
+            type: string
+            description: "New file name (rename)"
+          addParents:
+            type: string
+            description: "Comma-separated folder ID(s) to add as parents (move into a folder)"
+          removeParents:
+            type: string
+            description: "Comma-separated folder ID(s) to remove as parents (move out of a folder)"
         defaults:
           supportsAllDrives: true
 
