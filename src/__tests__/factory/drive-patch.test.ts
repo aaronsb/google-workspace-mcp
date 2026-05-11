@@ -307,6 +307,92 @@ describe('drivePatch custom handlers', () => {
     });
   });
 
+  describe('copy', () => {
+    it('sends name as the request body, not via --params, so the copy is renamed', async () => {
+      mockExecute.mockResolvedValueOnce({
+        success: true,
+        data: { id: 'copy-1', name: 'My New Name', mimeType: 'application/vnd.google-apps.spreadsheet' },
+        stderr: '',
+      });
+
+      const handler = drivePatch.customHandlers!.copy!;
+      const result = await handler({ fileId: 'src-1', name: 'My New Name' }, 'user@test.com');
+
+      const args = mockExecute.mock.calls[0][0];
+      expect(args.slice(0, 3)).toEqual(['drive', 'files', 'copy']);
+      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      expect(body.name).toBe('My New Name');
+      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
+      expect(queryParams.fileId).toBe('src-1');
+      // name must NOT leak into the query — that's the bug being fixed.
+      expect(queryParams.name).toBeUndefined();
+
+      expect(result.text).toContain('File copied: **My New Name**');
+      expect(result.text).toContain('**File ID:** copy-1');
+      expect(result.refs.fileId).toBe('copy-1');
+      expect(result.refs.sourceFileId).toBe('src-1');
+    });
+
+    it('forwards parentFolderId as body.parents', async () => {
+      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'copy-2', name: 'Copy of X', parents: ['folder-9'] }, stderr: '' });
+
+      const handler = drivePatch.customHandlers!.copy!;
+      await handler({ fileId: 'src-2', parentFolderId: 'folder-9' }, 'user@test.com');
+
+      const args = mockExecute.mock.calls[0][0];
+      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      expect(body.parents).toEqual(['folder-9']);
+    });
+
+    it('omits --json entirely when neither name nor parentFolderId is given', async () => {
+      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'copy-3', name: 'Copy of X' }, stderr: '' });
+
+      const handler = drivePatch.customHandlers!.copy!;
+      await handler({ fileId: 'src-3' }, 'user@test.com');
+
+      const args = mockExecute.mock.calls[0][0];
+      expect(args).not.toContain('--json');
+    });
+  });
+
+  describe('update', () => {
+    it('renames via the request body and surfaces the new name', async () => {
+      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'file-1', name: 'Renamed.pdf', parents: ['root'] }, stderr: '' });
+
+      const handler = drivePatch.customHandlers!.update!;
+      const result = await handler({ fileId: 'file-1', name: 'Renamed.pdf' }, 'user@test.com');
+
+      const args = mockExecute.mock.calls[0][0];
+      expect(args.slice(0, 3)).toEqual(['drive', 'files', 'update']);
+      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      expect(body.name).toBe('Renamed.pdf');
+      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
+      expect(queryParams.name).toBeUndefined();
+
+      expect(result.text).toContain('File updated: **Renamed.pdf**');
+      expect(result.refs.name).toBe('Renamed.pdf');
+    });
+
+    it('moves between folders via addParents/removeParents query params (no body)', async () => {
+      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'file-2', name: 'doc', parents: ['new-folder'] }, stderr: '' });
+
+      const handler = drivePatch.customHandlers!.update!;
+      await handler({ fileId: 'file-2', addParents: 'new-folder', removeParents: 'old-folder' }, 'user@test.com');
+
+      const args = mockExecute.mock.calls[0][0];
+      expect(args).not.toContain('--json'); // nothing to put in the body
+      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
+      expect(queryParams.addParents).toBe('new-folder');
+      expect(queryParams.removeParents).toBe('old-folder');
+    });
+
+    it('rejects a no-op update (none of name/addParents/removeParents)', async () => {
+      const handler = drivePatch.customHandlers!.update!;
+      await expect(handler({ fileId: 'file-3' }, 'user@test.com')).rejects.toThrow(/name.*addParents.*removeParents/);
+      expect(mockExecute).not.toHaveBeenCalled();
+    });
+  });
+
   describe('download', () => {
     it('creates parent directories before calling gws', async () => {
       const outputPath = path.join(tmpWorkspace, 'images', 'photo.png');

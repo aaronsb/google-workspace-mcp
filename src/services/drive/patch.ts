@@ -55,6 +55,75 @@ export const drivePatch: ServicePatch = {
       };
     },
 
+    copy: async (params, account): Promise<HandlerResponse> => {
+      // files.copy takes the new file's metadata (name, parents) as the
+      // request body, not query --params. The generator's generic path
+      // collapses everything into --params, so a passed `name` was silently
+      // dropped and copies kept Drive's "Copy of <original>" default name.
+      const fileId = requireString(params, 'fileId');
+
+      const body: Record<string, unknown> = {};
+      if (params.name) body.name = String(params.name);
+      if (params.parentFolderId) body.parents = [String(params.parentFolderId)];
+
+      const args = [
+        'drive', 'files', 'copy',
+        '--params', JSON.stringify({
+          fileId,
+          fields: 'id, name, mimeType, parents, webViewLink',
+          supportsAllDrives: true,
+        }),
+      ];
+      if (Object.keys(body).length > 0) {
+        args.push('--json', JSON.stringify(body));
+      }
+
+      const result = await execute(args, { account });
+      const data = result.data as Record<string, unknown>;
+      return {
+        text: `File copied: **${data.name ?? 'copy'}**\n\n**File ID:** ${data.id ?? 'unknown'}` +
+          (data.webViewLink ? `\n**Link:** ${data.webViewLink}` : ''),
+        refs: { fileId: data.id, id: data.id, name: data.name, sourceFileId: fileId },
+      };
+    },
+
+    update: async (params, account): Promise<HandlerResponse> => {
+      // Rename a file (body: name) and/or move it between folders (query:
+      // addParents/removeParents). files.update needs renamable metadata in
+      // the request body and parent changes in query params — the generic
+      // path can't split one request across both.
+      const fileId = requireString(params, 'fileId');
+
+      const body: Record<string, unknown> = {};
+      if (params.name) body.name = String(params.name);
+
+      const queryParams: Record<string, unknown> = {
+        fileId,
+        fields: 'id, name, mimeType, parents, webViewLink',
+        supportsAllDrives: true,
+      };
+      if (params.addParents) queryParams.addParents = String(params.addParents);
+      if (params.removeParents) queryParams.removeParents = String(params.removeParents);
+
+      if (Object.keys(body).length === 0 && !queryParams.addParents && !queryParams.removeParents) {
+        throw new Error('update requires at least one of: name, addParents, removeParents');
+      }
+
+      const args = ['drive', 'files', 'update', '--params', JSON.stringify(queryParams)];
+      if (Object.keys(body).length > 0) {
+        args.push('--json', JSON.stringify(body));
+      }
+
+      const result = await execute(args, { account });
+      const data = result.data as Record<string, unknown>;
+      const parents = Array.isArray(data.parents) ? (data.parents as string[]) : undefined;
+      return {
+        text: `File updated: **${data.name ?? fileId}**\n\n**File ID:** ${data.id ?? fileId}` +
+          (parents ? `\n**Parents:** ${parents.join(', ')}` : ''),
+        refs: { fileId: data.id ?? fileId, id: data.id ?? fileId, name: data.name, parents },
+      };
+    },
+
     download: async (params, account): Promise<HandlerResponse> => {
       const fileId = requireString(params, 'fileId');
 
