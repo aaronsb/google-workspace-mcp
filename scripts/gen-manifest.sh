@@ -3,8 +3,8 @@
 #
 # Walks gws services, discovers resources/methods/helpers, pulls schemas,
 # and emits a complete manifest YAML. The output is a discovery artifact,
-# not the final curated manifest — diff it against src/factory/manifest.yaml
-# to see what's new and decide what to expose.
+# not the final curated manifest — diff it against src/factory/manifest/
+# (one file per service, ADR-304) to see what's new and decide what to expose.
 #
 # Usage:
 #   make manifest-discover              # emit to stdout
@@ -201,7 +201,7 @@ GWS_VERSION=$($GWS --version 2>&1 | head -1)
 echo "# Auto-generated manifest from gws discovery"
 echo "# Generated: $(date -Iseconds)"
 echo "# ${GWS_VERSION}"
-echo "# Compare against src/factory/manifest.yaml to find new operations"
+echo "# Compare against src/factory/manifest/ (per-service files) to find new operations"
 echo "#"
 echo "# Operations marked with # CURATE comments need human review for:"
 echo "#   - Description quality (LLM-friendly wording)"

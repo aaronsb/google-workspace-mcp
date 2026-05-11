@@ -1,0 +1,314 @@
+tool_name: manage_drive
+description: "Search, upload, download, share, comment on, or manage files in Google Drive."
+requires_email: true
+gws_service: drive
+operations:
+
+  # --- File discovery ---
+
+  search:
+    type: list
+    description: "find files by query"
+    resource: files.list
+    params:
+      query:
+        type: string
+        description: "Drive search query (e.g. \"name contains 'budget'\" or \"mimeType='application/pdf'\")"
+        maps_to: q
+      maxResults:
+        type: number
+        description: "Max results (default: 10, max: 50)"
+        default: 10
+        max: 50
+        maps_to: pageSize
+    defaults:
+      fields: "files(id, name, mimeType, modifiedTime, size, webViewLink)"
+      supportsAllDrives: true
+      includeItemsFromAllDrives: true
+
+  get:
+    type: detail
+    description: "get file metadata"
+    resource: files.get
+    params:
+      fileId:
+        type: string
+        description: "File ID"
+        required: true
+    defaults:
+      fields: "id, name, mimeType, modifiedTime, size, webViewLink, owners, shared, parents"
+      supportsAllDrives: true
+
+  # --- File operations ---
+
+  upload:
+    type: action
+    description: "upload a local file to Drive"
+    helper: "+upload"
+    params:
+      filePath:
+        type: string
+        description: "Local file path to upload"
+        required: true
+      name:
+        type: string
+        description: "File name in Drive (defaults to local name)"
+      parentFolderId:
+        type: string
+        description: "Destination folder ID"
+    cli_args:
+      name: "--name"
+      parentFolderId: "--parent"
+
+  viewImage:
+    type: detail
+    description: "view an image file inline without saving to workspace (png, jpg, gif, webp). Use for quick preview — use download to save."
+    resource: files.get
+    params:
+      fileId:
+        type: string
+        description: "File ID of the image to view"
+        required: true
+    defaults:
+      supportsAllDrives: true
+
+  download:
+    type: detail
+    description: "download file content to local path"
+    resource: files.get
+    params:
+      fileId:
+        type: string
+        description: "File ID to download"
+        required: true
+      outputPath:
+        type: string
+        description: "Local path to save the file"
+    defaults:
+      alt: media
+      supportsAllDrives: true
+
+  copy:
+    type: action
+    description: "create a copy of a file (set name to rename the copy; parentFolderId to place it in a folder)"
+    resource: files.copy
+    params:
+      fileId:
+        type: string
+        description: "File ID to copy"
+        required: true
+      name:
+        type: string
+        description: "Name for the copy (without it, Drive names it 'Copy of <original>')"
+      parentFolderId:
+        type: string
+        description: "Folder ID to place the copy in (defaults to the source's folder)"
+    defaults:
+      supportsAllDrives: true
+
+  update:
+    type: action
+    description: "rename a file (set name) and/or move it between folders (addParents / removeParents — to move, set both)"
+    resource: files.update
+    params:
+      fileId:
+        type: string
+        description: "File ID to update"
+        required: true
+      name:
+        type: string
+        description: "New file name (rename)"
+      addParents:
+        type: string
+        description: "Comma-separated folder ID(s) to add as parents (move into a folder)"
+      removeParents:
+        type: string
+        description: "Comma-separated folder ID(s) to remove as parents (move out of a folder)"
+    defaults:
+      supportsAllDrives: true
+
+  delete:
+    type: action
+    description: "permanently delete a file (cannot be undone)"
+    resource: files.delete
+    params:
+      fileId:
+        type: string
+        description: "File ID to delete"
+        required: true
+    defaults:
+      supportsAllDrives: true
+
+  export:
+    type: action
+    description: "export a Google Workspace document (Docs, Sheets, Slides) to a file format"
+    resource: files.export
+    params:
+      fileId:
+        type: string
+        description: "File ID to export"
+        required: true
+      mimeType:
+        type: string
+        description: "Target format (e.g. application/pdf, text/csv, text/plain, application/vnd.openxmlformats-officedocument.wordprocessingml.document)"
+        required: true
+      outputPath:
+        type: string
+        description: "Local path to save exported file"
+    defaults:
+      supportsAllDrives: true
+
+  # --- Sharing ---
+
+  listPermissions:
+    type: list
+    description: "list sharing permissions on a file"
+    resource: permissions.list
+    params:
+      fileId:
+        type: string
+        description: "File ID"
+        required: true
+    defaults:
+      supportsAllDrives: true
+
+  share:
+    type: action
+    description: "share a file with a user, group, domain, or anyone"
+    resource: permissions.create
+    params:
+      fileId:
+        type: string
+        description: "File ID to share"
+        required: true
+      shareEmail:
+        type: string
+        description: "Email address (required when type is 'user' or 'group'). Omit for 'domain' (use 'domain' param) or 'anyone'."
+      role:
+        type: string
+        description: "Permission level"
+        enum: [reader, commenter, writer, organizer]
+        default: reader
+      type:
+        type: string
+        description: "Permission type (default: 'user'). Use 'group' for Google Groups, 'domain' to share with an entire G Suite domain, 'anyone' for public links."
+        enum: [user, group, domain, anyone]
+        default: user
+      domain:
+        type: string
+        description: "Domain name (required when type is 'domain')."
+    defaults:
+      supportsAllDrives: true
+
+  unshare:
+    type: action
+    description: "remove sharing permission from a file"
+    resource: permissions.delete
+    params:
+      fileId:
+        type: string
+        description: "File ID"
+        required: true
+      permissionId:
+        type: string
+        description: "Permission ID to remove (from listPermissions)"
+        required: true
+    defaults:
+      supportsAllDrives: true
+
+  # --- Comments ---
+
+  listComments:
+    type: list
+    description: "list comments on a file"
+    resource: comments.list
+    params:
+      fileId:
+        type: string
+        description: "File ID"
+        required: true
+      includeDeleted:
+        type: boolean
+        description: "Include deleted comments (default: false)"
+    defaults:
+      fields: "comments(id, content, htmlContent, author(displayName, emailAddress), createdTime, modifiedTime, resolved, quotedFileContent, replies(id, content, htmlContent, author(displayName), createdTime)), nextPageToken"
+      supportsAllDrives: true
+
+  getComment:
+    type: detail
+    description: "get a specific comment by ID"
+    resource: comments.get
+    params:
+      fileId:
+        type: string
+        description: "File ID"
+        required: true
+      commentId:
+        type: string
+        description: "Comment ID"
+        required: true
+    defaults:
+      fields: "id, content, htmlContent, author(displayName, emailAddress), createdTime, modifiedTime, resolved, quotedFileContent, replies(id, content, htmlContent, author(displayName), createdTime)"
+      supportsAllDrives: true
+
+  addComment:
+    type: action
+    description: "add a comment to a file (optionally anchored to quoted text)"
+    resource: comments.create
+    params:
+      fileId:
+        type: string
+        description: "File ID"
+        required: true
+      content:
+        type: string
+        description: "Comment text"
+        required: true
+      quotedText:
+        type: string
+        description: "Text to anchor the comment to (optional — if provided, comment is anchored to first occurrence)"
+    defaults:
+      fields: "id, content, htmlContent, author(displayName), createdTime, quotedFileContent"
+      supportsAllDrives: true
+
+  resolveComment:
+    type: action
+    description: "resolve or reopen a comment"
+    resource: comments.update
+    params:
+      fileId:
+        type: string
+        description: "File ID"
+        required: true
+      commentId:
+        type: string
+        description: "Comment ID"
+        required: true
+      resolved:
+        type: boolean
+        description: "true to resolve, false to reopen"
+        required: true
+    defaults:
+      fields: "id, content, resolved"
+      supportsAllDrives: true
+
+  replyToComment:
+    type: action
+    description: "reply to an existing comment"
+    resource: replies.create
+    params:
+      fileId:
+        type: string
+        description: "File ID"
+        required: true
+      commentId:
+        type: string
+        description: "Comment ID to reply to"
+        required: true
+      content:
+        type: string
+        description: "Reply text"
+        required: true
+    defaults:
+      fields: "id, content, htmlContent, author(displayName), createdTime"
+      supportsAllDrives: true

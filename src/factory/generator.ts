@@ -8,8 +8,8 @@
  * Patches are optional per-service hooks that override default behavior.
  */
 
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, readdirSync } from 'node:fs';
+import { basename, resolve } from 'node:path';
 import { parse as parseYaml } from '../factory/yaml.js';
 import { execute } from '../executor/gws.js';
 import { requireEmail, clamp } from '../server/handlers/validate.js';
@@ -41,37 +41,58 @@ export function setModuleDir(dir: string): void {
 }
 
 /**
- * Load and parse the manifest YAML.
- * Searches module-relative paths first, then cwd fallbacks.
+ * Load the manifest from `src/factory/manifest/` — one YAML file per service,
+ * each file's root being that service's definition; the filename (minus
+ * `.yaml`) is the service key (ADR-304). Assembles a `Manifest` with the same
+ * shape the old single-file `manifest.yaml` produced.
+ *
+ * A malformed file fails the whole load (parseYaml throws) — same whole-or-
+ * nothing behavior as before the split.
+ *
+ * @param dir Optional explicit manifest directory (used by tests/tools);
+ *   otherwise resolved relative to the built output, then cwd.
  */
-export function loadManifest(path?: string): Manifest {
-  if (path) {
-    return parseYaml(readFileSync(path, 'utf-8')) as Manifest;
+export function loadManifest(dir?: string): Manifest {
+  const manifestDir = dir ?? resolveManifestDir();
+  const files = readdirSync(manifestDir).filter((f) => f.endsWith('.yaml')).sort();
+  if (files.length === 0) {
+    throw new Error(`No manifest files (*.yaml) found in ${manifestDir}`);
   }
 
-  // Search for manifest relative to known anchors.
-  // moduleDir is injected by registry.ts using import.meta.url (ESM only).
-  // cwd fallbacks handle Jest/dev where cwd is the project root.
+  const services: Record<string, ServiceDef> = {};
+  for (const file of files) {
+    const name = basename(file, '.yaml');
+    services[name] = parseYaml(readFileSync(resolve(manifestDir, file), 'utf-8')) as ServiceDef;
+  }
+  return { services };
+}
+
+/**
+ * Locate the manifest directory. moduleDir is injected by registry.ts using
+ * import.meta.url (ESM only); cwd fallbacks handle Jest/dev where cwd is the
+ * project root.
+ */
+function resolveManifestDir(): string {
   const candidates: string[] = [];
 
   if (_moduleDir) {
-    candidates.push(resolve(_moduleDir, 'manifest.yaml'));                    // build/factory/manifest.yaml
-    candidates.push(resolve(_moduleDir, '../../src/factory/manifest.yaml'));   // dev: from build/ to src/
+    candidates.push(resolve(_moduleDir, 'manifest'));                     // build/factory/manifest/
+    candidates.push(resolve(_moduleDir, '../../src/factory/manifest'));   // dev: from build/ to src/
   }
 
-  candidates.push(resolve(process.cwd(), 'src/factory/manifest.yaml'));
-  candidates.push(resolve(process.cwd(), 'build/factory/manifest.yaml'));
+  candidates.push(resolve(process.cwd(), 'src/factory/manifest'));
+  candidates.push(resolve(process.cwd(), 'build/factory/manifest'));
 
   for (const candidate of candidates) {
     try {
-      return parseYaml(readFileSync(candidate, 'utf-8')) as Manifest;
+      if (readdirSync(candidate).some((f) => f.endsWith('.yaml'))) return candidate;
     } catch {
       continue;
     }
   }
 
   throw new Error(
-    `Could not find manifest.yaml. Searched:\n${candidates.join('\n')}`,
+    `Could not find the manifest directory. Searched:\n${candidates.join('\n')}`,
   );
 }
 

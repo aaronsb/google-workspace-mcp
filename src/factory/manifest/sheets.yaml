@@ -1,0 +1,229 @@
+# ========================================================================
+# Sheets
+# ========================================================================
+
+tool_name: manage_sheets
+description: "Read, write, and manage Google Sheets spreadsheets."
+requires_email: true
+gws_service: sheets
+operations:
+
+  get:
+    type: detail
+    description: "get spreadsheet metadata and sheet names"
+    resource: spreadsheets.get
+    params:
+      spreadsheetId:
+        type: string
+        description: "Spreadsheet ID"
+        required: true
+
+  create:
+    type: action
+    description: "create a new spreadsheet (optionally with a title)"
+    resource: spreadsheets.create
+    params:
+      title:
+        type: string
+        description: "Spreadsheet title (defaults to 'Untitled spreadsheet')"
+
+  read:
+    type: detail
+    description: "read cell values from a range; rendered rows are prefixed with their sheet row number (e.g. 'R3: …') since blank rows are otherwise invisible"
+    helper: "+read"
+    params:
+      spreadsheetId:
+        type: string
+        description: "Spreadsheet ID"
+        required: true
+      range:
+        type: string
+        description: "Range to read (e.g. 'Sheet1!A1:D10' or just 'Sheet1')"
+        required: true
+    cli_args:
+      spreadsheetId: "--spreadsheet"
+      range: "--range"
+
+  append:
+    type: action
+    description: "append rows to a spreadsheet (rows land after the last row of existing data in the target range)"
+    resource: spreadsheets.values.append
+    params:
+      spreadsheetId:
+        type: string
+        description: "Spreadsheet ID"
+        required: true
+      range:
+        type: string
+        description: "Target range; defaults to 'Sheet1'. Use 'MyTab' or 'MyTab!A:Z' to append to a specific tab."
+      values:
+        type: string
+        description: "Comma-separated values for a single row (e.g. 'Alice,100,true')"
+      jsonValues:
+        type: string
+        description: "JSON 2D array of rows for bulk insert (e.g. '[[\"a\",\"b\"],[\"c\",\"d\"]]')"
+      valueInputOption:
+        type: string
+        description: "How input is interpreted: USER_ENTERED (default, parses formulas/types) or RAW"
+        enum: [USER_ENTERED, RAW]
+        default: USER_ENTERED
+
+  getValues:
+    type: detail
+    description: "get values from a specific range (raw API); rendered rows are prefixed with their sheet row number (e.g. 'R3: …')"
+    resource: spreadsheets.values.get
+    params:
+      spreadsheetId:
+        type: string
+        description: "Spreadsheet ID"
+        required: true
+      range:
+        type: string
+        description: "A1 notation range (e.g. 'Sheet1!A1:B10')"
+        required: true
+
+  updateValues:
+    type: action
+    description: "write values to a specific range"
+    resource: spreadsheets.values.update
+    params:
+      spreadsheetId:
+        type: string
+        description: "Spreadsheet ID"
+        required: true
+      range:
+        type: string
+        description: "A1 notation range to write to"
+        required: true
+      values:
+        type: string
+        description: "Comma-separated values for a single row (e.g. 'Alice,100,true')"
+      jsonValues:
+        type: string
+        description: "JSON 2D array of rows (e.g. '[[\"a\",\"b\"],[\"c\",\"d\"]]'). Use for multi-row writes."
+      valueInputOption:
+        type: string
+        description: "How input is interpreted: USER_ENTERED (default, parses formulas/types) or RAW"
+        enum: [USER_ENTERED, RAW]
+        default: USER_ENTERED
+
+  clearValues:
+    type: action
+    description: "clear cell values from a range (structure preserved)"
+    resource: spreadsheets.values.clear
+    params:
+      spreadsheetId:
+        type: string
+        description: "Spreadsheet ID"
+        required: true
+      range:
+        type: string
+        description: "A1 notation range to clear"
+        required: true
+
+  addSheet:
+    type: action
+    description: "add a new tab (sheet) to the spreadsheet"
+    resource: spreadsheets.batchUpdate
+    params:
+      spreadsheetId:
+        type: string
+        description: "Spreadsheet ID"
+        required: true
+      title:
+        type: string
+        description: "Name of the new sheet tab"
+        required: true
+      index:
+        type: number
+        description: "Position among tabs (0-based). Appended at the end if omitted."
+      rowCount:
+        type: number
+        description: "Initial row count (default 1000)"
+      columnCount:
+        type: number
+        description: "Initial column count (default 26)"
+
+  renameSheet:
+    type: action
+    description: "rename a tab (sheet) within a spreadsheet"
+    resource: spreadsheets.batchUpdate
+    params:
+      spreadsheetId:
+        type: string
+        description: "Spreadsheet ID"
+        required: true
+      sheetId:
+        type: number
+        description: "Sheet ID of the tab to rename (from manage_sheets get)"
+        required: true
+      title:
+        type: string
+        description: "New title for the tab"
+        required: true
+
+  deleteSheet:
+    type: action
+    description: "delete a tab (sheet) from the spreadsheet — irreversible"
+    resource: spreadsheets.batchUpdate
+    params:
+      spreadsheetId:
+        type: string
+        description: "Spreadsheet ID"
+        required: true
+      sheetId:
+        type: number
+        description: "Sheet ID of the tab to delete"
+        required: true
+
+  duplicateSheet:
+    type: action
+    description: "duplicate a tab within the same spreadsheet"
+    resource: spreadsheets.batchUpdate
+    params:
+      spreadsheetId:
+        type: string
+        description: "Spreadsheet ID"
+        required: true
+      sheetId:
+        type: number
+        description: "Source sheet ID (the tab to copy)"
+        required: true
+      title:
+        type: string
+        description: "Name for the duplicated sheet (defaults to 'Copy of <source>')"
+      index:
+        type: number
+        description: "Position to insert the duplicate (0-based)"
+
+  renameSpreadsheet:
+    type: action
+    description: "rename the spreadsheet (the document title, not a tab)"
+    resource: spreadsheets.batchUpdate
+    params:
+      spreadsheetId:
+        type: string
+        description: "Spreadsheet ID"
+        required: true
+      title:
+        type: string
+        description: "New spreadsheet title"
+        required: true
+
+  copySheetTo:
+    type: action
+    description: "copy a tab from this spreadsheet into another spreadsheet"
+    resource: spreadsheets.sheets.copyTo
+    params:
+      spreadsheetId:
+        type: string
+        description: "Source spreadsheet ID"
+        required: true
+      sheetId:
+        type: number
+        description: "Source sheet ID (the tab to copy)"
+        required: true
+      destinationSpreadsheetId:
+        type: string
+        description: "Destination spreadsheet ID"
+        required: true

@@ -1,0 +1,266 @@
+tool_name: manage_email
+description: "Search, read, send, forward, or manage emails in a Google Workspace account. Supports Gmail search syntax."
+requires_email: true
+gws_service: gmail
+operations:
+
+  # --- Core message operations ---
+
+  search:
+    type: list
+    description: "find emails by query"
+    resource: users.messages.list
+    params:
+      query:
+        type: string
+        description: 'Gmail search query (e.g. "from:alice subject:meeting has:attachment")'
+        maps_to: q
+      maxResults:
+        type: number
+        description: "Max results (default: 10, max: 50)"
+        default: 10
+        max: 50
+    defaults:
+      userId: me
+    hydration:
+      resource: users.messages.get
+      format: metadata
+      headers: [From, Subject, Date]
+
+  read:
+    type: detail
+    description: "get full email by ID"
+    resource: users.messages.get
+    params:
+      messageId:
+        type: string
+        description: "Email message ID"
+        required: true
+        maps_to: id
+    defaults:
+      userId: me
+
+  send:
+    type: action
+    description: "compose and send a new email (creates draft when attachments present, 35MB attachment limit via upload endpoint)"
+    helper: "+send"
+    params:
+      to:
+        type: string
+        description: "Recipient email(s), comma-separated"
+        required: true
+      subject:
+        type: string
+        description: "Email subject line"
+        required: true
+      body:
+        type: string
+        description: "Email body text"
+        required: true
+      cc:
+        type: string
+        description: "CC email(s), comma-separated"
+      bcc:
+        type: string
+        description: "BCC email(s), comma-separated"
+      attachments:
+        type: string
+        description: "Workspace filenames to attach, comma-separated (files must exist in workspace via manage_workspace). Creates draft when present."
+      html:
+        type: boolean
+        description: "Treat body as HTML content (default: plain text)"
+      draft:
+        type: boolean
+        description: "Save as draft instead of sending (default: false, forced true when attachments present)"
+    cli_args:
+      to: "--to"
+      subject: "--subject"
+      body: "--body"
+      cc: "--cc"
+      bcc: "--bcc"
+
+  reply:
+    type: action
+    description: "reply to a message (thread-aware)"
+    helper: "+reply"
+    params:
+      messageId:
+        type: string
+        description: "Message ID to reply to"
+        required: true
+      body:
+        type: string
+        description: "Reply body text"
+        required: true
+    cli_args:
+      messageId: "--message-id"
+      body: "--body"
+
+  replyAll:
+    type: action
+    description: "reply-all to a message (thread-aware, includes all recipients)"
+    helper: "+reply-all"
+    params:
+      messageId:
+        type: string
+        description: "Message ID to reply to"
+        required: true
+      body:
+        type: string
+        description: "Reply body text"
+        required: true
+      cc:
+        type: string
+        description: "Additional CC email(s), comma-separated"
+    cli_args:
+      messageId: "--message-id"
+      body: "--body"
+      cc: "--cc"
+
+  forward:
+    type: action
+    description: "forward a message to new recipients (includes original attachments by default)"
+    helper: "+forward"
+    params:
+      messageId:
+        type: string
+        description: "Message ID to forward"
+        required: true
+      to:
+        type: string
+        description: "Recipient email(s), comma-separated"
+        required: true
+      body:
+        type: string
+        description: "Optional note to prepend above forwarded message"
+    cli_args:
+      messageId: "--message-id"
+      to: "--to"
+      body: "--body"
+
+  # --- Inbox management ---
+
+  triage:
+    type: list
+    description: "unread inbox summary (sender, subject, date)"
+    helper: "+triage"
+
+  trash:
+    type: action
+    description: "move a message to trash"
+    resource: users.messages.trash
+    params:
+      messageId:
+        type: string
+        description: "Message ID to trash"
+        required: true
+        maps_to: id
+    defaults:
+      userId: me
+
+  untrash:
+    type: action
+    description: "restore a message from trash"
+    resource: users.messages.untrash
+    params:
+      messageId:
+        type: string
+        description: "Message ID to restore"
+        required: true
+        maps_to: id
+    defaults:
+      userId: me
+
+  getAttachment:
+    type: detail
+    description: "download an email attachment to workspace directory (use read first to see attachment list)"
+    resource: users.messages.attachments.get
+    params:
+      messageId:
+        type: string
+        description: "Message ID containing the attachment"
+        required: true
+      filename:
+        type: string
+        description: "Filename to save as (from the read response, e.g. 'invoice_template.md')"
+        required: true
+    defaults:
+      userId: me
+
+  viewAttachment:
+    type: detail
+    description: "view an image attachment inline without saving to workspace (png, jpg, gif, webp). Use for quick preview — use getAttachment to save."
+    resource: users.messages.attachments.get
+    params:
+      messageId:
+        type: string
+        description: "Message ID containing the attachment"
+        required: true
+      filename:
+        type: string
+        description: "Image filename from the read response"
+        required: true
+    defaults:
+      userId: me
+
+  modify:
+    type: action
+    description: "add or remove labels on a message (e.g. archive, mark read/unread)"
+    resource: users.messages.modify
+    params:
+      messageId:
+        type: string
+        description: "Message ID to modify"
+        required: true
+        maps_to: id
+      addLabelIds:
+        type: string
+        description: "Comma-separated label IDs to add (e.g. STARRED, IMPORTANT, Label_123)"
+      removeLabelIds:
+        type: string
+        description: "Comma-separated label IDs to remove (e.g. UNREAD, INBOX to archive)"
+    defaults:
+      userId: me
+
+  # --- Labels ---
+
+  labels:
+    type: list
+    description: "list all labels in the mailbox"
+    resource: users.labels.list
+    defaults:
+      userId: me
+
+  # --- Threads ---
+
+  threads:
+    type: list
+    description: "list email threads by query"
+    resource: users.threads.list
+    params:
+      query:
+        type: string
+        description: "Gmail search query to filter threads"
+        maps_to: q
+      maxResults:
+        type: number
+        description: "Max threads to return (default: 10, max: 50)"
+        default: 10
+        max: 50
+    defaults:
+      userId: me
+
+  getThread:
+    type: detail
+    description: "get all messages in a thread"
+    resource: users.threads.get
+    params:
+      threadId:
+        type: string
+        description: "Thread ID to retrieve"
+        required: true
+        maps_to: id
+    defaults:
+      userId: me
+      format: metadata
+      metadataHeaders: "From,Subject,Date,To"

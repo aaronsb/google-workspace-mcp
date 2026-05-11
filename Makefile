@@ -34,7 +34,8 @@ version-stamp: ## Write version from package.json into src/version.ts
 		console.log('  src/version.ts → '+v)"
 
 build: version-stamp ## Compile TypeScript to build/
-	npx tsc --skipLibCheck && cp src/factory/manifest.yaml build/factory/
+	npx tsc --skipLibCheck
+	rm -rf build/factory/manifest && cp -r src/factory/manifest build/factory/manifest
 
 check: typecheck test build ## Lint, test, and build (CI gate)
 
@@ -49,15 +50,29 @@ manifest-discover: ## Discover all gws operations → discovered-manifest.yaml
 
 manifest-diff: manifest-discover ## Diff discovered operations against curated manifest
 	@echo "=== Operations in discovered but not in curated manifest ==="
-	@diff --color=auto -u src/factory/manifest.yaml discovered-manifest.yaml || true
+	@node -e " \
+		const fs = require('fs'), path = require('path'); \
+		const dir = 'src/factory/manifest'; \
+		let out = 'services:\n'; \
+		for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.yaml')).sort()) { \
+			out += '  ' + path.basename(f, '.yaml') + ':\n'; \
+			const body = fs.readFileSync(path.join(dir, f), 'utf-8').replace(/^(?!\$)/gm, '    '); \
+			out += body.endsWith('\n') ? body : body + '\n'; \
+		} \
+		fs.writeFileSync(require('os').tmpdir() + '/gws-curated-manifest-reassembled.yaml', out); \
+	"
+	@diff --color=auto -u "$$(node -p 'require(\"os\").tmpdir()')/gws-curated-manifest-reassembled.yaml" discovered-manifest.yaml || true
 
 manifest-lint: ## Validate manifest YAML syntax and structure
 	@node -e " \
-		const fs = require('fs'); \
+		const fs = require('fs'), path = require('path'); \
 		const yaml = require('yaml'); \
-		const m = yaml.parse(fs.readFileSync('src/factory/manifest.yaml', 'utf-8')); \
+		const dir = 'src/factory/manifest'; \
+		const files = fs.readdirSync(dir).filter(f => f.endsWith('.yaml')).sort(); \
 		let ops = 0; \
-		for (const [svc, def] of Object.entries(m.services)) { \
+		for (const file of files) { \
+			const svc = path.basename(file, '.yaml'); \
+			const def = yaml.parse(fs.readFileSync(path.join(dir, file), 'utf-8')); \
 			const opCount = Object.keys(def.operations).length; \
 			ops += opCount; \
 			console.log('  ' + def.tool_name + ': ' + opCount + ' operations'); \
@@ -70,7 +85,7 @@ manifest-lint: ## Validate manifest YAML syntax and structure
 					console.error('    ERROR: ' + svc + '.' + opName + ' has no description'); \
 			} \
 		} \
-		console.log('  Total: ' + ops + ' operations across ' + Object.keys(m.services).length + ' services'); \
+		console.log('  Total: ' + ops + ' operations across ' + files.length + ' services'); \
 	"
 
 # --- Coverage analysis ---
@@ -89,7 +104,7 @@ mcpb: build ## Build .mcpb for current platform (PLATFORM=linux-x64 etc.)
 	rm -rf mcpb/server mcpb/bin
 	mkdir -p mcpb/server
 	cp -r build/* mcpb/server/
-	cp src/factory/manifest.yaml mcpb/server/factory/
+	cp src/factory/manifest/*.yaml mcpb/server/factory/manifest/
 	cp package.json mcpb/server/package.json
 	cd mcpb/server && npm install --production --ignore-scripts --silent
 	rm -f mcpb/server/package.json mcpb/server/package-lock.json
