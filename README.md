@@ -19,15 +19,21 @@ Built on [Google's official Workspace CLI](https://github.com/googleworkspace/cl
 
 ## What's Available
 
-**5 tools, 32+ operations across 3 core services:**
+**7 Google-service tools (~80 operations) plus account, batching, and content-authoring tools.** The full surface — what's covered, what isn't, and how it grows — is mapped in **[API coverage](docs/coverage.md)**.
 
-| Tool | Operations | What It Does |
-|------|-----------|--------------|
-| `manage_email` | search, read, send, reply, replyAll, forward, triage, trash, untrash, modify, labels, threads, getThread | Full Gmail — search, read, compose, thread management, label management |
-| `manage_calendar` | list, agenda, get, create, quickAdd, update, delete, calendars, freebusy | Calendar CRUD, natural language event creation, availability checks |
-| `manage_drive` | search, get, upload, download, copy, delete, export, listPermissions, share, unshare | File management, Google Docs export, sharing and permissions |
-| `manage_accounts` | list, authenticate, remove, status, refresh, scopes | Multi-account lifecycle — add accounts, manage credentials and scopes |
-| `queue_operations` | — | Chain operations sequentially with `$N.field` result references |
+| Tool | What It Does |
+|------|--------------|
+| `manage_email` | Gmail — search, read (plain or sanitized HTML body), send, reply / reply-all, forward, triage, trash, labels, threads, attachments |
+| `manage_calendar` | Calendar — list, agenda, get, create, quickAdd (natural language), update, delete, calendars, freebusy |
+| `manage_drive` | Drive — search, get, upload, download, copy, rename / move (`update`), delete, export, permissions, comments, view images |
+| `manage_sheets` | Sheets — read / write ranges (row-numbered output), append, clear, manage tabs, copy / duplicate / rename |
+| `manage_docs` | Docs — get, create, append, insert text, find-and-replace |
+| `manage_tasks` | Tasks — list / create / update / complete tasks and task lists |
+| `manage_meet` | Meet — browse past conferences, participants, transcripts, recordings, smart notes |
+| `manage_accounts` | Multi-account lifecycle — add accounts, manage credentials and scopes |
+| `manage_scratchpad` | Compose / edit multi-line content (line- or JSON-path-addressed), attach files, send to any target; JSON mode live-syncs to Docs / Sheets |
+| `manage_workspace` | File operations in the workspace sandbox (exchange point for attachments, downloads, exports) |
+| `queue_operations` | Chain operations sequentially with `$N.field` result references |
 
 Every response includes **next-steps** guidance — the agent always knows what it can do next.
 
