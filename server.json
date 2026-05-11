@@ -2,12 +2,12 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.aaronsb/google-workspace",
   "description": "Give AI agents access to Gmail, Calendar, Drive, and more — multi-account, manifest-driven",
-  "version": "2.7.0",
+  "version": "2.7.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@aaronsb/google-workspace-mcp",
-      "version": "2.7.0",
+      "version": "2.7.1",
       "transport": {
         "type": "stdio"
       },

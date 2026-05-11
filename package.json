@@ -1,6 +1,6 @@
 {
   "name": "@aaronsb/google-workspace-mcp",
-  "version": "2.7.0",
+  "version": "2.7.1",
   "mcpName": "io.github.aaronsb/google-workspace",
   "description": "MCP server for Google Workspace with progressive context disclosure and multi-account orchestration",
   "repository": {
