@@ -28,13 +28,37 @@ function escapeCell(val: unknown): string {
   return s.replace(/\|/g, '\\|').replace(/\n/g, ' ');
 }
 
-/** Render a 2D values array as a compact pipe-delimited markdown block. */
-function renderValuesTable(values: unknown[][]): string {
+/** Sheet row number the first element of a values range maps to (`Sheet1!A3:D10` → 3). */
+function startRowFromRange(range: string): number {
+  if (!range || !range.includes('!')) return 1;
+  const afterSheet = range.slice(range.lastIndexOf('!') + 1);
+  const firstCell = afterSheet.split(':')[0];
+  const m = firstCell.match(/(\d+)\s*$/);
+  return m ? parseInt(m[1], 10) : 1;
+}
+
+/**
+ * Render a 2D values array as a compact pipe-delimited block, each line
+ * prefixed with its actual sheet row number (`R3: a | b | c`).
+ *
+ * The Sheets API trims trailing-empty rows and may omit leading-empty rows
+ * from `values`, so a reader counting lines off an un-prefixed render would
+ * under-shoot write targets by however many leading rows were blank (the
+ * symptom that prompted issue #113). The `Rn:` prefix makes the render
+ * directly usable for authoring follow-up writes — and surfaces blank rows
+ * (rendered as a bare `Rn:`) that would otherwise be invisible.
+ */
+function renderValuesTable(values: unknown[][], startRow: number): string {
   if (values.length === 0) return '_(empty range)_';
-  const rows = values.map(row =>
-    (row ?? []).map(escapeCell).join(' | '),
-  );
-  return rows.join('\n');
+  const lastRow = startRow + values.length - 1;
+  const pad = String(lastRow).length;
+  return values
+    .map((row, i) => {
+      const rowNum = String(startRow + i).padStart(pad, ' ');
+      const cells = (row ?? []).map(escapeCell).join(' | ');
+      return cells ? `R${rowNum}: ${cells}` : `R${rowNum}:`;
+    })
+    .join('\n');
 }
 
 /** Parse a simple CSV line respecting quoted fields. */
@@ -71,14 +95,18 @@ function formatValuesDetail(data: unknown): HandlerResponse {
   const values = (raw.values as unknown[][]) ?? [];
   const rowCount = values.length;
   const colCount = rowCount > 0 ? Math.max(...values.map(r => (r ?? []).length)) : 0;
+  const startRow = startRowFromRange(range);
 
   const header = range ? `## ${range}` : '## Values';
   const meta = `**Rows:** ${rowCount} | **Columns:** ${colCount} | **Major dimension:** ${majorDimension}`;
-  const table = renderValuesTable(values);
+  // `read` / `getValues` always come back ROWS-major (neither op exposes a
+  // majorDimension param), so the Rn: row-number prefix is always meaningful.
+  // If a COLUMNS-major path is ever added, the prefix would need to become Cn:.
+  const table = renderValuesTable(values, startRow);
 
   return {
     text: `${header}\n\n${meta}\n\n${table}`,
-    refs: { range, majorDimension, rowCount, colCount, values },
+    refs: { range, majorDimension, rowCount, colCount, startRow, values },
   };
 }
 
@@ -468,6 +496,28 @@ async function copySheetToHandler(
   };
 }
 
+/**
+ * create — make a new spreadsheet, optionally with a title.
+ *
+ * `spreadsheets.create` takes the spreadsheet's `properties` (including
+ * `title`) as the request body, not query --params. The generic factory
+ * path puts a passed `title` into --params where the API ignores it, so new
+ * sheets always came out "Untitled spreadsheet" (issue #113). This handler
+ * sends `{ properties: { title } }` via --json.
+ */
+async function createSpreadsheetHandler(
+  params: Record<string, unknown>,
+  account: string,
+): Promise<HandlerResponse> {
+  const title = params.title ? String(params.title) : undefined;
+  const args = ['sheets', 'spreadsheets', 'create'];
+  if (title) {
+    args.push('--json', JSON.stringify({ properties: { title } }));
+  }
+  const result = await execute(args, { account });
+  return formatCreateAction(result.data);
+}
+
 // --- Patch export ---
 
 export const sheetsPatch: ServicePatch = {
@@ -495,6 +545,8 @@ export const sheetsPatch: ServicePatch = {
   formatAction: (data: unknown, ctx: PatchContext): HandlerResponse => {
     switch (ctx.operation) {
       case 'create':
+        // Unreachable for live calls — customHandlers.create intercepts first.
+        // Kept as the action-formatter fallback (and covered directly by tests).
         return formatCreateAction(data);
       case 'append':
         return formatAppendAction(data);
@@ -511,6 +563,7 @@ export const sheetsPatch: ServicePatch = {
   },
 
   customHandlers: {
+    create: createSpreadsheetHandler,
     updateValues: updateValuesHandler,
     append: appendHandler,
     addSheet: addSheetHandler,
