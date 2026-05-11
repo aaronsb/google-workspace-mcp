@@ -43,3 +43,7 @@ discovered-manifest.yaml
 *.mcpb
 mcpb/server/
 mcpb/bin/
+
+# mcp-publisher login state (do not commit credentials)
+.mcpregistry_github_token
+.mcpregistry_registry_token
