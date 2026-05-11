@@ -26,23 +26,54 @@ export interface HandlerResponse {
 
 // --- Email body extraction ---
 
+import { sanitizeHtmlForAgent } from './html-sanitize.js';
+
+export type EmailBodyFormat = 'plain' | 'html';
+
 /**
  * Walk Gmail MIME payload parts to extract the message body.
- * Prefers text/plain over text/html. Decodes base64url body data.
+ *
+ * `format: 'plain'` (default) — prefers `text/plain`, falls back to a lossy
+ *   `stripHtml()` on `text/html`. Existing behavior.
+ * `format: 'html'` — prefers `text/html` and returns it sanitized + wrapped
+ *   in a Spotlighting block (ADR-305). Falls back to the `text/plain` part
+ *   if no HTML exists.
+ *
+ * Decodes base64url body data either way.
  */
-export function extractBodyFromPayload(payload: Record<string, unknown> | undefined): string {
+export function extractBodyFromPayload(
+  payload: Record<string, unknown> | undefined,
+  format: EmailBodyFormat = 'plain',
+): string {
   if (!payload) return '';
 
   // Simple (non-multipart) message — body is directly on payload
   const body = payload.body as Record<string, unknown> | undefined;
   if (body?.data && !payload.parts) {
-    return decodeBase64Url(String(body.data));
+    const decoded = decodeBase64Url(String(body.data));
+    const mimeType = String(payload.mimeType ?? '');
+    if (format === 'html' && mimeType === 'text/html') {
+      return sanitizeHtmlForAgent(decoded, { source: 'gmail' });
+    }
+    if (format === 'plain' && mimeType === 'text/html') {
+      return stripHtml(decoded);
+    }
+    return decoded;
   }
 
-  // Multipart — walk parts tree, prefer text/plain
+  // Multipart — walk parts tree
   const parts = payload.parts as Array<Record<string, unknown>> | undefined;
   if (!parts || parts.length === 0) return '';
 
+  if (format === 'html') {
+    const html = findPart(parts, 'text/html');
+    if (html) return sanitizeHtmlForAgent(html, { source: 'gmail' });
+    const plain = findPart(parts, 'text/plain');
+    if (plain) return plain;
+    return '';
+  }
+
+  // 'plain' — prefer text/plain, fall back to stripped HTML
   const plain = findPart(parts, 'text/plain');
   if (plain) return plain;
 
@@ -189,7 +220,10 @@ export function extractAttachments(parts: unknown[]): Array<{ filename: string; 
   return attachments;
 }
 
-export function formatEmailDetail(data: unknown): HandlerResponse {
+export function formatEmailDetail(
+  data: unknown,
+  options: { bodyFormat?: EmailBodyFormat } = {},
+): HandlerResponse {
   const msg = data as Record<string, unknown>;
   const payload = msg.payload as Record<string, unknown> | undefined;
   const headers = (payload?.headers ?? []) as Array<{ name: string; value: string }>;
@@ -204,7 +238,8 @@ export function formatEmailDetail(data: unknown): HandlerResponse {
   const date = getHeader('date');
   const labels = (msg.labelIds ?? []) as string[];
   const snippet = String(msg.snippet ?? '');
-  const fullBody = extractBodyFromPayload(payload);
+  const bodyFormat: EmailBodyFormat = options.bodyFormat ?? 'plain';
+  const fullBody = extractBodyFromPayload(payload, bodyFormat);
 
   const parts: string[] = [
     `## ${subject || '(no subject)'}`,

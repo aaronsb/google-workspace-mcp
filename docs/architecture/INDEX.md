@@ -40,3 +40,4 @@ _MCP tools, schemas, progressive disclosure_
 | [ADR-302](./api/ADR-302-scratchpad-html-format-and-format-aware-validation.md) | Scratchpad HTML Format and Format-Aware Validation | Draft |
 | [ADR-303](./api/ADR-303-auto-append-next-steps-in-factory-generator.md) | Auto-append next-steps in factory generator | Accepted |
 | [ADR-304](./api/ADR-304-split-manifest-yaml-into-per-service-files.md) | Split manifest.yaml into per-service files | Accepted |
+| [ADR-305](./api/ADR-305-shared-html-sanitization-for-agent-facing-authoring.md) | Shared HTML sanitization for agent-facing authoring | Accepted |
