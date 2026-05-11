@@ -261,7 +261,12 @@ describe('drivePatch custom handlers', () => {
       expect(result.text).toContain('owner-perm | owner | user | me@test.com');
       expect(result.text).toContain('reader-perm | reader | user | bob@test.com');
       expect(result.refs.count).toBe(2);
-      expect(result.refs.permissionId).toBe('owner-perm');
+      // A list has no canonical "the" permission — no singular permissionId ref.
+      expect(result.refs.permissionId).toBeUndefined();
+      expect(result.refs.permissions).toEqual([
+        { permissionId: 'owner-perm', type: 'user', role: 'owner', target: 'me@test.com' },
+        { permissionId: 'reader-perm', type: 'user', role: 'reader', target: 'bob@test.com' },
+      ]);
     });
 
     it('reports an empty permission list without claiming "No files found"', async () => {
@@ -273,15 +278,19 @@ describe('drivePatch custom handlers', () => {
       expect(result.text).toContain('No sharing permissions on file file-2');
       expect(result.text).not.toContain('No files found');
       expect(result.refs.count).toBe(0);
+      expect(result.refs.permissions).toEqual([]);
     });
 
-    it("labels anyone-with-link and pending-owner permissions", async () => {
+    it('labels anyone-with-link, pending-owner, deleted, and domain/displayName targets', async () => {
       mockExecute.mockResolvedValueOnce({
         success: true,
         data: {
           permissions: [
             { id: 'anyone-perm', type: 'anyone', role: 'reader' },
             { id: 'pending-perm', type: 'user', role: 'writer', emailAddress: 'new@test.com', pendingOwner: true },
+            { id: 'domain-perm', type: 'domain', role: 'reader', domain: 'acme.com' },
+            { id: 'group-perm', type: 'group', role: 'commenter', displayName: 'Eng Team' },
+            { id: 'gone-perm', type: 'user', role: 'reader', emailAddress: 'old@test.com', deleted: true },
           ],
         },
         stderr: '',
@@ -292,6 +301,9 @@ describe('drivePatch custom handlers', () => {
 
       expect(result.text).toContain('anyone-perm | reader | anyone | anyone with the link');
       expect(result.text).toContain('[pending owner]');
+      expect(result.text).toContain('domain-perm | reader | domain | acme.com');
+      expect(result.text).toContain('group-perm | commenter | group | Eng Team');
+      expect(result.text).toContain('gone-perm | reader | user | old@test.com [deleted account]');
     });
   });
 

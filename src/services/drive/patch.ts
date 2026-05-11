@@ -362,31 +362,38 @@ export const drivePatch: ServicePatch = {
       if (permissions.length === 0) {
         return {
           text: `No sharing permissions on file ${fileId}.`,
-          refs: { fileId, count: 0 },
+          refs: { fileId, count: 0, permissions: [] },
         };
       }
 
-      const lines = permissions.map((p) => {
-        const id = String(p.id ?? '');
-        const type = String(p.type ?? '');
-        const role = String(p.role ?? '');
-        const target =
-          p.emailAddress ? String(p.emailAddress)
-            : p.domain ? String(p.domain)
-              : type === 'anyone' ? 'anyone with the link'
-                : p.displayName ? String(p.displayName)
-                  : '';
+      const targetOf = (p: Record<string, unknown>): string =>
+        p.emailAddress ? String(p.emailAddress)
+          : p.domain ? String(p.domain)
+            : String(p.type) === 'anyone' ? 'anyone with the link'
+              : p.displayName ? String(p.displayName)
+                : '';
+
+      const rows = permissions.map((p) => ({
+        permissionId: String(p.id ?? ''),
+        type: String(p.type ?? ''),
+        role: String(p.role ?? ''),
+        target: targetOf(p),
+      }));
+
+      const lines = permissions.map((p, i) => {
+        const { permissionId, type, role, target } = rows[i];
         const flags = `${p.pendingOwner ? ' [pending owner]' : ''}${p.deleted ? ' [deleted account]' : ''}`;
-        return `${id} | ${role} | ${type}${target ? ' | ' + target : ''}${flags}`;
+        return `${permissionId} | ${role} | ${type}${target ? ' | ' + target : ''}${flags}`;
       });
 
       return {
         text: `## Permissions on ${fileId} (${permissions.length})\n\n${lines.join('\n')}`,
+        // No singular permissionId here — a list has no canonical "the" permission;
+        // unshare callers must pick a specific row's permissionId from `permissions`.
         refs: {
           fileId,
           count: permissions.length,
-          permissionId: String(permissions[0]?.id ?? ''),
-          permissions: permissions.map((p) => String(p.id ?? '')),
+          permissions: rows,
         },
       };
     },
