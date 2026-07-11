@@ -17,7 +17,26 @@ jobs:
         node-version: '20'
         cache: 'npm'
     - run: npm ci
+    # Every test file must be run by some gate. `npm test` uses an allowlist of
+    # vetted mocked directories, so a test added elsewhere would otherwise run
+    # nowhere and report nothing.
+    - run: node scripts/check-test-gates.mjs
     - run: npm test
+
+  type-check:
+    # Vitest transpiles via esbuild WITHOUT type-checking, and tsconfig.json
+    # excludes tests from the build — so without this job a type error in a test
+    # file passes npm test, npm run build and npm run lint, and merges green.
+    # ts-jest used to cover this on every `npm test`; nothing else does now.
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    - run: npm ci
+    - run: npm run type-check
 
   build:
     runs-on: ubuntu-latest

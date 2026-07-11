@@ -27,8 +27,8 @@ test-unit: ## Run unit tests (mocked, fast, no network)
 test-integration: ## Run integration tests (ACCOUNT=email optional)
 	$(if $(ACCOUNT),TEST_ACCOUNT=$(ACCOUNT)) npm run test:integration
 
-typecheck: ## Type-check without emitting
-	npx tsc --noEmit --skipLibCheck
+typecheck: ## Type-check src AND tests without emitting
+	npm run type-check
 
 version-stamp: ## Write version from package.json into src/version.ts
 	@node -e "const v=require('./package.json').version; \
@@ -40,7 +40,10 @@ build: version-stamp ## Compile TypeScript to build/
 	npx tsc --skipLibCheck
 	rm -rf build/factory/manifest && cp -r src/factory/manifest build/factory/manifest
 
-check: typecheck test build ## Lint, test, and build (CI gate)
+check-gates: ## Assert every test file is run by some gate
+	node scripts/check-test-gates.mjs
+
+check: typecheck check-gates test build ## Lint, test, and build (CI gate)
 
 clean: ## Remove build artifacts
 	rm -rf build/ mcpb/server mcpb/bin *.mcpb

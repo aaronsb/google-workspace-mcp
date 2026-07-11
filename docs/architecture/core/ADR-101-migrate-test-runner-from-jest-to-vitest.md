@@ -82,7 +82,11 @@ This decision was validated by a full prototype **and an adversarial code review
 - **Vitest applies `new` to a mock implementation**, so arrow functions cannot be used for constructor mocks (`() => ({...})` throws "is not a constructor"). Jest's CJS wrapper hid this.
 - **`vi.mock` factories that spread `importActual` must be `async`**, and `importActual` needs a generic to be typed rather than `unknown`.
 - **`vi.mock` hoists above module-level `const`s**, so factory captures must come from `vi.hoisted()`.
-- **Type-checking of test files no longer happens during `npm test`.** `ts-jest` ran with diagnostics on; Vitest strips types via esbuild without checking. Mitigated — `npm run type-check` and the CI build both run `tsc` over `src/**`, which includes the tests — but the in-test-run guard is gone.
+- **Type-checking of test files no longer happens during `npm test`.** `ts-jest` ran with diagnostics on, so a type error in a test failed the run; Vitest strips types via esbuild without checking. This guard has to be *replaced*, not assumed: a draft of this ADR claimed it was "mitigated" by `tsc` running over `src/**`, but the build's tsconfig deliberately excludes tests (see Decision), and no gate invoked `tsconfig.test.json`. A deliberate type error in a test file passed `make check`, `npm test`, `npm run build` and `npm run lint`. It is now covered by an explicit `type-check` CI job and by `make typecheck` delegating to `npm run type-check`.
+
+- **An allowlist can orphan tests.** `npm test` runs a vetted list of mocked directories rather than "everything except integration", so a test added elsewhere would be collected by no gate at all — green CI, dead test. `scripts/check-test-gates.mjs` fails the build if any test file is run by no gate. (Verified by probe: an orphan test file makes `make check` exit non-zero.)
+
+- **A shared mock helper cannot register its own `vi.mock`.** The helper now throws at import if `execute` is not a mock function, so a test that imports it without registering `vi.mock` fails loudly instead of silently exercising the real `gws` binary.
 - Vitest is a smaller ecosystem than Jest. No Jest-specific plugins are in use here.
 
 ### Neutral
