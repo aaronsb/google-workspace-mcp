@@ -66,6 +66,13 @@ describe('manage_email schema', () => {
     const required = (tool.inputSchema as any).required;
     expect(required).toContain('email');
   });
+
+  it('exposes from for Gmail send aliases', () => {
+    expect(props.from).toMatchObject({
+      type: 'string',
+    });
+    expect(props.from.description).toContain('Send As alias');
+  });
 });
 
 describe('manage_calendar schema', () => {

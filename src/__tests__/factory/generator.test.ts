@@ -165,6 +165,28 @@ describe('generateHandler', () => {
     expect(result.refs).toHaveProperty('to', 'bob@t.com');
   });
 
+  it('passes from alias to Gmail send customHandler', async () => {
+    mockExecute.mockResolvedValue({
+      success: true,
+      data: { id: 'sent-1', threadId: 'thread-1' },
+      stderr: '',
+    });
+    const handler = generateHandler(manifest.services.gmail, patches.gmail);
+
+    await handler({
+      operation: 'send',
+      email: 'u@t.com',
+      to: 'bob@t.com',
+      subject: 'hello',
+      body: 'hi bob',
+      from: 'Agent Name <agent@example.com>',
+    });
+
+    const args = mockExecute.mock.calls[0][0];
+    expect(args).toContain('--from');
+    expect(args[args.indexOf('--from') + 1]).toBe('Agent Name <agent@example.com>');
+  });
+
   it('throws on unknown operation', async () => {
     const handler = generateHandler(manifest.services.gmail, patches.gmail);
 

@@ -226,6 +226,7 @@ export const gmailPatch: ServicePatch = {
         : [];
 
       const args = ['gmail', '+send', '--to', to, '--subject', subject, '--body', body];
+      if (params.from) args.push('--from', String(params.from));
       if (params.cc) args.push('--cc', String(params.cc));
       if (params.bcc) args.push('--bcc', String(params.bcc));
       if (params.html === true || params.html === 'true') args.push('--html');
