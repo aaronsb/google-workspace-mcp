@@ -108,10 +108,21 @@ docker run -i --rm \
 
 ### Node version
 
-The published package supports **Node >=18.14.1** (`engines`). The **development**
-toolchain needs more: Vitest requires **Node ^20.19 || ^22.12 || >=24**. If you are
-on Node 18 you can install and run the server, but the test suite will not start —
-use Node 20.19+ to develop.
+**Node >=22.12** — one number, for both running and developing the server (ADR-102).
+
+There used to be two floors: a lower one for consumers and a higher one for the test
+toolchain. Conflating them shipped a startup crash to every Node 18 user once, so they
+are now the same number, and that number is checked three ways:
+
+- `engines.node` in `package.json` — what npm tells a consumer at install time
+- the `engines-floor` CI job — actually *runs* the built server on exactly that Node
+- `MIN_NODE` in `src/index.ts` — a startup guard, so an unsupported runtime gets a
+  readable sentence instead of a stack trace from inside `node_modules`
+
+`make check` runs `check-node-floor`, which fails if those three ever disagree. If you
+raise the floor, raise it in all three; the check will tell you if you miss one.
+
+Node 18 and Node 20 are both end-of-life (April 2025 and April 2026).
 
 ## Pull Request Process
 
