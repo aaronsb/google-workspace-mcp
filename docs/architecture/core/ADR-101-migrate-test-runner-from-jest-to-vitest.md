@@ -48,10 +48,14 @@ The original draft reasoned "production is unaffected because *this package* is 
 
 `sanitize-html` therefore stays pinned at `2.17.5` in this change.
 
-An `engines` field is added — the guard whose absence let blocker (b) go undetected. Two distinct floors exist, and conflating them is what produced the original error:
+An `engines` field is added. Two distinct floors exist, and conflating them is what produced the original error:
 
 - **Consumers** need **Node ≥18.14.1** — the strictest floor across the *production* dependency tree (`@hono/node-server`, via the MCP SDK). This is what `engines.node` declares, since the published package ships only `build/` and the production deps.
 - **Contributors** need **Node ≥20.19** — Vitest requires `^20.19 || ^22.12 || >=24`. This is a development-environment constraint, not a consumer one, so it belongs in CONTRIBUTING.md rather than `engines`.
+
+But **`engines` is a declaration, not a guard.** npm only warns on a mismatch, and every CI job here runs Node 20 while the dev box runs 26 — so the floor we *publish* was executed by nothing, which is precisely how blocker (b) reached a merge-ready branch. A version that is fine on the Node you test and broken on the Node you ship is invisible to every check that runs on the Node you test.
+
+So the floor is now a **tested** claim: a CI job (`engines-floor`) builds on Node 20, then runs the built server on Node **18.14.1** against the *production* dependency tree (`npm ci --omit=dev`) and asserts it completes an MCP handshake with its tools loaded (`scripts/smoke-start.mjs`, also wired into `make check`). Falsified rather than assumed: with `sanitize-html@2.17.6` installed, the smoke test fails with the real `ERR_REQUIRE_ESM` — and passes on Node 26 with the identical broken tree, which is exactly why the suite and all four CI jobs missed it.
 
 ## Decision
 
@@ -75,6 +79,10 @@ This decision was validated by a full prototype **and an adversarial code review
 - **Removes a critical dev advisory.** Dropping `ts-jest` eliminates `handlebars` (critical). Dev vulnerabilities go 12 → 10; the remainder are the eslint/typescript-eslint majors, tracked separately.
 - **Lifts the ceiling on ESM-only dependencies at test time**, which is a *precondition* for `sanitize-html ^2.17.6` (the other precondition being the Node floor).
 - **Removed the `setModuleDir()` shim** and the five `registry.js` mocks that existed only to dodge CJS Jest — production code no longer accommodates the test runner. `generator.ts` now reads `import.meta.url` directly (`bc35dff`, net −67/+23 lines), and those five tests exercise the **real** registry instead of a stub that re-implemented it. Verified against the case the shim existed for: the built server resolves its manifest with `cwd=/tmp` and `cwd=/` (npx / `.mcpb`).
+
+- **Manifest resolution no longer hides a broken build.** The shim removal left a four-candidate fallback chain, which reads as resilience and functions as concealment. `MODULE_DIR/manifest` already covers both real cases (it *is* `src/factory/manifest` under vitest and `build/factory/manifest` in the built server), so the other three candidates fire only when the built manifest is *missing* — and the `src/` fallback among them exists **only in a dev checkout**. A `build/` shipped without its manifest therefore resolved fine locally and in CI, and threw on the consumer's first `npx` start: the exact cwd-independence failure the shim was originally written to prevent, reintroduced by its replacement. The chain is now a single module-relative path that throws immediately, on every machine.
+
+  Relatedly, `resolveManifestDir()` accepted any directory containing *at least one* `.yaml` — presence, not integrity. An interrupted `cp -r` (the build is `rm -rf && cp -r`, which is not atomic) would leave a subset, and the server would boot advertising 1 tool instead of 11, silently. A `postbuild` step (`scripts/check-build.mjs`) now asserts the built manifest is the same *set* as the source manifest, so a partial copy fails at the moment it is produced rather than on a consumer's machine, and `prepublishOnly` rebuilds so a stale `build/` cannot be published.
 - **Missing exports on mocked modules now fail loudly.** `server.test.ts` mocked only 2 of the 4 SDK schemas `server.ts` imports; Vitest refuses to resolve the missing ones. (Honest scope: this was *not* a false pass — the pre-existing `beforeAll` already selected handlers by schema key, so the two undefined entries were skipped rather than asserted on. It is a correctness tightening, not a bug that was firing.)
 
 ### Negative
@@ -84,7 +92,13 @@ This decision was validated by a full prototype **and an adversarial code review
 - **`vi.mock` hoists above module-level `const`s**, so factory captures must come from `vi.hoisted()`.
 - **Type-checking of test files no longer happens during `npm test`.** `ts-jest` ran with diagnostics on, so a type error in a test failed the run; Vitest strips types via esbuild without checking. This guard has to be *replaced*, not assumed: a draft of this ADR claimed it was "mitigated" by `tsc` running over `src/**`, but the build's tsconfig deliberately excludes tests (see Decision), and no gate invoked `tsconfig.test.json`. A deliberate type error in a test file passed `make check`, `npm test`, `npm run build` and `npm run lint`. It is now covered by an explicit `type-check` CI job and by `make typecheck` delegating to `npm run type-check`.
 
-- **An allowlist can orphan tests.** `npm test` runs a vetted list of mocked directories rather than "everything except integration", so a test added elsewhere would be collected by no gate at all — green CI, dead test. `scripts/check-test-gates.mjs` fails the build if any test file is run by no gate. (Verified by probe: an orphan test file makes `make check` exit non-zero.)
+- **An allowlist can orphan tests.** `npm test` runs a vetted list of mocked directories rather than "everything except integration", so a test added elsewhere would be collected by no gate at all — green CI, dead test. `scripts/check-test-gates.mjs` fails the build if any test file is collected by no gate.
+
+  **The first version of that script was itself an instance of the bug it exists to catch**, and this is the most instructive thing in this ADR. It asked *"is this file's path under a gate directory?"* while vitest asks *"does this path match `**/__tests__/**/*.test.ts`?"* — different questions that agree for five of the six gate dirs and disagree for `src/server/scratchpad`, a *source* dir whose tests live in a subdir. A `.test.ts` dropped directly in it was reported "covered by a gate" and collected by nothing. An earlier draft of this ADR asserted "(Verified by probe: an orphan test file makes `make check` exit non-zero.)" — true of the one orphan shape that had been probed, false as the general guarantee it was written as. A fourth review round caught it; four independent finders reproduced it.
+
+  The fix is the lesson: **do not re-derive what the runner collects — ask it.** The script now shells out to `vitest list --filesOnly` for each gate and compares that against a *filesystem* walk (not `git ls-files`, which cannot see the unstaged new test a developer is about to trust `make check` about). Falsified against four orphan shapes, each of which now fails the gate: a `.test.ts` in a gate dir but outside `__tests__`; an untracked orphan; a `.spec.ts` (which vitest's `include` never matches, so it is dead on arrival); and a tracked orphan outside every gate dir.
+
+  It also now distinguishes *"collected by a CI gate"* from *"collected by a gate no CI job runs"* — `test:integration` needs live credentials and CI never invokes it, so counting it as coverage overstated what is actually guarded.
 
 - **A shared mock helper cannot register its own `vi.mock`.** The helper now throws at import if `execute` is not a mock function, so a test that imports it without registering `vi.mock` fails loudly instead of silently exercising the real `gws` binary.
 - Vitest is a smaller ecosystem than Jest. No Jest-specific plugins are in use here.
@@ -111,6 +125,35 @@ Prototyped on `spike/vitest`, then reviewed adversarially. Measured, not asserte
 Unit suite verified network- and credential-free: 681/681 with an empty credential home.
 
 Migration cost: ~30 files converted mechanically (`jest.` → `vi.`); three required human judgment, listed under Negative.
+
+### The guards, and the probe that proves each one fires
+
+A guard nobody has tried to defeat is a comment. Every check this ADR adds was **falsified** — the failure it claims to catch was injected, and the guard was confirmed to go red:
+
+| Guard | Injected failure | Result |
+|---|---|---|
+| `scripts/check-test-gates.mjs` | `.test.ts` in a gate dir but outside `__tests__` | exit 1 |
+| | untracked (unstaged) orphan test | exit 1 |
+| | `.spec.ts` — never matched by vitest's `include` | exit 1 |
+| | tracked orphan outside every gate dir | exit 1 |
+| `type-check` CI job | type error in a test file | exit 1 |
+| executor mock helper | `vi.mock` removed from a consuming test | throws at import |
+| `scripts/check-build.mjs` (postbuild) | 6 of 7 service manifests deleted from `build/` | exit 1 |
+| `scripts/smoke-start.mjs` (`engines-floor` CI job) | `sanitize-html@2.17.6` on the advertised Node floor | `ERR_REQUIRE_ESM`, exit 1 |
+| manifest resolution | `build/factory/manifest` removed | throws at startup (previously: silently rescued from `src/`) |
+
+The last two are the ones that matter most, because they are the two that a green suite, a green `make check`, and green CI all previously reported as fine.
+
+### Why there were four review rounds
+
+Each adversarial review round found a real defect, and **each round of fixes introduced a fresh instance of the same pattern**: *a check that reports success while measuring the wrong thing.*
+
+1. Jest reporting `456 passed, 0 failed` while 222 tests had stopped running (the reason for this ADR).
+2. A `sanitize-html` bump that passed the suite and all of CI while being a guaranteed startup crash for every Node 18 consumer.
+3. A `tsconfig.test.json` type-check guard asserted in a commit message to be preserved — which **nothing invoked**.
+4. The orphan-test guard written to fix (3), which measured directory prefixes instead of what vitest collects.
+
+Severity fell monotonically (production crash → shipped artifact defect → missing guard → missing guard), but the *shape* never changed. That is the finding worth keeping: in this codebase the recurring bug is not in the code under test, it is in the instrument. The countermeasure that finally worked is mechanical — **ask the tool what it did; never re-derive it** — and it is why `check-test-gates` now calls `vitest list`, why `make build` delegates to `npm run build`, and why the Node floor is executed rather than declared.
 
 ## Alternatives Considered
 

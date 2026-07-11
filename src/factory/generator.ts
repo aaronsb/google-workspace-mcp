@@ -69,29 +69,32 @@ export function loadManifest(dir?: string): Manifest {
 }
 
 /**
- * Locate the manifest directory, preferring resolution relative to this module
- * (which works under npx and .mcpb, where cwd is not the project root) and
- * falling back to cwd for dev.
+ * Locate the manifest directory: always a sibling of this module.
+ *
+ * This resolves to `src/factory/manifest` when running the sources (vitest, tsx)
+ * and `build/factory/manifest` in the built server — which is what makes `npx`
+ * and the .mcpb bundle work, where cwd is not the project root.
+ *
+ * There is deliberately NO fallback chain. An earlier version tried three more
+ * candidates (back to `src/` from `build/`, then two cwd-relative paths), which
+ * sounds like resilience and is actually concealment: the only time a fallback
+ * fires is when the built manifest is missing, and the `src/` fallback exists
+ * *only in the dev checkout*. A build shipped without its manifest therefore
+ * resolved fine on this machine and in CI, and threw on the consumer's first
+ * `npx` start. Failing here, immediately and everywhere, is the point.
  */
 function resolveManifestDir(): string {
-  const candidates: string[] = [
-    resolve(MODULE_DIR, 'manifest'),                     // build/factory/manifest/ — or src/ under vitest
-    resolve(MODULE_DIR, '../../src/factory/manifest'),   // from build/ back to src/
-    resolve(process.cwd(), 'src/factory/manifest'),
-    resolve(process.cwd(), 'build/factory/manifest'),
-  ];
-
-  for (const candidate of candidates) {
-    try {
-      if (readdirSync(candidate).some((f) => f.endsWith('.yaml'))) return candidate;
-    } catch {
-      continue;
-    }
+  const dir = resolve(MODULE_DIR, 'manifest');
+  try {
+    readdirSync(dir);
+  } catch {
+    throw new Error(
+      `Could not read the manifest directory at ${dir}. ` +
+      `In a built server this directory is copied from src/factory/manifest by ` +
+      `the build; if it is missing, the build did not complete. Run \`npm run build\`.`,
+    );
   }
-
-  throw new Error(
-    `Could not find the manifest directory. Searched:\n${candidates.join('\n')}`,
-  );
+  return dir;
 }
 
 /** Generate all tools from the manifest with optional patches. */

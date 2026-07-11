@@ -16,6 +16,8 @@
   ],
   "scripts": {
     "build": "tsc --skipLibCheck && rm -rf build/factory/manifest && cp -r src/factory/manifest build/factory/manifest",
+    "postbuild": "node scripts/check-build.mjs",
+    "prepublishOnly": "npm run build",
     "type-check": "tsc --noEmit --skipLibCheck && tsc -p tsconfig.test.json --skipLibCheck",
     "lint": "eslint \"src/**/*.ts\"",
     "watch": "tsc --watch --skipLibCheck",

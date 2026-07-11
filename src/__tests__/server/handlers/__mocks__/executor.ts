@@ -22,10 +22,13 @@ import { execute } from '../../../../executor/gws.js';
 // real gws binary against live Google APIs. Fail loudly, at import, instead.
 if (!vi.isMockFunction(execute)) {
   throw new Error(
-    "executor mock helper: '../../executor/gws.js' is not mocked.\n" +
-    "Add `vi.mock('<relative path>/executor/gws.js');` to the TEST FILE that " +
-    'imports this helper — vitest hoists vi.mock per-file, so registering it ' +
-    'here would only work by import-order luck.',
+    'executor mock helper: the gws executor is not mocked.\n' +
+    'Add a vi.mock for the executor to the TEST FILE that imports this helper — ' +
+    'vitest hoists vi.mock per-file, so registering it here would only work by ' +
+    'import-order luck.\n' +
+    "The specifier is relative to YOUR test file, e.g. vi.mock('../../../executor/gws.js') " +
+    "from src/__tests__/server/handlers/, or vi.mock('../../executor/gws.js') from " +
+    'src/__tests__/factory/.',
   );
 }
 
