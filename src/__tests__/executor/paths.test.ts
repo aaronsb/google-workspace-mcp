@@ -1,3 +1,4 @@
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { configDir, dataDir, credentialsDir, credentialPath, accountsFilePath, emailToSlug } from '../../executor/paths.js';

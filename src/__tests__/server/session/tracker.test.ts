@@ -1,9 +1,10 @@
-jest.mock('../../../executor/gws.js');
+import { beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
+vi.mock('../../../executor/gws.js');
 
 import { execute } from '../../../executor/gws.js';
 import { SessionTracker } from '../../../server/session/tracker.js';
 
-const mockExecute = execute as jest.MockedFunction<typeof execute>;
+const mockExecute = execute as MockedFunction<typeof execute>;
 
 function mockGwsResponse(data: unknown) {
   return { success: true, data, stderr: '' };
@@ -13,7 +14,7 @@ describe('SessionTracker', () => {
   let tracker: SessionTracker;
 
   beforeEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
     tracker = new SessionTracker();
   });
 

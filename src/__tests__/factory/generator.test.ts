@@ -1,3 +1,4 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockedFunction, type Mock } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -6,9 +7,9 @@ import { patches } from '../../factory/patches.js';
 import type { Manifest, ServiceDef } from '../../factory/types.js';
 
 // Mock executor for handler tests
-jest.mock('../../executor/gws.js');
+vi.mock('../../executor/gws.js');
 import { execute } from '../../executor/gws.js';
-const mockExecute = execute as jest.MockedFunction<typeof execute>;
+const mockExecute = execute as MockedFunction<typeof execute>;
 
 describe('loadManifest', () => {
   it('loads and parses the manifest YAML', () => {

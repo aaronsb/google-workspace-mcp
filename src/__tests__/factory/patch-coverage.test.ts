@@ -7,6 +7,7 @@
  * might benefit from a patch. When patches change, it catches regressions
  * where an operation silently loses its custom formatter.
  */
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { loadManifest } from '../../factory/generator.js';
 import { patches } from '../../factory/patches.js';
@@ -14,7 +15,7 @@ import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
 // Mock executor — patches that call execute() in custom handlers need this
-jest.mock('../../executor/gws.js');
+vi.mock('../../executor/gws.js');
 
 const manifest = loadManifest();
 

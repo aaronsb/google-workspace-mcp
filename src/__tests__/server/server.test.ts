@@ -4,42 +4,48 @@
  * We mock the MCP SDK (ESM-only) and verify that createServer
  * wires handlers correctly and maps responses/errors.
  */
+import { beforeAll, beforeEach, describe, expect, it, vi, type MockedFunction, type Mock } from 'vitest';
 
-// Mock registry before any server imports — avoids import.meta.url in Jest
-jest.mock('../../factory/registry.js', () => {
-  const { loadManifest, generateTools } = jest.requireActual('../../factory/generator.js');
-  const { patches } = jest.requireActual('../../factory/patches.js');
-  const manifest = loadManifest();
-  return { manifest, generatedTools: generateTools(manifest, patches) };
-});
 
-const mockSetRequestHandler = jest.fn();
-const mockServerConnect = jest.fn();
-
-jest.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
-  Server: jest.fn().mockImplementation(() => ({
-    setRequestHandler: mockSetRequestHandler,
-    connect: mockServerConnect,
-  })),
+// vi.mock is hoisted above module-level consts, so the factory's captures must
+// come from vi.hoisted() to exist by the time the factory runs.
+const { mockSetRequestHandler, mockServerConnect } = vi.hoisted(() => ({
+  mockSetRequestHandler: vi.fn(),
+  mockServerConnect: vi.fn(),
 }));
 
-jest.mock('@modelcontextprotocol/sdk/server/stdio.js', () => ({
-  StdioServerTransport: jest.fn(),
+vi.mock('@modelcontextprotocol/sdk/server/index.js', () => ({
+  // Must be a function, not an arrow: vitest applies `new` to the implementation.
+  Server: vi.fn(function () {
+    return {
+      setRequestHandler: mockSetRequestHandler,
+      connect: mockServerConnect,
+    };
+  }),
 }));
 
-jest.mock('@modelcontextprotocol/sdk/types.js', () => ({
+vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => ({
+  StdioServerTransport: vi.fn(),
+}));
+
+// Every schema server.ts imports must appear here. Under Jest a missing export
+// silently read as undefined and the handler registered under an undefined key;
+// vitest fails loudly instead.
+vi.mock('@modelcontextprotocol/sdk/types.js', () => ({
   CallToolRequestSchema: 'CallToolRequestSchema',
   ListToolsRequestSchema: 'ListToolsRequestSchema',
+  ListResourcesRequestSchema: 'ListResourcesRequestSchema',
+  ReadResourceRequestSchema: 'ReadResourceRequestSchema',
 }));
 
-jest.mock('../../server/handler.js');
+vi.mock('../../server/handler.js');
 
 import { createServer } from '../../server/server.js';
 import { handleToolCall } from '../../server/handler.js';
 import { GwsError, GwsExitCode } from '../../executor/errors.js';
 import type { HandlerResponse } from '../../server/handler.js';
 
-const mockHandleToolCall = handleToolCall as jest.MockedFunction<typeof handleToolCall>;
+const mockHandleToolCall = handleToolCall as MockedFunction<typeof handleToolCall>;
 
 describe('createServer', () => {
   let listToolsHandler: (request: any) => Promise<any>;

@@ -4,15 +4,35 @@
  * Provides typed mock responses matching gws output contracts
  * so handlers can be tested without spawning subprocesses.
  */
+import { vi, type MockedFunction } from 'vitest';
 
 import type { GwsResult } from '../../../../executor/gws.js';
 
-// Mock the executor module
-jest.mock('../../../../executor/gws.js');
+// NOTE: vi.mock() is deliberately NOT called here. Vitest hoists vi.mock only
+// within the file that contains it, so registering it in this helper made the
+// mock depend on each test importing this module *before* the module under
+// test — an import reorder (or an organize-imports autofix) silently broke it.
+// Each consuming test file registers the mock itself.
 
 import { execute } from '../../../../executor/gws.js';
 
-export const mockExecute = execute as jest.MockedFunction<typeof execute>;
+// The cast below is a promise the type system cannot keep: if the importing test
+// forgot its vi.mock, `execute` is the REAL executor and every assertion against
+// `mockExecute` would fail obscurely — or worse, the test would shell out to the
+// real gws binary against live Google APIs. Fail loudly, at import, instead.
+if (!vi.isMockFunction(execute)) {
+  throw new Error(
+    'executor mock helper: the gws executor is not mocked.\n' +
+    'Add a vi.mock for the executor to the TEST FILE that imports this helper — ' +
+    'vitest hoists vi.mock per-file, so registering it here would only work by ' +
+    'import-order luck.\n' +
+    "The specifier is relative to YOUR test file, e.g. vi.mock('../../../executor/gws.js') " +
+    "from src/__tests__/server/handlers/, or vi.mock('../../executor/gws.js') from " +
+    'src/__tests__/factory/.',
+  );
+}
+
+export const mockExecute = execute as MockedFunction<typeof execute>;
 
 export function mockGwsResponse(data: unknown): GwsResult {
   return { success: true, data, stderr: '' };

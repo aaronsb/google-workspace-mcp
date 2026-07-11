@@ -1,6 +1,7 @@
 /**
  * Tests for json-path.ts — JSON path parsing and manipulation helpers.
  */
+import { describe, expect, it } from 'vitest';
 
 import { parsePath, getByPath, setByPath, deleteByPath } from '../json-path.js';
 

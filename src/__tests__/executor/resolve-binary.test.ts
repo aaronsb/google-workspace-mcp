@@ -1,28 +1,29 @@
+import { afterAll, beforeEach, describe, expect, it, vi, type MockedFunction, type Mock } from 'vitest';
 import * as path from 'node:path';
 import * as child_process from 'node:child_process';
 import * as fs from 'node:fs';
 import { GwsError } from '../../executor/errors.js';
 
 // Mock only the bits resolveGwsBinary uses — not spawn
-jest.mock('node:fs', () => ({
-  ...jest.requireActual('node:fs'),
-  existsSync: jest.fn(),
+vi.mock('node:fs', async () => ({
+  ...(await vi.importActual<typeof import('node:fs')>('node:fs')),
+  existsSync: vi.fn(),
 }));
 
-jest.mock('node:child_process', () => ({
-  ...jest.requireActual('node:child_process'),
-  execFileSync: jest.fn(),
+vi.mock('node:child_process', async () => ({
+  ...(await vi.importActual<typeof import('node:child_process')>('node:child_process')),
+  execFileSync: vi.fn(),
 }));
 
 // Must mock token-service since gws.ts imports it at module level
-jest.mock('../../accounts/token-service.js', () => ({
-  getAccessToken: jest.fn(),
+vi.mock('../../accounts/token-service.js', () => ({
+  getAccessToken: vi.fn(),
 }));
 
 import { resolveGwsBinary } from '../../executor/gws.js';
 
-const mockExistsSync = fs.existsSync as jest.MockedFunction<typeof fs.existsSync>;
-const mockExecFileSync = child_process.execFileSync as jest.MockedFunction<typeof child_process.execFileSync>;
+const mockExistsSync = fs.existsSync as MockedFunction<typeof fs.existsSync>;
+const mockExecFileSync = child_process.execFileSync as MockedFunction<typeof child_process.execFileSync>;
 
 describe('resolveGwsBinary', () => {
   const originalEnv = process.env;
@@ -30,7 +31,7 @@ describe('resolveGwsBinary', () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
     delete process.env.GWS_BINARY_PATH;
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   afterAll(() => {

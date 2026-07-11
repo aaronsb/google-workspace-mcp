@@ -2,36 +2,37 @@
  * Tests for the drive service patch — custom handlers for download/export
  * that ensure parent directories are created before writing files.
  */
+import { afterAll, beforeEach, describe, expect, it, vi, type MockedFunction, type Mock } from 'vitest';
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
 // Mock executor before importing patch
-jest.mock('../../executor/gws.js');
+vi.mock('../../executor/gws.js');
 import { execute } from '../../executor/gws.js';
 
 // Mock workspace module with a temp dir
 const tmpWorkspace = path.join(os.tmpdir(), `gws-test-${Date.now()}`);
-jest.mock('../../executor/workspace.js', () => ({
-  ensureWorkspaceDir: jest.fn(async () => ({ path: tmpWorkspace, valid: true })),
-  getWorkspaceDir: jest.fn(() => tmpWorkspace),
-  resolveWorkspacePath: jest.fn((filename: string) => path.join(tmpWorkspace, filename)),
-  verifyPathSafety: jest.fn(async () => {}),
+vi.mock('../../executor/workspace.js', () => ({
+  ensureWorkspaceDir: vi.fn(async () => ({ path: tmpWorkspace, valid: true })),
+  getWorkspaceDir: vi.fn(() => tmpWorkspace),
+  resolveWorkspacePath: vi.fn((filename: string) => path.join(tmpWorkspace, filename)),
+  verifyPathSafety: vi.fn(async () => {}),
 }));
 
 // Mock file-output to avoid reading actual files
-jest.mock('../../executor/file-output.js', () => ({
-  isTextFile: jest.fn(() => true),
-  isImageFile: jest.fn(() => false),
-  formatFileOutput: jest.fn(() => '## Exported file\n'),
-  buildImageBlock: jest.fn(() => null),
-  buildImageBlockFromFile: jest.fn(() => null),
+vi.mock('../../executor/file-output.js', () => ({
+  isTextFile: vi.fn(() => true),
+  isImageFile: vi.fn(() => false),
+  formatFileOutput: vi.fn(() => '## Exported file\n'),
+  buildImageBlock: vi.fn(() => null),
+  buildImageBlockFromFile: vi.fn(() => null),
 }));
 
 import { drivePatch } from '../../services/drive/patch.js';
 
-const mockExecute = execute as jest.MockedFunction<typeof execute>;
+const mockExecute = execute as MockedFunction<typeof execute>;
 
 describe('drivePatch custom handlers', () => {
   beforeEach(async () => {
@@ -49,8 +50,8 @@ describe('drivePatch custom handlers', () => {
     it('creates parent directories before calling gws', async () => {
       const outputPath = path.join(tmpWorkspace, 'subdir', 'Report.txt');
 
-      const { resolveWorkspacePath } = require('../../executor/workspace.js');
-      (resolveWorkspacePath as jest.Mock).mockReturnValue(outputPath);
+      const { resolveWorkspacePath } = await import('../../executor/workspace.js');
+      (resolveWorkspacePath as Mock).mockReturnValue(outputPath);
 
       // First call: get file metadata
       // Second call: export — simulate gws writing the file
@@ -77,8 +78,8 @@ describe('drivePatch custom handlers', () => {
     it('handler mkdir is required — without it gws write would fail', async () => {
       const outputPath = path.join(tmpWorkspace, 'deep', 'nested', 'Doc.txt');
 
-      const { resolveWorkspacePath } = require('../../executor/workspace.js');
-      (resolveWorkspacePath as jest.Mock).mockReturnValue(outputPath);
+      const { resolveWorkspacePath } = await import('../../executor/workspace.js');
+      (resolveWorkspacePath as Mock).mockReturnValue(outputPath);
 
       // Verify the parent directory does NOT exist before handler runs
       const parentBefore = await fs.stat(path.dirname(outputPath)).catch(() => null);
@@ -104,8 +105,8 @@ describe('drivePatch custom handlers', () => {
     it('works with flat filename (no subdirectory)', async () => {
       const outputPath = path.join(tmpWorkspace, 'Doc.pdf');
 
-      const { resolveWorkspacePath } = require('../../executor/workspace.js');
-      (resolveWorkspacePath as jest.Mock).mockReturnValue(outputPath);
+      const { resolveWorkspacePath } = await import('../../executor/workspace.js');
+      (resolveWorkspacePath as Mock).mockReturnValue(outputPath);
 
       mockExecute
         .mockResolvedValueOnce({ success: true, data: { name: 'Doc' }, stderr: '' })
@@ -426,8 +427,8 @@ describe('drivePatch custom handlers', () => {
     it('creates parent directories before calling gws', async () => {
       const outputPath = path.join(tmpWorkspace, 'images', 'photo.png');
 
-      const { resolveWorkspacePath } = require('../../executor/workspace.js');
-      (resolveWorkspacePath as jest.Mock).mockReturnValue(outputPath);
+      const { resolveWorkspacePath } = await import('../../executor/workspace.js');
+      (resolveWorkspacePath as Mock).mockReturnValue(outputPath);
 
       // Verify parent does NOT exist before handler runs
       const parentBefore = await fs.stat(path.dirname(outputPath)).catch(() => null);

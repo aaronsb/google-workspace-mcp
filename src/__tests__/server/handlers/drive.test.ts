@@ -1,3 +1,7 @@
+import { vi, beforeEach, describe, expect, it } from 'vitest';
+
+// Registered here, not in the shared helper: vi.mock hoists per-file.
+vi.mock('../../../executor/gws.js');
 import {
   mockExecute, mockGwsResponse,
   driveFileListResponse, driveFileDetailResponse, driveUploadResponse,

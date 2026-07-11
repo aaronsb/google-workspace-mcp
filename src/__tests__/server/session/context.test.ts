@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { sessionContext } from '../../../server/session/context.js';
 import { SessionTracker } from '../../../server/session/tracker.js';
 import type { AccountSession } from '../../../server/session/tracker.js';

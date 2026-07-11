@@ -1,7 +1,8 @@
+import { describe, expect, it, vi, type Mock } from 'vitest';
 // Mock handler.js to avoid loading registry.ts (which uses import.meta.url)
-jest.mock('../../server/handler.js', () => ({
-  advanceEpoch: jest.fn(() => 1),
-  getEpoch: jest.fn(() => 1),
+vi.mock('../../server/handler.js', () => ({
+  advanceEpoch: vi.fn(() => 1),
+  getEpoch: vi.fn(() => 1),
 }));
 
 import { handleQueue } from '../../server/queue.js';

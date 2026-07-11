@@ -1,7 +1,12 @@
+import { vi } from 'vitest';
+
+// Registered here, not in the shared helper: vi.mock hoists per-file.
+vi.mock('../../executor/gws.js');
 /**
  * Tests for the calendar service patch — custom handlers and formatters
  * that extend the factory-generated handler.
  */
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   mockExecute, mockGwsResponse,

@@ -1,0 +1,14 @@
+// Type-checks the tests, which tsconfig.json deliberately excludes from the
+// build: compiled tests were being emitted into build/ and published in the npm
+// tarball, where their `import ... from 'vitest'` is unresolvable for consumers.
+//
+// Vitest transpiles via esbuild without type-checking, so `npm run type-check`
+// running this config is what keeps test type errors from going unnoticed.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "build"]
+}

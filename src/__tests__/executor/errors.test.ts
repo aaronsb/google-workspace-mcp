@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { GwsError, GwsExitCode, parseGwsError } from '../../executor/errors.js';
 
 describe('GwsError', () => {

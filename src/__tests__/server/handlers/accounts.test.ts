@@ -1,31 +1,25 @@
-// Mock registry before accounts handler imports it — avoids import.meta.url in Jest
-jest.mock('../../../factory/registry.js', () => {
-  const { loadManifest, generateTools } = jest.requireActual('../../../factory/generator.js');
-  const { patches } = jest.requireActual('../../../factory/patches.js');
-  const manifest = loadManifest();
-  return { manifest, generatedTools: generateTools(manifest, patches) };
-});
+import { afterEach, beforeEach, describe, expect, it, vi, type MockedFunction, type Mock } from 'vitest';
 
 import { handleAccounts } from '../../../server/handlers/accounts.js';
 
 // Mock dependencies
-jest.mock('../../../accounts/registry.js');
-jest.mock('../../../accounts/auth.js');
-jest.mock('../../../accounts/token-service.js');
+vi.mock('../../../accounts/registry.js');
+vi.mock('../../../accounts/auth.js');
+vi.mock('../../../accounts/token-service.js');
 
 import { listAccounts, removeAccount, authenticateAndAddAccount } from '../../../accounts/registry.js';
 import { checkAccountStatus, reauthWithServices } from '../../../accounts/auth.js';
 import { getAccessToken, invalidateToken } from '../../../accounts/token-service.js';
 
-const mockListAccounts = listAccounts as jest.MockedFunction<typeof listAccounts>;
-const mockRemoveAccount = removeAccount as jest.MockedFunction<typeof removeAccount>;
-const mockCheckStatus = checkAccountStatus as jest.MockedFunction<typeof checkAccountStatus>;
-const mockReauth = reauthWithServices as jest.MockedFunction<typeof reauthWithServices>;
-const mockGetAccessToken = getAccessToken as jest.MockedFunction<typeof getAccessToken>;
-const mockInvalidateToken = invalidateToken as jest.MockedFunction<typeof invalidateToken>;
+const mockListAccounts = listAccounts as MockedFunction<typeof listAccounts>;
+const mockRemoveAccount = removeAccount as MockedFunction<typeof removeAccount>;
+const mockCheckStatus = checkAccountStatus as MockedFunction<typeof checkAccountStatus>;
+const mockReauth = reauthWithServices as MockedFunction<typeof reauthWithServices>;
+const mockGetAccessToken = getAccessToken as MockedFunction<typeof getAccessToken>;
+const mockInvalidateToken = invalidateToken as MockedFunction<typeof invalidateToken>;
 
 describe('handleAccounts', () => {
-  beforeEach(() => jest.resetAllMocks());
+  beforeEach(() => vi.resetAllMocks());
 
   describe('list', () => {
     it('returns markdown account list', async () => {

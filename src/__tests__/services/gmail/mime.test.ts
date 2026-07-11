@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { lookupMimeType } from '../../../services/gmail/mime.js';
 
 describe('lookupMimeType', () => {

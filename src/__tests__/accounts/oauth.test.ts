@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { scopesForServices, SERVICE_SCOPE_MAP, ALL_SERVICES } from '../../accounts/oauth.js';
 
 describe('oauth', () => {

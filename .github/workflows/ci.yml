@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, fix/*, feature/* ]
+    branches: [ main, next, fix/*, feature/* ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, next ]
   workflow_dispatch:
 
 jobs:
@@ -17,7 +17,26 @@ jobs:
         node-version: '20'
         cache: 'npm'
     - run: npm ci
+    # Every test file must be run by some gate. `npm test` uses an allowlist of
+    # vetted mocked directories, so a test added elsewhere would otherwise run
+    # nowhere and report nothing.
+    - run: node scripts/check-test-gates.mjs
     - run: npm test
+
+  type-check:
+    # Vitest transpiles via esbuild WITHOUT type-checking, and tsconfig.json
+    # excludes tests from the build — so without this job a type error in a test
+    # file passes npm test, npm run build and npm run lint, and merges green.
+    # ts-jest used to cover this on every `npm test`; nothing else does now.
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    - run: npm ci
+    - run: npm run type-check
 
   build:
     runs-on: ubuntu-latest
@@ -29,6 +48,33 @@ jobs:
         cache: 'npm'
     - run: npm ci
     - run: npm run build
+
+  engines-floor:
+    # package.json advertises `engines.node >= 18.14.1`, but every other job here
+    # runs Node 20 and the dev box runs 26 — so the floor we PUBLISH was executed
+    # by nothing. That gap shipped a startup crash once already: `sanitize-html`
+    # ^2.17.6 is CommonJS and require()s the pure-ESM htmlparser2@12, which throws
+    # ERR_REQUIRE_ESM on Node <20.19. It is a static import in the startup graph,
+    # so every Node 18 consumer would have crashed on first start — and it passed
+    # the full suite and all four jobs, because none of them ran Node 18.
+    #
+    # Build on 20 (tsc and Vitest need it), then run the BUILT server on the floor
+    # against the PRODUCTION dependency tree only — which is what a consumer installs.
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    - run: npm ci
+    - run: npm run build
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '18.14.1'   # the exact floor in package.json engines
+    - run: rm -rf node_modules && npm ci --omit=dev
+    - run: node --version
+    - run: node scripts/smoke-start.mjs
 
   lint:
     runs-on: ubuntu-latest

@@ -3,6 +3,7 @@
  * a Docs batchUpdate request. Pure translator; no API calls (mocked or
  * otherwise) in this file. See issue #79.
  */
+import { describe, expect, it } from 'vitest';
 
 import { translateMutation, isRejection } from '../docs-sync.js';
 import type { DocsSyncIntent } from '../docs-sync.js';

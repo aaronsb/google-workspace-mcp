@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { validateWorkspaceDir, resolveWorkspacePath, getWorkspaceDir, checkWorkspaceStatus, sanitizePath } from '../../executor/workspace.js';
 import * as os from 'node:os';
 import * as path from 'node:path';

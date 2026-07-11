@@ -9,7 +9,8 @@
  */
 
 import { readFileSync, readdirSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from '../factory/yaml.js';
 import { execute } from '../executor/gws.js';
 import { requireEmail, clamp } from '../server/handlers/validate.js';
@@ -29,16 +30,16 @@ import type {
 import type { HandlerResponse } from '../server/formatting/markdown.js';
 
 /**
- * Module directory for manifest resolution.
- * Set by registry.ts via setModuleDir() using import.meta.url (ESM only).
- * Null in Jest (CJS) — falls back to cwd-based resolution.
+ * This module's own directory, used to resolve the manifest relative to the
+ * built output — which is what makes `npx` and the .mcpb bundle work, where cwd
+ * is not the project root.
+ *
+ * This used to be injected by registry.ts via a `setModuleDir()` setter, purely
+ * because the CJS Jest runner could not parse `import.meta`. The test runner was
+ * shaping the source. Vitest runs ESM natively (ADR-101), so the module can just
+ * ask where it is.
  */
-let _moduleDir: string | undefined;
-
-/** Called by registry.ts to inject the ESM module directory. */
-export function setModuleDir(dir: string): void {
-  _moduleDir = dir;
-}
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Load the manifest from `src/factory/manifest/` — one YAML file per service,
@@ -68,32 +69,32 @@ export function loadManifest(dir?: string): Manifest {
 }
 
 /**
- * Locate the manifest directory. moduleDir is injected by registry.ts using
- * import.meta.url (ESM only); cwd fallbacks handle Jest/dev where cwd is the
- * project root.
+ * Locate the manifest directory: always a sibling of this module.
+ *
+ * This resolves to `src/factory/manifest` when running the sources (vitest, tsx)
+ * and `build/factory/manifest` in the built server — which is what makes `npx`
+ * and the .mcpb bundle work, where cwd is not the project root.
+ *
+ * There is deliberately NO fallback chain. An earlier version tried three more
+ * candidates (back to `src/` from `build/`, then two cwd-relative paths), which
+ * sounds like resilience and is actually concealment: the only time a fallback
+ * fires is when the built manifest is missing, and the `src/` fallback exists
+ * *only in the dev checkout*. A build shipped without its manifest therefore
+ * resolved fine on this machine and in CI, and threw on the consumer's first
+ * `npx` start. Failing here, immediately and everywhere, is the point.
  */
 function resolveManifestDir(): string {
-  const candidates: string[] = [];
-
-  if (_moduleDir) {
-    candidates.push(resolve(_moduleDir, 'manifest'));                     // build/factory/manifest/
-    candidates.push(resolve(_moduleDir, '../../src/factory/manifest'));   // dev: from build/ to src/
+  const dir = resolve(MODULE_DIR, 'manifest');
+  try {
+    readdirSync(dir);
+  } catch {
+    throw new Error(
+      `Could not read the manifest directory at ${dir}. ` +
+      `In a built server this directory is copied from src/factory/manifest by ` +
+      `the build; if it is missing, the build did not complete. Run \`npm run build\`.`,
+    );
   }
-
-  candidates.push(resolve(process.cwd(), 'src/factory/manifest'));
-  candidates.push(resolve(process.cwd(), 'build/factory/manifest'));
-
-  for (const candidate of candidates) {
-    try {
-      if (readdirSync(candidate).some((f) => f.endsWith('.yaml'))) return candidate;
-    } catch {
-      continue;
-    }
-  }
-
-  throw new Error(
-    `Could not find the manifest directory. Searched:\n${candidates.join('\n')}`,
-  );
+  return dir;
 }
 
 /** Generate all tools from the manifest with optional patches. */

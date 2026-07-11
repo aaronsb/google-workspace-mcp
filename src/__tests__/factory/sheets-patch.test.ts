@@ -3,13 +3,14 @@
  * and `sheets` arrays that the generic detail formatter drops, and
  * `updateValues` writes a request body the manifest can't express.
  */
+import { beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
 
-jest.mock('../../executor/gws.js');
+vi.mock('../../executor/gws.js');
 import { execute } from '../../executor/gws.js';
 import { sheetsPatch } from '../../services/sheets/patch.js';
 import type { PatchContext } from '../../factory/types.js';
 
-const mockExecute = execute as jest.MockedFunction<typeof execute>;
+const mockExecute = execute as MockedFunction<typeof execute>;
 
 const ctx = (operation: string): PatchContext => ({
   operation,

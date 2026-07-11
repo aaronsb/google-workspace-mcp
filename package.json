@@ -15,12 +15,17 @@
     "build"
   ],
   "scripts": {
-    "build": "tsc --skipLibCheck && rm -rf build/factory/manifest && cp -r src/factory/manifest build/factory/manifest",
-    "type-check": "tsc --noEmit --skipLibCheck",
+    "version-stamp": "node scripts/version-stamp.mjs",
+    "build": "npm run version-stamp && tsc --skipLibCheck && rm -rf build/factory/manifest && cp -r src/factory/manifest build/factory/manifest",
+    "postbuild": "node scripts/check-build.mjs",
+    "prepublishOnly": "npm run build",
+    "type-check": "tsc --noEmit --skipLibCheck && tsc -p tsconfig.test.json --skipLibCheck",
     "lint": "eslint \"src/**/*.ts\"",
     "watch": "tsc --watch --skipLibCheck",
-    "test": "jest --config jest.config.cjs --runInBand",
-    "test:watch": "jest --config jest.config.cjs --watch --runInBand"
+    "test": "vitest run src/__tests__/executor src/__tests__/accounts src/__tests__/server src/__tests__/factory src/__tests__/services src/server/scratchpad",
+    "test:watch": "vitest src/__tests__/executor src/__tests__/accounts src/__tests__/server src/__tests__/factory src/__tests__/services src/server/scratchpad",
+    "test:integration": "vitest run --no-file-parallelism src/__tests__/integration",
+    "test:all": "vitest run --no-file-parallelism"
   },
   "dependencies": {
     "@googleworkspace/cli": "^0.22.5",
@@ -29,13 +34,14 @@
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.14",
     "@types/node": "^20.11.24",
     "@types/sanitize-html": "^2.16.1",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
     "eslint": "^8.56.0",
-    "jest": "^29.7.0",
-    "ts-jest": "^29.2.5"
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=18.14.1"
   }
 }

@@ -3,14 +3,8 @@
  * Verifies that handlers produce correctly shaped markdown output
  * when talking to real Google APIs through gws.
  */
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
-// Mock registry — avoids import.meta.url in Jest
-jest.mock('../../factory/registry.js', () => {
-  const { loadManifest, generateTools } = jest.requireActual('../../factory/generator.js');
-  const { patches } = jest.requireActual('../../factory/patches.js');
-  const manifest = loadManifest();
-  return { manifest, generatedTools: generateTools(manifest, patches) };
-});
 
 import { handleEmail } from '../../server/handlers/email.js';
 import { handleCalendar } from '../../server/handlers/calendar.js';

@@ -94,11 +94,24 @@ docker run -i --rm \
 ## Testing Requirements
 
 - Write unit tests for all new functionality
-- Use Jest for testing
+- Use [Vitest](https://vitest.dev) for testing (ADR-101 — we migrated off Jest).
+  Import test globals explicitly: `import { describe, it, expect, vi } from 'vitest'`
+- Register `vi.mock()` **in the test file itself**, never in a shared helper —
+  vitest hoists `vi.mock` per-file, so a mock registered elsewhere silently
+  depends on import order
 - Mock external dependencies
 - Test both success and error cases
 - Maintain existing test coverage
-- Run the full test suite before submitting PR
+- Run `make test` (mocked, no network) before submitting a PR.
+  `make test-integration` additionally hits live Google APIs and needs a
+  configured account; `make check` is the full gate
+
+### Node version
+
+The published package supports **Node >=18.14.1** (`engines`). The **development**
+toolchain needs more: Vitest requires **Node ^20.19 || ^22.12 || >=24**. If you are
+on Node 18 you can install and run the server, but the test suite will not start —
+use Node 20.19+ to develop.
 
 ## Pull Request Process
 
