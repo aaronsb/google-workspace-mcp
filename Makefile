@@ -18,11 +18,14 @@ test: test-unit ## Run unit tests (default)
 
 test-all: test-unit test-integration ## Run unit + integration tests
 
+# Delegate to the npm scripts so the unit-test allowlist lives in exactly one
+# place. That allowlist is deliberately not a denylist: a denylist would
+# auto-enrol any future network-touching test into the `make check` CI gate.
 test-unit: ## Run unit tests (mocked, fast, no network)
-	npx vitest run --exclude 'src/__tests__/integration/**'
+	npm run test
 
 test-integration: ## Run integration tests (ACCOUNT=email optional)
-	$(if $(ACCOUNT),TEST_ACCOUNT=$(ACCOUNT)) npx vitest run src/__tests__/integration
+	$(if $(ACCOUNT),TEST_ACCOUNT=$(ACCOUNT)) npm run test:integration
 
 typecheck: ## Type-check without emitting
 	npx tsc --noEmit --skipLibCheck

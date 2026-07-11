@@ -35,16 +35,23 @@ Separately, `ts-jest` pulls in a critical `handlebars` advisory.
 
 An earlier draft claimed this migration unblocks the `sanitize-html` pin. **That was wrong**, and the error is worth recording.
 
-`sanitize-html` 2.17.3 has a critical XSS (GHSA-rpr9-rxv7-x643) on the path we use to sanitize untrusted email HTML. The fix requires 2.17.6, which moves to the pure-ESM `htmlparser2@12`. #135 shipped the fix by pinning to exactly `2.17.5`.
+`sanitize-html` 2.17.3 has a critical XSS (GHSA-rpr9-rxv7-x643) on the path we use to sanitize untrusted email HTML.
 
-Taking `^2.17.6` has **two independent blockers**:
+**We are not exposed to it.** The advisory's vulnerable range is 2.17.3 alone; **2.17.5 carries the fix**, and #135 shipped it by pinning to exactly that version. `npm audit --omit=dev` reports 0 production vulnerabilities on this branch. *Do not bump `sanitize-html` believing the XSS is unpatched — it is not.*
+
+What the exact pin costs us is the ability to take **future** patches: 2.17.6 moves to the pure-ESM `htmlparser2@12`, and taking `^2.17.6` has **two independent blockers**:
 
 - **(a) Test-time.** CJS Jest cannot parse the ESM-only transitive. *This ADR removes that one.*
 - **(b) Runtime.** `sanitize-html` is itself **CommonJS** (`node_modules/sanitize-html/index.js:1` is `require('htmlparser2')`). A CJS `require()` of an ESM-only package only resolves on Node **≥20.19 / ≥22.12**. The README advertises **Node 18+** and `package.json` declared no `engines` field, so on Node 18 the server would crash at startup with `ERR_REQUIRE_ESM` on the first import of `html-sanitize.ts`.
 
 The original draft reasoned "production is unaffected because *this package* is ESM" — but the module doing the `require()` is `sanitize-html`, not us. Blocker (b) is a **Node floor decision**, not a test-runner one, and it is a breaking change for npm consumers (and therefore for the `.mcpb` bundle, which resolves the published package). It is tracked separately.
 
-`sanitize-html` therefore stays pinned at `2.17.5` in this change. An `engines: ">=18.0.0"` field is added — accurate today, and the guard whose absence let blocker (b) go undetected.
+`sanitize-html` therefore stays pinned at `2.17.5` in this change.
+
+An `engines` field is added — the guard whose absence let blocker (b) go undetected. Two distinct floors exist, and conflating them is what produced the original error:
+
+- **Consumers** need **Node ≥18.14.1** — the strictest floor across the *production* dependency tree (`@hono/node-server`, via the MCP SDK). This is what `engines.node` declares, since the published package ships only `build/` and the production deps.
+- **Contributors** need **Node ≥20.19** — Vitest requires `^20.19 || ^22.12 || >=24`. This is a development-environment constraint, not a consumer one, so it belongs in CONTRIBUTING.md rather than `engines`.
 
 ## Decision
 
@@ -94,7 +101,7 @@ Prototyped on `spike/vitest`, then reviewed adversarially. Measured, not asserte
 | `sanitize-html` | pinned `2.17.5` | **pinned `2.17.5`** (unchanged — see Context) |
 | Production vulns | 0 | **0** |
 | Dev vulns | 12 (1 critical) | **10 (0 critical)** |
-| devDependencies | 9 | **6** |
+| devDependencies | 8 | **6** |
 | `make check` | passes | **passes** |
 
 Unit suite verified network- and credential-free: 681/681 with an empty credential home.

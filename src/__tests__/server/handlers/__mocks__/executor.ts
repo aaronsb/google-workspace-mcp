@@ -4,12 +4,15 @@
  * Provides typed mock responses matching gws output contracts
  * so handlers can be tested without spawning subprocesses.
  */
-import { vi, type MockedFunction, type Mock } from 'vitest';
+import { vi, type MockedFunction } from 'vitest';
 
 import type { GwsResult } from '../../../../executor/gws.js';
 
-// Mock the executor module
-vi.mock('../../../../executor/gws.js');
+// NOTE: vi.mock() is deliberately NOT called here. Vitest hoists vi.mock only
+// within the file that contains it, so registering it in this helper made the
+// mock depend on each test importing this module *before* the module under
+// test — an import reorder (or an organize-imports autofix) silently broke it.
+// Each consuming test file registers the mock itself.
 
 import { execute } from '../../../../executor/gws.js';
 

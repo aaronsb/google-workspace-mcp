@@ -16,13 +16,13 @@
   ],
   "scripts": {
     "build": "tsc --skipLibCheck && rm -rf build/factory/manifest && cp -r src/factory/manifest build/factory/manifest",
-    "type-check": "tsc --noEmit --skipLibCheck",
+    "type-check": "tsc --noEmit --skipLibCheck && tsc -p tsconfig.test.json --skipLibCheck",
     "lint": "eslint \"src/**/*.ts\"",
     "watch": "tsc --watch --skipLibCheck",
-    "test": "vitest run --exclude 'src/__tests__/integration/**'",
-    "test:watch": "vitest --exclude 'src/__tests__/integration/**'",
-    "test:integration": "vitest run src/__tests__/integration",
-    "test:all": "vitest run"
+    "test": "vitest run src/__tests__/executor src/__tests__/accounts src/__tests__/server src/__tests__/factory src/__tests__/services src/server/scratchpad",
+    "test:watch": "vitest src/__tests__/executor src/__tests__/accounts src/__tests__/server src/__tests__/factory src/__tests__/services src/server/scratchpad",
+    "test:integration": "vitest run --no-file-parallelism src/__tests__/integration",
+    "test:all": "vitest run --no-file-parallelism"
   },
   "dependencies": {
     "@googleworkspace/cli": "^0.22.5",
@@ -39,6 +39,6 @@
     "vitest": "^4.1.10"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.14.1"
   }
 }
