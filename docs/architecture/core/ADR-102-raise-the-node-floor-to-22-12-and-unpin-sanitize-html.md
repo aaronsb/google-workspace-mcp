@@ -60,7 +60,7 @@ A comment reading "keep these in sync" is a coupling maintained by nobody, so `s
 
 - **This is a breaking change for consumers on Node 18 or 20.** It warrants a minor version bump and a release note. The mitigation is that they get a clear instruction rather than a crash — but they are still blocked until they upgrade.
 - **The `.mcpb` break is narrower than it first appears — and an earlier draft of this ADR overstated it.** That draft called the host's Node "the main risk… not fully knowable from here." Investigating rather than speculating showed the bundle *could never have run below ~20.19 anyway*: it ships no `package.json`, so its ESM entrypoint only parsed at all thanks to Node's module-syntax detection, which is default-on from 20.19/22.7. Any `.mcpb` user on Node 18 was already broken, silently. The real exposure is hosts on **20.19–22.11**, who move from a working server to a clear "upgrade Node" message. Still a hard stop; a much smaller and better-understood one.
-- **The floor still cannot be *tested* against a real Claude Desktop.** `compatibility.runtimes.node` should stop the host installing onto an inadequate runtime, but that depends on the host honoring the field, which is **unverified**. The startup guard is the backstop for every case it does not. Validate against a real `.mcpb` install before release.
+- **`compatibility.runtimes.node` remains UNVERIFIED.** The bundle was installed into a real Claude Desktop and works (see Evidence), but on a host running Node 26 — well above the floor. A host that honors the field and a host that ignores it behave identically there, so the install proves only that the field does not *break* a valid install. Whether it actually blocks an inadequate runtime is untested, and testing it needs a Claude Desktop on Node < 22.12. **The startup guard is the backstop for every case it does not cover**, and unlike the manifest field, the guard is proven — on real Node 20.19.0, in CI, every run.
 - The floor is now written in four files. That is more places to drift — which is exactly why `check-node-floor` fails the build when they do.
 
 ### Neutral
@@ -93,7 +93,19 @@ A review round on the first version of this change found that **the new guards a
 | | `22.12.0-rc.1` (pre-release of the floor) | rejected — *used to be waved through as "equal"* |
 | `.mcpb` bundle | run with module-syntax detection disabled | starts; guard fires and prints the message *(previously: raw `SyntaxError`, guard never ran)* |
 
-`npm audit --omit=dev` after the unpin: **0 vulnerabilities**. `sanitize-html@2.17.6`, `htmlparser2@12.0.0`. Unit suite: 681/681 — passing with a pure-ESM transitive, which is ADR-101 arriving.
+`npm audit --omit=dev` after the unpin: **0 vulnerabilities**. `sanitize-html@2.17.6`, `htmlparser2@12.0.0`. Unit suite: **703/703** — passing with a pure-ESM transitive, which is ADR-101 arriving.
+
+CI, on a real below-floor runtime: `smoke-reject: OK — on v20.19.0 (below the 22.12.0 floor) the server refused to start, explained why, and never leaked ERR_REQUIRE_ESM.`
+
+### Validated against a real .mcpb install
+
+The bundle was built, installed into Claude Desktop by double-click, and exercised end to end: 11 tools loaded, all three accounts visible, live Gmail calls returning real data. This confirms the three things CI cannot:
+
+- The bundle **parses and boots** — which it can only do because it now ships `{"type": "module"}`. The previous bundle depended on Node's syntax detection to run at all.
+- **OAuth credentials survive** the upgrade; they live in `~/.config/gws`, outside the bundle.
+- **`sanitize-html@2.17.6` with pure-ESM `htmlparser2@12` runs in the real host** — the dependency this entire ADR exists to unblock.
+
+What it does **not** confirm is `compatibility.runtimes.node` (see Negative): the host is on Node 26, so honoring the field and ignoring it look the same.
 
 ## Alternatives Considered
 
