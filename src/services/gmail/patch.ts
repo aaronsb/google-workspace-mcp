@@ -299,12 +299,80 @@ export const gmailPatch: ServicePatch = {
     reply: async (params, account): Promise<HandlerResponse> => {
       const messageId = requireString(params, 'messageId');
       const body = requireString(params, 'body');
-      const result = await execute([
-        'gmail', '+reply', '--message-id', messageId, '--body', body,
-      ], { account });
+      const draft = params.draft === true || params.draft === 'true';
+      const attachmentNames = params.attachments
+        ? String(params.attachments).split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+
+      const args = ['gmail', '+reply', '--message-id', messageId, '--body', body];
+      if (params.html === true || params.html === 'true') args.push('--html');
+      if (draft || attachmentNames.length > 0) args.push('--draft');
+
+      let execOptions: { account: string; cwd?: string } = { account };
+      if (attachmentNames.length > 0) {
+        const relPaths = await validateAttachments(attachmentNames);
+        for (const p of relPaths) {
+          args.push('--attach', p);
+        }
+        execOptions = { account, cwd: getWorkspaceDir() };
+      }
+
+      const result = await execute(args, execOptions);
       const data = result.data as Record<string, unknown>;
+      const attachNote = attachmentNames.length > 0
+        ? `\n**Attachments:** ${attachmentNames.join(', ')}`
+        : '';
+
+      if (draft || attachmentNames.length > 0) {
+        return {
+          text: `Draft reply created.\n\n**Draft ID:** ${data.id ?? 'unknown'}${attachNote}`,
+          refs: { id: data.id, draftId: data.id, messageId, attachments: attachmentNames, isDraft: true },
+        };
+      }
+
       return {
         text: `Reply sent.\n\n**Message ID:** ${data.id ?? 'unknown'}`,
+        refs: { id: data.id, threadId: data.threadId, messageId },
+      };
+    },
+
+    replyAll: async (params, account): Promise<HandlerResponse> => {
+      const messageId = requireString(params, 'messageId');
+      const body = requireString(params, 'body');
+      const draft = params.draft === true || params.draft === 'true';
+      const attachmentNames = params.attachments
+        ? String(params.attachments).split(',').map(s => s.trim()).filter(Boolean)
+        : [];
+
+      const args = ['gmail', '+reply-all', '--message-id', messageId, '--body', body];
+      if (params.cc) args.push('--cc', String(params.cc));
+      if (params.html === true || params.html === 'true') args.push('--html');
+      if (draft || attachmentNames.length > 0) args.push('--draft');
+
+      let execOptions: { account: string; cwd?: string } = { account };
+      if (attachmentNames.length > 0) {
+        const relPaths = await validateAttachments(attachmentNames);
+        for (const p of relPaths) {
+          args.push('--attach', p);
+        }
+        execOptions = { account, cwd: getWorkspaceDir() };
+      }
+
+      const result = await execute(args, execOptions);
+      const data = result.data as Record<string, unknown>;
+      const attachNote = attachmentNames.length > 0
+        ? `\n**Attachments:** ${attachmentNames.join(', ')}`
+        : '';
+
+      if (draft || attachmentNames.length > 0) {
+        return {
+          text: `Draft reply-all created.\n\n**Draft ID:** ${data.id ?? 'unknown'}${attachNote}`,
+          refs: { id: data.id, draftId: data.id, messageId, attachments: attachmentNames, isDraft: true },
+        };
+      }
+
+      return {
+        text: `Reply-all sent.\n\n**Message ID:** ${data.id ?? 'unknown'}`,
         refs: { id: data.id, threadId: data.threadId, messageId },
       };
     },

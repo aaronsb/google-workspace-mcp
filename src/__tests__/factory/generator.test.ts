@@ -1,3 +1,6 @@
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { loadManifest, generateTools, generateSchema, generateHandler } from '../../factory/generator.js';
 import { patches } from '../../factory/patches.js';
 import type { Manifest, ServiceDef } from '../../factory/types.js';
@@ -193,6 +196,147 @@ describe('generateHandler', () => {
     await expect(
       handler({ operation: 'nonexistent', email: 'u@t.com' }),
     ).rejects.toThrow('Unknown gmail operation: nonexistent');
+  });
+
+  describe('reply and replyAll honour attachments, html and draft (#132)', () => {
+    let workspace: string;
+    let originalWorkspaceDir: string | undefined;
+
+    beforeAll(async () => {
+      workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'gws-reply-test-'));
+      await fs.writeFile(path.join(workspace, 'report.pdf'), 'pdf');
+      await fs.writeFile(path.join(workspace, 'data.csv'), 'a,b');
+      originalWorkspaceDir = process.env.WORKSPACE_DIR;
+      process.env.WORKSPACE_DIR = workspace;
+    });
+
+    afterAll(async () => {
+      if (originalWorkspaceDir === undefined) delete process.env.WORKSPACE_DIR;
+      else process.env.WORKSPACE_DIR = originalWorkspaceDir;
+      await fs.rm(workspace, { recursive: true, force: true });
+    });
+
+    const okDraft = { success: true as const, data: { id: 'draft-1' }, stderr: '' };
+    const okSent = { success: true as const, data: { id: 'sent-1', threadId: 'thread-1' }, stderr: '' };
+
+    it.each([
+      ['reply', '+reply'],
+      ['replyAll', '+reply-all'],
+    ])('%s attaches workspace files and forces draft', async (operation, helper) => {
+      mockExecute.mockResolvedValue(okDraft);
+      const handler = generateHandler(manifest.services.gmail, patches.gmail);
+
+      const result = await handler({
+        operation,
+        email: 'u@t.com',
+        messageId: 'msg-1',
+        body: 'see attached',
+        attachments: 'report.pdf, data.csv',
+      });
+
+      const [args, options] = mockExecute.mock.calls[0];
+      expect(args).toContain(helper);
+      // Attachments imply a draft — gws cannot attach to a live send
+      expect(args).toContain('--draft');
+      expect(args.filter(a => a === '--attach')).toHaveLength(2);
+      expect(args).toContain('report.pdf');
+      expect(args).toContain('data.csv');
+      // --attach paths are relative to cwd, so cwd must be the workspace
+      expect(options).toMatchObject({ cwd: workspace });
+      expect(result.refs).toMatchObject({ isDraft: true, draftId: 'draft-1' });
+    });
+
+    it.each([
+      ['reply'],
+      ['replyAll'],
+    ])('%s passes html flag through', async (operation) => {
+      mockExecute.mockResolvedValue(okSent);
+      const handler = generateHandler(manifest.services.gmail, patches.gmail);
+
+      await handler({
+        operation,
+        email: 'u@t.com',
+        messageId: 'msg-1',
+        body: '<b>hi</b>',
+        html: true,
+      });
+
+      expect(mockExecute.mock.calls[0][0]).toContain('--html');
+    });
+
+    it.each([
+      ['reply'],
+      ['replyAll'],
+    ])('%s sends live when no attachments and no draft flag', async (operation) => {
+      mockExecute.mockResolvedValue(okSent);
+      const handler = generateHandler(manifest.services.gmail, patches.gmail);
+
+      const result = await handler({
+        operation,
+        email: 'u@t.com',
+        messageId: 'msg-1',
+        body: 'plain reply',
+      });
+
+      expect(mockExecute.mock.calls[0][0]).not.toContain('--draft');
+      expect(result.refs).not.toHaveProperty('isDraft');
+    });
+
+    it.each([
+      ['reply'],
+      ['replyAll'],
+    ])('%s honours an explicit draft flag with no attachments', async (operation) => {
+      mockExecute.mockResolvedValue(okDraft);
+      const handler = generateHandler(manifest.services.gmail, patches.gmail);
+
+      const result = await handler({
+        operation,
+        email: 'u@t.com',
+        messageId: 'msg-1',
+        body: 'hold this',
+        draft: true,
+      });
+
+      expect(mockExecute.mock.calls[0][0]).toContain('--draft');
+      expect(result.refs).toMatchObject({ isDraft: true });
+    });
+
+    it('replyAll still passes cc alongside attachments', async () => {
+      mockExecute.mockResolvedValue(okDraft);
+      const handler = generateHandler(manifest.services.gmail, patches.gmail);
+
+      await handler({
+        operation: 'replyAll',
+        email: 'u@t.com',
+        messageId: 'msg-1',
+        body: 'see attached',
+        cc: 'carol@t.com',
+        attachments: 'report.pdf',
+      });
+
+      const args = mockExecute.mock.calls[0][0];
+      expect(args[args.indexOf('--cc') + 1]).toBe('carol@t.com');
+      expect(args).toContain('--attach');
+    });
+
+    it.each([
+      ['reply'],
+      ['replyAll'],
+    ])('%s rejects an attachment outside the workspace', async (operation) => {
+      mockExecute.mockResolvedValue(okDraft);
+      const handler = generateHandler(manifest.services.gmail, patches.gmail);
+
+      await expect(
+        handler({
+          operation,
+          email: 'u@t.com',
+          messageId: 'msg-1',
+          body: 'sneaky',
+          attachments: '../../../etc/passwd',
+        }),
+      ).rejects.toThrow();
+      expect(mockExecute).not.toHaveBeenCalled();
+    });
   });
 
   it('applies afterExecute hook for gmail search hydration', async () => {
