@@ -47,3 +47,6 @@ mcpb/bin/
 # mcp-publisher login state (do not commit credentials)
 .mcpregistry_github_token
 .mcpregistry_registry_token
+
+# Local MCP wiring — contains a real GOOGLE_CLIENT_SECRET
+.mcp.json
