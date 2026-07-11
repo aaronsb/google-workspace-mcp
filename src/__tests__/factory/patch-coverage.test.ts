@@ -1,3 +1,4 @@
+import type { Mock } from 'vitest';
 /**
  * Patch coverage report — tracks which operations have custom formatting,
  * custom handlers, or hooks vs falling through to defaults.
@@ -14,7 +15,7 @@ import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
 // Mock executor — patches that call execute() in custom handlers need this
-jest.mock('../../executor/gws.js');
+vi.mock('../../executor/gws.js');
 
 const manifest = loadManifest();
 

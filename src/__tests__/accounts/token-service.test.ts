@@ -1,12 +1,13 @@
+import type { Mock, MockedFunction } from 'vitest';
 import { getAccessToken, invalidateToken, TokenRefreshError, _clearCache } from '../../accounts/token-service.js';
 import * as credentials from '../../accounts/credentials.js';
 
-jest.mock('../../accounts/credentials.js');
+vi.mock('../../accounts/credentials.js');
 
-const mockReadCredential = credentials.readCredential as jest.MockedFunction<typeof credentials.readCredential>;
+const mockReadCredential = credentials.readCredential as MockedFunction<typeof credentials.readCredential>;
 
 // Mock global fetch
-const mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>;
+const mockFetch = vi.fn() as MockedFunction<typeof fetch>;
 global.fetch = mockFetch;
 
 const TEST_CREDENTIAL: credentials.AuthorizedUserCredential = {
@@ -18,7 +19,7 @@ const TEST_CREDENTIAL: credentials.AuthorizedUserCredential = {
 
 describe('token-service', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     _clearCache();
     mockReadCredential.mockResolvedValue(TEST_CREDENTIAL);
   });

@@ -19,23 +19,22 @@
     "type-check": "tsc --noEmit --skipLibCheck",
     "lint": "eslint \"src/**/*.ts\"",
     "watch": "tsc --watch --skipLibCheck",
-    "test": "jest --config jest.config.cjs --runInBand",
-    "test:watch": "jest --config jest.config.cjs --watch --runInBand"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@googleworkspace/cli": "^0.22.5",
     "@modelcontextprotocol/sdk": "^1.27.1",
-    "sanitize-html": "2.17.5",
+    "sanitize-html": "^2.17.6",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.14",
     "@types/node": "^20.11.24",
     "@types/sanitize-html": "^2.16.1",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^8.56.0",
-    "jest": "^29.7.0",
-    "ts-jest": "^29.2.5"
+    "vitest": "^4.1.10"
   }
 }

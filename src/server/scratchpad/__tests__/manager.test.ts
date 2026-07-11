@@ -1,3 +1,4 @@
+import type { Mock } from 'vitest';
 /**
  * Tests for ScratchpadManager — line-addressed content authoring buffer.
  * See ADR-301.
@@ -12,7 +13,7 @@ import type { LiveBinding, MutationResult } from '../manager.js';
 
 let mockEpoch = 0;
 
-jest.mock('../../handler.js', () => ({
+vi.mock('../../handler.js', () => ({
   getEpoch: () => mockEpoch,
 }));
 

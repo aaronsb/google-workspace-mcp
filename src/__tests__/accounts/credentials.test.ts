@@ -1,10 +1,11 @@
+import type { Mock } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as credentials from '../../accounts/credentials.js';
 import { credentialPath, credentialsDir } from '../../executor/paths.js';
 
-jest.mock('node:fs/promises');
+vi.mock('node:fs/promises');
 
-const mockFs = jest.mocked(fs);
+const mockFs = vi.mocked(fs);
 
 describe('credentials', () => {
   beforeEach(() => {
@@ -140,7 +141,7 @@ describe('credentials', () => {
       await credentials.saveCredential('user@example.com', validCredential);
 
       const written = JSON.parse(
-        (mockFs.writeFile as jest.Mock).mock.calls[0][1] as string,
+        (mockFs.writeFile as Mock).mock.calls[0][1] as string,
       );
       expect(written.scopes).toEqual(['https://www.googleapis.com/auth/gmail.modify']);
     });

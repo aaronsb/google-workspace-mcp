@@ -1,3 +1,4 @@
+import type { MockedFunction } from 'vitest';
 /**
  * Shared executor mock for handler tests.
  *
@@ -8,11 +9,11 @@
 import type { GwsResult } from '../../../../executor/gws.js';
 
 // Mock the executor module
-jest.mock('../../../../executor/gws.js');
+vi.mock('../../../../executor/gws.js');
 
 import { execute } from '../../../../executor/gws.js';
 
-export const mockExecute = execute as jest.MockedFunction<typeof execute>;
+export const mockExecute = execute as MockedFunction<typeof execute>;
 
 export function mockGwsResponse(data: unknown): GwsResult {
   return { success: true, data, stderr: '' };

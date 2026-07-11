@@ -1,33 +1,34 @@
+import type { Mock, MockedFunction } from 'vitest';
 import { execute, gwsVersion } from '../../executor/gws.js';
 import { GwsError, GwsExitCode } from '../../executor/errors.js';
 import * as child_process from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
 // Mock child_process.spawn
-jest.mock('node:child_process');
+vi.mock('node:child_process');
 
 // Mock token service — getAccessToken is called when account is provided
-jest.mock('../../accounts/token-service.js', () => ({
-  getAccessToken: jest.fn().mockResolvedValue('mock-access-token-123'),
+vi.mock('../../accounts/token-service.js', () => ({
+  getAccessToken: vi.fn().mockResolvedValue('mock-access-token-123'),
 }));
 
 import { getAccessToken } from '../../accounts/token-service.js';
-const mockGetAccessToken = getAccessToken as jest.MockedFunction<typeof getAccessToken>;
+const mockGetAccessToken = getAccessToken as MockedFunction<typeof getAccessToken>;
 
 function createMockProcess() {
   const proc = new EventEmitter() as any;
   proc.stdout = new EventEmitter();
   proc.stderr = new EventEmitter();
-  proc.kill = jest.fn();
+  proc.kill = vi.fn();
   proc.stdin = null;
   return proc;
 }
 
 describe('execute', () => {
-  const mockSpawn = child_process.spawn as jest.MockedFunction<typeof child_process.spawn>;
+  const mockSpawn = child_process.spawn as MockedFunction<typeof child_process.spawn>;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockGetAccessToken.mockResolvedValue('mock-access-token-123');
   });
 
@@ -138,19 +139,19 @@ describe('execute', () => {
   });
 
   it('rejects with timeout error and sends SIGTERM', async () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     try {
       const proc = createMockProcess();
       mockSpawn.mockReturnValue(proc as any);
 
       const promise = execute(['calendar', 'events', 'list'], { timeout: 100 });
 
-      jest.advanceTimersByTime(150);
+      vi.advanceTimersByTime(150);
 
       await expect(promise).rejects.toThrow('timed out');
       expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
     } finally {
-      jest.useRealTimers();
+      vi.useRealTimers();
     }
   });
 
@@ -224,7 +225,7 @@ describe('execute', () => {
 });
 
 describe('gwsVersion', () => {
-  const mockSpawn = child_process.spawn as jest.MockedFunction<typeof child_process.spawn>;
+  const mockSpawn = child_process.spawn as MockedFunction<typeof child_process.spawn>;
 
   it('returns trimmed version string', async () => {
     const proc = createMockProcess();

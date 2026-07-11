@@ -1,7 +1,8 @@
+import type { Mock, MockedFunction } from 'vitest';
 // Mock registry before handler imports it — avoids import.meta.url in Jest
-jest.mock('../../factory/registry.js', () => {
-  const { loadManifest, generateTools } = jest.requireActual('../../factory/generator.js');
-  const { patches } = jest.requireActual('../../factory/patches.js');
+vi.mock('../../factory/registry.js', async () => {
+  const { loadManifest, generateTools } = await vi.importActual<typeof import('../../factory/generator.js')>('../../factory/generator.js');
+  const { patches } = await vi.importActual<typeof import('../../factory/patches.js')>('../../factory/patches.js');
   const manifest = loadManifest();
   return { manifest, generatedTools: generateTools(manifest, patches) };
 });
@@ -10,25 +11,25 @@ import { handleToolCall } from '../../server/handler.js';
 import type { HandlerResponse } from '../../server/handler.js';
 
 // Mock gws executor — all factory-generated handlers call through here
-jest.mock('../../executor/gws.js');
+vi.mock('../../executor/gws.js');
 // Mock accounts handler — still hand-coded
-jest.mock('../../server/handlers/accounts.js');
+vi.mock('../../server/handlers/accounts.js');
 // Mock queue handler — still hand-coded
-jest.mock('../../server/queue.js');
+vi.mock('../../server/queue.js');
 
 import { execute } from '../../executor/gws.js';
 import { handleAccounts } from '../../server/handlers/accounts.js';
 import { handleQueue } from '../../server/queue.js';
 
-const mockExecute = execute as jest.MockedFunction<typeof execute>;
-const mockAccounts = handleAccounts as jest.MockedFunction<typeof handleAccounts>;
-const mockQueue = handleQueue as jest.MockedFunction<typeof handleQueue>;
+const mockExecute = execute as MockedFunction<typeof execute>;
+const mockAccounts = handleAccounts as MockedFunction<typeof handleAccounts>;
+const mockQueue = handleQueue as MockedFunction<typeof handleQueue>;
 
 const stubResponse: HandlerResponse = { text: 'ok', refs: {} };
 
 describe('handleToolCall', () => {
   beforeEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
   });
 
   it('routes manage_accounts to handleAccounts', async () => {

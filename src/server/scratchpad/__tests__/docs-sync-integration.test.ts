@@ -1,3 +1,4 @@
+import type { MockedFunction } from 'vitest';
 /**
  * Integration-ish tests for the docs-bound mutation path through the
  * scratchpad handler. Mocks `execute` from the gws executor; everything
@@ -9,14 +10,14 @@
  *    fresh response, binding revisionId updated.
  */
 
-jest.mock('../../../executor/gws.js');
-jest.mock('../../handler.js', () => ({ getEpoch: () => 0 }));
+vi.mock('../../../executor/gws.js');
+vi.mock('../../handler.js', () => ({ getEpoch: () => 0 }));
 
 import { execute } from '../../../executor/gws.js';
 import { handleScratchpad } from '../handler.js';
 import { getScratchpadManager } from '../handler.js';
 
-const mockExecute = execute as jest.MockedFunction<typeof execute>;
+const mockExecute = execute as MockedFunction<typeof execute>;
 
 /** Seed a docs-bound JSON scratchpad with a one-paragraph doc and return its id. */
 function seedDocsBoundScratchpad(opts?: { revisionId?: string }): string {

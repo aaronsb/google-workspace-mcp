@@ -1,10 +1,11 @@
+import type { MockedFunction } from 'vitest';
 /**
  * Meet patch tests — formatters and custom handlers.
  */
 
-jest.mock('../../../executor/gws.js');
+vi.mock('../../../executor/gws.js');
 import { execute } from '../../../executor/gws.js';
-const mockExecute = execute as jest.MockedFunction<typeof execute>;
+const mockExecute = execute as MockedFunction<typeof execute>;
 
 import { meetPatch } from '../../../services/meet/patch.js';
 import type { PatchContext } from '../../../factory/types.js';

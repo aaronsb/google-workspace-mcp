@@ -1,7 +1,8 @@
+import type { Mock } from 'vitest';
 // Mock registry before tools imports it — avoids import.meta.url in Jest
-jest.mock('../../factory/registry.js', () => {
-  const { loadManifest, generateTools } = jest.requireActual('../../factory/generator.js');
-  const { patches } = jest.requireActual('../../factory/patches.js');
+vi.mock('../../factory/registry.js', async () => {
+  const { loadManifest, generateTools } = await vi.importActual<typeof import('../../factory/generator.js')>('../../factory/generator.js');
+  const { patches } = await vi.importActual<typeof import('../../factory/patches.js')>('../../factory/patches.js');
   const manifest = loadManifest();
   return { manifest, generatedTools: generateTools(manifest, patches) };
 });
