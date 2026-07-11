@@ -14,13 +14,15 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22'
         cache: 'npm'
     - run: npm ci
     # Every test file must be run by some gate. `npm test` uses an allowlist of
     # vetted mocked directories, so a test added elsewhere would otherwise run
     # nowhere and report nothing.
     - run: node scripts/check-test-gates.mjs
+    # The floor we publish, execute, and enforce at startup must be ONE number.
+    - run: node scripts/check-node-floor.mjs
     - run: npm test
 
   type-check:
@@ -33,7 +35,7 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22'
         cache: 'npm'
     - run: npm ci
     - run: npm run type-check
@@ -44,34 +46,40 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22'
         cache: 'npm'
     - run: npm ci
     - run: npm run build
 
   engines-floor:
-    # package.json advertises `engines.node >= 18.14.1`, but every other job here
-    # runs Node 20 and the dev box runs 26 — so the floor we PUBLISH was executed
-    # by nothing. That gap shipped a startup crash once already: `sanitize-html`
-    # ^2.17.6 is CommonJS and require()s the pure-ESM htmlparser2@12, which throws
-    # ERR_REQUIRE_ESM on Node <20.19. It is a static import in the startup graph,
-    # so every Node 18 consumer would have crashed on first start — and it passed
-    # the full suite and all four jobs, because none of them ran Node 18.
+    # Executes the floor we PUBLISH, rather than advertising it.
     #
-    # Build on 20 (tsc and Vitest need it), then run the BUILT server on the floor
-    # against the PRODUCTION dependency tree only — which is what a consumer installs.
+    # The other jobs run whatever Node is current, and the dev box runs newer still,
+    # so without this job nothing ever runs the *oldest* Node we claim to support. A
+    # dependency that is fine on the Node you test and broken on the Node you ship is
+    # invisible to every check that runs on the Node you test — which is exactly how
+    # `sanitize-html` ^2.17.6 (CommonJS, require()ing the pure-ESM htmlparser2@12 →
+    # ERR_REQUIRE_ESM below the floor) once reached a merge-ready branch green.
+    #
+    # The second setup-node below MUST equal `engines.node` in package.json. That
+    # coupling is the entire value of this job: raise the floor, raise it here, or
+    # the guard silently stops guarding the thing it names.
+    #
+    # Build on current Node (tsc and Vitest need it), then run the BUILT server on the
+    # floor against the PRODUCTION dependency tree only — which is what a consumer
+    # installs, and all a consumer gets.
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22'
         cache: 'npm'
     - run: npm ci
     - run: npm run build
     - uses: actions/setup-node@v4
       with:
-        node-version: '18.14.1'   # the exact floor in package.json engines
+        node-version: '22.12.0'   # == engines.node in package.json. Keep in sync.
     - run: rm -rf node_modules && npm ci --omit=dev
     - run: node --version
     - run: node scripts/smoke-start.mjs
@@ -82,7 +90,7 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
       with:
-        node-version: '20'
+        node-version: '22'
         cache: 'npm'
     - run: npm ci
     - run: npm run lint

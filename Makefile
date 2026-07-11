@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help test test-all test-unit test-integration build clean typecheck lint smoke check-gates \
+.PHONY: help test test-all test-unit test-integration build clean typecheck lint smoke check-gates check-node-floor \
         manifest-discover manifest-diff manifest-lint \
         coverage coverage-update \
         mcpb mcpb-all version-sync publish-all \
@@ -56,6 +56,11 @@ build: ## Compile TypeScript to build/ (and verify the output)
 check-gates: ## Assert every test file is COLLECTED by some gate
 	node scripts/check-test-gates.mjs
 
+# The floor is written in three places (engines, the CI job that executes it, and the
+# startup guard). A comment saying "keep in sync" is a coupling maintained by nobody.
+check-node-floor: ## Assert the Node floor agrees everywhere it is declared
+	node scripts/check-node-floor.mjs
+
 # Depends on build: smoking a stale build/ is exactly the "measured the wrong
 # artifact" failure this whole branch is about.
 smoke: build ## Start the built server on a foreign cwd and assert it loads its tools
@@ -64,7 +69,7 @@ smoke: build ## Start the built server on a foreign cwd and assert it loads its 
 # Mirrors CI. `lint` used to be in the help text but not the prerequisites, so a
 # contributor could go green locally and red in CI on a job this target claimed
 # to cover.
-check: typecheck lint check-gates test build smoke ## Type-check, lint, test, build, smoke (CI gate)
+check: typecheck lint check-gates check-node-floor test build smoke ## Type-check, lint, test, build, smoke (CI gate)
 
 clean: ## Remove build artifacts
 	rm -rf build/ mcpb/server mcpb/bin *.mcpb

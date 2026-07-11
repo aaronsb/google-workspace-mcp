@@ -96,7 +96,7 @@ npx @aaronsb/google-workspace-mcp
 
 ### Prerequisites
 
-1. **Node.js** 18+
+1. **Node.js** 22.12 or newer — Node 18 and 20 are both end-of-life
 2. **Google Cloud OAuth credentials** — create at [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials):
    - Create an OAuth 2.0 Client ID (Desktop application)
    - Enable the APIs you want (Gmail, Calendar, Drive, Sheets, etc.)
