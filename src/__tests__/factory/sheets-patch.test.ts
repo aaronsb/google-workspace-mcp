@@ -1,9 +1,9 @@
-import type { MockedFunction } from 'vitest';
 /**
  * Tests for the sheets service patch — formatters preserve the `values`
  * and `sheets` arrays that the generic detail formatter drops, and
  * `updateValues` writes a request body the manifest can't express.
  */
+import { beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
 
 vi.mock('../../executor/gws.js');
 import { execute } from '../../executor/gws.js';

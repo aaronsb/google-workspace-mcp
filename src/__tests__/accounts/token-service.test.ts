@@ -1,4 +1,4 @@
-import type { Mock, MockedFunction } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type MockedFunction, type Mock } from 'vitest';
 import { getAccessToken, invalidateToken, TokenRefreshError, _clearCache } from '../../accounts/token-service.js';
 import * as credentials from '../../accounts/credentials.js';
 

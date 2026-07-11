@@ -19,10 +19,10 @@ test: test-unit ## Run unit tests (default)
 test-all: test-unit test-integration ## Run unit + integration tests
 
 test-unit: ## Run unit tests (mocked, fast, no network)
-	npx jest --config jest.config.cjs --testPathPattern='src/__tests__/(executor|accounts|server|factory)' --runInBand
+	npx vitest run --exclude 'src/__tests__/integration/**'
 
 test-integration: ## Run integration tests (ACCOUNT=email optional)
-	$(if $(ACCOUNT),TEST_ACCOUNT=$(ACCOUNT)) npx jest --config jest.config.cjs --testPathPattern='src/__tests__/integration' --runInBand
+	$(if $(ACCOUNT),TEST_ACCOUNT=$(ACCOUNT)) npx vitest run src/__tests__/integration
 
 typecheck: ## Type-check without emitting
 	npx tsc --noEmit --skipLibCheck

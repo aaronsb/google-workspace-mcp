@@ -1,9 +1,9 @@
-import type { Mock } from 'vitest';
 /**
  * Integration tests for handler layer.
  * Verifies that handlers produce correctly shaped markdown output
  * when talking to real Google APIs through gws.
  */
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 // Mock registry — avoids import.meta.url in Jest
 vi.mock('../../factory/registry.js', async () => {

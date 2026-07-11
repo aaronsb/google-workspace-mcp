@@ -1,4 +1,4 @@
-import type { Mock, MockedFunction } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockedFunction, type Mock } from 'vitest';
 // Mock registry before accounts handler imports it — avoids import.meta.url in Jest
 vi.mock('../../../factory/registry.js', async () => {
   const { loadManifest, generateTools } = await vi.importActual<typeof import('../../../factory/generator.js')>('../../../factory/generator.js');

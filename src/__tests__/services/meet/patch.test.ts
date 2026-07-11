@@ -1,7 +1,7 @@
-import type { MockedFunction } from 'vitest';
 /**
  * Meet patch tests — formatters and custom handlers.
  */
+import { beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
 
 vi.mock('../../../executor/gws.js');
 import { execute } from '../../../executor/gws.js';

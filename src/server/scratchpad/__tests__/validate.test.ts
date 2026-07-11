@@ -1,6 +1,7 @@
 /**
  * Tests for validate.ts — format-specific content validation.
  */
+import { describe, expect, it } from 'vitest';
 
 import { validate } from '../validate.js';
 

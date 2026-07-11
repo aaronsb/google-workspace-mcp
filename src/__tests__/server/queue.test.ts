@@ -1,4 +1,4 @@
-import type { Mock } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 // Mock handler.js to avoid loading registry.ts (which uses import.meta.url)
 vi.mock('../../server/handler.js', () => ({
   advanceEpoch: vi.fn(() => 1),

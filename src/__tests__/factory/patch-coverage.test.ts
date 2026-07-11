@@ -1,4 +1,3 @@
-import type { Mock } from 'vitest';
 /**
  * Patch coverage report — tracks which operations have custom formatting,
  * custom handlers, or hooks vs falling through to defaults.
@@ -8,6 +7,7 @@ import type { Mock } from 'vitest';
  * might benefit from a patch. When patches change, it catches regressions
  * where an operation silently loses its custom formatter.
  */
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import { loadManifest } from '../../factory/generator.js';
 import { patches } from '../../factory/patches.js';

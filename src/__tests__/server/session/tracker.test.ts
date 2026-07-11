@@ -1,4 +1,4 @@
-import type { MockedFunction } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
 vi.mock('../../../executor/gws.js');
 
 import { execute } from '../../../executor/gws.js';

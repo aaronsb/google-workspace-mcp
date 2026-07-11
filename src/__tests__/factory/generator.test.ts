@@ -1,4 +1,4 @@
-import type { Mock, MockedFunction } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockedFunction, type Mock } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';

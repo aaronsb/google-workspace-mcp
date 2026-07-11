@@ -1,8 +1,8 @@
-import type { Mock } from 'vitest';
 /**
  * Tests for ScratchpadManager — line-addressed content authoring buffer.
  * See ADR-301.
  */
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { ScratchpadManager } from '../manager.js';
 import type { LiveBinding, MutationResult } from '../manager.js';

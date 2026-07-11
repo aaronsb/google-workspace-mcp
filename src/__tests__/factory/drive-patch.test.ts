@@ -1,8 +1,8 @@
-import type { Mock, MockedFunction } from 'vitest';
 /**
  * Tests for the drive service patch — custom handlers for download/export
  * that ensure parent directories are created before writing files.
  */
+import { afterAll, beforeEach, describe, expect, it, vi, type MockedFunction, type Mock } from 'vitest';
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';

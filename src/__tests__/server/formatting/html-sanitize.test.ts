@@ -4,6 +4,7 @@
  * Each `describe` block targets one layer of the sanitization stack:
  * allowlist, CSS-hidden filter, Unicode injection chars, Spotlighting wrapper.
  */
+import { describe, expect, it } from 'vitest';
 
 import { sanitizeHtmlForAgent } from '../../../server/formatting/html-sanitize.js';
 

@@ -1,4 +1,4 @@
-import type { Mock } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import * as fs from 'node:fs/promises';
 import { listAccounts, getAccount, addAccount, removeAccount } from '../../accounts/registry.js';
 

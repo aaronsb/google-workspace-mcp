@@ -19,13 +19,15 @@
     "type-check": "tsc --noEmit --skipLibCheck",
     "lint": "eslint \"src/**/*.ts\"",
     "watch": "tsc --watch --skipLibCheck",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --exclude 'src/__tests__/integration/**'",
+    "test:watch": "vitest --exclude 'src/__tests__/integration/**'",
+    "test:integration": "vitest run src/__tests__/integration",
+    "test:all": "vitest run"
   },
   "dependencies": {
     "@googleworkspace/cli": "^0.22.5",
     "@modelcontextprotocol/sdk": "^1.27.1",
-    "sanitize-html": "^2.17.6",
+    "sanitize-html": "2.17.5",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
@@ -33,8 +35,10 @@
     "@types/sanitize-html": "^2.16.1",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
     "@typescript-eslint/parser": "^6.21.0",
-    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^8.56.0",
     "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

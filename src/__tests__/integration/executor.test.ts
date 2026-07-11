@@ -2,6 +2,7 @@
  * Integration tests for the executor layer.
  * Runs real gws commands against the first configured account.
  */
+import { describe, expect, it } from 'vitest';
 
 import { execute, gwsVersion } from '../../executor/gws.js';
 import { GwsError, GwsExitCode } from '../../executor/errors.js';

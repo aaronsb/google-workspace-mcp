@@ -1,4 +1,4 @@
-import type { Mock, MockedFunction } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type MockedFunction, type Mock } from 'vitest';
 import { execute, gwsVersion } from '../../executor/gws.js';
 import { GwsError, GwsExitCode } from '../../executor/errors.js';
 import * as child_process from 'node:child_process';

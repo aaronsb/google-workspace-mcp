@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { nextSteps } from '../../../server/formatting/next-steps.js';
 
 describe('nextSteps', () => {

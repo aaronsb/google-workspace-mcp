@@ -1,4 +1,3 @@
-import type { MockedFunction } from 'vitest';
 /**
  * Integration-ish tests for the docs-bound mutation path through the
  * scratchpad handler. Mocks `execute` from the gws executor; everything
@@ -9,6 +8,7 @@ import type { MockedFunction } from 'vitest';
  *  - API succeeds → reloadDocsBuffer fires, sp.lines replaced from the
  *    fresh response, binding revisionId updated.
  */
+import { beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
 
 vi.mock('../../../executor/gws.js');
 vi.mock('../../handler.js', () => ({ getEpoch: () => 0 }));

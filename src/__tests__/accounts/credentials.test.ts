@@ -1,4 +1,4 @@
-import type { Mock } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as credentials from '../../accounts/credentials.js';
 import { credentialPath, credentialsDir } from '../../executor/paths.js';

@@ -1,10 +1,10 @@
-import type { Mock, MockedFunction } from 'vitest';
 /**
  * Tests for server.ts MCP wiring.
  *
  * We mock the MCP SDK (ESM-only) and verify that createServer
  * wires handlers correctly and maps responses/errors.
  */
+import { beforeAll, beforeEach, describe, expect, it, vi, type MockedFunction, type Mock } from 'vitest';
 
 // Mock registry before any server imports — avoids import.meta.url in Jest
 vi.mock('../../factory/registry.js', async () => {

@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { requireEmail, requireString, clamp } from '../../../server/handlers/validate.js';
 
 describe('requireEmail', () => {

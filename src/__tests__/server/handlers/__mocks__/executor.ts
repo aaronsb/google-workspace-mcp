@@ -1,10 +1,10 @@
-import type { MockedFunction } from 'vitest';
 /**
  * Shared executor mock for handler tests.
  *
  * Provides typed mock responses matching gws output contracts
  * so handlers can be tested without spawning subprocesses.
  */
+import { vi, type MockedFunction, type Mock } from 'vitest';
 
 import type { GwsResult } from '../../../../executor/gws.js';
 
