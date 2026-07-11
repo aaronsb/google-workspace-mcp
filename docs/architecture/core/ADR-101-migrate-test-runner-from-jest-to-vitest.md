@@ -74,7 +74,7 @@ This decision was validated by a full prototype **and an adversarial code review
 
 - **Removes a critical dev advisory.** Dropping `ts-jest` eliminates `handlebars` (critical). Dev vulnerabilities go 12 → 10; the remainder are the eslint/typescript-eslint majors, tracked separately.
 - **Lifts the ceiling on ESM-only dependencies at test time**, which is a *precondition* for `sanitize-html ^2.17.6` (the other precondition being the Node floor).
-- **Unblocks removing the `setModuleDir()` shim** and the five `registry.js` mocks that exist only to dodge CJS Jest — i.e. lets production code stop accommodating the test runner.
+- **Removed the `setModuleDir()` shim** and the five `registry.js` mocks that existed only to dodge CJS Jest — production code no longer accommodates the test runner. `generator.ts` now reads `import.meta.url` directly (`bc35dff`, net −67/+23 lines), and those five tests exercise the **real** registry instead of a stub that re-implemented it. Verified against the case the shim existed for: the built server resolves its manifest with `cwd=/tmp` and `cwd=/` (npx / `.mcpb`).
 - **Missing exports on mocked modules now fail loudly.** `server.test.ts` mocked only 2 of the 4 SDK schemas `server.ts` imports; Vitest refuses to resolve the missing ones. (Honest scope: this was *not* a false pass — the pre-existing `beforeAll` already selected handlers by schema key, so the two undefined entries were skipped rather than asserted on. It is a correctness tightening, not a bug that was firing.)
 
 ### Negative
@@ -93,7 +93,7 @@ This decision was validated by a full prototype **and an adversarial code review
 
 - Test count is unchanged: **691 before, 691 after.** This is a runner swap, not a coverage change.
 - The MCP `resources/list` and `resources/read` handlers have **zero test coverage**. This predates and is unchanged by this ADR, but the review surfaced it and it should be filed.
-- The five duplicated `registry.js` mock factories remain, and their comments still reference Jest. They go away with the `setModuleDir()` cleanup.
+- The `sanitize-html` pin stays exact until the Node floor rises (google-workspace-mcp#139).
 
 ## Evidence
 
