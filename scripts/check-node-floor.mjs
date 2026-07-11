@@ -7,8 +7,10 @@
  *
  *   1. package.json `engines.node`        — what npm tells a consumer at install time.
  *   2. ci.yml `engines-floor` job         — the Node the built server is EXECUTED on.
- *   3. src/index.ts `MIN_NODE`            — the runtime guard that produces a readable
- *                                           error instead of ERR_REQUIRE_ESM.
+ *   3. src/node-floor.ts `MIN_NODE`       — the runtime guard that produces a readable
+ *                                           error instead of ERR_REQUIRE_ESM. index.ts must
+ *                                           CALL it, and must not statically import the
+ *                                           server graph, or it runs after the crash.
  *   4. mcpb/manifest.json                 — `compatibility.runtimes.node`; the ONLY one
  *      the .mcpb host reads, and the only thing that can stop Claude Desktop from
  *      installing this extension onto a runtime that cannot run it.
@@ -103,13 +105,18 @@ if (!rejectJob) {
   errors.push('the engines-floor-reject job does not run `scripts/smoke-reject.mjs`.');
 }
 
-// ---- 3. src/index.ts MIN_NODE -----------------------------------------------------
-const indexSrc = read('src/index.ts');
-const minNode = /^\s*const MIN_NODE = '([^']+)'/m.exec(indexSrc);
+// ---- 3. src/node-floor.ts MIN_NODE -------------------------------------------------
+const floorSrc = read('src/node-floor.ts');
+const minNode = /^export const MIN_NODE = '([^']+)'/m.exec(floorSrc);
 if (!minNode) {
-  errors.push("src/index.ts has no `const MIN_NODE = '...'` — the startup guard is gone.");
+  errors.push("src/node-floor.ts has no `export const MIN_NODE = '...'` — the startup guard is gone.");
 } else {
-  found['src/index.ts MIN_NODE'] = minNode[1];
+  found['src/node-floor.ts MIN_NODE'] = minNode[1];
+}
+
+const indexSrc = read('src/index.ts');
+if (!/enforceNodeFloor\(\)/.test(indexSrc)) {
+  errors.push('src/index.ts never calls enforceNodeFloor() — the floor is declared but not enforced at startup.');
 }
 
 // The guard is only worth anything if the server graph is reached by a DYNAMIC import

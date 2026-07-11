@@ -38,9 +38,10 @@ import { resolve } from 'node:path';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ENTRY = process.argv[2] ? resolve(process.argv[2]) : resolve(ROOT, 'build/index.js');
 
-const MIN_NODE = /const MIN_NODE = '([^']+)'/.exec(readFileSync(resolve(ROOT, 'src/index.ts'), 'utf8'))?.[1];
+const MIN_NODE = /^export const MIN_NODE = '([^']+)'/m
+  .exec(readFileSync(resolve(ROOT, 'src/node-floor.ts'), 'utf8'))?.[1];
 if (!MIN_NODE) {
-  console.error('smoke-reject: could not read MIN_NODE from src/index.ts — the guard is gone.');
+  console.error('smoke-reject: could not read MIN_NODE from src/node-floor.ts — the guard is gone.');
   process.exit(1);
 }
 
