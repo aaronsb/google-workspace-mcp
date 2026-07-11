@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help test test-all test-unit test-integration build clean typecheck lint smoke check-gates check-node-floor \
+.PHONY: help test test-all test-unit test-integration build clean typecheck lint smoke smoke-reject check-gates check-node-floor \
         manifest-discover manifest-diff manifest-lint \
         coverage coverage-update \
         mcpb mcpb-all version-sync publish-all \
@@ -65,6 +65,12 @@ check-node-floor: ## Assert the Node floor agrees everywhere it is declared
 # artifact" failure this whole branch is about.
 smoke: build ## Start the built server on a foreign cwd and assert it loads its tools
 	node scripts/smoke-start.mjs
+
+# Deliberately NOT in `check`: it must run on a Node BELOW the floor, which this dev box
+# is not. It self-skips loudly rather than passing vacuously. CI runs it (engines-floor-reject),
+# and check-node-floor fails the build if that job disappears.
+smoke-reject: build ## Assert the server REFUSES a below-floor Node (run on Node <22.12)
+	node scripts/smoke-reject.mjs
 
 # Mirrors CI. `lint` used to be in the help text but not the prerequisites, so a
 # contributor could go green locally and red in CI on a job this target claimed
@@ -137,9 +143,16 @@ mcpb: build ## Build .mcpb for current platform (PLATFORM=linux-x64 etc.)
 	rm -rf mcpb/server mcpb/bin
 	mkdir -p mcpb/server
 	cp -r build/* mcpb/server/
-	cp package.json mcpb/server/package.json
-	cd mcpb/server && npm install --production --ignore-scripts --silent
-	rm -f mcpb/server/package.json mcpb/server/package-lock.json
+	cp package.json package-lock.json mcpb/server/
+	cd mcpb/server && npm ci --omit=dev --ignore-scripts --silent
+	rm -f mcpb/server/package-lock.json
+	@# The bundle ships NO full package.json, but the built output is ESM and the entry
+	@# uses top-level await. With nothing declaring "type": "module", Node falls back to
+	@# module-syntax DETECTION (default-on only since 20.19/22.7) — and on any host
+	@# without it the entrypoint dies with a raw SyntaxError before our version guard can
+	@# run, on exactly the runtimes that guard exists for. Make the bundle explicitly ESM.
+	@node -e "require('fs').writeFileSync('mcpb/server/package.json', JSON.stringify({type:'module'}, null, 2) + '\n')"
+	@echo "  mcpb/server/package.json → {\"type\": \"module\"}"
 	./scripts/download-gws-binary.sh $(PLATFORM) $(GWS_VERSION)
 	mcpb pack mcpb google-workspace-mcp-$(PLATFORM).mcpb
 	node scripts/verify-mcpb.cjs google-workspace-mcp-$(PLATFORM).mcpb

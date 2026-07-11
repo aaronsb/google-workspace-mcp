@@ -3,7 +3,7 @@
   "name": "google-workspace-mcp",
   "display_name": "Google Workspace",
   "version": "2.7.1",
-  "description": "Give AI agents access to Gmail, Calendar, Drive, and more — with multi-account support and manifest-driven API coverage",
+  "description": "Give AI agents access to Gmail, Calendar, Drive, and more \u2014 with multi-account support and manifest-driven API coverage",
   "author": {
     "name": "aaronsb",
     "url": "https://github.com/aaronsb"
@@ -78,7 +78,7 @@
     "google_client_id": {
       "type": "string",
       "title": "Google OAuth Client ID",
-      "description": "Create at https://console.cloud.google.com/apis/credentials — OAuth 2.0 Client ID (Desktop application)",
+      "description": "Create at https://console.cloud.google.com/apis/credentials \u2014 OAuth 2.0 Client ID (Desktop application)",
       "sensitive": true,
       "required": true
     },
@@ -92,7 +92,7 @@
     "workspace_dir": {
       "type": "string",
       "title": "Workspace Directory",
-      "description": "Directory for file operations (upload/download/export). Must be a dedicated folder — not your home, Documents, Desktop, or Google Drive directory. Default: ~/.local/share/google-workspace-mcp/workspace/",
+      "description": "Directory for file operations (upload/download/export). Must be a dedicated folder \u2014 not your home, Documents, Desktop, or Google Drive directory. Default: ~/.local/share/google-workspace-mcp/workspace/",
       "required": false
     }
   },
@@ -101,6 +101,9 @@
       "darwin",
       "win32",
       "linux"
-    ]
+    ],
+    "runtimes": {
+      "node": ">=22.12.0"
+    }
   }
 }

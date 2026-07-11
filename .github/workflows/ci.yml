@@ -84,6 +84,37 @@ jobs:
     - run: node --version
     - run: node scripts/smoke-start.mjs
 
+  engines-floor-reject:
+    # The mirror of engines-floor, and the guard-for-the-guard.
+    #
+    # engines-floor proves the server STARTS above the floor. Nothing proved it REFUSES
+    # below it — so the startup guard's entire reason for existing had zero coverage.
+    # src/index.ts reaches the server via `await import()` AFTER the version check,
+    # precisely so sanitize-html -> htmlparser2@12 is never evaluated on a runtime that
+    # cannot require() ESM. Turn that one line back into a static import and the crash
+    # returns while check-node-floor, typecheck, lint, all 681 tests and every other job
+    # stay green — because every runtime in CI is above the floor. The only thing
+    # defending it was a code comment saying "do not tidy this into a static import."
+    #
+    # So: run the built entrypoint on a Node BELOW the floor and assert it exits non-zero
+    # with our message and WITHOUT ERR_REQUIRE_ESM. That behavioral test is what actually
+    # protects the dynamic import.
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+    - run: npm ci
+    - run: npm run build
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20.19.0'   # deliberately BELOW the floor — that is the point
+    - run: rm -rf node_modules && npm ci --omit=dev
+    - run: node --version
+    - run: node scripts/smoke-reject.mjs
+
   lint:
     runs-on: ubuntu-latest
     steps:
