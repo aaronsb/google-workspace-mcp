@@ -72,9 +72,34 @@ const done = (code, msg, extra) => {
 };
 
 const timer = setTimeout(
-  () => done(1, `server did not answer initialize within ${TIMEOUT_MS}ms`, stderr || stdout),
+  () =>
+    done(
+      1,
+      handshake
+        ? `server answered initialize but never logged "startup: N tools loaded" within ${TIMEOUT_MS}ms (manifest not resolved?)`
+        : `server did not answer initialize within ${TIMEOUT_MS}ms`,
+      stderr || stdout,
+    ),
   TIMEOUT_MS,
 );
+
+let handshake = null;
+
+/**
+ * Success needs TWO signals that arrive on two independent pipes: the initialize
+ * result (stdout) and the "N tools loaded" line (stderr). Node gives no delivery
+ * ordering between them, so this is re-evaluated whenever EITHER arrives, and only
+ * concludes once both are in. Checking stderr from inside the stdout handler would
+ * fail a perfectly healthy server whenever the response happened to land first —
+ * a guard that reports failure based on which pipe flushed sooner.
+ */
+const evaluate = () => {
+  if (settled || !handshake) return;
+  const tools = /startup: (\d+) tools loaded/.exec(stderr);
+  if (!tools) return; // not yet — the timeout is the backstop
+  if (Number(tools[1]) === 0) return done(1, 'server loaded ZERO tools', stderr);
+  done(0, `handshake OK, ${tools[1]} tools loaded, cwd=/ (${handshake})`);
+};
 
 child.stdout.on('data', (chunk) => {
   stdout += chunk;
@@ -90,18 +115,18 @@ child.stdout.on('data', (chunk) => {
     if (msg.error) return done(1, `initialize returned an error: ${JSON.stringify(msg.error)}`, stderr);
     if (!msg.result?.serverInfo?.name) return done(1, 'initialize result missing serverInfo', line);
 
-    // The handshake alone proves the module graph loaded — which is the ERR_REQUIRE_ESM
-    // class of failure. Also confirm the manifest actually resolved, so a build shipped
-    // without build/factory/manifest cannot pass as "it started".
-    const tools = /startup: (\d+) tools loaded/.exec(stderr);
-    if (!tools) return done(1, 'server started but never reported loading tools (manifest not resolved?)', stderr);
-    if (Number(tools[1]) === 0) return done(1, 'server loaded ZERO tools', stderr);
-
-    return done(0, `handshake OK, ${tools[1]} tools loaded, cwd=/ (${msg.result.serverInfo.name})`);
+    // The handshake proves the module graph loaded — that is the ERR_REQUIRE_ESM
+    // class of failure. The tools line proves the manifest actually resolved, so a
+    // build shipped without build/factory/manifest cannot pass as "it started".
+    handshake = msg.result.serverInfo.name;
+    return evaluate();
   }
 });
 
-child.stderr.on('data', (chunk) => { stderr += chunk; });
+child.stderr.on('data', (chunk) => {
+  stderr += chunk;
+  evaluate();
+});
 
 child.on('error', (err) => done(1, `could not spawn the server: ${err.message}`));
 

@@ -15,7 +15,8 @@
     "build"
   ],
   "scripts": {
-    "build": "tsc --skipLibCheck && rm -rf build/factory/manifest && cp -r src/factory/manifest build/factory/manifest",
+    "version-stamp": "node scripts/version-stamp.mjs",
+    "build": "npm run version-stamp && tsc --skipLibCheck && rm -rf build/factory/manifest && cp -r src/factory/manifest build/factory/manifest",
     "postbuild": "node scripts/check-build.mjs",
     "prepublishOnly": "npm run build",
     "type-check": "tsc --noEmit --skipLibCheck && tsc -p tsconfig.test.json --skipLibCheck",
