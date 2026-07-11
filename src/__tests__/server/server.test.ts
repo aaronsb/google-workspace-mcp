@@ -6,13 +6,6 @@
  */
 import { beforeAll, beforeEach, describe, expect, it, vi, type MockedFunction, type Mock } from 'vitest';
 
-// Mock registry before any server imports — avoids import.meta.url in Jest
-vi.mock('../../factory/registry.js', async () => {
-  const { loadManifest, generateTools } = await vi.importActual<typeof import('../../factory/generator.js')>('../../factory/generator.js');
-  const { patches } = await vi.importActual<typeof import('../../factory/patches.js')>('../../factory/patches.js');
-  const manifest = loadManifest();
-  return { manifest, generatedTools: generateTools(manifest, patches) };
-});
 
 // vi.mock is hoisted above module-level consts, so the factory's captures must
 // come from vi.hoisted() to exist by the time the factory runs.

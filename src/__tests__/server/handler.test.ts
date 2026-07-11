@@ -1,11 +1,4 @@
 import { beforeEach, describe, expect, it, vi, type MockedFunction, type Mock } from 'vitest';
-// Mock registry before handler imports it — avoids import.meta.url in Jest
-vi.mock('../../factory/registry.js', async () => {
-  const { loadManifest, generateTools } = await vi.importActual<typeof import('../../factory/generator.js')>('../../factory/generator.js');
-  const { patches } = await vi.importActual<typeof import('../../factory/patches.js')>('../../factory/patches.js');
-  const manifest = loadManifest();
-  return { manifest, generatedTools: generateTools(manifest, patches) };
-});
 
 import { handleToolCall } from '../../server/handler.js';
 import type { HandlerResponse } from '../../server/handler.js';

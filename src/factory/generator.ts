@@ -9,7 +9,8 @@
  */
 
 import { readFileSync, readdirSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from '../factory/yaml.js';
 import { execute } from '../executor/gws.js';
 import { requireEmail, clamp } from '../server/handlers/validate.js';
@@ -29,16 +30,16 @@ import type {
 import type { HandlerResponse } from '../server/formatting/markdown.js';
 
 /**
- * Module directory for manifest resolution.
- * Set by registry.ts via setModuleDir() using import.meta.url (ESM only).
- * Null in Jest (CJS) — falls back to cwd-based resolution.
+ * This module's own directory, used to resolve the manifest relative to the
+ * built output — which is what makes `npx` and the .mcpb bundle work, where cwd
+ * is not the project root.
+ *
+ * This used to be injected by registry.ts via a `setModuleDir()` setter, purely
+ * because the CJS Jest runner could not parse `import.meta`. The test runner was
+ * shaping the source. Vitest runs ESM natively (ADR-101), so the module can just
+ * ask where it is.
  */
-let _moduleDir: string | undefined;
-
-/** Called by registry.ts to inject the ESM module directory. */
-export function setModuleDir(dir: string): void {
-  _moduleDir = dir;
-}
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Load the manifest from `src/factory/manifest/` — one YAML file per service,
@@ -68,20 +69,17 @@ export function loadManifest(dir?: string): Manifest {
 }
 
 /**
- * Locate the manifest directory. moduleDir is injected by registry.ts using
- * import.meta.url (ESM only); cwd fallbacks handle Jest/dev where cwd is the
- * project root.
+ * Locate the manifest directory, preferring resolution relative to this module
+ * (which works under npx and .mcpb, where cwd is not the project root) and
+ * falling back to cwd for dev.
  */
 function resolveManifestDir(): string {
-  const candidates: string[] = [];
-
-  if (_moduleDir) {
-    candidates.push(resolve(_moduleDir, 'manifest'));                     // build/factory/manifest/
-    candidates.push(resolve(_moduleDir, '../../src/factory/manifest'));   // dev: from build/ to src/
-  }
-
-  candidates.push(resolve(process.cwd(), 'src/factory/manifest'));
-  candidates.push(resolve(process.cwd(), 'build/factory/manifest'));
+  const candidates: string[] = [
+    resolve(MODULE_DIR, 'manifest'),                     // build/factory/manifest/ — or src/ under vitest
+    resolve(MODULE_DIR, '../../src/factory/manifest'),   // from build/ back to src/
+    resolve(process.cwd(), 'src/factory/manifest'),
+    resolve(process.cwd(), 'build/factory/manifest'),
+  ];
 
   for (const candidate of candidates) {
     try {
