@@ -1,0 +1,24 @@
+google-workspace-mcp
+Copyright 2025-2026 Aaron Bockelie (aaronsb@gmail.com)
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+---
+
+Prior history: MIT
+
+Through v3.0.0 this project was distributed under the MIT License, and portions of
+the code originate from that period. Those contributions remain under their original
+terms, and the MIT notice is retained in LICENSE-MIT as MIT requires. MIT grants the
+right to sublicense, so that code is redistributable under the Apache License 2.0
+alongside the rest; retaining the notice is the condition, and this is it.
+
+Copyright holders in the MIT-licensed history include, in addition to the author:
+
+  Henry Mao
+  David Eklov
+  Jeremy Yowell
+  Lubrsy706
+  Lucas Canavarro
+  Mike Brummett
+  Robbie Mitchell

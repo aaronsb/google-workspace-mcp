@@ -50,3 +50,8 @@ mcpb/bin/
 
 # Local MCP wiring — contains a real GOOGLE_CLIENT_SECRET
 .mcp.json
+
+# copied into the bundle by `make mcpb`
+mcpb/LICENSE
+mcpb/LICENSE-MIT
+mcpb/NOTICE

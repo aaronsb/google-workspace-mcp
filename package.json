@@ -1,6 +1,7 @@
 {
   "name": "@aaronsb/google-workspace-mcp",
   "version": "3.0.0",
+  "license": "Apache-2.0",
   "mcpName": "io.github.aaronsb/google-workspace",
   "description": "MCP server for Google Workspace with progressive context disclosure and multi-account orchestration",
   "repository": {
@@ -12,7 +13,9 @@
     "google-workspace-mcp": "./build/index.js"
   },
   "files": [
-    "build"
+    "build",
+    "NOTICE",
+    "LICENSE-MIT"
   ],
   "scripts": {
     "version-stamp": "node scripts/version-stamp.mjs",

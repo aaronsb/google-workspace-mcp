@@ -77,7 +77,7 @@ smoke-reject: build ## Assert the server REFUSES a below-floor Node (run on Node
 check: typecheck lint check-gates check-node-floor test build smoke ## Type-check, lint, test, build, smoke (CI gate)
 
 clean: ## Remove build artifacts
-	rm -rf build/ mcpb/server *.mcpb
+	rm -rf build/ mcpb/server mcpb/LICENSE mcpb/NOTICE mcpb/LICENSE-MIT *.mcpb
 
 # --- Manifest management ---
 
@@ -156,6 +156,11 @@ mcpb: build ## Build the .mcpb bundle (one bundle, all platforms)
 	@# run, on exactly the runtimes that guard exists for. Make the bundle explicitly ESM.
 	@node -e "require('fs').writeFileSync('mcpb/server/package.json', JSON.stringify({type:'module'}, null, 2) + '\n')"
 	@echo "  mcpb/server/package.json → {\"type\": \"module\"}"
+	@# The bundle is a DISTRIBUTION, so the licence travels with it. Apache-2.0 4(d)
+	@# requires a redistributed work to carry its NOTICE, and MIT requires its notice to
+	@# accompany the code it covers (the pre-3.0 history — see LICENSE-MIT). A bundle
+	@# that ships the code and drops the notices does not satisfy either.
+	cp LICENSE NOTICE LICENSE-MIT mcpb/
 	mcpb pack mcpb google-workspace-mcp.mcpb
 	node scripts/verify-mcpb.cjs google-workspace-mcp.mcpb
 	@echo ""
