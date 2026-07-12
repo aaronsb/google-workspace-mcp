@@ -1,7 +1,7 @@
 /**
- * Build step (rehearsal): mine -> write contract.json -> validate manifest ⊆ contract.
+ * Build step (rehearsal): generate -> write descriptor.json -> validate manifest ⊆ descriptor.
  *
- * In the target shape this is `scripts/mine-discovery.mjs` plus a check wired
+ * In the target shape this is `scripts/generate-discovery.mjs` plus a check wired
  * into `make check`. Here it is one script so the whole loop is visible.
  *
  * The validation is ADR-103 item 10: every `resource:` in the manifest must
@@ -9,49 +9,50 @@
  * Google declares. Today a typo like `users.mesages.list` is a runtime surprise
  * discovered on a user's behalf. It should be a build failure.
  *
- *   node docs/design-notes/miner/build-contract.mjs          # mine + write + check
- *   node docs/design-notes/miner/build-contract.mjs --check  # check only (no network)
+ *   node docs/design-notes/api-descriptor/check-conformance.mjs           generate + write + check
+ *   node docs/design-notes/api-descriptor/check-conformance.mjs --check   check only (no network)
+ *   node docs/design-notes/api-descriptor/check-conformance.mjs --probe   prove the check can fail
  */
 import { writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mine } from './miner.mjs';
+import { generate } from './generate.mjs';
 import { loadManifest } from '../../../build/factory/generator.js';
 import { patches } from '../../../build/factory/patches.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const CONTRACT = join(HERE, 'contract.json');
+const DESCRIPTOR = join(HERE, 'descriptor.json');
 const checkOnly = process.argv.includes('--check');
 
-// ── mine ─────────────────────────────────────────────────────────────────────
+// ── generate ─────────────────────────────────────────────────────────────────────
 if (!checkOnly) {
-  console.log('mining Google Discovery …');
-  const contract = await mine();
-  writeFileSync(CONTRACT, JSON.stringify(contract, null, 2) + '\n');
-  const n = Object.values(contract.services).reduce((a, s) => a + Object.keys(s.methods).length, 0);
-  const kb = (readFileSync(CONTRACT).length / 1024).toFixed(0);
-  console.log(`contract: ${n} methods, ${Object.keys(contract.services).length} services, ${kb} KB`);
-  for (const [name, svc] of Object.entries(contract.services)) {
+  console.log('generating Google Discovery …');
+  const descriptor = await generate();
+  writeFileSync(DESCRIPTOR, JSON.stringify(descriptor, null, 2) + '\n');
+  const n = Object.values(descriptor.services).reduce((a, s) => a + Object.keys(s.methods).length, 0);
+  const kb = (readFileSync(DESCRIPTOR).length / 1024).toFixed(0);
+  console.log(`descriptor: ${n} methods, ${Object.keys(descriptor.services).length} services, ${kb} KB`);
+  for (const [name, svc] of Object.entries(descriptor.services)) {
     console.log(`  ${name.padEnd(9)} ${String(Object.keys(svc.methods).length).padStart(3)} methods  ${svc.discoveryUrl}`);
   }
 }
 
-if (!existsSync(CONTRACT)) { console.error('no contract.json — run without --check first'); process.exit(2); }
-const contract = JSON.parse(readFileSync(CONTRACT, 'utf8'));
+if (!existsSync(DESCRIPTOR)) { console.error('no descriptor.json — run without --check first'); process.exit(2); }
+const descriptor = JSON.parse(readFileSync(DESCRIPTOR, 'utf8'));
 
-// ── validate: manifest ⊆ contract (item 10) ──────────────────────────────────
-console.log('\nchecking manifest ⊆ contract …');
+// ── validate: manifest ⊆ descriptor (item 10) ──────────────────────────────────
+console.log('\nchecking manifest ⊆ descriptor …');
 const { services } = loadManifest();
 const problems = [];
 let resourceOps = 0, helperOps = 0, customOps = 0, paramsChecked = 0;
 
 // `manifestOverride` exists ONLY so the probe below can inject a known-bad op and
 // confirm this check goes red. A check nobody has seen fail is not a check.
-export function validate(contract, services, manifestOverride) {
+export function validate(descriptor, services, manifestOverride) {
   for (const svc of Object.values(manifestOverride ?? services)) {
     const service = svc.gws_service;
-    const mined = contract.services[service];
-    if (!mined) { problems.push(`service '${service}' is in the manifest but was not mined`); continue; }
+    const generated = descriptor.services[service];
+    if (!generated) { problems.push(`service '${service}' is in the manifest but was not generated`); continue; }
 
     for (const [op, def] of Object.entries(svc.operations ?? {})) {
       if (def.helper) { helperOps++; continue; }   // gws inventions; Google never declared them
@@ -67,14 +68,14 @@ export function validate(contract, services, manifestOverride) {
       if (custom) customOps++;
       resourceOps++;
 
-      const m = mined.methods[def.resource];
+      const m = generated.methods[def.resource];
       if (!m) { problems.push(`${service}.${op}: resource '${def.resource}' does not exist in Google's surface`); continue; }
       if (custom) continue;
 
       // Factory-path ops only. Every param we SEND must be one Google DECLARES —
       // or be a body member. GET/DELETE have no body, so an undeclared param there
       // is silently dropped, which is a real bug.
-      const declared = { ...mined.globalParameters, ...m.parameters };
+      const declared = { ...generated.globalParameters, ...m.parameters };
       const bodyless = m.httpMethod === 'GET' || m.httpMethod === 'DELETE';
       const sends = new Set([
         ...Object.keys(def.defaults ?? {}),
@@ -91,7 +92,7 @@ export function validate(contract, services, manifestOverride) {
     }
   }
 }
-validate(contract, services);
+validate(descriptor, services);
 
 // Snapshot the REAL counts now. The probe below calls validate() again with fake
 // services, which would otherwise inflate these — a check reporting a wrong
@@ -108,7 +109,7 @@ console.log(`  ${COUNTS.resourceOps} resource ops (${COUNTS.customOps} custom-ha
 if (process.argv.includes('--probe')) {
   const runProbe = (label, fakeService) => {
     const saved = problems.splice(0, problems.length);   // isolate
-    validate(contract, null, { probe: fakeService });
+    validate(descriptor, null, { probe: fakeService });
     const caught = problems.length > 0;
     console.log(`  ${caught ? 'RED  ' : 'GREEN'}  ${label}${caught ? ` → ${problems[0].slice(0, 84)}` : '  *** THE CHECK DID NOT FIRE ***'}`);
     problems.splice(0, problems.length, ...saved);
@@ -133,12 +134,12 @@ if (process.argv.includes('--probe')) {
   console.log('  probe OK — fires on both defects, silent on the control.\n');
 }
 if (problems.length === 0) {
-  console.log(`\ncheck-contract: OK — all ${COUNTS.resourceOps} resource ops resolve against Google's surface.`);
-  const total = Object.values(contract.services).reduce((a, s) => a + Object.keys(s.methods).length, 0);
+  console.log(`\ncheck-descriptor: OK — all ${COUNTS.resourceOps} resource ops resolve against Google's surface.`);
+  const total = Object.values(descriptor.services).reduce((a, s) => a + Object.keys(s.methods).length, 0);
   const exposed = COUNTS.resourceOps + COUNTS.helperOps;
-  console.log(`coverage: ${exposed} of ${total} mined methods exposed — ${total - exposed} are the visible frontier.`);
+  console.log(`coverage: ${exposed} of ${total} generated methods exposed — ${total - exposed} are the visible frontier.`);
   process.exit(0);
 }
-console.error(`\ncheck-contract: ${problems.length} PROBLEM(S)`);
+console.error(`\ncheck-descriptor: ${problems.length} PROBLEM(S)`);
 for (const p of problems) console.error(`  ✗ ${p}`);
 process.exit(1);

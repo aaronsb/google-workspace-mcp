@@ -1,22 +1,22 @@
 /**
- * THE MINER (ADR-103, rehearsal shape).
+ * THE DESCRIPTOR GENERATOR (ADR-103, rehearsal shape).
  *
- * Google Discovery -> a distilled CONTRACT. Runs at BUILD time; its output is a
+ * Google Discovery -> a distilled DESCRIPTOR. Runs at BUILD time; its output is a
  * committed artifact. Nothing here runs at runtime, and nothing here touches an
  * account — it reads public documents.
  *
  * This is the piece that replaces gws. gws is someone else's miner wrapped in
- * the product baggage of being an operational CLI; we want the miner.
+ * the product baggage of being an operational CLI; we want the generator.
  *
- * THE ONE RULE: the contract is a TRANSCRIPTION, not an interpretation.
+ * THE ONE RULE: the descriptor is a TRANSCRIPTION, not an interpretation.
  * It records what Discovery says about how to make a REQUEST. It records nothing
  * about what a RESPONSE means. That is why ~90% of each Discovery doc — the
  * `schemas` block, which defines response shapes — is deliberately DISCARDED.
- * A contract that knows response shapes is a contract that can start helpfully
+ * A descriptor that knows response shapes is a descriptor that can start helpfully
  * reshaping them, and that is the defect class ADR-101 spent six rounds learning
  * to fear: something that can be subtly wrong in a way no test catches.
  *
- * Measured: 983 KB of raw Discovery across 7 services -> 94 KB of contract,
+ * Measured: 983 KB of raw Discovery across 7 services -> 94 KB of descriptor,
  * covering all 233 methods. (The gws binary it replaces is 19.2 MB.) Mining the
  * WHOLE surface therefore costs nothing, which is what lets us validate the
  * manifest against Google's real surface instead of against gws's.
@@ -107,8 +107,8 @@ function walkMethods(node, prefix, out) {
   return out;
 }
 
-/** Mine every service in SERVICE_VERSIONS into one contract object. */
-export async function mine(fetchImpl = fetch) {
+/** Mine every service in SERVICE_VERSIONS into one descriptor object. */
+export async function generate(fetchImpl = fetch) {
   const urls = await resolveDiscoveryUrls(fetchImpl);
   const services = {};
 

@@ -6,7 +6,7 @@ deciders:
 related: [ADR-101, ADR-102, ADR-300, ADR-304]
 ---
 
-# ADR-103: Mine the Google API surface directly; retire the gws CLI
+# ADR-103: Generate a Google API descriptor from Discovery; retire the gws facade
 
 ## Context
 
@@ -161,6 +161,58 @@ Neither adds interpretation — both are cases of reading *more* of the document
 - **The patches are NOT unchanged** — an earlier draft claimed they were, and that claim is retracted. `execute()` is a seam shaped like gws argv, and **30 of the 70 resource ops have `customHandlers`** (`generator.ts:218` — a custom handler short-circuits `buildArgs` entirely) that construct that argv **by hand, in TypeScript**. They must move to the typed client. See *The seam* above: the cost is ~96 mechanical call-site rewrites, 7 download sites, and exactly **one** error-handling site — bounded, and measured rather than guessed.
 - `gws` remains Apache-2.0 and functional. Pinning `0.22.5` and vendoring the binary stays a legitimate fallback at any point.
 
+## Naming: say what these are in ordinary engineering terms
+
+The working shorthand for this ADR was "the mine" and "the factory". *Factory* is fine — it is the GoF pattern and the code already uses it. *Mine* is not a thing. What we are building has a boring, well-established name, and boring is correct for something a stranger has to maintain:
+
+| This ADR's shorthand | The name we use | Why |
+|---|---|---|
+| Google Discovery document | **API specification** | Same role as OpenAPI or a `.proto`: an upstream, machine-readable description. |
+| "the miner" | **descriptor generator** (build-time codegen) | Exactly what `protoc` / `openapi-generator` do — consume a spec, emit an artifact. |
+| "the mined contract" | **API descriptor** | A pruned, generated, committed artifact derived from the spec. |
+| the dispatcher | **API client** (transport) | The generated-SDK layer. |
+| "mine coverage" | **API surface coverage** / **conformance** | Standard. |
+| `src/factory/` | **factory** — unchanged | It genuinely constructs tool objects from a declaration. |
+
+The pattern is **spec-driven (contract-first) code generation**:
+
+```
+API spec (Discovery) → generator (build) → descriptor (committed) → client (runtime) → factory → MCP tools
+                                                ↑
+                        conformance: manifest ⊆ descriptor · surface coverage · drift
+```
+
+### And what `gws` is, precisely
+
+`gws` is a **service facade** over Google's API. That is not a slight — it is the accurate pattern name, and it explains the central measurement of this ADR:
+
+**The two surfaces are identical. 233 operations, 233 in agreement, zero that Google declares and `gws` lacks.**
+
+This is not a coincidence: `gws` is itself generated from the same Discovery documents. The *only* things in its surface that are not Google's are its **12 helper inventions** (`+send`, `+triage`, `+agenda`, `+upload`, `+read`, `+write`, `+append`, `+reply`, `+forward`, `+watch`, `+insert`). A facade that passes everything through and adds nothing at the resource level is a facade that can be removed — and the helpers, which are the only thing it *does* add, are interpretation aimed at a CLI audience, which we discard on purpose.
+
+## The conformance tooling must be retargeted — it currently lints against `gws`, and against its *prose*
+
+`src/coverage/` is how we answer "what does Google offer that we do not expose?" It does not use `execute()`; `discover.ts` shells out to the binary and **reconstructs the API surface by regex-scraping `--help` text**:
+
+```ts
+const resourceMatch = trimmed.match(/^(\w+)\s+Operations on the/);
+const methodMatch   = trimmed.match(/^(\w+)\s+\S/);
+```
+
+This is API truth derived from **human-readable help formatting**. It has already produced a defect, and the defect is committed:
+
+```json
+"calendars.insert": { "status": "gap" },
+"calendars.The":    { "status": "gap" },      // <- not an API method
+"calendars.patch":  { "status": "gap" },
+```
+
+`calendars.The` is a **word from a wrapped description line**, captured as a method name and recorded in `coverage-baseline.json` as an uncovered gap — a nonexistent operation presented to future contributors as work they could pick up. Nothing caught it, because nothing could: the scraper's only source of truth is prose.
+
+**The denominator is wrong in three ways.** Today's headline is *72/350 operations (21%)*. That 350 counts `gws`'s 12 helper inventions (not Google operations), at least one scraping phantom, and five services we deliberately do not support (`slides`, `people`, `chat`, `keep`, `events`). Measured against Google's real surface for the seven services we *do* support, coverage is **80/233 — 34%**.
+
+**Retargeting is proven, not assumed.** The generated descriptor reproduces `gws`'s discovered surface exactly — 233/233, with zero operations Google declares that `gws` misses — so `discover.ts` collapses from a regex scraper into a lookup. This is a **verification item, not a footnote**: see item 11.
+
 ## The seam: replace `execute(argv)`, do not emulate it
 
 An earlier draft of this ADR said the patches were unchanged because `execute()` is already the seam. That is half true, and the wrong half is load-bearing.
@@ -236,7 +288,9 @@ But the harness is **not a parity gate.** We *expect* divergence wherever `gws` 
 | 9 | The 10 helpers — what does each actually do? | Read `gws`'s Rust source; reimplement as patches | Not started |
 | 10 | Does the mined contract cover every manifest op? | Build-time validation: manifest ⊆ contract | **Containment proven; the build gate is not built.** All 70 resource ops resolve against Discovery, zero unresolved. Wiring that into the build as a failing check is still to do. |
 
-**The gate for retiring `gws` is that all ten are answered — and that (4) is answered by a working 35 MB attachment send, not by reading a specification.**
+| 11 | **The conformance tooling** — `src/coverage/` scrapes `gws --help` with regexes and dies with the subprocess. Can the descriptor replace it? | Diff the descriptor-derived surface against the `gws`-scraped one | **Done — YES.** 233/233 agree; **zero** operations Google declares that `gws` misses. The one difference (`calendars.The`) is *our* scraper hallucinating a method from a wrapped description line — and it is committed in `coverage-baseline.json` as a `"gap"`. `discover.ts` collapses into a descriptor lookup. **Rewriting it is in scope, not a footnote.** |
+
+**The gate for retiring `gws` is that all eleven are answered — and that (4) is answered by a working 35 MB attachment send, not by reading a specification.**
 
 ### What item 2 has NOT covered — stated, so that "0 divergences" cannot be misread
 

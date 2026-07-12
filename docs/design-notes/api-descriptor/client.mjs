@@ -1,7 +1,7 @@
 /**
  * THE CLIENT (ADR-103, rehearsal shape).
  *
- * contract + params -> HTTP request -> RAW Google JSON, untouched.
+ * descriptor + params -> HTTP request -> RAW Google JSON, untouched.
  *
  * This is what replaces `spawn(gws)`. It is the whole of what gws did for
  * resource operations: get a token, make the call, hand back the JSON.
@@ -9,10 +9,10 @@
  * LOAD-BEARING CONSTRAINT: this layer has NO OPINIONS. It never reshapes, never
  * "fixes", never fills in. It returns exactly what Google returned, error or not.
  * Interpretation happens ABOVE it, in the layer we already own and aim at the MCP
- * contract (patches / formatters / next-steps). The moment this file gets helpful,
+ * descriptor (patches / formatters / next-steps). The moment this file gets helpful,
  * it becomes something that can be subtly wrong in a way no test catches.
  *
- * Everything below is a consequence of something the CONTRACT said. Where a rule
+ * Everything below is a consequence of something the DESCRIPTOR said. Where a rule
  * looks arbitrary, it is not — it is a fact we learned by being wrong first.
  */
 
@@ -30,11 +30,11 @@ export class GoogleApiError extends Error {
   }
 }
 
-function resolveMethod(contract, service, resourcePath) {
-  const svc = contract.services[service];
-  if (!svc) throw new Error(`contract has no service '${service}'`);
+function resolveMethod(descriptor, service, resourcePath) {
+  const svc = descriptor.services[service];
+  if (!svc) throw new Error(`descriptor has no service '${service}'`);
   const m = svc.methods[resourcePath];
-  if (!m) throw new Error(`contract has no method '${service}.${resourcePath}'`);
+  if (!m) throw new Error(`descriptor has no method '${service}.${resourcePath}'`);
   return { svc, m };
 }
 
@@ -57,8 +57,8 @@ function expandPath(template, pathParams) {
 }
 
 /**
- * Split params into path / query / body, purely by what the contract DECLARES.
- * Anything the contract does not declare is a body member — that is the schema's
+ * Split params into path / query / body, purely by what the descriptor DECLARES.
+ * Anything the descriptor does not declare is a body member — that is the schema's
  * business, not ours, and Google validates it.
  */
 function splitParams(svc, m, params) {
@@ -83,9 +83,9 @@ function withQuery(url, query) {
   return url;
 }
 
-/** Build the request the contract describes. Pure — no I/O, so it is testable offline. */
-export function buildRequest(contract, service, resourcePath, params = {}) {
-  const { svc, m } = resolveMethod(contract, service, resourcePath);
+/** Build the request the descriptor describes. Pure — no I/O, so it is testable offline. */
+export function buildRequest(descriptor, service, resourcePath, params = {}) {
+  const { svc, m } = resolveMethod(descriptor, service, resourcePath);
   const { path, query, body } = splitParams(svc, m, params);
 
   const base = svc.rootUrl.replace(/\/$/, '') + '/' + (svc.servicePath ?? '').replace(/^\//, '');
@@ -105,8 +105,8 @@ export function buildRequest(contract, service, resourcePath, params = {}) {
 }
 
 /** Execute. Returns raw Google JSON. Throws GoogleApiError with Google's real error body. */
-export async function call(contract, service, resourcePath, params, { token, fetchImpl = fetch } = {}) {
-  const req = buildRequest(contract, service, resourcePath, params);
+export async function call(descriptor, service, resourcePath, params, { token, fetchImpl = fetch } = {}) {
+  const req = buildRequest(descriptor, service, resourcePath, params);
   const res = await fetchImpl(req.url, {
     method: req.method,
     headers: {
@@ -126,16 +126,16 @@ export async function call(contract, service, resourcePath, params, { token, fet
 }
 
 /**
- * Media upload. The contract carries the upload paths for BOTH protocols,
+ * Media upload. The descriptor carries the upload paths for BOTH protocols,
  * because Discovery DECLARES them — item 4 verified that both are served, and
  * that a 35 MB Gmail attachment round-trips byte-for-byte through the resumable
  * one. The upload path is root-relative, so resolving it against rootUrl is the
  * entire algorithm.
  */
-export async function upload(contract, service, resourcePath, params, {
+export async function upload(descriptor, service, resourcePath, params, {
   token, media, contentType, metadata = {}, chunkSize = 8 * 1024 * 1024, fetchImpl = fetch,
 } = {}) {
-  const { svc, m } = resolveMethod(contract, service, resourcePath);
+  const { svc, m } = resolveMethod(descriptor, service, resourcePath);
   if (!m.mediaUpload) throw new Error(`${service}.${resourcePath} does not support media upload`);
 
   const max = Number(m.mediaUpload.maxSize);

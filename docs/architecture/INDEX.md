@@ -21,7 +21,9 @@ _Architecture, tool design, executor patterns_
 | ADR | Title | Status |
 |-----|-------|--------|
 | [ADR-100](./core/ADR-100-build-time-coverage-analysis-of-gws-cli-surface.md) | Build-Time Coverage Analysis of gws CLI Surface | Draft |
-| [ADR-101](./core/ADR-101-migrate-test-runner-from-jest-to-vitest.md) | Migrate test runner from Jest to Vitest | Draft |
+| [ADR-101](./core/ADR-101-migrate-test-runner-from-jest-to-vitest.md) | Migrate test runner from Jest to Vitest | Accepted |
+| [ADR-102](./core/ADR-102-raise-the-node-floor-to-22-12-and-unpin-sanitize-html.md) | Raise the Node floor to 22.12 and unpin sanitize-html | Accepted |
+| [ADR-103](./core/ADR-103-generate-a-google-api-descriptor-retire-the-gws-facade.md) | Generate a Google API descriptor from Discovery; retire the gws facade | Draft |
 
 ## Authentication
 _OAuth, credential management, multi-account_

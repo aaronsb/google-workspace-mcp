@@ -26,12 +26,12 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { readFileSync } from 'node:fs';
 import { getAccessToken } from '../../build/accounts/token-service.js';
-import { call as clientCall } from './miner/client.mjs';
+import { call as clientCall } from './api-descriptor/client.mjs';
 
-// The CANDIDATE side is now the real client, driven by the MINED CONTRACT —
+// The CANDIDATE side is now the real client, driven by the GENERATED DESCRIPTOR —
 // not a bespoke dispatcher written for this harness. If this still reproduces
 // gws exactly, the rehearsal code is what item 2 actually validated.
-const contract = JSON.parse(readFileSync(new URL('./miner/contract.json', import.meta.url), 'utf8'));
+const contract = JSON.parse(readFileSync(new URL('./api-descriptor/descriptor.json', import.meta.url), 'utf8'));
 
 const exec = promisify(execFile);
 const EMAIL = process.argv[2];
