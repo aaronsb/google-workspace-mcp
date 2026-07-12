@@ -24,8 +24,14 @@
  */
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { readFileSync } from 'node:fs';
 import { getAccessToken } from '../../build/accounts/token-service.js';
-import { loadDiscovery, resolveMethod, SERVICE_VERSIONS } from './adr-103-discovery-resolve.mjs';
+import { call as clientCall } from './miner/client.mjs';
+
+// The CANDIDATE side is now the real client, driven by the MINED CONTRACT —
+// not a bespoke dispatcher written for this harness. If this still reproduces
+// gws exactly, the rehearsal code is what item 2 actually validated.
+const contract = JSON.parse(readFileSync(new URL('./miner/contract.json', import.meta.url), 'utf8'));
 
 const exec = promisify(execFile);
 const EMAIL = process.argv[2];
@@ -48,54 +54,9 @@ async function viaGws(service, resource, params) {
   return JSON.parse(stdout || '{}');
 }
 
-/** CANDIDATE: uninterpreted Discovery dispatch. Doc in -> HTTP out -> raw JSON. */
+/** CANDIDATE: the mined contract + the client we own. No bespoke dispatch code. */
 async function viaDiscovery(service, resource, params) {
-  const doc = await loadDiscovery(service, SERVICE_VERSIONS[service]);
-  const m = resolveMethod(doc, resource);
-  if (!m) throw new Error(`unresolved: ${service} ${resource}`);
-
-  // The doc declares parameters in TWO places. Method params are per-method;
-  // `fields`, `alt`, `quotaUser`, `prettyPrint` … are declared ONCE, globally,
-  // in doc.parameters. Read only the method's and `fields` has no known
-  // location, falls through to the body, and a GET silently drops it —
-  // which is exactly how drive.listComments died with
-  // "The 'fields' parameter is required". Merge both. Method wins on conflict.
-  const declared = { ...(doc.parameters ?? {}), ...(m.parameters ?? {}) };
-
-  const pathP = {}, queryP = {}, body = {};
-  for (const [k, v] of Object.entries(params)) {
-    const loc = declared[k]?.location;
-    if (loc === 'path') pathP[k] = v;
-    else if (loc === 'query') queryP[k] = v;
-    else body[k] = v;
-  }
-
-  // `{+name}` is RFC 6570 RESERVED expansion: reserved characters — notably `/` —
-  // must NOT be percent-encoded. Meet's ids are paths ("conferenceRecords/abc"),
-  // so encoding the slash to %2F 404s every sub-resource op. The `+` is the doc
-  // TELLING us this. Honour it; do not strip it.
-  const path = m.path.replace(/\{(\+?)([^}]+)\}/g, (_, plus, n) => {
-    const raw = String(pathP[n]);
-    return plus
-      ? raw.split('/').map(encodeURIComponent).join('/')   // reserved: keep the slashes
-      : encodeURIComponent(raw);
-  });
-  const base = doc.rootUrl.replace(/\/$/, '') + '/' + (doc.servicePath ?? '').replace(/^\//, '');
-  const url = new URL((base.replace(/\/$/, '') + '/' + path).replace(/\/+$/, ''));
-  for (const [k, v] of Object.entries(queryP)) {
-    if (v === undefined || v === null) continue;
-    if (Array.isArray(v)) v.forEach(x => url.searchParams.append(k, String(x)));
-    else url.searchParams.set(k, String(v));
-  }
-  const hasBody = Object.keys(body).length > 0 && m.httpMethod !== 'GET';
-  const res = await fetch(url, {
-    method: m.httpMethod,
-    headers: { Authorization: `Bearer ${token}`, ...(hasBody ? { 'Content-Type': 'application/json' } : {}) },
-    ...(hasBody ? { body: JSON.stringify(body) } : {}),
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
-  return text ? JSON.parse(text) : {};
+  return clientCall(contract, service, resource, params, { token });
 }
 
 // ── deep diff: report json-paths that differ. No normalisation, no mercy. ────

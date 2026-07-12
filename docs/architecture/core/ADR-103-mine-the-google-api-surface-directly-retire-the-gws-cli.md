@@ -157,6 +157,10 @@ Neither adds interpretation — both are cases of reading *more* of the document
 ### Neutral
 
 - The manifest, patches, formatters, next-steps and every existing test are **unchanged**. `execute()` is the seam and it already exists — this is what the factory bought us.
+
+  **This claim needs a caveat it did not originally have.** `execute()` is a seam, but it is a seam shaped like *gws argv*: `execute(['drive','files','get','--params','{…}','--output','/tmp/x'])`. And **30 of the 70 resource ops have `customHandlers`** (`generator.ts:218` — a custom handler short-circuits `buildArgs` entirely) which construct that argv **by hand, in TypeScript**. So "patches are unchanged" is true only if the replacement `execute()` keeps parsing gws-flavoured argv — which would mean owning a CLI grammar with no CLI behind it.
+
+  The honest options are (a) keep the argv shape and parse it, or (b) move the seam to `execute(service, resource, params)` and rewrite ~30 custom handlers. (b) is the right destination; the cost is real and belongs in the estimate rather than in a surprise.
 - `gws` remains Apache-2.0 and functional. Pinning `0.22.5` and vendoring the binary stays a legitimate fallback at any point.
 
 ## Verification plan — what must be proven before gws is removed
