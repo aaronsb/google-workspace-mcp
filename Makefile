@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: help test test-all test-unit test-integration build clean typecheck lint smoke smoke-reject check-gates check-node-floor \
-        manifest-lint \
+        manifest-lint check-write-ops \
         coverage coverage-update \
         mcpb version-sync publish-all \
         release-patch release-minor release-major check
@@ -52,6 +52,9 @@ lint: ## Lint src/
 build: ## Compile TypeScript to build/ (and verify the output)
 	npm run build
 
+check-write-ops: ## Assert every write op can carry a request body
+	node scripts/check-write-ops.mjs
+
 check-gates: ## Assert every test file is COLLECTED by some gate
 	node scripts/check-test-gates.mjs
 
@@ -74,22 +77,18 @@ smoke-reject: build ## Assert the server REFUSES a below-floor Node (run on Node
 # Mirrors CI. `lint` used to be in the help text but not the prerequisites, so a
 # contributor could go green locally and red in CI on a job this target claimed
 # to cover.
-check: typecheck lint check-gates check-node-floor test build smoke ## Type-check, lint, test, build, smoke (CI gate)
+check: typecheck lint check-gates check-node-floor check-write-ops test build smoke ## Type-check, lint, test, build, smoke (CI gate)
 
 clean: ## Remove build artifacts
 	rm -rf build/ mcpb/server mcpb/LICENSE mcpb/NOTICE mcpb/LICENSE-MIT *.mcpb
 
 # --- Manifest management ---
 
-# `manifest-discover` and `manifest-diff` are gone with gws. Both were built on the
-# CLI: discover shelled out to enumerate the API, and diff compared the curated
-# manifest against `discovered-manifest.yaml` — a file ADR-103 deleted. The target
-# outlived its input, and would have kept "passing" on any machine with a stale copy
-# of that yaml still on disk while diffing against nothing on a fresh clone.
-#
-# Both jobs now belong to `npm run generate-descriptor` (Google's Discovery documents
-# -> src/google/descriptor.json) and `make coverage` (what we expose vs what Google
-# actually offers). See ADR-103.
+# Two jobs, two targets: `npm run generate-descriptor` reads Google's Discovery
+# documents into src/google/descriptor.json, and `make coverage` reports what we
+# expose against what Google actually offers. Neither derives the API surface from
+# a checked-in snapshot — a target whose input can go stale on disk keeps "passing"
+# locally while comparing against nothing on a fresh clone. See ADR-103.
 
 manifest-lint: ## Validate manifest YAML syntax and structure
 	@node -e " \
@@ -128,13 +127,12 @@ coverage-update: build ## Update coverage baseline from Google's current surface
 
 # ONE bundle, not five.
 #
-# The per-platform build existed for exactly one reason: the bundle used to carry a
-# ~19 MB gws executable, and that executable was platform-specific. ADR-103 deleted it.
-# What ships now is Node + pure JavaScript: 112 production packages, zero native
-# addons, zero `os`/`cpu`-gated packages. So `mcpb-all` was packing the SAME BYTES five
-# times and labelling them darwin-arm64, darwin-x64, linux-arm64, linux-x64 and
-# windows-x64 — measured, not assumed: two of those bundles built out to 3191 files
-# each under an identical content hash.
+# A per-platform build only earns its keep if the bundle carries platform-specific
+# bytes. This one does not: what ships is Node + pure JavaScript — 112 production
+# packages, zero native addons, zero `os`/`cpu`-gated packages. So `mcpb-all` was
+# packing the SAME BYTES five times and labelling them darwin-arm64, darwin-x64,
+# linux-arm64, linux-x64 and windows-x64 — measured, not assumed: two of those
+# bundles built out to 3191 files each under an identical content hash.
 #
 # That was worse than redundant, it was a lie a user could act on. Someone on an M1 who
 # grabbed `darwin-arm64` got a bundle whose `npm ci --omit=dev` had been resolved on
