@@ -156,12 +156,66 @@ Neither adds interpretation — both are cases of reading *more* of the document
 
 ### Neutral
 
-- The manifest, patches, formatters, next-steps and every existing test are **unchanged**. `execute()` is the seam and it already exists — this is what the factory bought us.
+- The manifest, formatters, next-steps and the factory's structure are **unchanged**. The *shape* of the code survives; what changes is what sits under it.
 
-  **This claim needs a caveat it did not originally have.** `execute()` is a seam, but it is a seam shaped like *gws argv*: `execute(['drive','files','get','--params','{…}','--output','/tmp/x'])`. And **30 of the 70 resource ops have `customHandlers`** (`generator.ts:218` — a custom handler short-circuits `buildArgs` entirely) which construct that argv **by hand, in TypeScript**. So "patches are unchanged" is true only if the replacement `execute()` keeps parsing gws-flavoured argv — which would mean owning a CLI grammar with no CLI behind it.
-
-  The honest options are (a) keep the argv shape and parse it, or (b) move the seam to `execute(service, resource, params)` and rewrite ~30 custom handlers. (b) is the right destination; the cost is real and belongs in the estimate rather than in a surprise.
+- **The patches are NOT unchanged** — an earlier draft claimed they were, and that claim is retracted. `execute()` is a seam shaped like gws argv, and **30 of the 70 resource ops have `customHandlers`** (`generator.ts:218` — a custom handler short-circuits `buildArgs` entirely) that construct that argv **by hand, in TypeScript**. They must move to the typed client. See *The seam* above: the cost is ~96 mechanical call-site rewrites, 7 download sites, and exactly **one** error-handling site — bounded, and measured rather than guessed.
 - `gws` remains Apache-2.0 and functional. Pinning `0.22.5` and vendoring the binary stays a legitimate fallback at any point.
+
+## The seam: replace `execute(argv)`, do not emulate it
+
+An earlier draft of this ADR said the patches were unchanged because `execute()` is already the seam. That is half true, and the wrong half is load-bearing.
+
+`execute()` **is** a seam — but it is a seam shaped like *gws argv*:
+
+```ts
+execute(['drive', 'files', 'get', '--params', JSON.stringify({ fileId, alt: 'media' }), '--output', outputPath], { account, cwd });
+```
+
+Keeping that shape while deleting gws means **parsing a CLI grammar for a CLI that no longer exists** — inventing an argv dialect, and a `--flag` vocabulary, purely to avoid touching callers. That is baggage adopted on purpose. We reject it.
+
+**Decision: the seam becomes a typed client we own.**
+
+```ts
+call(service, resource, params, opts)      -> raw Google JSON
+download(service, resource, params, path)  -> bytes to disk, never through a string
+upload(service, resource, params, media)   -> resumable, chunked
+```
+
+### Why this is affordable — measured, not assumed
+
+**80 `execute()` call sites** exist outside `gws.ts` (excluding tests). They are not 80 problems:
+
+| Bucket | Count | What happens to it |
+|---|---|---|
+| **A. Resource call** (`--params` JSON, sometimes `--json` body) | **59** | Already resource-shaped. `execute([svc,a,b,'--params',JSON])` → `call(svc,'a.b',params)`. Mechanical. |
+| **B. Resource + `--output`** (binary to disk) | **4** | → `download(...)`. **This one improves.** Today Gmail attachments come back as base64 *through stdout as a JSON string*: `gws.ts:158` accumulates the entire response into a JS string, uncapped, then `JSON.parse`s it. A 30 MB attachment becomes a ~40 MB string → object → Buffer. An owned client streams to disk. |
+| **C. Helper call** (`+send`, `+agenda`, `+upload`, …) | **17** | Reimplemented as code (item 9). gws *inventions*; never Google's. |
+| **D. Other** | **2** | `generator.ts:237` — see below — and `gwsVersion()`, which simply dies. |
+
+**`generator.ts:237` is the chokepoint.** One `execute(args, {account, format:'json'})` fans out to *every manifest-driven operation across every service*, because `buildArgs()` produces either shape. Port that one site and the entire factory path moves at once. This is what the factory bought us, and it is why the count is bounded.
+
+**The envelope is thinner than it looks.** No production code reads `.success` or `.stderr` — **every call site reads `result.data` and nothing else.** The envelope exists to describe a subprocess; without one, it collapses to "the raw JSON".
+
+**The feared coupling is exactly one place.** `server.ts:101-110` branches on `err.exitCode === GwsExitCode.AuthError` and serializes `err.stderr` into the MCP error payload. That becomes a mapping over Google's real error JSON — which is *better*, and is item 7. Nothing else scrapes stderr.
+
+### What the survey found that we did not expect
+
+- **`src/coverage/discover.ts` dies with the subprocess.** It does not use `execute()` at all — it shells out to the binary and **scrapes `--help` and `schema` output with regexes**. It must be rewritten against the mined contract. That is not a loss: today it measures us against *gws's* surface, and the contract measures us against *Google's*. But it is work this ADR had not counted.
+- **Two inconsistent body conventions already exist in our own code**, and must be normalised on the way through: `--json` with *no* `--params` (`calendar/patch.ts:193`, `send-doc.ts:41`), versus a `requestBody` nested *inside* `--params` (`scratchpad/handler.ts:419`, `send-sheet.ts:39`, `send-task.ts:50`). The client takes one body, so this ambiguity has to be resolved rather than carried across.
+- **Some helpers return text, not JSON.** `+agenda` and `docs +export` return strings even under `--format json`, and three call sites defend with `typeof result.data === 'string' ? … : JSON.stringify(…)`. That is gws's CLI audience leaking into our types — precisely the "interpretation aimed at the wrong consumer" this ADR exists to discard.
+- **The `cwd` directory-fence disappears.** Seven sites pass `cwd` for one reason only: to satisfy gws's path fence for `--attach` and `--output`. With an owned client, the fence — and `path.relative(getWorkspaceDir(), …)` in `gmail/patch.ts:171` — is unnecessary. (Our *own* workspace safety checks stay; it is gws's fence that goes.)
+
+### Order of operations — do not lose the oracle
+
+`gws` is the only reference we have for the 34 mutating ops nobody has diffed yet, and it is rotting. So:
+
+1. Build the client **alongside** `execute()`. Nothing is deleted.
+2. Verify the mutating ops against `gws` **while it still works** (item 2's remainder).
+3. Migrate the 96 resource call sites behind the new seam.
+4. Reimplement the 10 helpers (item 9), including the MIME builder.
+5. **Then** delete `gws`, the binary, and `execute()`.
+
+Deleting the subprocess first would destroy the instrument we need to verify the replacement. The oracle goes last.
 
 ## Verification plan — what must be proven before gws is removed
 
