@@ -16,6 +16,20 @@ Coverage is also not a race. A gap is not a bug. Some gaps are deliberate, and `
 
 But that judgement was made without you, and it may be wrong for what you're doing.
 
+## Whole APIs we don't touch yet
+
+Beyond the seven APIs above, Google publishes others this server does not target at all — **Chat, Contacts (People), Slides and Forms**, listed under [Not targeted yet](api-surface.md#not-targeted-yet) with the same per-method Request links.
+
+They are listed rather than quietly omitted because *not targeted* is a decision, and it was made without you. They are not equally easy, and the difference is worth knowing before you ask:
+
+| API | | |
+|---|---|---|
+| **Contacts** (People) | ordinary OAuth scopes, works on a personal account | straightforward |
+| **Slides**, **Forms** | small, self-contained surfaces (5 and 10 methods) | straightforward |
+| **Chat** | much of the API is built for Chat *apps* (bots) rather than for acting as yourself; user-credential access is narrower and in places Workspace-only | uncertain — a personal `@gmail.com` account may not be able to call it at all |
+
+A request that names a concrete task is what turns one of these into work. It also tells us *which* methods matter — "find this person's phone number" needs two People methods, not all twenty-four.
+
 ## Asking for a method
 
 Find it on **[the API surface page](api-surface.md)** and click **Request**. It opens an issue pre-filled with the method, its HTTP verb, and Google's own description, so you don't have to look any of that up.
