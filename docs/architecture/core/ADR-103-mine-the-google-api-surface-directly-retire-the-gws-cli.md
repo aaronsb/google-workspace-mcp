@@ -123,8 +123,9 @@ We are explicitly **not** assuming Google's APIs are *simple*, only that they ar
 ### Negative
 
 - **We inherit the transport.** Google's quirks become ours: Gmail's raw RFC822 encoding, Drive's export MIME types, Meet's transcript pagination. `gws` carries 283 commits of accumulated handling; an unknown fraction is real and an unknown fraction is CLI baggage. **Determining that fraction is the entire point of the verification plan below.**
-- **Media upload is a real protocol, not a `fetch` call.** Discovery declares `supportsMediaUpload` with simple and resumable multipart variants. The 35 MB attachment path, Drive upload, Drive export and attachment download all depend on it. **This is the single largest unknown in this ADR.**
-- **The 10 helpers must be reimplemented.** Desired work, but work.
+- ~~**Media upload is a real protocol, not a `fetch` call.**~~ **Resolved — see item 4 below.** Discovery does not merely declare `supportsMediaUpload`; it declares the upload *paths*, for both the simple and resumable protocols. Upload is therefore as mechanical as resource dispatch: read the path from the doc, PUT the chunks. A 35 MB Gmail attachment was uploaded and read back byte-for-byte identical against live Google. **This was the single largest unknown in this ADR, and it is no longer a risk.**
+- **We must rebuild the MIME builder we deleted.** `src/services/gmail/mime.ts` records that our RFC822 builder "was removed when gws 0.18+ added native `--attach` support". Outbound `multipart/mixed` assembly is therefore a real thing `gws` does *for* us — one of the few. It is perhaps 30 lines (the spike carries a working version), but the ADR's framing of `gws` as doing "almost nothing" understated this, and honesty requires saying so.
+- **The 10 helpers must be reimplemented.** Desired work, but work. Note that the media-bearing operations — `drive.upload` (`+upload`), `gmail.send`/`reply`/`replyAll` (`+send` et al.) — are *among* those helpers, so items 4 and 9 overlap more than the plan first assumed.
 - **Discovery doc lifecycle is an open decision.** Fetch at runtime (network dependency at startup; breaks offline) or vendor snapshots (drift)? This ADR assumes **vendored, with a refresh script and a CI drift check** — but that is a decision, not a given.
 - **Scope risk.** The failure mode of "it's just a thin dispatcher" is accidentally writing a Google client library. The discipline is absolute: **build exactly what the manifest's operations require, and nothing more.**
 
@@ -144,8 +145,8 @@ But the harness is **not a parity gate.** We *expect* divergence wherever `gws` 
 | 1 | Is resource-style dispatch a pure pass-through? | 87-line dispatcher vs `gws`, live, diffed | **Done — YES** (3 services) |
 | 2 | Does that hold for **all 70** resource ops? | Differential harness over the full manifest, live | Not started |
 | 3 | What does `gws` do that Discovery does not declare? | Triage every divergence from (2): Google's truth vs gws's opinion | Not started |
-| 4 | **Media upload** — simple *and* resumable multipart? | Send a 35 MB attachment; upload to Drive. Both paths, working. | **Not started — biggest risk** |
-| 5 | **Media download** — attachments, Drive export (`alt=media`) | Fetch an attachment; export a Doc to PDF | Not started |
+| 4 | **Media upload** — simple *and* resumable multipart? | Send a 35 MB attachment; upload to Drive. Both paths, working. | **Done — YES.** Simple, multipart and chunked-resumable all verified live. A 25 MB attachment (34.2 MB RFC822, 93% of Google's declared 36,700,160-byte cap) uploaded in 5 chunks and **read back byte-for-byte, SHA-256 identical**. |
+| 5 | **Media download** — attachments, Drive export (`alt=media`) | Fetch an attachment; export a Doc to PDF | **Partly done.** Gmail `attachments.get` round-trips (it is how item 4 was verified). Drive export / `alt=media` still owed. |
 | 6 | Pagination — who loops, and does anything rely on `gws` looping? | Inspect `nextPageToken` handling across the manifest | Not started |
 | 7 | Error shapes — what do our handlers actually depend on? | Compare Google's error JSON against scraped `gws` stderr | Not started |
 | 8 | Scopes — does Discovery's declared scope set match what we request? | Diff Discovery `scopes` against `src/accounts/oauth.ts` | Not started |
