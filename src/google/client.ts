@@ -84,10 +84,22 @@ function splitParams(
 
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined || value === null) continue;
-    const location = declared[key]?.location;
-    if (location === 'path') path[key] = value;
-    else if (location === 'query') query[key] = value;
-    else body[key] = value;      // undeclared -> request body; Google validates it, not us
+    const decl = declared[key];
+    const location = decl?.location;
+    // A REPEATED parameter is sent once per value (`?h=From&h=Subject`), never as one
+    // comma-joined string. Google does not split it for us: asked for the single header
+    // named "From,Subject,Date,To", it finds none and returns a payload with no headers
+    // at all — which rendered a whole mail thread with empty senders and empty subjects,
+    // and raised no error. The descriptor already records which params are repeated, so
+    // accept a comma-separated string and expand it rather than trusting every caller
+    // to remember.
+    const coerced = decl?.repeated && typeof value === 'string'
+      ? value.split(',').map((v) => v.trim()).filter(Boolean)
+      : value;
+
+    if (location === 'path') path[key] = coerced;
+    else if (location === 'query') query[key] = coerced;
+    else body[key] = coerced;    // undeclared -> request body; Google validates it, not us
   }
   return { path, query, body };
 }

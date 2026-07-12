@@ -9,7 +9,7 @@
 
 import { call } from '../../google/client.js';
 import { GoogleApiError } from '../../google/errors.js';
-import { formatEmailList, formatEmailDetail, extractBodyFromPayload, type EmailBodyFormat } from '../../server/formatting/markdown.js';
+import { formatEmailList, formatEmailDetail, extractBodyFromPayload, decodeSnippet, type EmailBodyFormat } from '../../server/formatting/markdown.js';
 import { requireString } from '../../server/handlers/validate.js';
 import { handleGetAttachment, handleViewAttachment } from './attachments.js';
 import { sendMail, replyMail, forwardMail } from './mail.js';
@@ -136,7 +136,7 @@ function formatThreadList(data: unknown): HandlerResponse {
 
   const lines = threads.map(t => {
     const id = String(t.id ?? '');
-    const snippet = String(t.snippet ?? '').slice(0, 80);
+    const snippet = decodeSnippet(String(t.snippet ?? '')).slice(0, 80);
     return `${id} | ${snippet}`;
   });
 
@@ -172,7 +172,7 @@ function formatThreadDetail(data: unknown): HandlerResponse {
     const date = getHeader('date');
     const subject = getHeader('subject');
     const bodyText = extractBodyFromPayload(payload);
-    const snippet = String(msg.snippet ?? '');
+    const snippet = decodeSnippet(String(msg.snippet ?? ''));
     // getThread uses format:metadata so body data is usually absent;
     // fall back to snippet when extraction yields nothing
     const displayBody = bodyText || snippet;
