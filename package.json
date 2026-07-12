@@ -31,7 +31,8 @@
     "test:all": "vitest run --no-file-parallelism",
     "generate-descriptor": "node scripts/generate-descriptor.mjs",
     "check-descriptor": "node scripts/generate-descriptor.mjs --check",
-    "verify:live": "vitest run src/__tests__/integration/live.test.ts"
+    "verify:live": "vitest run src/__tests__/integration/live.test.ts",
+    "generate-api-surface": "node scripts/generate-api-surface.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",

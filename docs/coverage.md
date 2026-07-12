@@ -1,50 +1,63 @@
 # API Coverage
 
-This server exposes a **curated subset** of Google's API surface — the operations and parameters actually useful to an AI agent, with LLM-friendly descriptions, sensible defaults, and patched response formatting. It is not a 1:1 passthrough of every Google method.
+This server exposes a **curated subset** of Google's API surface — the operations useful to an agent in conversation, with LLM-friendly descriptions, sensible defaults, and shaped responses. It is not a 1:1 passthrough of every Google method.
 
-Coverage is *measured*, not estimated. The mapper reads Google's [Discovery documents](https://developers.google.com/discovery) — the same machine-readable specifications the client is generated from — and diffs them against the curated manifest. The denominator is Google's, so the frontier is real.
+**→ [The full API surface](api-surface.md)** — every method Google publishes, what it does, whether we expose it, and a one-click link to request it.
 
-Adding an operation is a config change, not a code change: drop an entry into `src/factory/manifest/<service>.yaml` and it becomes a fully-formed MCP tool operation. See [ADR-103](architecture/core/ADR-103-generate-a-google-api-descriptor-retire-the-gws-facade.md) (the generated descriptor) and [ADR-300](architecture/api/ADR-300-service-tool-factory-with-manifest-driven-generation.md) (the manifest-driven factory).
+That page is generated from Google's [Discovery documents](https://developers.google.com/discovery), the same machine-readable specification the client itself is built from. So the denominator is Google's, not an estimate, and the numbers on it cannot quietly drift from reality.
 
-## Snapshot
+## Why a subset, and not everything?
 
-> Generated `2026-07-12` against Google Discovery (calendar/v3, docs/v1, drive/v3, gmail/v1, meet/v2, sheets/v4, tasks/v1). Regenerate with `make coverage`; this table drifts as Google adds methods or the manifest grows.
+Because an agent has to *choose* among these, and every method it must consider is a method it can pick wrongly. A tool exposing all 233 methods is not more capable than one exposing 80 — it is harder to use correctly, and the descriptions alone would burn more context than most conversations can spare.
 
-**60 / 233 methods covered (26%)** across the seven Google APIs this server targets.
+Most of what's uncovered is genuinely not agent work: domain administration, delegation and forwarding settings, per-label colour management, push-notification watch channels, batch-import endpoints. The covered slice is the "do useful work in a conversation" set.
 
-| Service | Covered | % | Gaps | MCP tool |
-|---|---:|---:|---:|---|
-| docs | 3 / 3 | 100% | — | `manage_docs` |
-| tasks | 9 / 14 | 64% | 5 | `manage_tasks` |
-| meet | 10 / 18 | 56% | 8 | `manage_meet` |
-| sheets | 8 / 17 | 47% | 9 | `manage_sheets` |
-| drive | 14 / 64 | 22% | 50 | `manage_drive` |
-| calendar | 7 / 38 | 18% | 31 | `manage_calendar` |
-| gmail | 9 / 79 | 11% | 70 | `manage_email` |
+Coverage is also not a race. A gap is not a bug. Some gaps are deliberate, and `coverage-baseline.json` records those as `"status": "excluded"` with a reason, so regeneration does not keep re-offering them as work.
 
-Those 60 Google methods back 80 MCP operations — a few operations compose more than one method (Gmail search hydrates each hit with `messages.get`; the agenda merges across calendars), and a few methods back more than one operation.
+But that judgement was made without you, and it may be wrong for what you're doing.
 
-Low percentages on the high-surface services are by design. Most uncovered Gmail and Drive methods are admin/domain operations, label and permission plumbing variants, or filtering parameters an agent rarely needs. The covered slice is the "do useful work in a conversation" set. `make coverage` prints the full per-operation parameter-gap list for anyone curating an addition.
+## Asking for a method
 
-### Note on the numbers
+Find it on **[the API surface page](api-surface.md)** and click **Request**. It opens an issue pre-filled with the method, its HTTP verb, and Google's own description, so you don't have to look any of that up.
 
-Earlier revisions of this page reported **72 / 344 (21%)**. That is not comparable to the figure above, and the difference is not progress — it is a different measurement.
+Then it asks you the only question that actually decides the answer:
 
-The denominator is Google's own published surface for the seven APIs we target, read from the Discovery documents. It is never derived from help text or any other human-readable prose: a regex over descriptions once captured `calendars.The` — a word from a wrapped line — and recorded it in the baseline as a real uncovered method, offered to contributors as work. A denominator that also counts services we do not expose, or operations Google does not have, is measuring the wrong thing. See ADR-103, verification item 11.
+> **What do you want to do that you can't do today?**
+
+**A good request names the task, not the method.** "I want the agent to file incoming invoices into a folder automatically" is a case — it can be evaluated, and it might turn out that an existing operation already does it, or that the right answer is a different method than the one you found. "Expose `users.settings.filters.create`" is not a case; it's a conclusion. Lead with the problem and let the method follow.
+
+The second question — *why doesn't an existing operation cover it?* — is not a hurdle. It is the fastest way to find out that you didn't need a new method at all, which is a better outcome for you than waiting for one.
+
+What makes a request persuasive:
+
+- **A concrete task.** Something you tried to get an agent to do, and what happened instead.
+- **Why the existing surface falls short.** Which operation you reached for, and where it stopped.
+- **A reason it belongs in an agent's hands.** Some Google methods are administrative or destructive at a scale that no conversation should reach casually. That doesn't make them off-limits, but it raises the bar.
+
+## Adding one yourself
+
+Coverage grows by editing YAML, not by writing code.
+
+Add an entry to the right `src/factory/manifest/<service>.yaml`. The generated descriptor already knows the method's path, HTTP verb, parameters, and scopes — nothing is transcribed by hand, so nothing can drift from Google. The factory generates the tool schema and the handler; new operations get default formatting automatically. Add a patch only when an agent needs a shaped response rather than a raw one.
+
+An operation naming a method Google does not publish is a **compile error** — method names are generated into a TypeScript union from the descriptor.
+
+Then:
+
+```bash
+make manifest-lint    # validate the manifest
+make check            # type-check, lint, test, build, smoke
+```
+
+`make check` includes a guard that every write operation can actually carry a request body — an operation that can only ever send an empty `POST` will create blank resources or fail with an error that looks like Google's fault, so it is refused at build time.
 
 ## Regenerating
 
 | Command | What it does |
 |---|---|
-| `npm run generate-descriptor` | Re-reads Google's Discovery documents and regenerates `src/google/descriptor.json`. A CI drift gate runs this with `--check` and fails if the committed artifact is stale. |
-| `make coverage` | Reads Google's live surface, diffs it against the curated manifest, and prints the coverage table plus every uncovered operation and every parameter gap in covered operations. |
-| `make coverage-update` | Same, but writes the result to `coverage-baseline.json` so the next run can show "new since baseline". |
-| `make manifest-lint` | Validates the curated manifest. |
+| `npm run generate-api-surface` | Rewrites [api-surface.md](api-surface.md) from Google's live Discovery documents. |
+| `npm run generate-descriptor` | Regenerates `src/google/descriptor.json`. A CI drift gate runs this with `--check` and fails if the committed artifact is stale. |
+| `make coverage` | Prints the coverage table, every uncovered operation, and every parameter gap in a covered operation. |
+| `make coverage-update` | Writes the result to `coverage-baseline.json`. |
 
-To add an operation, find it in the coverage report's gap list, add an entry to the right `src/factory/manifest/<service>.yaml`, and curate the description, defaults, and parameter mappings. The descriptor already knows its path, HTTP verb, parameters, and scopes — nothing is transcribed by hand. Then `make manifest-lint && make check`.
-
-An operation naming a method Google does not publish is a **compile error**: method names are generated into a TypeScript union from the descriptor.
-
-## Excluding an operation
-
-Not every gap should be closed. Mark a deliberate non-goal as `"status": "excluded"` with a `reason` in `coverage-baseline.json`; regeneration preserves it rather than re-offering it as work.
+The surface is always read from Google's published specification, never from anything human-readable. A regex over help-text prose once captured `calendars.The` — a word from a wrapped description line — and recorded it in the baseline as a genuine uncovered method, offered to contributors as work. Measure against the spec, not against prose.

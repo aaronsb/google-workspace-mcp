@@ -39,25 +39,23 @@ Introduce a **scratchpad buffer** as a service-agnostic content authoring primit
 
 The GWS scratchpad **binds targets at send time, not creation time.** A scratchpad starts as a content buffer with no destination. The agent composes, edits, and reviews. When content is ready, the agent sends it to any supported target — or multiple targets, or the same target with different parameters after a failure.
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  LLM Tool Calls (small, line-addressed or path-addressed)│
-│    view, insert_lines, replace_lines, json_set, ...      │
-└──────────────────┬──────────────────────────────────────┘
-                   │
-         ┌─────────▼──────────┐
-         │  Scratchpad Buffer  │  ← lines[] + attachments + format
-         │  (no target yet)    │
-         └─────────┬──────────┘
-                   │  send(target, params)
-         ┌─────────▼──────────┐
-         │  Target Adapter     │  ← resolves attachments, converts format
-         │  (email│doc│ws│...) │
-         └─────────┬──────────┘
-                   │
-         ┌─────────▼──────────┐
-         │  GWS API (via gws)  │
-         └────────────────────┘
+```mermaid
+flowchart TB
+    tools["LLM tool calls<br>small · line-addressed or path-addressed<br>view · insert_lines · replace_lines · json_set"]
+    buffer["Scratchpad buffer<br>lines[] + attachments + format<br>no target yet"]
+    adapter["Target adapter<br>resolves attachments · converts format<br>email · doc · sheet · task · workspace"]
+    api["Google API client"]
+
+    tools --> buffer
+    buffer -->|"send(target, params)"| adapter
+    adapter --> api
+
+    classDef inert    fill:#475569,color:#ffffff,stroke:#94a3b8
+    classDef core     fill:#7c3aed,color:#ffffff,stroke:#8b5cf6
+    classDef external fill:#f6821f,color:#1a1a1a,stroke:#d97706
+    class tools inert
+    class buffer,adapter core
+    class api external
 ```
 
 ### Scratchpad lifecycle

@@ -77,16 +77,28 @@ An 87-line uninterpreted dispatcher — Discovery doc in, `fetch` out, raw JSON 
 
 The supply chain becomes two stages with a hard, total boundary between them:
 
-```
-Google Discovery Service          ← the only upstream; Google's own contract
-        │
-        ▼  [ MINER ]              ← generated. Zero interpretation. Correct by construction.
-   CORE CONTRACT                  ← vendored artifact: services, methods, param locations,
-        │                            HTTP verbs, media protocols, scopes
-        ├──▶ [ VALIDATE ]         ← manifest ⊆ contract, checked at BUILD time
-        │
-        ▼  [ OUR FACTORY ]        ← everything below is already written, and ours
-   manifest (curation) → patches → formatters → next-steps → MCP tools
+```mermaid
+flowchart TB
+    disco["Google Discovery Service<br>the only upstream · Google's own contract"]
+    gen["descriptor generator<br>generated · zero interpretation · correct by construction"]
+    desc[("API descriptor<br>vendored artifact<br>services · methods · param locations<br>HTTP verbs · media protocols · scopes")]
+    validate{{"VALIDATE<br>manifest ⊆ descriptor<br>checked at BUILD time"}}
+    factory["our factory — already written, and ours<br>manifest (curation) → patches → formatters → next-steps → MCP tools"]
+
+    disco --> gen --> desc
+    desc --> validate
+    desc --> factory
+
+    classDef external fill:#f6821f,color:#1a1a1a,stroke:#d97706
+    classDef process  fill:#2d7d9a,color:#ffffff,stroke:#4a5568
+    classDef artifact fill:#2d8e5e,color:#ffffff,stroke:#4a5568
+    classDef guard    fill:#fbbf24,color:#1a1a1a,stroke:#d97706
+    classDef core     fill:#7c3aed,color:#ffffff,stroke:#8b5cf6
+    class disco external
+    class gen process
+    class desc artifact
+    class validate guard
+    class factory core
 ```
 
 Three principles govern it.
