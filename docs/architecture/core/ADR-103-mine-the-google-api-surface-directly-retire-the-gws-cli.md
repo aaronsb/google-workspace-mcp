@@ -178,7 +178,7 @@ But the harness is **not a parity gate.** We *expect* divergence wherever `gws` 
 | 5 | **Media download** — attachments, Drive export (`alt=media`) | Fetch an attachment; export a Doc to PDF | **Partly done.** Gmail `attachments.get` round-trips (it is how item 4 was verified). Drive export / `alt=media` still owed. |
 | 6 | Pagination — who loops, and does anything rely on `gws` looping? | Inspect `nextPageToken` handling across the manifest | Not started |
 | 7 | Error shapes — what do our handlers actually depend on? | Compare Google's error JSON against scraped `gws` stderr | Not started |
-| 8 | Scopes — does Discovery's declared scope set match what we request? | Diff Discovery `scopes` against `src/accounts/oauth.ts` | Not started |
+| 8 | Scopes — does Discovery's declared scope set match what we request? | Diff Discovery `scopes` against `src/accounts/oauth.ts` | **Done — YES, no gaps.** All 70 resource ops are satisfied by at least one of the 10 scopes we request; zero would 403. The contract carries `scopes` per method, so this check is now mechanical. **Note the subtlety:** Discovery lists scopes as *alternatives* (any one suffices), not as a required set — reading the 37 distinct scopes it names as "scopes we need" would be a misreading. |
 | 9 | The 10 helpers — what does each actually do? | Read `gws`'s Rust source; reimplement as patches | Not started |
 | 10 | Does the mined contract cover every manifest op? | Build-time validation: manifest ⊆ contract | **Containment proven; the build gate is not built.** All 70 resource ops resolve against Discovery, zero unresolved. Wiring that into the build as a failing check is still to do. |
 
