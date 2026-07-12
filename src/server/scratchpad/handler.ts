@@ -11,7 +11,7 @@ import {
   sendSheetWrite, sendCalendarEvent, sendTaskCreate,
   importEmail, importDoc, importSheet, importDriveFile, importMeet,
 } from './adapters/index.js';
-import { execute } from '../../executor/gws.js';
+import { call } from '../../google/client.js';
 import { resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
 import { lookupMimeType } from '../../services/gmail/mime.js';
 import type { HandlerResponse } from '../handler.js';
@@ -335,11 +335,10 @@ async function maybeHandleDocsBoundMutation(
 
   // Push to the Docs API.
   try {
-    await execute([
-      'docs', 'documents', 'batchUpdate',
-      '--params', JSON.stringify({ documentId: binding.resourceId }),
-      '--json', JSON.stringify(translated.body),
-    ], { account: binding.account });
+    await call('docs', 'documents.batchUpdate', {
+      documentId: binding.resourceId,
+      ...translated.body,
+    }, { account: binding.account });
   } catch (err) {
     // The buffer has the local change; the doc doesn't. Match the sheets
     // error contract — agent retries or discards.
@@ -374,11 +373,9 @@ function applyMutation(
 
 /** Re-fetch the doc, replace the buffer, and update the binding's revisionId. */
 async function reloadDocsBuffer(id: string, binding: LiveBinding): Promise<void> {
-  const result = await execute([
-    'docs', 'documents', 'get',
-    '--params', JSON.stringify({ documentId: binding.resourceId }),
-  ], { account: binding.account });
-  const doc = result.data as Record<string, unknown>;
+  const doc = await call('docs', 'documents.get', {
+    documentId: binding.resourceId,
+  }, { account: binding.account }) as Record<string, unknown>;
   const freshJson = JSON.stringify(doc, null, 2);
   const sp = scratchpads.get(id);
   if (!sp) return;
@@ -416,27 +413,24 @@ async function syncIfBound(id: string): Promise<HandlerResponse | null> {
       const range = data.range as string | undefined;
 
       if (values && range) {
-        await execute([
-          'sheets', 'spreadsheets', 'values', 'update',
-          '--params', JSON.stringify({
-            spreadsheetId: binding.resourceId,
-            range,
-            valueInputOption: 'USER_ENTERED',
-            requestBody: { values },
-          }),
-        ], { account: binding.account });
+        // `values` is the request BODY (the descriptor declares only
+        // spreadsheetId/range/valueInputOption), so it goes at the top level —
+        // the old `requestBody: {...}` nesting was a gws-ism.
+        await call('sheets', 'spreadsheets.values.update', {
+          spreadsheetId: binding.resourceId,
+          range,
+          valueInputOption: 'USER_ENTERED',
+          values,
+        }, { account: binding.account });
       }
 
       // Reload from API
-      const result = await execute([
-        'sheets', 'spreadsheets', 'values', 'get',
-        '--params', JSON.stringify({
-          spreadsheetId: binding.resourceId,
-          range: range ?? 'Sheet1',
-        }),
-      ], { account: binding.account });
+      const fresh = await call('sheets', 'spreadsheets.values.get', {
+        spreadsheetId: binding.resourceId,
+        range: range ?? 'Sheet1',
+      }, { account: binding.account });
 
-      const freshJson = JSON.stringify(result.data, null, 2);
+      const freshJson = JSON.stringify(fresh, null, 2);
       const sp = scratchpads.get(id);
       if (sp) {
         sp.lines = freshJson.split('\n');

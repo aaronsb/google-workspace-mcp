@@ -3,9 +3,12 @@
  */
 import { beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
 
-vi.mock('../../../executor/gws.js');
-import { execute } from '../../../executor/gws.js';
-const mockExecute = execute as MockedFunction<typeof execute>;
+// getFullTranscript chains three RESOURCE calls, so it goes through the Google
+// API client we own (ADR-103). A mocked `call()` resolves to raw Google JSON —
+// there is no { success, data, stderr } envelope to build.
+vi.mock('../../../google/client.js');
+import { call } from '../../../google/client.js';
+const mockCall = call as MockedFunction<typeof call>;
 
 import { meetPatch } from '../../../services/meet/patch.js';
 import type { PatchContext } from '../../../factory/types.js';
@@ -187,82 +190,73 @@ describe('Meet patch formatters', () => {
 });
 
 describe('Meet beforeExecute hooks', () => {
+  // These hooks used to take gws ARGV and re-serialise a `--params` JSON slot.
+  // They now take the params themselves (ADR-103), so these assertions look at
+  // the thing that actually matters instead of at a command line.
+  //
+  // Two tests were DELETED here rather than ported: "returns args unchanged when
+  // --params is missing" and "…when --params has no following value". Both tested
+  // failure modes OF THE ARGV SURGERY — malformed command lines that can no longer
+  // exist. They were testing the seam, not the behaviour. Deleting them loses no
+  // coverage of anything real.
+
   it('prefixes conferenceRecords/ on bare parent IDs', async () => {
     const hook = meetPatch.beforeExecute!.listParticipants;
-    const args = ['meet', 'conferenceRecords', 'participants', 'list', '--params', '{"parent":"abc123","pageSize":100}'];
-    const result = await hook(args, ctx('listParticipants', { conferenceId: 'abc123' }));
-    const params = JSON.parse(result[result.indexOf('--params') + 1]);
-    expect(params.parent).toBe('conferenceRecords/abc123');
+    const result = await hook(
+      { parent: 'abc123', pageSize: 100 },
+      ctx('listParticipants', { conferenceId: 'abc123' }),
+    );
+    expect(result.parent).toBe('conferenceRecords/abc123');
+    expect(result.pageSize).toBe(100);        // untouched params survive
   });
 
   it('does not double-prefix already-prefixed parent IDs', async () => {
     const hook = meetPatch.beforeExecute!.listTranscripts;
-    const args = ['meet', 'conferenceRecords', 'transcripts', 'list', '--params', '{"parent":"conferenceRecords/abc123"}'];
-    const result = await hook(args, ctx('listTranscripts', { conferenceId: 'conferenceRecords/abc123' }));
-    const params = JSON.parse(result[result.indexOf('--params') + 1]);
-    expect(params.parent).toBe('conferenceRecords/abc123');
+    const result = await hook(
+      { parent: 'conferenceRecords/abc123' },
+      ctx('listTranscripts', { conferenceId: 'conferenceRecords/abc123' }),
+    );
+    expect(result.parent).toBe('conferenceRecords/abc123');
   });
 
   it('prefixes conferenceRecords/ on bare name IDs for getConference', async () => {
     const hook = meetPatch.beforeExecute!.getConference;
-    const args = ['meet', 'conferenceRecords', 'get', '--params', '{"name":"abc123"}'];
-    const result = await hook(args, ctx('getConference', { conferenceId: 'abc123' }));
-    const params = JSON.parse(result[result.indexOf('--params') + 1]);
-    expect(params.name).toBe('conferenceRecords/abc123');
+    const result = await hook({ name: 'abc123' }, ctx('getConference', { conferenceId: 'abc123' }));
+    expect(result.name).toBe('conferenceRecords/abc123');
   });
 
-  it('returns args unchanged when --params is missing', async () => {
-    const hook = meetPatch.beforeExecute!.listParticipants;
-    const args = ['meet', 'conferenceRecords', 'participants', 'list'];
-    const result = await hook(args, ctx('listParticipants'));
-    expect(result).toEqual(args);
-  });
-
-  it('returns args unchanged when --params has no following value', async () => {
+  it('leaves params alone when the key is absent', async () => {
     const hook = meetPatch.beforeExecute!.listRecordings;
-    const args = ['meet', 'conferenceRecords', 'recordings', 'list', '--params'];
-    const result = await hook(args, ctx('listRecordings'));
-    expect(result).toEqual(args);
+    const result = await hook({ pageSize: 10 }, ctx('listRecordings'));
+    expect(result).toEqual({ pageSize: 10 });
   });
 });
 
 describe('Meet custom handlers', () => {
-  beforeEach(() => mockExecute.mockReset());
+  beforeEach(() => mockCall.mockReset());
 
   describe('getFullTranscript', () => {
     it('chains transcripts.list, entries.list, and participants.list to resolve names', async () => {
       // Step 1: transcripts.list
-      mockExecute.mockResolvedValueOnce({
-        success: true,
-        stderr: '',
-        data: {
-          transcripts: [{
-            name: 'conferenceRecords/abc123/transcripts/t1',
-            docsDestination: { exportUri: 'https://docs.google.com/doc/abc' },
-          }],
-        },
+      mockCall.mockResolvedValueOnce({
+        transcripts: [{
+          name: 'conferenceRecords/abc123/transcripts/t1',
+          docsDestination: { exportUri: 'https://docs.google.com/doc/abc' },
+        }],
       });
       // Step 2 (parallel): entries.list
-      mockExecute.mockResolvedValueOnce({
-        success: true,
-        stderr: '',
-        data: {
-          transcriptEntries: [
-            { participant: 'conferenceRecords/abc123/participants/111', text: 'Hello', startTime: '2026-03-18T14:01:00Z' },
-            { participant: 'conferenceRecords/abc123/participants/222', text: 'Hi there', startTime: '2026-03-18T14:01:30Z' },
-          ],
-        },
+      mockCall.mockResolvedValueOnce({
+        transcriptEntries: [
+          { participant: 'conferenceRecords/abc123/participants/111', text: 'Hello', startTime: '2026-03-18T14:01:00Z' },
+          { participant: 'conferenceRecords/abc123/participants/222', text: 'Hi there', startTime: '2026-03-18T14:01:30Z' },
+        ],
       });
       // Step 2 (parallel): participants.list
-      mockExecute.mockResolvedValueOnce({
-        success: true,
-        stderr: '',
-        data: {
-          participants: [
-            { name: 'conferenceRecords/abc123/participants/111', signedinUser: { displayName: 'Alice Smith' } },
-            { name: 'conferenceRecords/abc123/participants/222', signedinUser: { displayName: 'Bob Jones' } },
-          ],
-        },
+      mockCall.mockResolvedValueOnce({
+        participants: [
+          { name: 'conferenceRecords/abc123/participants/111', signedinUser: { displayName: 'Alice Smith' } },
+          { name: 'conferenceRecords/abc123/participants/222', signedinUser: { displayName: 'Bob Jones' } },
+        ],
       });
 
       const handler = meetPatch.customHandlers!.getFullTranscript;
@@ -284,33 +278,41 @@ describe('Meet custom handlers', () => {
       expect(result.refs.nextPageToken).toBeNull();
 
       // Verify the chained calls (3 total: transcripts, then entries + participants in parallel)
-      expect(mockExecute).toHaveBeenCalledTimes(3);
+      expect(mockCall).toHaveBeenCalledTimes(3);
+      expect(mockCall).toHaveBeenNthCalledWith(
+        1, 'meet', 'conferenceRecords.transcripts.list',
+        { parent: 'conferenceRecords/abc123' },
+        expect.objectContaining({ account: 'user@test.com' }),
+      );
+      expect(mockCall).toHaveBeenNthCalledWith(
+        2, 'meet', 'conferenceRecords.transcripts.entries.list',
+        { parent: 'conferenceRecords/abc123/transcripts/t1', pageSize: 100 },
+        expect.objectContaining({ account: 'user@test.com' }),
+      );
+      expect(mockCall).toHaveBeenNthCalledWith(
+        3, 'meet', 'conferenceRecords.participants.list',
+        { parent: 'conferenceRecords/abc123', pageSize: 100 },
+        expect.objectContaining({ account: 'user@test.com' }),
+      );
     });
 
     it('paginates with nextPageToken and shows continue prompt', async () => {
-      mockExecute.mockResolvedValueOnce({
-        success: true, stderr: '',
-        data: {
-          transcripts: [{
-            name: 'conferenceRecords/abc123/transcripts/t1',
-            docsDestination: { exportUri: 'https://docs.google.com/doc/abc' },
-          }],
-        },
+      mockCall.mockResolvedValueOnce({
+        transcripts: [{
+          name: 'conferenceRecords/abc123/transcripts/t1',
+          docsDestination: { exportUri: 'https://docs.google.com/doc/abc' },
+        }],
       });
-      mockExecute.mockResolvedValueOnce({
-        success: true, stderr: '',
-        data: {
-          transcriptEntries: [
-            { participant: 'conferenceRecords/abc123/participants/111', text: 'Page one', startTime: '2026-03-18T14:01:00Z' },
-          ],
-          nextPageToken: 'tok_page2',
-        },
+      mockCall.mockResolvedValueOnce({
+        transcriptEntries: [
+          { participant: 'conferenceRecords/abc123/participants/111', text: 'Page one', startTime: '2026-03-18T14:01:00Z' },
+        ],
+        nextPageToken: 'tok_page2',
       });
-      mockExecute.mockResolvedValueOnce({
-        success: true, stderr: '',
-        data: { participants: [
+      mockCall.mockResolvedValueOnce({
+        participants: [
           { name: 'conferenceRecords/abc123/participants/111', signedinUser: { displayName: 'Alice' } },
-        ]},
+        ],
       });
 
       const handler = meetPatch.customHandlers!.getFullTranscript;
@@ -327,28 +329,21 @@ describe('Meet custom handlers', () => {
     });
 
     it('passes pageToken to entries API when continuing', async () => {
-      mockExecute.mockResolvedValueOnce({
-        success: true, stderr: '',
-        data: {
-          transcripts: [{
-            name: 'conferenceRecords/abc123/transcripts/t1',
-            docsDestination: { exportUri: 'https://docs.google.com/doc/abc' },
-          }],
-        },
+      mockCall.mockResolvedValueOnce({
+        transcripts: [{
+          name: 'conferenceRecords/abc123/transcripts/t1',
+          docsDestination: { exportUri: 'https://docs.google.com/doc/abc' },
+        }],
       });
-      mockExecute.mockResolvedValueOnce({
-        success: true, stderr: '',
-        data: {
-          transcriptEntries: [
-            { participant: 'conferenceRecords/abc123/participants/111', text: 'Last page', startTime: '2026-03-18T14:10:00Z' },
-          ],
-        },
+      mockCall.mockResolvedValueOnce({
+        transcriptEntries: [
+          { participant: 'conferenceRecords/abc123/participants/111', text: 'Last page', startTime: '2026-03-18T14:10:00Z' },
+        ],
       });
-      mockExecute.mockResolvedValueOnce({
-        success: true, stderr: '',
-        data: { participants: [
+      mockCall.mockResolvedValueOnce({
+        participants: [
           { name: 'conferenceRecords/abc123/participants/111', signedinUser: { displayName: 'Alice' } },
-        ]},
+        ],
       });
 
       const handler = meetPatch.customHandlers!.getFullTranscript;
@@ -357,10 +352,9 @@ describe('Meet custom handlers', () => {
         'user@test.com',
       );
 
-      // Verify pageToken was passed to entries call
-      const entriesArgs = mockExecute.mock.calls[1][0];
-      const entriesParams = JSON.parse(entriesArgs[entriesArgs.indexOf('--params') + 1]);
-      expect(entriesParams.pageToken).toBe('tok_page2');
+      // Verify pageToken was passed to the entries call
+      expect(mockCall.mock.calls[1][1]).toBe('conferenceRecords.transcripts.entries.list');
+      expect(mockCall.mock.calls[1][2].pageToken).toBe('tok_page2');
 
       // Last page (no nextPageToken): shows Docs link, no continue prompt
       expect(result.text).toContain('Google Docs');
@@ -369,11 +363,7 @@ describe('Meet custom handlers', () => {
     });
 
     it('returns helpful message when no transcripts exist', async () => {
-      mockExecute.mockResolvedValueOnce({
-        success: true,
-        stderr: '',
-        data: { transcripts: [] },
-      });
+      mockCall.mockResolvedValueOnce({ transcripts: [] });
 
       const handler = meetPatch.customHandlers!.getFullTranscript;
       const result = await handler(
@@ -387,25 +377,13 @@ describe('Meet custom handlers', () => {
     });
 
     it('handles transcript with no entries yet', async () => {
-      mockExecute.mockResolvedValueOnce({
-        success: true,
-        stderr: '',
-        data: {
-          transcripts: [{ name: 'conferenceRecords/abc123/transcripts/t1' }],
-        },
+      mockCall.mockResolvedValueOnce({
+        transcripts: [{ name: 'conferenceRecords/abc123/transcripts/t1' }],
       });
       // entries.list (parallel)
-      mockExecute.mockResolvedValueOnce({
-        success: true,
-        stderr: '',
-        data: { transcriptEntries: [] },
-      });
+      mockCall.mockResolvedValueOnce({ transcriptEntries: [] });
       // participants.list (parallel)
-      mockExecute.mockResolvedValueOnce({
-        success: true,
-        stderr: '',
-        data: { participants: [] },
-      });
+      mockCall.mockResolvedValueOnce({ participants: [] });
 
       const handler = meetPatch.customHandlers!.getFullTranscript;
       const result = await handler(
@@ -424,10 +402,7 @@ describe('Meet custom handlers', () => {
 
     it('handles conferenceId with or without prefix', async () => {
       // With prefix
-      mockExecute.mockResolvedValueOnce({
-        success: true, stderr: '',
-        data: { transcripts: [] },
-      });
+      mockCall.mockResolvedValueOnce({ transcripts: [] });
 
       const handler = meetPatch.customHandlers!.getFullTranscript;
       await handler(
@@ -435,8 +410,8 @@ describe('Meet custom handlers', () => {
         'user@test.com',
       );
 
-      const params = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--params') + 1]);
-      expect(params.parent).toBe('conferenceRecords/abc123');
+      // Not double-prefixed.
+      expect(mockCall.mock.calls[0][2].parent).toBe('conferenceRecords/abc123');
     });
   });
 });

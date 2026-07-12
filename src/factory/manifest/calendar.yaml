@@ -37,7 +37,6 @@ operations:
   agenda:
     type: list
     description: "today's schedule at a glance (all calendars). Returns calendarId per event for follow-up get calls."
-    helper: "+agenda"
     params:
       calendarId:
         type: string
@@ -72,7 +71,6 @@ operations:
   create:
     type: action
     description: "create a new calendar event"
-    helper: "+insert"
     params:
       calendarId:
         type: string
@@ -101,14 +99,6 @@ operations:
       meet:
         type: boolean
         description: "Add a Google Meet video conference link to the event"
-    cli_args:
-      calendarId: "--calendar"
-      summary: "--summary"
-      start: "--start"
-      end: "--end"
-      description: "--description"
-      location: "--location"
-      attendees: "--attendee"
 
   quickAdd:
     type: action

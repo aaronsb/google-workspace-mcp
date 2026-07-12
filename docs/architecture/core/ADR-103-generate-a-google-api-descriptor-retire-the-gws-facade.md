@@ -138,7 +138,7 @@ Neither adds interpretation — both are cases of reading *more* of the document
 
 ### Positive
 
-- **The 19.2 MB binary is deleted.** The `.mcpb` bundle drops from ~11 MB to roughly 1 MB.
+- **The 19.2 MB binary is deleted.** **Measured, not predicted:** the `.mcpb` bundle goes from the **10 MB** actually shipped in v3.0.0 to **4.3 MB** — a 57% cut, not the "roughly 1 MB" an earlier draft of this ADR claimed. That estimate assumed the bundle was mostly the binary. It is not: the floor is set by the MCP SDK (8.2 MB uncompressed) and zod (5.1 MB), against which our code and the 164 KB descriptor are noise. A real halving, not a 10x. The wrong number is recorded here rather than quietly corrected, because an ADR that revises its own claims downward is doing its job.
 - **No subprocess.** `spawn`, PATH resolution, the Windows `.cmd` quoting workaround, stall detection, `ENOENT` diagnostics — an entire class of failure disappears, along with a process fork on every tool call.
 - **Docker (#137) becomes tractable.** Much of that problem is shipping and locating a platform-specific binary. There would be no binary.
 - **Better errors.** Google's actual error JSON, rather than scraping `gws`'s stderr.

@@ -7,12 +7,11 @@
  * - Custom handlers: send/reply use specific response formatting
  */
 
-import * as path from 'node:path';
-import { execute } from '../../executor/gws.js';
-import { resolveWorkspacePath, verifyPathSafety, getWorkspaceDir } from '../../executor/workspace.js';
+import { call } from '../../google/client.js';
 import { formatEmailList, formatEmailDetail, extractBodyFromPayload, type EmailBodyFormat } from '../../server/formatting/markdown.js';
 import { requireString } from '../../server/handlers/validate.js';
 import { handleGetAttachment, handleViewAttachment } from './attachments.js';
+import { sendMail, replyMail, forwardMail } from './mail.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
@@ -27,16 +26,12 @@ async function hydrateMessages(
   return Promise.all(
     messageIds.map(async (msg) => {
       try {
-        const result = await execute([
-          'gmail', 'users', 'messages', 'get',
-          '--params', JSON.stringify({
-            userId: 'me',
-            id: msg.id,
-            format: 'metadata',
-            metadataHeaders: ['From', 'Subject', 'Date'],
-          }),
-        ], { account });
-        const data = result.data as Record<string, unknown>;
+        const data = await call('gmail', 'users.messages.get', {
+          userId: 'me',
+          id: msg.id,
+          format: 'metadata',
+          metadataHeaders: ['From', 'Subject', 'Date'],
+        }, { account }) as Record<string, unknown>;
         const headers = ((data.payload as Record<string, unknown>)?.headers ?? []) as Array<{ name: string; value: string }>;
         const getHeader = (name: string) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value;
         return {
@@ -161,18 +156,13 @@ function formatThreadDetail(data: unknown): HandlerResponse {
   };
 }
 
-/** Resolve and validate workspace attachment filenames. Returns sanitized relative names. */
-async function validateAttachments(filenames: string[]): Promise<string[]> {
-  return Promise.all(filenames.map(async (name) => {
-    const filePath = resolveWorkspacePath(name);
-    await verifyPathSafety(filePath);
-    // Return the relative path within workspace (gws --attach uses relative paths from cwd)
-    return path.relative(getWorkspaceDir(), filePath);
-  }));
-}
-
 export const gmailPatch: ServicePatch = {
   afterExecute: {
+    // triage IS search, with a different default query. Same raw Google shape
+    // (messages.list -> bare ids), same hydrate, same formatter. gws's +triage
+    // invented a flat {id,from,subject,date}; we never needed it.
+    triage: async (result, ctx) => gmailPatch.afterExecute!.search(result, ctx),
+
     search: async (result, ctx) => {
       // messages.list returns bare IDs — hydrate with metadata
       const raw = result as Record<string, unknown>;
@@ -216,6 +206,36 @@ export const gmailPatch: ServicePatch = {
   },
 
   customHandlers: {
+    /**
+     * Forward. Was gws's `+forward`, which went through the generic helper path.
+     *
+     * DELIBERATE DIVERGENCE: gws threads the forward — it sets In-Reply-To,
+     * References AND threadId, so the forward lands inside the ORIGINAL
+     * conversation. Gmail's own web client starts a new thread, which is what a
+     * user means by "forward": a new conversation with a new audience. Threading
+     * it also drops the forward into the original participants' view of the
+     * thread, which is a small privacy surprise. We do not thread forwards.
+     */
+    forward: async (params, account): Promise<HandlerResponse> => {
+      const messageId = requireString(params, 'messageId');
+      const to = requireString(params, 'to');
+      const includeAttachments = params.includeAttachments !== false
+        && params.includeAttachments !== 'false';
+
+      const data = await forwardMail(account, {
+        messageId, to,
+        body: params.body ? String(params.body) : undefined,
+        html: params.html === true || params.html === 'true',
+        draft: params.draft === true || params.draft === 'true',
+        includeAttachments,
+      });
+
+      return {
+        text: `Message forwarded to ${to}.\n\n**Message ID:** ${data.id ?? 'unknown'}`,
+        refs: { id: data.id, threadId: data.threadId, messageId, to },
+      };
+    },
+
     send: async (params, account): Promise<HandlerResponse> => {
       const to = requireString(params, 'to');
       const subject = requireString(params, 'subject');
@@ -225,26 +245,20 @@ export const gmailPatch: ServicePatch = {
         ? String(params.attachments).split(',').map(s => s.trim()).filter(Boolean)
         : [];
 
-      const args = ['gmail', '+send', '--to', to, '--subject', subject, '--body', body];
-      if (params.from) args.push('--from', String(params.from));
-      if (params.cc) args.push('--cc', String(params.cc));
-      if (params.bcc) args.push('--bcc', String(params.bcc));
-      if (params.html === true || params.html === 'true') args.push('--html');
-      if (draft || attachmentNames.length > 0) args.push('--draft');
-
-      // Resolve and attach workspace files via gws --attach (uses upload endpoint, 35MB limit)
-      // gws validates that --attach paths are within cwd, so we set cwd to workspace dir
-      let execOptions: { account: string; cwd?: string } = { account };
-      if (attachmentNames.length > 0) {
-        const relPaths = await validateAttachments(attachmentNames);
-        for (const p of relPaths) {
-          args.push('--attach', p);
-        }
-        execOptions = { account, cwd: getWorkspaceDir() };
-      }
-
-      const result = await execute(args, execOptions);
-      const data = result.data as Record<string, unknown>;
+      // An attachment still forces a draft. That is a SAFETY choice, not a gws
+      // limitation — our own client can send a 35 MB attachment outright
+      // (ADR-103 item 4 proved it round-trips byte-for-byte). Turning it into a
+      // real send would be a product change, and it does not belong inside a
+      // migration.
+      const data = await sendMail(account, {
+        to, subject, body,
+        from: params.from ? String(params.from) : undefined,
+        cc: params.cc ? String(params.cc) : undefined,
+        bcc: params.bcc ? String(params.bcc) : undefined,
+        html: params.html === true || params.html === 'true',
+        attachments: attachmentNames,
+        draft: draft || attachmentNames.length > 0,
+      });
 
       const attachNote = attachmentNames.length > 0
         ? `\n**Attachments:** ${attachmentNames.join(', ')}`
@@ -280,12 +294,11 @@ export const gmailPatch: ServicePatch = {
       if (addLabelIds.length > 0) body.addLabelIds = addLabelIds;
       if (removeLabelIds.length > 0) body.removeLabelIds = removeLabelIds;
 
-      const result = await execute([
-        'gmail', 'users', 'messages', 'modify',
-        '--params', JSON.stringify({ userId: 'me', id: messageId }),
-        '--json', JSON.stringify(body),
-      ], { account });
-      const data = result.data as Record<string, unknown>;
+      const data = await call('gmail', 'users.messages.modify', {
+        userId: 'me',
+        id: messageId,
+        ...body,
+      }, { account }) as Record<string, unknown>;
       const labels = (data.labelIds ?? []) as string[];
       return {
         text: `Labels updated on ${messageId}.\n\n**Current labels:** ${labels.join(', ') || '(none)'}`,
@@ -304,21 +317,12 @@ export const gmailPatch: ServicePatch = {
         ? String(params.attachments).split(',').map(s => s.trim()).filter(Boolean)
         : [];
 
-      const args = ['gmail', '+reply', '--message-id', messageId, '--body', body];
-      if (params.html === true || params.html === 'true') args.push('--html');
-      if (draft || attachmentNames.length > 0) args.push('--draft');
-
-      let execOptions: { account: string; cwd?: string } = { account };
-      if (attachmentNames.length > 0) {
-        const relPaths = await validateAttachments(attachmentNames);
-        for (const p of relPaths) {
-          args.push('--attach', p);
-        }
-        execOptions = { account, cwd: getWorkspaceDir() };
-      }
-
-      const result = await execute(args, execOptions);
-      const data = result.data as Record<string, unknown>;
+      const data = await replyMail(account, {
+        messageId, body,
+        html: params.html === true || params.html === 'true',
+        attachments: attachmentNames,
+        draft: draft || attachmentNames.length > 0,
+      });
       const attachNote = attachmentNames.length > 0
         ? `\n**Attachments:** ${attachmentNames.join(', ')}`
         : '';
@@ -344,22 +348,14 @@ export const gmailPatch: ServicePatch = {
         ? String(params.attachments).split(',').map(s => s.trim()).filter(Boolean)
         : [];
 
-      const args = ['gmail', '+reply-all', '--message-id', messageId, '--body', body];
-      if (params.cc) args.push('--cc', String(params.cc));
-      if (params.html === true || params.html === 'true') args.push('--html');
-      if (draft || attachmentNames.length > 0) args.push('--draft');
-
-      let execOptions: { account: string; cwd?: string } = { account };
-      if (attachmentNames.length > 0) {
-        const relPaths = await validateAttachments(attachmentNames);
-        for (const p of relPaths) {
-          args.push('--attach', p);
-        }
-        execOptions = { account, cwd: getWorkspaceDir() };
-      }
-
-      const result = await execute(args, execOptions);
-      const data = result.data as Record<string, unknown>;
+      const data = await replyMail(account, {
+        messageId, body,
+        all: true,                                    // <- the only difference from reply
+        cc: params.cc ? String(params.cc) : undefined,
+        html: params.html === true || params.html === 'true',
+        attachments: attachmentNames,
+        draft: draft || attachmentNames.length > 0,
+      });
       const attachNote = attachmentNames.length > 0
         ? `\n**Attachments:** ${attachmentNames.join(', ')}`
         : '';

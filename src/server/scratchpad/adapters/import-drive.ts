@@ -4,8 +4,8 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { execute } from '../../../executor/gws.js';
-import { ensureWorkspaceDir, resolveWorkspacePath } from '../../../executor/workspace.js';
+import { call, download } from '../../../google/client.js';
+import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../../executor/workspace.js';
 import type { HandlerResponse } from '../../handler.js';
 import type { ScratchpadManager } from '../manager.js';
 
@@ -28,12 +28,12 @@ export async function importDriveFile(
 
   try {
     // Get file metadata to check type
-    const metaResult = await execute([
-      'drive', 'files', 'get',
-      '--params', JSON.stringify({ fileId, fields: 'id,name,mimeType,size' }),
-    ], { account: email });
+    const meta = await call('drive', 'files.get', {
+      fileId,
+      fields: 'id,name,mimeType,size',
+      supportsAllDrives: true,
+    }, { account: email }) as Record<string, unknown>;
 
-    const meta = metaResult.data as Record<string, unknown>;
     const mimeType = String(meta.mimeType ?? '');
     const name = String(meta.name ?? fileId);
 
@@ -45,13 +45,19 @@ export async function importDriveFile(
       };
     }
 
-    // Download to workspace, then read
+    // Download to workspace, then read. `alt: 'media'` is what turns files.get from
+    // a metadata read into a byte stream — the old `drive +download` subcommand
+    // never existed (gws exits 3), so this feature has been broken since it landed.
     await ensureWorkspaceDir();
-    await execute([
-      'drive', '+download', '--file-id', fileId,
-    ], { account: email });
-
     const filePath = resolveWorkspacePath(name);
+    await verifyPathSafety(filePath);
+
+    await download('drive', 'files.get', {
+      fileId,
+      alt: 'media',
+      supportsAllDrives: true,
+    }, filePath, { account: email });
+
     const content = await fs.readFile(filePath, 'utf-8');
     const lines = content.split('\n');
 

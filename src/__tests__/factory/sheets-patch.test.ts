@@ -3,14 +3,16 @@
  * and `sheets` arrays that the generic detail formatter drops, and
  * `updateValues` writes a request body the manifest can't express.
  */
-import { beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../executor/gws.js');
-import { execute } from '../../executor/gws.js';
+// Every sheets custom handler is a RESOURCE op — none of them shell out to gws
+// any more (ADR-103). A mocked `call()` resolves to raw Google JSON; there is no
+// { success, data, stderr } envelope.
+vi.mock('../../google/client.js');
+import { mockCall } from '../server/handlers/__mocks__/client.js';
+import { requestFor, queryOf } from '../support/request.js';
 import { sheetsPatch } from '../../services/sheets/patch.js';
 import type { PatchContext } from '../../factory/types.js';
-
-const mockExecute = execute as MockedFunction<typeof execute>;
 
 const ctx = (operation: string): PatchContext => ({
   operation,
@@ -171,29 +173,33 @@ describe('sheetsPatch formatAction', () => {
 
 describe('sheetsPatch customHandlers.create', () => {
   beforeEach(() => {
-    mockExecute.mockReset();
+    mockCall.mockReset();
   });
 
   it('sends title in the request body so the new sheet is named', async () => {
-    mockExecute.mockResolvedValueOnce({
-      success: true,
-      data: {
-        spreadsheetId: 'new-1',
-        spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/new-1',
-        properties: { title: 'Q3 Forecast' },
-        sheets: [{ properties: { title: 'Sheet1' } }],
-      },
-      stderr: '',
+    mockCall.mockResolvedValueOnce({
+      spreadsheetId: 'new-1',
+      spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/new-1',
+      properties: { title: 'Q3 Forecast' },
+      sheets: [{ properties: { title: 'Sheet1' } }],
     });
 
     const handler = sheetsPatch.customHandlers!.create!;
     const res = await handler({ title: 'Q3 Forecast' }, 'user@test.com');
 
-    const args = mockExecute.mock.calls[0][0];
-    expect(args.slice(0, 3)).toEqual(['sheets', 'spreadsheets', 'create']);
-    const body = JSON.parse(args[args.indexOf('--json') + 1]);
-    // title goes under properties.title in the create body — not as a query param.
-    expect(body).toEqual({ properties: { title: 'Q3 Forecast' } });
+    expect(mockCall).toHaveBeenCalledWith(
+      'sheets',
+      'spreadsheets.create',
+      { properties: { title: 'Q3 Forecast' } },
+      expect.objectContaining({ account: 'user@test.com' }),
+    );
+
+    // title goes under properties.title in the create BODY — not into the query.
+    // The old assertion read that off a `--json` argv slot; this reads it off the
+    // request the descriptor actually produces.
+    const request = await requestFor('sheets', 'spreadsheets.create', mockCall.mock.calls[0][2]);
+    expect(request.body).toEqual({ properties: { title: 'Q3 Forecast' } });
+    expect(queryOf(request)).toEqual({});
 
     expect(res.text).toContain('Spreadsheet created: **Q3 Forecast**');
     expect(res.text).toContain('**Spreadsheet ID:** new-1');
@@ -201,40 +207,37 @@ describe('sheetsPatch customHandlers.create', () => {
     expect(res.refs.title).toBe('Q3 Forecast');
   });
 
-  it('omits --json entirely when no title is given (Untitled spreadsheet)', async () => {
-    mockExecute.mockResolvedValueOnce({
-      success: true,
-      data: { spreadsheetId: 'new-2', properties: { title: 'Untitled spreadsheet' }, sheets: [] },
-      stderr: '',
+  it('sends no request body at all when no title is given (Untitled spreadsheet)', async () => {
+    mockCall.mockResolvedValueOnce({
+      spreadsheetId: 'new-2',
+      properties: { title: 'Untitled spreadsheet' },
+      sheets: [],
     });
 
     const handler = sheetsPatch.customHandlers!.create!;
     await handler({}, 'user@test.com');
 
-    const args = mockExecute.mock.calls[0][0];
-    expect(args).toEqual(['sheets', 'spreadsheets', 'create']);
+    expect(mockCall.mock.calls[0][2]).toEqual({});
+    const request = await requestFor('sheets', 'spreadsheets.create', {});
+    expect(request.body).toBeUndefined();
   });
 });
 
 describe('sheetsPatch customHandlers.updateValues', () => {
   beforeEach(() => {
-    mockExecute.mockReset();
+    mockCall.mockReset();
   });
 
   const okResponse = {
-    success: true,
-    data: {
-      spreadsheetId: 'sheet123',
-      updatedRange: 'Sheet1!A1:B1',
-      updatedRows: 1,
-      updatedColumns: 2,
-      updatedCells: 2,
-    },
-    stderr: '',
+    spreadsheetId: 'sheet123',
+    updatedRange: 'Sheet1!A1:B1',
+    updatedRows: 1,
+    updatedColumns: 2,
+    updatedCells: 2,
   } as const;
 
-  it('sends values via --json with the expected body shape', async () => {
-    mockExecute.mockResolvedValueOnce(okResponse);
+  it('sends values in the request body with the expected shape', async () => {
+    mockCall.mockResolvedValueOnce(okResponse);
     const handler = sheetsPatch.customHandlers!.updateValues!;
 
     const res = await handler(
@@ -246,30 +249,33 @@ describe('sheetsPatch customHandlers.updateValues', () => {
       'user@test.com',
     );
 
-    expect(mockExecute).toHaveBeenCalledTimes(1);
-    const args = mockExecute.mock.calls[0][0];
-    expect(args.slice(0, 4)).toEqual(['sheets', 'spreadsheets', 'values', 'update']);
-
-    const jsonIdx = args.indexOf('--json');
-    expect(jsonIdx).toBeGreaterThan(-1);
-    const body = JSON.parse(args[jsonIdx + 1]);
-    expect(body.values).toEqual([['a', 'b']]);
-    expect(body.majorDimension).toBe('ROWS');
-
-    const paramsIdx = args.indexOf('--params');
-    const params = JSON.parse(args[paramsIdx + 1]);
+    expect(mockCall).toHaveBeenCalledTimes(1);
+    const [service, resourcePath, params] = mockCall.mock.calls[0];
+    expect(service).toBe('sheets');
+    expect(resourcePath).toBe('spreadsheets.values.update');
     expect(params).toEqual({
       spreadsheetId: 'sheet123',
       range: 'Sheet1!A1:B1',
       valueInputOption: 'USER_ENTERED',
+      majorDimension: 'ROWS',
+      values: [['a', 'b']],
     });
+
+    // Placement: values/majorDimension are the BODY, spreadsheetId/range are the
+    // PATH, valueInputOption is the QUERY — checked against the descriptor the
+    // client actually dispatches on, which is stronger than what argv could say.
+    const request = await requestFor('sheets', 'spreadsheets.values.update', params);
+    expect(request.method).toBe('PUT');
+    expect(request.body).toEqual({ majorDimension: 'ROWS', values: [['a', 'b']] });
+    expect(queryOf(request)).toEqual({ valueInputOption: 'USER_ENTERED' });
+    expect(request.url).toContain('/spreadsheets/sheet123/values/');
 
     expect(res.text).toContain('**Range:** Sheet1!A1:B1');
     expect(res.refs.updatedCells).toBe(2);
   });
 
   it('accepts CSV values for single-row writes', async () => {
-    mockExecute.mockResolvedValueOnce(okResponse);
+    mockCall.mockResolvedValueOnce(okResponse);
     const handler = sheetsPatch.customHandlers!.updateValues!;
 
     await handler(
@@ -277,13 +283,11 @@ describe('sheetsPatch customHandlers.updateValues', () => {
       'user@test.com',
     );
 
-    const args = mockExecute.mock.calls[0][0];
-    const body = JSON.parse(args[args.indexOf('--json') + 1]);
-    expect(body.values).toEqual([['Alice', '100', 'true']]);
+    expect(mockCall.mock.calls[0][2].values).toEqual([['Alice', '100', 'true']]);
   });
 
   it('honors a caller-supplied valueInputOption', async () => {
-    mockExecute.mockResolvedValueOnce(okResponse);
+    mockCall.mockResolvedValueOnce(okResponse);
     const handler = sheetsPatch.customHandlers!.updateValues!;
 
     await handler(
@@ -296,9 +300,7 @@ describe('sheetsPatch customHandlers.updateValues', () => {
       'user@test.com',
     );
 
-    const args = mockExecute.mock.calls[0][0];
-    const params = JSON.parse(args[args.indexOf('--params') + 1]);
-    expect(params.valueInputOption).toBe('RAW');
+    expect(mockCall.mock.calls[0][2].valueInputOption).toBe('RAW');
   });
 
   it('rejects malformed jsonValues', async () => {
@@ -309,11 +311,11 @@ describe('sheetsPatch customHandlers.updateValues', () => {
         'user@test.com',
       ),
     ).rejects.toThrow(/jsonValues must be a JSON 2D array/);
-    expect(mockExecute).not.toHaveBeenCalled();
+    expect(mockCall).not.toHaveBeenCalled();
   });
 
   it('parses CSV values with quoted fields containing commas', async () => {
-    mockExecute.mockResolvedValueOnce(okResponse);
+    mockCall.mockResolvedValueOnce(okResponse);
     const handler = sheetsPatch.customHandlers!.updateValues!;
 
     await handler(
@@ -321,22 +323,20 @@ describe('sheetsPatch customHandlers.updateValues', () => {
       'user@test.com',
     );
 
-    const body = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--json') + 1]);
-    expect(body.values).toEqual([['Smith, John', '42', 'Remote, WFH']]);
+    expect(mockCall.mock.calls[0][2].values).toEqual([['Smith, John', '42', 'Remote, WFH']]);
   });
 
   it('parses CSV values with escaped double quotes', async () => {
-    mockExecute.mockResolvedValueOnce(okResponse);
+    mockCall.mockResolvedValueOnce(okResponse);
     const handler = sheetsPatch.customHandlers!.updateValues!;
 
-    // Google-style CSV escaping: "" inside a quoted field = literal "
+    // Google-style CSV escaping: a doubled quote inside a quoted field is a literal quote.
     await handler(
       { spreadsheetId: 'sheet123', range: 'Sheet1!A1', values: '"She said ""hi""",ok' },
       'user@test.com',
     );
 
-    const body = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--json') + 1]);
-    expect(body.values).toEqual([['She said "hi"', 'ok']]);
+    expect(mockCall.mock.calls[0][2].values).toEqual([['She said "hi"', 'ok']]);
   });
 
   it('requires either values or jsonValues', async () => {
@@ -344,30 +344,26 @@ describe('sheetsPatch customHandlers.updateValues', () => {
     await expect(
       handler({ spreadsheetId: 'sheet123', range: 'Sheet1!A1' }, 'user@test.com'),
     ).rejects.toThrow(/values .* or jsonValues/);
-    expect(mockExecute).not.toHaveBeenCalled();
+    expect(mockCall).not.toHaveBeenCalled();
   });
 });
 
 describe('sheetsPatch customHandlers.append', () => {
-  beforeEach(() => mockExecute.mockReset());
+  beforeEach(() => mockCall.mockReset());
 
   const apiResponse = {
-    success: true,
-    data: {
-      spreadsheetId: 'sheet123',
-      tableRange: "'Q2 Metrics'!A1:C3",
-      updates: {
-        updatedRange: "'Q2 Metrics'!A4:C4",
-        updatedRows: 1,
-        updatedColumns: 3,
-        updatedCells: 3,
-      },
+    spreadsheetId: 'sheet123',
+    tableRange: "'Q2 Metrics'!A1:C3",
+    updates: {
+      updatedRange: "'Q2 Metrics'!A4:C4",
+      updatedRows: 1,
+      updatedColumns: 3,
+      updatedCells: 3,
     },
-    stderr: '',
   } as const;
 
   it('hits spreadsheets.values.append (not the +append helper)', async () => {
-    mockExecute.mockResolvedValueOnce(apiResponse);
+    mockCall.mockResolvedValueOnce(apiResponse);
     const handler = sheetsPatch.customHandlers!.append!;
 
     await handler(
@@ -375,14 +371,12 @@ describe('sheetsPatch customHandlers.append', () => {
       'user@test.com',
     );
 
-    const args = mockExecute.mock.calls[0][0];
-    expect(args.slice(0, 4)).toEqual(['sheets', 'spreadsheets', 'values', 'append']);
-    // Sanity: make sure we did NOT fall back to the helper form
-    expect(args).not.toContain('+append');
+    expect(mockCall.mock.calls[0][0]).toBe('sheets');
+    expect(mockCall.mock.calls[0][1]).toBe('spreadsheets.values.append');
   });
 
-  it('passes range through --params (fixes the Sheet1-only bug)', async () => {
-    mockExecute.mockResolvedValueOnce(apiResponse);
+  it('passes the range through to the URL (fixes the Sheet1-only bug)', async () => {
+    mockCall.mockResolvedValueOnce(apiResponse);
     const handler = sheetsPatch.customHandlers!.append!;
 
     await handler(
@@ -390,14 +384,17 @@ describe('sheetsPatch customHandlers.append', () => {
       'user@test.com',
     );
 
-    const args = mockExecute.mock.calls[0][0];
-    const params = JSON.parse(args[args.indexOf('--params') + 1]);
+    const params = mockCall.mock.calls[0][2];
     expect(params.range).toBe('Q2 Metrics!A:Z');
     expect(params.valueInputOption).toBe('USER_ENTERED');
+    // `range` is a PATH param — it must reach the URL, which is exactly what the
+    // gws `+append` helper (no --range flag) could never do.
+    const request = await requestFor('sheets', 'spreadsheets.values.append', params);
+    expect(decodeURIComponent(new URL(request.url).pathname)).toContain('/values/Q2 Metrics!A:Z:append');
   });
 
   it('defaults range to Sheet1 when omitted (backward compatible)', async () => {
-    mockExecute.mockResolvedValueOnce(apiResponse);
+    mockCall.mockResolvedValueOnce(apiResponse);
     const handler = sheetsPatch.customHandlers!.append!;
 
     await handler(
@@ -405,12 +402,11 @@ describe('sheetsPatch customHandlers.append', () => {
       'user@test.com',
     );
 
-    const params = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--params') + 1]);
-    expect(params.range).toBe('Sheet1');
+    expect(mockCall.mock.calls[0][2].range).toBe('Sheet1');
   });
 
   it('accepts CSV values for single-row appends', async () => {
-    mockExecute.mockResolvedValueOnce(apiResponse);
+    mockCall.mockResolvedValueOnce(apiResponse);
     const handler = sheetsPatch.customHandlers!.append!;
 
     await handler(
@@ -418,12 +414,11 @@ describe('sheetsPatch customHandlers.append', () => {
       'user@test.com',
     );
 
-    const body = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--json') + 1]);
-    expect(body.values).toEqual([['Alice', '100', 'true']]);
+    expect(mockCall.mock.calls[0][2].values).toEqual([['Alice', '100', 'true']]);
   });
 
   it('surfaces the updated range from the response', async () => {
-    mockExecute.mockResolvedValueOnce(apiResponse);
+    mockCall.mockResolvedValueOnce(apiResponse);
     const handler = sheetsPatch.customHandlers!.append!;
 
     const res = await handler(
@@ -441,37 +436,36 @@ describe('sheetsPatch customHandlers.append', () => {
     await expect(
       handler({ spreadsheetId: 'sheet123', range: 'Q2 Metrics' }, 'user@test.com'),
     ).rejects.toThrow(/append requires .* values .* jsonValues/);
-    expect(mockExecute).not.toHaveBeenCalled();
+    expect(mockCall).not.toHaveBeenCalled();
   });
 });
 
 // --- Tab management (batchUpdate-based customHandlers) ---
 
 /** Assert batchUpdate was called with the expected single-request body. */
-function expectBatchUpdateCall(
-  call: readonly string[],
+async function expectBatchUpdateCall(
+  callArgs: readonly unknown[],
   expectedSpreadsheetId: string,
   expectedRequest: Record<string, unknown>,
-): void {
-  expect(call.slice(0, 3)).toEqual(['sheets', 'spreadsheets', 'batchUpdate']);
-  const params = JSON.parse(call[call.indexOf('--params') + 1]);
-  expect(params).toEqual({ spreadsheetId: expectedSpreadsheetId });
-  const body = JSON.parse(call[call.indexOf('--json') + 1]);
-  expect(body).toEqual({ requests: [expectedRequest] });
+): Promise<void> {
+  const [service, resourcePath, params] = callArgs as [string, string, Record<string, unknown>];
+  expect(service).toBe('sheets');
+  expect(resourcePath).toBe('spreadsheets.batchUpdate');
+  expect(params).toEqual({ spreadsheetId: expectedSpreadsheetId, requests: [expectedRequest] });
+  // spreadsheetId is the PATH; `requests` is the BODY.
+  const request = await requestFor('sheets', 'spreadsheets.batchUpdate', params);
+  expect(request.url).toContain(`/spreadsheets/${expectedSpreadsheetId}:batchUpdate`);
+  expect(request.body).toEqual({ requests: [expectedRequest] });
 }
 
 describe('sheetsPatch customHandlers.addSheet', () => {
-  beforeEach(() => mockExecute.mockReset());
+  beforeEach(() => mockCall.mockReset());
 
   it('sends addSheet with title and returns the new sheetId', async () => {
-    mockExecute.mockResolvedValueOnce({
-      success: true,
-      data: {
-        replies: [{
-          addSheet: { properties: { sheetId: 42, title: 'Logs', gridProperties: { rowCount: 1000, columnCount: 26 } } },
-        }],
-      },
-      stderr: '',
+    mockCall.mockResolvedValueOnce({
+      replies: [{
+        addSheet: { properties: { sheetId: 42, title: 'Logs', gridProperties: { rowCount: 1000, columnCount: 26 } } },
+      }],
     });
     const handler = sheetsPatch.customHandlers!.addSheet!;
 
@@ -480,7 +474,7 @@ describe('sheetsPatch customHandlers.addSheet', () => {
       'user@test.com',
     );
 
-    expectBatchUpdateCall(mockExecute.mock.calls[0][0], 'sheet123', {
+    await expectBatchUpdateCall(mockCall.mock.calls[0], 'sheet123', {
       addSheet: { properties: { title: 'Logs' } },
     });
     expect(res.text).toContain('**Sheet ID:** 42');
@@ -489,48 +483,44 @@ describe('sheetsPatch customHandlers.addSheet', () => {
   });
 
   it('passes gridProperties when rowCount/columnCount provided', async () => {
-    mockExecute.mockResolvedValueOnce({
-      success: true,
-      data: { replies: [{ addSheet: { properties: { sheetId: 1, title: 'Big', gridProperties: { rowCount: 500, columnCount: 10 } } } }] },
-      stderr: '',
+    mockCall.mockResolvedValueOnce({
+      replies: [{ addSheet: { properties: { sheetId: 1, title: 'Big', gridProperties: { rowCount: 500, columnCount: 10 } } } }],
     });
     const handler = sheetsPatch.customHandlers!.addSheet!;
     await handler(
       { spreadsheetId: 'sheet123', title: 'Big', rowCount: 500, columnCount: 10 },
       'user@test.com',
     );
-    const body = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--json') + 1]);
-    expect(body.requests[0].addSheet.properties.gridProperties).toEqual({ rowCount: 500, columnCount: 10 });
+    const requests = mockCall.mock.calls[0][2].requests as Array<Record<string, any>>;
+    expect(requests[0].addSheet.properties.gridProperties).toEqual({ rowCount: 500, columnCount: 10 });
   });
 
   it('passes index when provided', async () => {
-    mockExecute.mockResolvedValueOnce({
-      success: true,
-      data: { replies: [{ addSheet: { properties: { sheetId: 2, title: 'First', gridProperties: {} } } }] },
-      stderr: '',
+    mockCall.mockResolvedValueOnce({
+      replies: [{ addSheet: { properties: { sheetId: 2, title: 'First', gridProperties: {} } } }],
     });
     const handler = sheetsPatch.customHandlers!.addSheet!;
     await handler(
       { spreadsheetId: 'sheet123', title: 'First', index: 0 },
       'user@test.com',
     );
-    const body = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--json') + 1]);
-    expect(body.requests[0].addSheet.properties.index).toBe(0);
+    const requests = mockCall.mock.calls[0][2].requests as Array<Record<string, any>>;
+    expect(requests[0].addSheet.properties.index).toBe(0);
   });
 
   it('rejects missing title', async () => {
     const handler = sheetsPatch.customHandlers!.addSheet!;
     await expect(handler({ spreadsheetId: 'sheet123' }, 'user@test.com'))
       .rejects.toThrow(/title is required/);
-    expect(mockExecute).not.toHaveBeenCalled();
+    expect(mockCall).not.toHaveBeenCalled();
   });
 });
 
 describe('sheetsPatch customHandlers.renameSheet', () => {
-  beforeEach(() => mockExecute.mockReset());
+  beforeEach(() => mockCall.mockReset());
 
   it('sends updateSheetProperties with title fieldmask', async () => {
-    mockExecute.mockResolvedValueOnce({ success: true, data: { replies: [{}] }, stderr: '' });
+    mockCall.mockResolvedValueOnce({ replies: [{}] });
     const handler = sheetsPatch.customHandlers!.renameSheet!;
 
     const res = await handler(
@@ -538,7 +528,7 @@ describe('sheetsPatch customHandlers.renameSheet', () => {
       'user@test.com',
     );
 
-    expectBatchUpdateCall(mockExecute.mock.calls[0][0], 'sheet123', {
+    await expectBatchUpdateCall(mockCall.mock.calls[0], 'sheet123', {
       updateSheetProperties: {
         properties: { sheetId: 7, title: 'Renamed' },
         fields: 'title',
@@ -549,14 +539,14 @@ describe('sheetsPatch customHandlers.renameSheet', () => {
   });
 
   it('accepts sheetId = 0 (valid Google Sheets ID)', async () => {
-    mockExecute.mockResolvedValueOnce({ success: true, data: { replies: [{}] }, stderr: '' });
+    mockCall.mockResolvedValueOnce({ replies: [{}] });
     const handler = sheetsPatch.customHandlers!.renameSheet!;
     await handler(
       { spreadsheetId: 'sheet123', sheetId: 0, title: 'Main' },
       'user@test.com',
     );
-    const body = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--json') + 1]);
-    expect(body.requests[0].updateSheetProperties.properties.sheetId).toBe(0);
+    const requests = mockCall.mock.calls[0][2].requests as Array<Record<string, any>>;
+    expect(requests[0].updateSheetProperties.properties.sheetId).toBe(0);
   });
 
   it('rejects non-integer sheetId', async () => {
@@ -575,10 +565,10 @@ describe('sheetsPatch customHandlers.renameSheet', () => {
 });
 
 describe('sheetsPatch customHandlers.deleteSheet', () => {
-  beforeEach(() => mockExecute.mockReset());
+  beforeEach(() => mockCall.mockReset());
 
   it('sends deleteSheet with the sheetId', async () => {
-    mockExecute.mockResolvedValueOnce({ success: true, data: { replies: [{}] }, stderr: '' });
+    mockCall.mockResolvedValueOnce({ replies: [{}] });
     const handler = sheetsPatch.customHandlers!.deleteSheet!;
 
     const res = await handler(
@@ -586,7 +576,7 @@ describe('sheetsPatch customHandlers.deleteSheet', () => {
       'user@test.com',
     );
 
-    expectBatchUpdateCall(mockExecute.mock.calls[0][0], 'sheet123', {
+    await expectBatchUpdateCall(mockCall.mock.calls[0], 'sheet123', {
       deleteSheet: { sheetId: 99 },
     });
     expect(res.refs.deleted).toBe(true);
@@ -594,13 +584,11 @@ describe('sheetsPatch customHandlers.deleteSheet', () => {
 });
 
 describe('sheetsPatch customHandlers.duplicateSheet', () => {
-  beforeEach(() => mockExecute.mockReset());
+  beforeEach(() => mockCall.mockReset());
 
   it('sends duplicateSheet with source id and optional name/index', async () => {
-    mockExecute.mockResolvedValueOnce({
-      success: true,
-      data: { replies: [{ duplicateSheet: { properties: { sheetId: 101, title: 'Logs Copy' } } }] },
-      stderr: '',
+    mockCall.mockResolvedValueOnce({
+      replies: [{ duplicateSheet: { properties: { sheetId: 101, title: 'Logs Copy' } } }],
     });
     const handler = sheetsPatch.customHandlers!.duplicateSheet!;
 
@@ -609,7 +597,7 @@ describe('sheetsPatch customHandlers.duplicateSheet', () => {
       'user@test.com',
     );
 
-    expectBatchUpdateCall(mockExecute.mock.calls[0][0], 'sheet123', {
+    await expectBatchUpdateCall(mockCall.mock.calls[0], 'sheet123', {
       duplicateSheet: {
         sourceSheetId: 10,
         newSheetName: 'Logs Copy',
@@ -620,26 +608,24 @@ describe('sheetsPatch customHandlers.duplicateSheet', () => {
   });
 
   it('omits optional fields when not provided', async () => {
-    mockExecute.mockResolvedValueOnce({
-      success: true,
-      data: { replies: [{ duplicateSheet: { properties: { sheetId: 102, title: 'Copy of Logs' } } }] },
-      stderr: '',
+    mockCall.mockResolvedValueOnce({
+      replies: [{ duplicateSheet: { properties: { sheetId: 102, title: 'Copy of Logs' } } }],
     });
     const handler = sheetsPatch.customHandlers!.duplicateSheet!;
     await handler(
       { spreadsheetId: 'sheet123', sheetId: 10 },
       'user@test.com',
     );
-    const body = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--json') + 1]);
-    expect(body.requests[0].duplicateSheet).toEqual({ sourceSheetId: 10 });
+    const requests = mockCall.mock.calls[0][2].requests as Array<Record<string, any>>;
+    expect(requests[0].duplicateSheet).toEqual({ sourceSheetId: 10 });
   });
 });
 
 describe('sheetsPatch customHandlers.renameSpreadsheet', () => {
-  beforeEach(() => mockExecute.mockReset());
+  beforeEach(() => mockCall.mockReset());
 
   it('sends updateSpreadsheetProperties with title fieldmask', async () => {
-    mockExecute.mockResolvedValueOnce({ success: true, data: { replies: [{}] }, stderr: '' });
+    mockCall.mockResolvedValueOnce({ replies: [{}] });
     const handler = sheetsPatch.customHandlers!.renameSpreadsheet!;
 
     const res = await handler(
@@ -647,7 +633,7 @@ describe('sheetsPatch customHandlers.renameSpreadsheet', () => {
       'user@test.com',
     );
 
-    expectBatchUpdateCall(mockExecute.mock.calls[0][0], 'sheet123', {
+    await expectBatchUpdateCall(mockCall.mock.calls[0], 'sheet123', {
       updateSpreadsheetProperties: {
         properties: { title: 'Q2 Budget' },
         fields: 'title',
@@ -658,14 +644,10 @@ describe('sheetsPatch customHandlers.renameSpreadsheet', () => {
 });
 
 describe('sheetsPatch customHandlers.copySheetTo', () => {
-  beforeEach(() => mockExecute.mockReset());
+  beforeEach(() => mockCall.mockReset());
 
-  it('calls sheets.copyTo with destination in --json body', async () => {
-    mockExecute.mockResolvedValueOnce({
-      success: true,
-      data: { sheetId: 500, title: 'Imported Logs' },
-      stderr: '',
-    });
+  it('calls sheets.copyTo with the destination in the request body', async () => {
+    mockCall.mockResolvedValueOnce({ sheetId: 500, title: 'Imported Logs' });
     const handler = sheetsPatch.customHandlers!.copySheetTo!;
 
     const res = await handler(
@@ -673,12 +655,20 @@ describe('sheetsPatch customHandlers.copySheetTo', () => {
       'user@test.com',
     );
 
-    const args = mockExecute.mock.calls[0][0];
-    expect(args.slice(0, 4)).toEqual(['sheets', 'spreadsheets', 'sheets', 'copyTo']);
-    const params = JSON.parse(args[args.indexOf('--params') + 1]);
-    expect(params).toEqual({ spreadsheetId: 'srcSheet', sheetId: 5 });
-    const body = JSON.parse(args[args.indexOf('--json') + 1]);
-    expect(body).toEqual({ destinationSpreadsheetId: 'dstSheet' });
+    const [service, resourcePath, params] = mockCall.mock.calls[0];
+    expect(service).toBe('sheets');
+    expect(resourcePath).toBe('spreadsheets.sheets.copyTo');
+    expect(params).toEqual({
+      spreadsheetId: 'srcSheet',
+      sheetId: 5,
+      destinationSpreadsheetId: 'dstSheet',
+    });
+
+    // spreadsheetId + sheetId are PATH params; destinationSpreadsheetId is the BODY.
+    const request = await requestFor('sheets', 'spreadsheets.sheets.copyTo', params);
+    expect(request.url).toContain('/spreadsheets/srcSheet/sheets/5:copyTo');
+    expect(request.body).toEqual({ destinationSpreadsheetId: 'dstSheet' });
+
     expect(res.refs.destinationSpreadsheetId).toBe('dstSheet');
     expect(res.refs.sheetId).toBe(500);
   });
@@ -688,11 +678,11 @@ describe('sheetsPatch customHandlers.copySheetTo', () => {
     await expect(
       handler({ spreadsheetId: 'srcSheet', sheetId: 5 }, 'user@test.com'),
     ).rejects.toThrow(/destinationSpreadsheetId is required/);
-    expect(mockExecute).not.toHaveBeenCalled();
+    expect(mockCall).not.toHaveBeenCalled();
   });
 
-  it('propagates gws execution errors', async () => {
-    mockExecute.mockRejectedValueOnce(new Error('destination spreadsheet not found'));
+  it('propagates API errors', async () => {
+    mockCall.mockRejectedValueOnce(new Error('destination spreadsheet not found'));
     const handler = sheetsPatch.customHandlers!.copySheetTo!;
     await expect(
       handler(

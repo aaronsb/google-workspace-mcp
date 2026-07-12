@@ -10,7 +10,7 @@
  * last refresh, keeping API usage bounded.
  */
 
-import { execute } from '../../executor/gws.js';
+import { call } from '../../google/client.js';
 
 /** Minimum epoch distance between refresh polls per account. */
 const REFRESH_EPOCH_INTERVAL = 10;
@@ -44,36 +44,32 @@ function endOfDayISO(): string {
 }
 
 async function fetchUnreadCount(account: string): Promise<number> {
-  const result = await execute([
-    'gmail', 'users', 'messages', 'list',
-    '--params', JSON.stringify({ userId: 'me', q: 'is:unread', maxResults: 1 }),
-  ], { account });
-  const data = result.data as Record<string, unknown>;
+  const data = await call('gmail', 'users.messages.list', {
+    userId: 'me',
+    q: 'is:unread',
+    maxResults: 1,
+  }, { account }) as Record<string, unknown>;
   return Number(data.resultSizeEstimate ?? 0);
 }
 
 async function fetchTodayEmailCount(account: string): Promise<number> {
-  const result = await execute([
-    'gmail', 'users', 'messages', 'list',
-    '--params', JSON.stringify({ userId: 'me', q: `after:${todayQuery()}`, maxResults: 1 }),
-  ], { account });
-  const data = result.data as Record<string, unknown>;
+  const data = await call('gmail', 'users.messages.list', {
+    userId: 'me',
+    q: `after:${todayQuery()}`,
+    maxResults: 1,
+  }, { account }) as Record<string, unknown>;
   return Number(data.resultSizeEstimate ?? 0);
 }
 
 async function fetchNextEvent(account: string): Promise<NextEvent | null> {
-  const result = await execute([
-    'calendar', 'events', 'list',
-    '--params', JSON.stringify({
-      calendarId: 'primary',
-      timeMin: new Date().toISOString(),
-      timeMax: endOfDayISO(),
-      maxResults: 1,
-      orderBy: 'startTime',
-      singleEvents: true,
-    }),
-  ], { account });
-  const data = result.data as Record<string, unknown>;
+  const data = await call('calendar', 'events.list', {
+    calendarId: 'primary',
+    timeMin: new Date().toISOString(),
+    timeMax: endOfDayISO(),
+    maxResults: 1,
+    orderBy: 'startTime',
+    singleEvents: true,
+  }, { account }) as Record<string, unknown>;
   const items = (data.items ?? []) as Array<Record<string, unknown>>;
   if (items.length === 0) return null;
 

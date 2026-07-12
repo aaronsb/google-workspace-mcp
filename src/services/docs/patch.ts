@@ -5,13 +5,41 @@
  * a --json request body, not --params.
  */
 
-import { execute } from '../../executor/gws.js';
+import { call } from '../../google/client.js';
 import { requireString } from '../../server/handlers/validate.js';
 import type { ServicePatch } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
 export const docsPatch: ServicePatch = {
   customHandlers: {
+    /**
+     * Append text to the end of the body. Was gws's `+write`, which was exactly
+     * one documents.batchUpdate carrying a single insertText at
+     * `endOfSegmentLocation` — append-only, no index targeting, no formatting.
+     * The helper added nothing Google did not already do.
+     */
+    write: async (params, account): Promise<HandlerResponse> => {
+      const documentId = requireString(params, 'documentId');
+      const text = requireString(params, 'text');
+
+      await call('docs', 'documents.batchUpdate', {
+        documentId,
+        requests: [{
+          insertText: {
+            text,
+            // An empty segmentId means the document BODY (as opposed to a header
+            // or footer), and endOfSegmentLocation means "append".
+            endOfSegmentLocation: { segmentId: '' },
+          },
+        }],
+      }, { account });
+
+      return {
+        text: `Appended ${text.length} character(s) to the document.\n\n**Document ID:** ${documentId}`,
+        refs: { documentId, appended: text.length },
+      };
+    },
+
     insertText: async (params, account): Promise<HandlerResponse> => {
       const documentId = requireString(params, 'documentId');
       const text = requireString(params, 'text');
@@ -20,20 +48,15 @@ export const docsPatch: ServicePatch = {
         throw new Error('index must be a positive integer (1 = start of document body)');
       }
 
-      const body = {
+      await call('docs', 'documents.batchUpdate', {
+        documentId,
         requests: [{
           insertText: {
             text,
             location: { index },
           },
         }],
-      };
-
-      await execute([
-        'docs', 'documents', 'batchUpdate',
-        '--params', JSON.stringify({ documentId }),
-        '--json', JSON.stringify(body),
-      ], { account });
+      }, { account });
 
       return {
         text: `Text inserted at index ${index}.\n\n**Document:** ${documentId}\n**Inserted:** ${text.length} characters`,
@@ -47,7 +70,8 @@ export const docsPatch: ServicePatch = {
       const replaceWith = requireString(params, 'replaceWith');
       const matchCase = params.matchCase !== false;
 
-      const body = {
+      const data = await call('docs', 'documents.batchUpdate', {
+        documentId,
         requests: [{
           replaceAllText: {
             containsText: {
@@ -57,16 +81,9 @@ export const docsPatch: ServicePatch = {
             replaceText: replaceWith,
           },
         }],
-      };
-
-      const result = await execute([
-        'docs', 'documents', 'batchUpdate',
-        '--params', JSON.stringify({ documentId }),
-        '--json', JSON.stringify(body),
-      ], { account });
+      }, { account }) as Record<string, unknown>;
 
       // Extract occurrence count from the reply
-      const data = result.data as Record<string, unknown>;
       const replies = (data.replies as Array<Record<string, unknown>>) || [];
       const replaceReply = replies[0]?.replaceAllText as Record<string, unknown> | undefined;
       const occurrences = replaceReply?.occurrencesChanged || 0;

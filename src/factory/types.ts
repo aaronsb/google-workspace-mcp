@@ -42,8 +42,6 @@ export interface OperationDef {
   description: string;
   /** gws resource path (e.g. "users.messages.list"). */
   resource?: string;
-  /** gws helper shorthand (e.g. "+triage", "+send"). */
-  helper?: string;
   /** Named parameters the caller can provide. */
   params?: Record<string, ParamDef>;
   /** Default values merged into the gws --params JSON. */
@@ -52,8 +50,6 @@ export interface OperationDef {
   hydration?: HydrationDef;
   /** Fields to extract from the gws response for the result. */
   fields?: string;
-  /** CLI-style args instead of --params JSON (for helpers). */
-  cli_args?: Record<string, string>;
 }
 
 /** A service declaration in the manifest. */
@@ -81,13 +77,20 @@ export interface PatchContext {
   account: string;
 }
 
-/** A patch hook that runs after arg construction, before gws execution. */
+/**
+ * A patch hook that runs after the manifest's param mapping, before the call.
+ *
+ * It receives the PARAMS Google will be sent — not a gws command line. The hooks
+ * used to take `string[]` and perform surgery on an argv slot
+ * (`JSON.parse(args[args.indexOf('--params') + 1])`), which existed only because
+ * the seam was a subprocess. See ADR-103.
+ */
 export type BeforeExecuteHook = (
-  args: string[],
+  params: Record<string, unknown>,
   ctx: PatchContext,
-) => Promise<string[]> | string[];
+) => Promise<Record<string, unknown>> | Record<string, unknown>;
 
-/** A patch hook that runs after gws returns, before formatting. */
+/** A patch hook that runs after Google returns, before formatting. */
 export type AfterExecuteHook = (
   result: unknown,
   ctx: PatchContext,

@@ -3,7 +3,7 @@
  * Imports as markdown with speaker attribution. No live binding (transcripts are read-only).
  */
 
-import { execute } from '../../../executor/gws.js';
+import { call } from '../../../google/client.js';
 import type { HandlerResponse } from '../../handler.js';
 import type { ScratchpadManager } from '../manager.js';
 
@@ -28,12 +28,12 @@ export async function importMeet(
       : `conferenceRecords/${conferenceId}`;
 
     // Step 1: List transcripts
-    const transcriptsResult = await execute([
-      'meet', 'conferenceRecords', 'transcripts', 'list',
-      '--params', JSON.stringify({ parent }),
-    ], { account: email, format: 'json' });
-
-    const transcriptsData = transcriptsResult.data as Record<string, unknown>;
+    const transcriptsData = await call(
+      'meet',
+      'conferenceRecords.transcripts.list',
+      { parent },
+      { account: email },
+    ) as Record<string, unknown>;
     const transcripts = (transcriptsData?.transcripts ?? []) as Array<Record<string, unknown>>;
 
     if (transcripts.length === 0) {
@@ -45,18 +45,13 @@ export async function importMeet(
 
     // Step 2: Fetch entries and participants in parallel
     const transcriptName = String(transcripts[0].name ?? '');
-    const [entriesResult, participantsResult] = await Promise.all([
-      execute([
-        'meet', 'conferenceRecords', 'transcripts', 'entries', 'list',
-        '--params', JSON.stringify({ parent: transcriptName, pageSize: 100 }),
-      ], { account: email, format: 'json' }),
-      execute([
-        'meet', 'conferenceRecords', 'participants', 'list',
-        '--params', JSON.stringify({ parent, pageSize: 100 }),
-      ], { account: email, format: 'json' }),
-    ]);
+    const [entriesData, participantsData] = await Promise.all([
+      call('meet', 'conferenceRecords.transcripts.entries.list',
+        { parent: transcriptName, pageSize: 100 }, { account: email }),
+      call('meet', 'conferenceRecords.participants.list',
+        { parent, pageSize: 100 }, { account: email }),
+    ]) as [Record<string, unknown>, Record<string, unknown>];
 
-    const entriesData = entriesResult.data as Record<string, unknown>;
     const entries = (entriesData?.transcriptEntries ?? []) as Array<Record<string, unknown>>;
 
     if (entries.length === 0) {
@@ -67,7 +62,6 @@ export async function importMeet(
     }
 
     // Step 3: Build participant lookup
-    const participantsData = participantsResult.data as Record<string, unknown>;
     const participants = (participantsData?.participants ?? []) as Array<Record<string, unknown>>;
     const nameMap = new Map<string, string>();
     for (const p of participants) {

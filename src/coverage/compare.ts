@@ -9,13 +9,20 @@ import type {
 } from './types.js';
 import { ELIGIBLE_SERVICES, SKIP_PARAMS } from './types.js';
 
-/** Build a set of gws resource paths and helper names covered by the manifest. */
+/**
+ * Build the set of Google methods the manifest covers.
+ *
+ * There is no `opDef.helper` any more. gws's `+helpers` are gone: nine of them
+ * were plain Google methods in a CLI costume, and the two that actually reshaped
+ * anything are now built from raw Google in our own layer (ADR-103). An operation
+ * either names a Google method or is a custom handler composed of them.
+ */
 function buildCoveredPaths(manifest: Manifest): Map<string, { service: string; opName: string; params: Set<string> }> {
   const covered = new Map<string, { service: string; opName: string; params: Set<string> }>();
 
   for (const [_serviceName, serviceDef] of Object.entries(manifest.services)) {
     for (const [opName, opDef] of Object.entries(serviceDef.operations)) {
-      const path = opDef.resource || opDef.helper;
+      const path = opDef.resource;
       if (!path) continue;
 
       const paramNames = new Set<string>();

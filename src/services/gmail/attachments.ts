@@ -8,7 +8,7 @@
  * Flow: read → see filenames → getAttachment/viewAttachment(messageId, filename)
  */
 
-import { execute } from '../../executor/gws.js';
+import { call } from '../../google/client.js';
 import { requireString } from '../../server/handlers/validate.js';
 import { saveToWorkspace, formatFileOutput, isImageFile, buildImageBlock, getImageMimeType } from '../../executor/file-output.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
@@ -44,12 +44,11 @@ async function fetchAttachmentData(
   account: string,
 ): Promise<{ buffer: Buffer; match: { filename: string; attachmentId: string; mimeType: string; size: number } }> {
   // Read the message to find the attachment ID for this filename
-  const msgResult = await execute([
-    'gmail', 'users', 'messages', 'get',
-    '--params', JSON.stringify({ userId: 'me', id: messageId }),
-  ], { account });
+  const msg = await call('gmail', 'users.messages.get', {
+    userId: 'me',
+    id: messageId,
+  }, { account }) as Record<string, unknown>;
 
-  const msg = msgResult.data as Record<string, unknown>;
   const payload = msg.payload as Record<string, unknown> | undefined;
   const allAttachments = payload?.parts ? findAttachments(payload.parts as unknown[]) : [];
 
@@ -63,16 +62,12 @@ async function fetchAttachmentData(
   }
 
   // Fetch the attachment data
-  const result = await execute([
-    'gmail', 'users', 'messages', 'attachments', 'get',
-    '--params', JSON.stringify({
-      userId: 'me',
-      messageId,
-      id: match.attachmentId,
-    }),
-  ], { account });
+  const data = await call('gmail', 'users.messages.attachments.get', {
+    userId: 'me',
+    messageId,
+    id: match.attachmentId,
+  }, { account }) as Record<string, unknown>;
 
-  const data = result.data as Record<string, unknown>;
   const base64Data = String(data.data ?? '');
 
   if (!base64Data) {

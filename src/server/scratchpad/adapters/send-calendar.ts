@@ -2,7 +2,7 @@
  * Send adapter: calendar_event — creates a calendar event with scratchpad content as description.
  */
 
-import { execute } from '../../../executor/gws.js';
+import { call } from '../../../google/client.js';
 import type { HandlerResponse } from '../../handler.js';
 import type { ScratchpadManager } from '../manager.js';
 import { nextSteps } from '../../formatting/next-steps.js';
@@ -34,19 +34,25 @@ export async function sendCalendarEvent(
     };
   }
 
-  const args = [
-    'calendar', '+insert',
-    '--summary', summary,
-    '--start', start,
-    '--end', end,
-    '--description', content,
-  ];
-  if (location) args.push('--location', location);
-  if (attendees) args.push('--attendee', attendees);
+  // `calendarId` is the one PATH param the descriptor declares; everything else
+  // here is the Event resource and lands in the body. Same shape as
+  // services/calendar/patch.ts `create`.
+  const body: Record<string, unknown> = {
+    calendarId: 'primary',
+    summary,
+    start: { dateTime: start },
+    end: { dateTime: end },
+    description: content,
+  };
+  if (location) body.location = location;
+  if (attendees) {
+    body.attendees = attendees
+      .split(',').map((e) => e.trim()).filter(Boolean)
+      .map((address) => ({ email: address }));
+  }
 
   try {
-    const result = await execute(args, { account: email });
-    const data = result.data as Record<string, unknown>;
+    const data = await call('calendar', 'events.insert', body, { account: email }) as Record<string, unknown>;
 
     return {
       text: `Event created: **${summary}**\n\n` +

@@ -49,7 +49,6 @@ operations:
   send:
     type: action
     description: "compose and send a new email (creates draft when attachments present, 35MB attachment limit via upload endpoint)"
-    helper: "+send"
     params:
       to:
         type: string
@@ -81,18 +80,10 @@ operations:
       draft:
         type: boolean
         description: "Save as draft instead of sending (default: false, forced true when attachments present)"
-    cli_args:
-      to: "--to"
-      subject: "--subject"
-      body: "--body"
-      from: "--from"
-      cc: "--cc"
-      bcc: "--bcc"
 
   reply:
     type: action
     description: "reply to a message (thread-aware, creates draft when attachments present)"
-    helper: "+reply"
     params:
       messageId:
         type: string
@@ -111,14 +102,10 @@ operations:
       draft:
         type: boolean
         description: "Save as draft instead of sending (default: false, forced true when attachments present)"
-    cli_args:
-      messageId: "--message-id"
-      body: "--body"
 
   replyAll:
     type: action
     description: "reply-all to a message (thread-aware, includes all recipients, creates draft when attachments present)"
-    helper: "+reply-all"
     params:
       messageId:
         type: string
@@ -140,15 +127,10 @@ operations:
       draft:
         type: boolean
         description: "Save as draft instead of sending (default: false, forced true when attachments present)"
-    cli_args:
-      messageId: "--message-id"
-      body: "--body"
-      cc: "--cc"
 
   forward:
     type: action
     description: "forward a message to new recipients (includes original attachments by default)"
-    helper: "+forward"
     params:
       messageId:
         type: string
@@ -161,17 +143,22 @@ operations:
       body:
         type: string
         description: "Optional note to prepend above forwarded message"
-    cli_args:
-      messageId: "--message-id"
-      to: "--to"
-      body: "--body"
 
   # --- Inbox management ---
 
+  # Was gws's `+triage`. It is not a helper any more, and never needed to be:
+  # gws implemented it as messages.list -> messages.get(format=metadata) and then
+  # reshaped the result into a flat {id,from,subject,date} that the Gmail API never
+  # emits. We ALREADY do that walk, better, in gmailPatch.afterExecute (it also
+  # carries threadId and snippet). So triage is just a filtered list.
   triage:
     type: list
     description: "unread inbox summary (sender, subject, date)"
-    helper: "+triage"
+    resource: users.messages.list
+    defaults:
+      userId: me
+      q: "is:unread in:inbox"
+      maxResults: 20
 
   trash:
     type: action

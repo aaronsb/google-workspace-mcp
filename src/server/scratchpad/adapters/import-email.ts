@@ -4,7 +4,7 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { execute } from '../../../executor/gws.js';
+import { call } from '../../../google/client.js';
 import { ensureWorkspaceDir, resolveWorkspacePath } from '../../../executor/workspace.js';
 import { extractBodyFromPayload, extractAttachments } from '../../formatting/markdown.js';
 import type { HandlerResponse } from '../../handler.js';
@@ -27,12 +27,9 @@ export async function importEmail(
   }
 
   try {
-    const result = await execute([
-      'gmail', 'users', 'messages', 'get',
-      '--params', JSON.stringify({ userId: 'me', id: messageId }),
-    ], { account: email });
+    const msg = await call('gmail', 'users.messages.get',
+      { userId: 'me', id: messageId }, { account: email }) as Record<string, unknown>;
 
-    const msg = result.data as Record<string, unknown>;
     const payload = msg.payload as Record<string, unknown> | undefined;
     const body = extractBodyFromPayload(payload);
 
@@ -56,16 +53,10 @@ export async function importEmail(
         for (const att of emailAttachments) {
           try {
             // Download attachment data
-            const attResult = await execute([
-              'gmail', 'users', 'messages', 'attachments', 'get',
-              '--params', JSON.stringify({
-                userId: 'me',
-                messageId,
-                id: att.attachmentId,
-              }),
-            ], { account: email });
+            const attData = await call('gmail', 'users.messages.attachments.get',
+              { userId: 'me', messageId, id: att.attachmentId },
+              { account: email }) as Record<string, unknown>;
 
-            const attData = attResult.data as Record<string, unknown>;
             const base64Data = String(attData.data ?? '');
             if (!base64Data) continue;
 

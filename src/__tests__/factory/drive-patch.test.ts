@@ -1,16 +1,24 @@
 /**
  * Tests for the drive service patch — custom handlers for download/export
- * that ensure parent directories are created before writing files.
+ * that ensure parent directories are created before writing files, plus the
+ * share / listPermissions / copy / update handlers whose whole reason to exist
+ * is putting fields in the request BODY rather than the query.
+ *
+ * After ADR-103 every one of these is a RESOURCE op: they go through the Google
+ * API client we own (`call` / `download`), not gws. `upload` is the one drive
+ * handler still on the gws helper path, and it is covered in
+ * src/__tests__/server/handlers/drive.test.ts.
  */
-import { afterAll, beforeEach, describe, expect, it, vi, type MockedFunction, type Mock } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
-// Mock executor before importing patch
-vi.mock('../../executor/gws.js');
-import { execute } from '../../executor/gws.js';
+// Registered here, not in the shared helper: vi.mock hoists per-file.
+vi.mock('../../google/client.js');
+import { mockCall, mockDownload } from '../server/handlers/__mocks__/client.js';
+import { requestFor, queryOf } from '../support/request.js';
 
 // Mock workspace module with a temp dir
 const tmpWorkspace = path.join(os.tmpdir(), `gws-test-${Date.now()}`);
@@ -32,11 +40,10 @@ vi.mock('../../executor/file-output.js', () => ({
 
 import { drivePatch } from '../../services/drive/patch.js';
 
-const mockExecute = execute as MockedFunction<typeof execute>;
-
 describe('drivePatch custom handlers', () => {
   beforeEach(async () => {
-    mockExecute.mockReset();
+    mockCall.mockReset();
+    mockDownload.mockReset();
     // Start with a clean workspace — only the root dir exists
     await fs.rm(tmpWorkspace, { recursive: true, force: true });
     await fs.mkdir(tmpWorkspace, { recursive: true });
@@ -47,21 +54,19 @@ describe('drivePatch custom handlers', () => {
   });
 
   describe('export', () => {
-    it('creates parent directories before calling gws', async () => {
+    it('streams to the resolved output path via files.export', async () => {
       const outputPath = path.join(tmpWorkspace, 'subdir', 'Report.txt');
 
       const { resolveWorkspacePath } = await import('../../executor/workspace.js');
       (resolveWorkspacePath as Mock).mockReturnValue(outputPath);
 
-      // First call: get file metadata
-      // Second call: export — simulate gws writing the file
-      mockExecute
-        .mockResolvedValueOnce({ success: true, data: { name: 'Report.gdoc' }, stderr: '' })
-        .mockImplementationOnce(async () => {
-          // gws would write the file here — parent dir must already exist
-          await fs.writeFile(outputPath, 'exported content');
-          return { success: true, data: {}, stderr: '' };
-        });
+      // files.get for the source name…
+      mockCall.mockResolvedValueOnce({ name: 'Report.gdoc' });
+      // …then the export, which writes the bytes to disk.
+      mockDownload.mockImplementationOnce(async (_svc, _rp, _params, out) => {
+        await fs.writeFile(out, 'exported content');
+        return out;
+      });
 
       const handler = drivePatch.customHandlers!.export!;
       await handler(
@@ -69,13 +74,16 @@ describe('drivePatch custom handlers', () => {
         'user@test.com',
       );
 
-      // The export call should have --output pointing to the nested path
-      const exportCall = mockExecute.mock.calls[1][0];
-      expect(exportCall).toContain('--output');
-      expect(exportCall[exportCall.indexOf('--output') + 1]).toBe(outputPath);
+      expect(mockDownload).toHaveBeenCalledWith(
+        'drive',
+        'files.export',
+        expect.objectContaining({ fileId: 'abc123', mimeType: 'text/plain' }),
+        outputPath,
+        expect.objectContaining({ account: 'user@test.com' }),
+      );
     });
 
-    it('handler mkdir is required — without it gws write would fail', async () => {
+    it('handler mkdir is required — the parent dir exists by the time bytes land', async () => {
       const outputPath = path.join(tmpWorkspace, 'deep', 'nested', 'Doc.txt');
 
       const { resolveWorkspacePath } = await import('../../executor/workspace.js');
@@ -85,21 +93,22 @@ describe('drivePatch custom handlers', () => {
       const parentBefore = await fs.stat(path.dirname(outputPath)).catch(() => null);
       expect(parentBefore).toBeNull();
 
-      mockExecute
-        .mockResolvedValueOnce({ success: true, data: { name: 'Doc' }, stderr: '' })
-        .mockImplementationOnce(async () => {
-          // Parent directory must exist at this point (handler created it)
-          const stat = await fs.stat(path.dirname(outputPath));
-          expect(stat.isDirectory()).toBe(true);
-          await fs.writeFile(outputPath, 'content');
-          return { success: true, data: {}, stderr: '' };
-        });
+      mockCall.mockResolvedValueOnce({ name: 'Doc' });
+      mockDownload.mockImplementationOnce(async (_svc, _rp, _params, out) => {
+        // Parent directory must exist at this point (the handler created it)
+        const stat = await fs.stat(path.dirname(out));
+        expect(stat.isDirectory()).toBe(true);
+        await fs.writeFile(out, 'content');
+        return out;
+      });
 
       const handler = drivePatch.customHandlers!.export!;
       await handler(
         { fileId: 'abc123', mimeType: 'text/plain' },
         'user@test.com',
       );
+
+      expect(mockDownload).toHaveBeenCalledTimes(1);
     });
 
     it('works with flat filename (no subdirectory)', async () => {
@@ -108,12 +117,11 @@ describe('drivePatch custom handlers', () => {
       const { resolveWorkspacePath } = await import('../../executor/workspace.js');
       (resolveWorkspacePath as Mock).mockReturnValue(outputPath);
 
-      mockExecute
-        .mockResolvedValueOnce({ success: true, data: { name: 'Doc' }, stderr: '' })
-        .mockImplementationOnce(async () => {
-          await fs.writeFile(outputPath, 'pdf content');
-          return { success: true, data: {}, stderr: '' };
-        });
+      mockCall.mockResolvedValueOnce({ name: 'Doc' });
+      mockDownload.mockImplementationOnce(async (_svc, _rp, _params, out) => {
+        await fs.writeFile(out, 'pdf content');
+        return out;
+      });
 
       const handler = drivePatch.customHandlers!.export!;
       const result = await handler(
@@ -122,16 +130,15 @@ describe('drivePatch custom handlers', () => {
       );
 
       expect(result.text).toBeDefined();
-      expect(mockExecute).toHaveBeenCalledTimes(2);
+      expect(mockCall).toHaveBeenCalledTimes(1);      // files.get (name)
+      expect(mockDownload).toHaveBeenCalledTimes(1);  // files.export
     });
   });
 
   describe('share', () => {
-    it('sends type + role + emailAddress as JSON body, not via --params', async () => {
-      mockExecute.mockResolvedValueOnce({
-        success: true,
-        data: { id: 'perm-1', emailAddress: 'bob@test.com', role: 'reader', type: 'user' },
-        stderr: '',
+    it('sends type + role + emailAddress as the request body, not as query params', async () => {
+      mockCall.mockResolvedValueOnce({
+        id: 'perm-1', emailAddress: 'bob@test.com', role: 'reader', type: 'user',
       });
 
       const handler = drivePatch.customHandlers!.share!;
@@ -140,26 +147,30 @@ describe('drivePatch custom handlers', () => {
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      expect(args.slice(0, 3)).toEqual(['drive', 'permissions', 'create']);
-      expect(args).toContain('--json');
+      const [service, resourcePath, params, options] = mockCall.mock.calls[0];
+      expect(service).toBe('drive');
+      expect(resourcePath).toBe('permissions.create');
+      expect(options).toMatchObject({ account: 'user@test.com' });
+      expect(params.fileId).toBe('file-1');
 
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
-      // type MUST be in the body — omitting it caused
+      // The descriptor decides placement, and it must put type/role/emailAddress
+      // in the BODY — omitting type from the body caused
       // "The permission type field is required." on every share call.
-      expect(body.type).toBe('user');
-      expect(body.role).toBe('reader');
-      expect(body.emailAddress).toBe('bob@test.com');
-
-      // --params should only carry query params, not the permission body.
-      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
-      expect(queryParams.fileId).toBe('file-1');
-      expect(queryParams.type).toBeUndefined();
-      expect(queryParams.role).toBeUndefined();
+      const request = await requestFor('drive', 'permissions.create', params);
+      expect(request.body).toEqual({
+        type: 'user',
+        role: 'reader',
+        emailAddress: 'bob@test.com',
+      });
+      // …and only query params in the query.
+      const query = queryOf(request);
+      expect(query.type).toBeUndefined();
+      expect(query.role).toBeUndefined();
+      expect(request.url).toContain('/files/file-1/permissions');
     });
 
     it("defaults type to 'user' when not provided", async () => {
-      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'perm-1' }, stderr: '' });
+      mockCall.mockResolvedValueOnce({ id: 'perm-1' });
 
       const handler = drivePatch.customHandlers!.share!;
       await handler(
@@ -167,20 +178,19 @@ describe('drivePatch custom handlers', () => {
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
-      expect(body.type).toBe('user');
-      expect(body.role).toBe('reader'); // default from manifest flows through
+      const request = await requestFor('drive', 'permissions.create', mockCall.mock.calls[0][2]);
+      expect(request.body).toMatchObject({ type: 'user', role: 'reader' });
     });
 
     it('rejects user/group share without shareEmail', async () => {
       const handler = drivePatch.customHandlers!.share!;
       await expect(handler({ fileId: 'file-1' }, 'user@test.com')).rejects.toThrow('shareEmail');
       await expect(handler({ fileId: 'file-1', type: 'group' }, 'user@test.com')).rejects.toThrow('shareEmail');
+      expect(mockCall).not.toHaveBeenCalled();
     });
 
     it("uses domain field when type is 'domain'", async () => {
-      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'perm-1' }, stderr: '' });
+      mockCall.mockResolvedValueOnce({ id: 'perm-1' });
 
       const handler = drivePatch.customHandlers!.share!;
       await handler(
@@ -188,8 +198,7 @@ describe('drivePatch custom handlers', () => {
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      const body = (await requestFor('drive', 'permissions.create', mockCall.mock.calls[0][2])).body!;
       expect(body.type).toBe('domain');
       expect(body.domain).toBe('acme.com');
       expect(body.emailAddress).toBeUndefined();
@@ -203,7 +212,7 @@ describe('drivePatch custom handlers', () => {
     });
 
     it("accepts type 'anyone' with no target", async () => {
-      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'perm-1' }, stderr: '' });
+      mockCall.mockResolvedValueOnce({ id: 'perm-1' });
 
       const handler = drivePatch.customHandlers!.share!;
       await handler(
@@ -211,15 +220,14 @@ describe('drivePatch custom handlers', () => {
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      const body = (await requestFor('drive', 'permissions.create', mockCall.mock.calls[0][2])).body!;
       expect(body.type).toBe('anyone');
       expect(body.emailAddress).toBeUndefined();
       expect(body.domain).toBeUndefined();
     });
 
     it('suppresses email notifications by default for user/group shares', async () => {
-      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'perm-1' }, stderr: '' });
+      mockCall.mockResolvedValueOnce({ id: 'perm-1' });
 
       const handler = drivePatch.customHandlers!.share!;
       await handler(
@@ -227,36 +235,37 @@ describe('drivePatch custom handlers', () => {
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
-      expect(queryParams.sendNotificationEmail).toBe(false);
+      expect(mockCall.mock.calls[0][2].sendNotificationEmail).toBe(false);
+      // sendNotificationEmail is a QUERY param, per the descriptor.
+      const query = queryOf(await requestFor('drive', 'permissions.create', mockCall.mock.calls[0][2]));
+      expect(query.sendNotificationEmail).toBe('false');
     });
   });
 
   describe('listPermissions', () => {
     it('hits permissions.list and requests the fields the API omits by default', async () => {
-      mockExecute.mockResolvedValueOnce({
-        success: true,
-        data: {
-          permissions: [
-            { id: 'owner-perm', type: 'user', role: 'owner', emailAddress: 'me@test.com' },
-            { id: 'reader-perm', type: 'user', role: 'reader', emailAddress: 'bob@test.com' },
-          ],
-        },
-        stderr: '',
+      mockCall.mockResolvedValueOnce({
+        permissions: [
+          { id: 'owner-perm', type: 'user', role: 'owner', emailAddress: 'me@test.com' },
+          { id: 'reader-perm', type: 'user', role: 'reader', emailAddress: 'bob@test.com' },
+        ],
       });
 
       const handler = drivePatch.customHandlers!.listPermissions!;
       const result = await handler({ fileId: 'file-1' }, 'me@test.com');
 
-      const args = mockExecute.mock.calls[0][0];
-      expect(args.slice(0, 3)).toEqual(['drive', 'permissions', 'list']);
-      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
-      expect(queryParams.fileId).toBe('file-1');
+      const [service, resourcePath, params] = mockCall.mock.calls[0];
+      expect(service).toBe('drive');
+      expect(resourcePath).toBe('permissions.list');
+      expect(params.fileId).toBe('file-1');
       // Without an explicit fields mask the Drive API returns only id/type — not
-      // role or emailAddress — which made the listing useless.
-      expect(queryParams.fields).toContain('role');
-      expect(queryParams.fields).toContain('emailAddress');
+      // role or emailAddress — which made the listing useless. `fields` is a
+      // GLOBAL query param: a GET has no body to hide it in.
+      expect(String(params.fields)).toContain('role');
+      expect(String(params.fields)).toContain('emailAddress');
+      const request = await requestFor('drive', 'permissions.list', params);
+      expect(request.method).toBe('GET');
+      expect(queryOf(request).fields).toContain('role');
 
       expect(result.text).toContain('Permissions on file-1 (2)');
       expect(result.text).toContain('owner-perm | owner | user | me@test.com');
@@ -271,7 +280,7 @@ describe('drivePatch custom handlers', () => {
     });
 
     it('reports an empty permission list without claiming "No files found"', async () => {
-      mockExecute.mockResolvedValueOnce({ success: true, data: { permissions: [] }, stderr: '' });
+      mockCall.mockResolvedValueOnce({ permissions: [] });
 
       const handler = drivePatch.customHandlers!.listPermissions!;
       const result = await handler({ fileId: 'file-2' }, 'me@test.com');
@@ -283,18 +292,14 @@ describe('drivePatch custom handlers', () => {
     });
 
     it('labels anyone-with-link, pending-owner, deleted, and domain/displayName targets', async () => {
-      mockExecute.mockResolvedValueOnce({
-        success: true,
-        data: {
-          permissions: [
-            { id: 'anyone-perm', type: 'anyone', role: 'reader' },
-            { id: 'pending-perm', type: 'user', role: 'writer', emailAddress: 'new@test.com', pendingOwner: true },
-            { id: 'domain-perm', type: 'domain', role: 'reader', domain: 'acme.com' },
-            { id: 'group-perm', type: 'group', role: 'commenter', displayName: 'Eng Team' },
-            { id: 'gone-perm', type: 'user', role: 'reader', emailAddress: 'old@test.com', deleted: true },
-          ],
-        },
-        stderr: '',
+      mockCall.mockResolvedValueOnce({
+        permissions: [
+          { id: 'anyone-perm', type: 'anyone', role: 'reader' },
+          { id: 'pending-perm', type: 'user', role: 'writer', emailAddress: 'new@test.com', pendingOwner: true },
+          { id: 'domain-perm', type: 'domain', role: 'reader', domain: 'acme.com' },
+          { id: 'group-perm', type: 'group', role: 'commenter', displayName: 'Eng Team' },
+          { id: 'gone-perm', type: 'user', role: 'reader', emailAddress: 'old@test.com', deleted: true },
+        ],
       });
 
       const handler = drivePatch.customHandlers!.listPermissions!;
@@ -309,24 +314,25 @@ describe('drivePatch custom handlers', () => {
   });
 
   describe('copy', () => {
-    it('sends name as the request body, not via --params, so the copy is renamed', async () => {
-      mockExecute.mockResolvedValueOnce({
-        success: true,
-        data: { id: 'copy-1', name: 'My New Name', mimeType: 'application/vnd.google-apps.spreadsheet' },
-        stderr: '',
+    it('sends name as the request body, not as a query param, so the copy is renamed', async () => {
+      mockCall.mockResolvedValueOnce({
+        id: 'copy-1', name: 'My New Name', mimeType: 'application/vnd.google-apps.spreadsheet',
       });
 
       const handler = drivePatch.customHandlers!.copy!;
       const result = await handler({ fileId: 'src-1', name: 'My New Name' }, 'user@test.com');
 
-      const args = mockExecute.mock.calls[0][0];
-      expect(args.slice(0, 3)).toEqual(['drive', 'files', 'copy']);
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
-      expect(body.name).toBe('My New Name');
-      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
-      expect(queryParams.fileId).toBe('src-1');
-      // name must NOT leak into the query — that's the bug being fixed.
-      expect(queryParams.name).toBeUndefined();
+      const [service, resourcePath, params] = mockCall.mock.calls[0];
+      expect(service).toBe('drive');
+      expect(resourcePath).toBe('files.copy');
+      expect(params.fileId).toBe('src-1');
+
+      const request = await requestFor('drive', 'files.copy', params);
+      expect(request.body).toMatchObject({ name: 'My New Name' });
+      // name must NOT leak into the query — that's the bug being fixed (copies
+      // kept coming back named "Copy of X").
+      expect(queryOf(request).name).toBeUndefined();
+      expect(request.url).toContain('/files/src-1/copy');
 
       expect(result.text).toContain('File copied: **My New Name**');
       expect(result.text).toContain('**File ID:** copy-1');
@@ -335,60 +341,65 @@ describe('drivePatch custom handlers', () => {
     });
 
     it('forwards parentFolderId as body.parents', async () => {
-      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'copy-2', name: 'Copy of X', parents: ['folder-9'] }, stderr: '' });
+      mockCall.mockResolvedValueOnce({ id: 'copy-2', name: 'Copy of X', parents: ['folder-9'] });
 
       const handler = drivePatch.customHandlers!.copy!;
       await handler({ fileId: 'src-2', parentFolderId: 'folder-9' }, 'user@test.com');
 
-      const args = mockExecute.mock.calls[0][0];
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
-      expect(body.parents).toEqual(['folder-9']);
+      const request = await requestFor('drive', 'files.copy', mockCall.mock.calls[0][2]);
+      expect(request.body!.parents).toEqual(['folder-9']);
     });
 
-    it('omits --json entirely when neither name nor parentFolderId is given', async () => {
-      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'copy-3', name: 'Copy of X' }, stderr: '' });
+    it('sends no name/parents in the body when neither is given', async () => {
+      mockCall.mockResolvedValueOnce({ id: 'copy-3', name: 'Copy of X' });
 
       const handler = drivePatch.customHandlers!.copy!;
       await handler({ fileId: 'src-3' }, 'user@test.com');
 
-      const args = mockExecute.mock.calls[0][0];
-      expect(args).not.toContain('--json');
+      const params = mockCall.mock.calls[0][2];
+      expect(params.name).toBeUndefined();
+      expect(params.parents).toBeUndefined();
+      // fields/supportsAllDrives are query params, so the POST carries no body.
+      const request = await requestFor('drive', 'files.copy', params);
+      expect(request.body).toBeUndefined();
     });
   });
 
   describe('update', () => {
     it('renames via the request body and surfaces the new name', async () => {
-      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'file-1', name: 'Renamed.pdf', parents: ['root'] }, stderr: '' });
+      mockCall.mockResolvedValueOnce({ id: 'file-1', name: 'Renamed.pdf', parents: ['root'] });
 
       const handler = drivePatch.customHandlers!.update!;
       const result = await handler({ fileId: 'file-1', name: 'Renamed.pdf' }, 'user@test.com');
 
-      const args = mockExecute.mock.calls[0][0];
-      expect(args.slice(0, 3)).toEqual(['drive', 'files', 'update']);
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
-      expect(body.name).toBe('Renamed.pdf');
-      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
-      expect(queryParams.name).toBeUndefined();
+      const [service, resourcePath, params] = mockCall.mock.calls[0];
+      expect(service).toBe('drive');
+      expect(resourcePath).toBe('files.update');
+
+      const request = await requestFor('drive', 'files.update', params);
+      expect(request.method).toBe('PATCH');
+      expect(request.body).toMatchObject({ name: 'Renamed.pdf' });
+      expect(queryOf(request).name).toBeUndefined();
 
       expect(result.text).toContain('File updated: **Renamed.pdf**');
       expect(result.refs.name).toBe('Renamed.pdf');
     });
 
     it('moves between folders via addParents/removeParents query params (no body)', async () => {
-      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'file-2', name: 'doc', parents: ['new-folder'] }, stderr: '' });
+      mockCall.mockResolvedValueOnce({ id: 'file-2', name: 'doc', parents: ['new-folder'] });
 
       const handler = drivePatch.customHandlers!.update!;
       await handler({ fileId: 'file-2', addParents: 'new-folder', removeParents: 'old-folder' }, 'user@test.com');
 
-      const args = mockExecute.mock.calls[0][0];
-      expect(args).not.toContain('--json'); // nothing to put in the body
-      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
-      expect(queryParams.addParents).toBe('new-folder');
-      expect(queryParams.removeParents).toBe('old-folder');
+      const request = await requestFor('drive', 'files.update', mockCall.mock.calls[0][2]);
+      expect(request.body).toBeUndefined(); // nothing to put in the body
+      const query = queryOf(request);
+      expect(query.addParents).toBe('new-folder');
+      expect(query.removeParents).toBe('old-folder');
     });
 
-    it('rename + move in one call populates both --json (name) and --params (parents)', async () => {
-      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'file-4', name: 'Moved.pdf', parents: ['dest'] }, stderr: '' });
+    it('rename + move in one call populates both the body (name) and the query (parents)', async () => {
+      mockCall.mockResolvedValueOnce({ id: 'file-4', name: 'Moved.pdf', parents: ['dest'] });
 
       const handler = drivePatch.customHandlers!.update!;
       const result = await handler(
@@ -396,19 +407,19 @@ describe('drivePatch custom handlers', () => {
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
-      expect(body.name).toBe('Moved.pdf');
-      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
-      expect(queryParams.addParents).toBe('dest');
-      expect(queryParams.removeParents).toBe('src');
+      const request = await requestFor('drive', 'files.update', mockCall.mock.calls[0][2]);
+      expect(request.body).toMatchObject({ name: 'Moved.pdf' });
+      const query = queryOf(request);
+      expect(query.addParents).toBe('dest');
+      expect(query.removeParents).toBe('src');
+
       expect(result.text).toContain('File updated: **Moved.pdf**');
       expect(result.text).toContain('**Parents:** dest');
       expect(result.refs.parents).toEqual(['dest']);
     });
 
     it('omits refs.parents when the API response has none', async () => {
-      mockExecute.mockResolvedValueOnce({ success: true, data: { id: 'file-5', name: 'R.pdf' }, stderr: '' });
+      mockCall.mockResolvedValueOnce({ id: 'file-5', name: 'R.pdf' });
 
       const handler = drivePatch.customHandlers!.update!;
       const result = await handler({ fileId: 'file-5', name: 'R.pdf' }, 'user@test.com');
@@ -419,12 +430,12 @@ describe('drivePatch custom handlers', () => {
     it('rejects a no-op update (none of name/addParents/removeParents)', async () => {
       const handler = drivePatch.customHandlers!.update!;
       await expect(handler({ fileId: 'file-3' }, 'user@test.com')).rejects.toThrow(/name.*addParents.*removeParents/);
-      expect(mockExecute).not.toHaveBeenCalled();
+      expect(mockCall).not.toHaveBeenCalled();
     });
   });
 
   describe('download', () => {
-    it('creates parent directories before calling gws', async () => {
+    it('creates parent directories before the bytes are streamed to disk', async () => {
       const outputPath = path.join(tmpWorkspace, 'images', 'photo.png');
 
       const { resolveWorkspacePath } = await import('../../executor/workspace.js');
@@ -434,15 +445,14 @@ describe('drivePatch custom handlers', () => {
       const parentBefore = await fs.stat(path.dirname(outputPath)).catch(() => null);
       expect(parentBefore).toBeNull();
 
-      mockExecute
-        .mockResolvedValueOnce({ success: true, data: { name: 'photo.png', mimeType: 'image/png' }, stderr: '' })
-        .mockImplementationOnce(async () => {
-          // Parent directory must exist at this point
-          const stat = await fs.stat(path.dirname(outputPath));
-          expect(stat.isDirectory()).toBe(true);
-          await fs.writeFile(outputPath, 'png data');
-          return { success: true, data: {}, stderr: '' };
-        });
+      mockCall.mockResolvedValueOnce({ name: 'photo.png', mimeType: 'image/png' });
+      mockDownload.mockImplementationOnce(async (_svc, _rp, _params, out) => {
+        // Parent directory must exist at this point
+        const stat = await fs.stat(path.dirname(out));
+        expect(stat.isDirectory()).toBe(true);
+        await fs.writeFile(out, 'png data');
+        return out;
+      });
 
       const handler = drivePatch.customHandlers!.download!;
       await handler(
@@ -450,9 +460,13 @@ describe('drivePatch custom handlers', () => {
         'user@test.com',
       );
 
-      const downloadCall = mockExecute.mock.calls[1][0];
-      expect(downloadCall).toContain('--output');
-      expect(downloadCall[downloadCall.indexOf('--output') + 1]).toBe(outputPath);
+      expect(mockDownload).toHaveBeenCalledWith(
+        'drive',
+        'files.get',
+        expect.objectContaining({ fileId: 'img-1', alt: 'media' }),
+        outputPath,
+        expect.objectContaining({ account: 'user@test.com' }),
+      );
     });
   });
 });

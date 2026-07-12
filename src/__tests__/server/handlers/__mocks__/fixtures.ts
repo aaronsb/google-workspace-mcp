@@ -1,51 +1,16 @@
 /**
- * Shared executor mock for handler tests.
+ * Shared response fixtures for handler and patch tests.
  *
- * Provides typed mock responses matching gws output contracts
- * so handlers can be tested without spawning subprocesses.
+ * These are RAW Google JSON — exactly what `call()` from src/google/client.ts
+ * hands back. There is no envelope: the `{ success, data, stderr }` wrapper was
+ * a gws artifact and it is gone (ADR-103). A fixture that needs wrapping is a
+ * fixture for the gws executor, and those live in `./executor.ts`.
+ *
+ * Pure data, no vi.mock guard — safe to import from a test that mocks only the
+ * client, only the executor, or both.
  */
-import { vi, type MockedFunction } from 'vitest';
 
-import type { GwsResult } from '../../../../executor/gws.js';
-
-// NOTE: vi.mock() is deliberately NOT called here. Vitest hoists vi.mock only
-// within the file that contains it, so registering it in this helper made the
-// mock depend on each test importing this module *before* the module under
-// test — an import reorder (or an organize-imports autofix) silently broke it.
-// Each consuming test file registers the mock itself.
-
-import { execute } from '../../../../executor/gws.js';
-
-// The cast below is a promise the type system cannot keep: if the importing test
-// forgot its vi.mock, `execute` is the REAL executor and every assertion against
-// `mockExecute` would fail obscurely — or worse, the test would shell out to the
-// real gws binary against live Google APIs. Fail loudly, at import, instead.
-if (!vi.isMockFunction(execute)) {
-  throw new Error(
-    'executor mock helper: the gws executor is not mocked.\n' +
-    'Add a vi.mock for the executor to the TEST FILE that imports this helper — ' +
-    'vitest hoists vi.mock per-file, so registering it here would only work by ' +
-    'import-order luck.\n' +
-    "The specifier is relative to YOUR test file, e.g. vi.mock('../../../executor/gws.js') " +
-    "from src/__tests__/server/handlers/, or vi.mock('../../executor/gws.js') from " +
-    'src/__tests__/factory/.',
-  );
-}
-
-export const mockExecute = execute as MockedFunction<typeof execute>;
-
-export function mockGwsResponse(data: unknown): GwsResult {
-  return { success: true, data, stderr: '' };
-}
-
-// --- Gmail contract responses ---
-
-export const gmailTriageResponse = {
-  messages: [
-    { id: 'msg-1', from: 'alice@test.com', subject: 'Hello', date: 'Mon, 10 Mar 2026 10:00:00 -0500' },
-    { id: 'msg-2', from: 'bob@test.com', subject: 'Meeting', date: 'Mon, 10 Mar 2026 11:00:00 -0500' },
-  ],
-};
+// --- Gmail ---
 
 export const gmailMessageListResponse = {
   messages: [
@@ -54,7 +19,7 @@ export const gmailMessageListResponse = {
   ],
 };
 
-// Metadata responses for hydration (format: metadata)
+/** users.messages.get with format=metadata — headers live under payload.headers. */
 export function gmailMetadataResponse(id: string, from: string, subject: string, date: string) {
   return {
     id,
@@ -91,15 +56,7 @@ export const gmailSendResponse = {
   labelIds: ['SENT'],
 };
 
-// --- Calendar contract responses ---
-
-export const calendarAgendaResponse = {
-  events: [
-    { calendar: 'user@test.com', summary: 'Standup', start: '2026-03-14T09:00:00Z', end: '2026-03-14T09:30:00Z' },
-  ],
-  timeMin: '2026-03-14T00:00:00Z',
-  timeMax: '2026-03-14T23:59:59Z',
-};
+// --- Calendar ---
 
 export const calendarEventsListResponse = {
   items: [
@@ -150,7 +107,7 @@ export const calendarFreeBusyErrorResponse = {
   },
 };
 
-// --- Drive contract responses ---
+// --- Drive ---
 
 export const driveFileListResponse = {
   files: [

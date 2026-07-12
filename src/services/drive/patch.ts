@@ -10,10 +10,14 @@
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { execute } from '../../executor/gws.js';
+import { readFile } from 'node:fs/promises';
+import { basename } from 'node:path';
+
+import { call, download, upload } from '../../google/client.js';
+import { lookupMimeType } from '../gmail/mime.js';
 import { formatFileList, formatFileDetail } from '../../server/formatting/markdown.js';
 import { requireString } from '../../server/handlers/validate.js';
-import { ensureWorkspaceDir, getWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
+import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
 import { isTextFile, formatFileOutput, buildImageBlock, buildImageBlockFromFile, isImageFile, type FileOutputResult } from '../../executor/file-output.js';
 import type { ServicePatch } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
@@ -42,13 +46,29 @@ export const drivePatch: ServicePatch = {
   formatDetail: (data: unknown) => formatFileDetail(data),
 
   customHandlers: {
+    /**
+     * Upload. Was gws's `+upload`, which used `uploadType=multipart` at every
+     * size, with no chunking. We use the RESUMABLE endpoint, which ADR-103 item 4
+     * verified carries a 25 MB payload and round-trips it byte-for-byte. Same
+     * result for a small file, and it does not fall over on a large one.
+     */
     upload: async (params, account): Promise<HandlerResponse> => {
       const filePath = requireString(params, 'filePath');
-      const args = ['drive', '+upload', filePath];
-      if (params.name) args.push('--name', String(params.name));
-      if (params.parentFolderId) args.push('--parent', String(params.parentFolderId));
-      const result = await execute(args, { account });
-      const data = result.data as Record<string, unknown>;
+      await verifyPathSafety(filePath);
+      const media = await readFile(filePath);
+
+      const metadata: Record<string, unknown> = {
+        name: params.name ? String(params.name) : basename(filePath),
+      };
+      if (params.parentFolderId) metadata.parents = [String(params.parentFolderId)];
+
+      const data = await upload('drive', 'files.create', {}, {
+        account,
+        media,
+        contentType: lookupMimeType(filePath),
+        metadata,
+      }) as Record<string, unknown>;
+
       return {
         text: `File uploaded: **${data.name ?? filePath}**\n\n**File ID:** ${data.id ?? 'unknown'}`,
         refs: { id: data.id, fileId: data.id, name: data.name },
@@ -66,20 +86,12 @@ export const drivePatch: ServicePatch = {
       if (params.name) body.name = String(params.name);
       if (params.parentFolderId) body.parents = [String(params.parentFolderId)];
 
-      const args = [
-        'drive', 'files', 'copy',
-        '--params', JSON.stringify({
-          fileId,
-          fields: 'id, name, mimeType, parents, webViewLink',
-          supportsAllDrives: true,
-        }),
-      ];
-      if (Object.keys(body).length > 0) {
-        args.push('--json', JSON.stringify(body));
-      }
-
-      const result = await execute(args, { account });
-      const data = result.data as Record<string, unknown>;
+      const data = await call('drive', 'files.copy', {
+        fileId,
+        fields: 'id, name, mimeType, parents, webViewLink',
+        supportsAllDrives: true,
+        ...body,
+      }, { account }) as Record<string, unknown>;
       return {
         text: `File copied: **${data.name ?? 'copy'}**\n\n**File ID:** ${data.id ?? 'unknown'}` +
           (data.webViewLink ? `\n**Link:** ${data.webViewLink}` : ''),
@@ -109,13 +121,10 @@ export const drivePatch: ServicePatch = {
         throw new Error('update requires at least one of: name, addParents, removeParents');
       }
 
-      const args = ['drive', 'files', 'update', '--params', JSON.stringify(queryParams)];
-      if (Object.keys(body).length > 0) {
-        args.push('--json', JSON.stringify(body));
-      }
-
-      const result = await execute(args, { account });
-      const data = result.data as Record<string, unknown>;
+      const data = await call('drive', 'files.update', {
+        ...queryParams,
+        ...body,
+      }, { account }) as Record<string, unknown>;
       const parents = Array.isArray(data.parents) ? (data.parents as string[]) : undefined;
       return {
         text: `File updated: **${data.name ?? fileId}**\n\n**File ID:** ${data.id ?? fileId}` +
@@ -133,11 +142,11 @@ export const drivePatch: ServicePatch = {
       const fileId = requireString(params, 'fileId');
 
       // Get file metadata for filename and mime type
-      const metaResult = await execute([
-        'drive', 'files', 'get',
-        '--params', JSON.stringify({ fileId, fields: 'name,mimeType', supportsAllDrives: true }),
-      ], { account });
-      const meta = metaResult.data as Record<string, unknown>;
+      const meta = await call('drive', 'files.get', {
+        fileId,
+        fields: 'name,mimeType',
+        supportsAllDrives: true,
+      }, { account }) as Record<string, unknown>;
       const filename = String(params.outputPath || meta.name || `file-${fileId}`);
       const mimeType = String(meta.mimeType || '');
 
@@ -150,13 +159,12 @@ export const drivePatch: ServicePatch = {
       // Ensure parent directories exist (outputPath may contain subdirectories)
       await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
-      // Download directly to disk via --output (preserves binary integrity)
-      // cwd must match workspace so gws directory-fence accepts the output path
-      await execute([
-        'drive', 'files', 'get',
-        '--params', JSON.stringify({ fileId, alt: 'media', supportsAllDrives: true }),
-        '--output', outputPath,
-      ], { account, cwd: getWorkspaceDir() });
+      // Stream the bytes straight to disk — they are never a JS string (ADR-103).
+      await download('drive', 'files.get', {
+        fileId,
+        alt: 'media',
+        supportsAllDrives: true,
+      }, outputPath, { account });
 
       const output = await readWorkspaceFile(outputPath, filename, mimeType);
 
@@ -177,11 +185,11 @@ export const drivePatch: ServicePatch = {
       const fileId = requireString(params, 'fileId');
 
       // Get file metadata
-      const metaResult = await execute([
-        'drive', 'files', 'get',
-        '--params', JSON.stringify({ fileId, fields: 'name,mimeType,size', supportsAllDrives: true }),
-      ], { account });
-      const meta = metaResult.data as Record<string, unknown>;
+      const meta = await call('drive', 'files.get', {
+        fileId,
+        fields: 'name,mimeType,size',
+        supportsAllDrives: true,
+      }, { account }) as Record<string, unknown>;
       const filename = String(meta.name || `image-${fileId}`);
       const mimeType = String(meta.mimeType || '');
 
@@ -193,11 +201,11 @@ export const drivePatch: ServicePatch = {
       const safeId = fileId.replace(/[^a-zA-Z0-9_-]/g, '_');
       const tmpPath = path.join(os.tmpdir(), `gws-view-${safeId}-${Date.now()}`);
       try {
-        await execute([
-          'drive', 'files', 'get',
-          '--params', JSON.stringify({ fileId, alt: 'media', supportsAllDrives: true }),
-          '--output', tmpPath,
-        ], { account, cwd: path.dirname(tmpPath) });
+        await download('drive', 'files.get', {
+          fileId,
+          alt: 'media',
+          supportsAllDrives: true,
+        }, tmpPath, { account });
 
         const buffer = await fs.readFile(tmpPath);
         const imageBlock = buildImageBlock(buffer, filename, mimeType);
@@ -232,11 +240,11 @@ export const drivePatch: ServicePatch = {
       const ext = extMap[mimeType] || '';
 
       // Get source file name
-      const metaResult = await execute([
-        'drive', 'files', 'get',
-        '--params', JSON.stringify({ fileId, fields: 'name', supportsAllDrives: true }),
-      ], { account });
-      const meta = metaResult.data as Record<string, unknown>;
+      const meta = await call('drive', 'files.get', {
+        fileId,
+        fields: 'name',
+        supportsAllDrives: true,
+      }, { account }) as Record<string, unknown>;
       const baseName = String(meta.name || `export-${fileId}`).replace(/\.[^.]+$/, '');
       const filename = String(params.outputPath || `${baseName}${ext}`);
 
@@ -249,13 +257,8 @@ export const drivePatch: ServicePatch = {
       // Ensure parent directories exist (outputPath may contain subdirectories)
       await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
-      // Export directly to disk via --output (preserves binary integrity)
-      // cwd must match workspace so gws directory-fence accepts the output path
-      await execute([
-        'drive', 'files', 'export',
-        '--params', JSON.stringify({ fileId, mimeType, supportsAllDrives: true }),
-        '--output', outputPath,
-      ], { account, cwd: getWorkspaceDir() });
+      // Stream the exported bytes straight to disk (ADR-103).
+      await download('drive', 'files.export', { fileId, mimeType }, outputPath, { account });
 
       const output = await readWorkspaceFile(outputPath, filename, mimeType);
 
@@ -277,16 +280,11 @@ export const drivePatch: ServicePatch = {
       const fileId = requireString(params, 'fileId');
       const includeDeleted = params.includeDeleted ? 'true' : 'false';
 
-      const result = await execute([
-        'drive', 'comments', 'list',
-        '--params', JSON.stringify({
-          fileId,
-          includeDeleted,
-          fields: 'comments(id, content, htmlContent, author(displayName, emailAddress), createdTime, modifiedTime, resolved, quotedFileContent, replies(id, content, author(displayName), createdTime)), nextPageToken',
-          supportsAllDrives: true,
-        }),
-      ], { account });
-      const data = result.data as Record<string, unknown>;
+      const data = await call('drive', 'comments.list', {
+        fileId,
+        includeDeleted,
+        fields: 'comments(id, content, htmlContent, author(displayName, emailAddress), createdTime, modifiedTime, resolved, quotedFileContent, replies(id, content, author(displayName), createdTime)), nextPageToken',
+      }, { account }) as Record<string, unknown>;
       const comments = (data.comments || []) as Array<Record<string, unknown>>;
 
       if (comments.length === 0) {
@@ -323,16 +321,11 @@ export const drivePatch: ServicePatch = {
       const fileId = requireString(params, 'fileId');
       const commentId = requireString(params, 'commentId');
 
-      const result = await execute([
-        'drive', 'comments', 'get',
-        '--params', JSON.stringify({
-          fileId,
-          commentId,
-          fields: 'id, content, htmlContent, author(displayName, emailAddress), createdTime, modifiedTime, resolved, quotedFileContent, replies(id, content, htmlContent, author(displayName), createdTime)',
-          supportsAllDrives: true,
-        }),
-      ], { account });
-      const c = result.data as Record<string, unknown>;
+      const c = await call('drive', 'comments.get', {
+        fileId,
+        commentId,
+        fields: 'id, content, htmlContent, author(displayName, emailAddress), createdTime, modifiedTime, resolved, quotedFileContent, replies(id, content, htmlContent, author(displayName), createdTime)',
+      }, { account }) as Record<string, unknown>;
       const author = (c.author as Record<string, unknown>)?.displayName || 'Unknown';
       const resolved = c.resolved ? ' [RESOLVED]' : '';
       const quoted = c.quotedFileContent
@@ -361,16 +354,11 @@ export const drivePatch: ServicePatch = {
         body.quotedFileContent = { value: quotedText };
       }
 
-      const result = await execute([
-        'drive', 'comments', 'create',
-        '--params', JSON.stringify({
-          fileId,
-          fields: 'id, content, htmlContent, author(displayName), createdTime, quotedFileContent',
-          supportsAllDrives: true,
-        }),
-        '--json', JSON.stringify(body),
-      ], { account });
-      const data = result.data as Record<string, unknown>;
+      const data = await call('drive', 'comments.create', {
+        fileId,
+        fields: 'id, content, htmlContent, author(displayName), createdTime, quotedFileContent',
+        ...body,
+      }, { account }) as Record<string, unknown>;
       return {
         text: `Comment added.\n\n**ID:** ${data.id}\n**Content:** ${data.content}` +
           (quotedText ? `\n**Anchored to:** "${quotedText}"` : ''),
@@ -384,31 +372,19 @@ export const drivePatch: ServicePatch = {
       const resolved = params.resolved !== false;
 
       // Fetch existing comment to preserve content when updating
-      const existing = await execute([
-        'drive', 'comments', 'get',
-        '--params', JSON.stringify({
-          fileId,
-          commentId,
-          fields: 'content',
-          supportsAllDrives: true,
-        }),
-      ], { account });
-      const existingData = existing.data as Record<string, unknown>;
+      const existingData = await call('drive', 'comments.get', {
+        fileId,
+        commentId,
+        fields: 'content',
+      }, { account }) as Record<string, unknown>;
 
-      const result = await execute([
-        'drive', 'comments', 'update',
-        '--params', JSON.stringify({
-          fileId,
-          commentId,
-          fields: 'id, content, resolved',
-          supportsAllDrives: true,
-        }),
-        '--json', JSON.stringify({
-          content: existingData.content || '',
-          resolved,
-        }),
-      ], { account });
-      const data = result.data as Record<string, unknown>;
+      const data = await call('drive', 'comments.update', {
+        fileId,
+        commentId,
+        fields: 'id, content, resolved',
+        content: existingData.content || '',
+        resolved,
+      }, { account }) as Record<string, unknown>;
       return {
         text: `Comment ${resolved ? 'resolved' : 'reopened'}.\n\n**ID:** ${data.id}\n**Resolved:** ${resolved}`,
         refs: { commentId: data.id, fileId, resolved },
@@ -422,15 +398,11 @@ export const drivePatch: ServicePatch = {
       // default response omits (role, emailAddress, domain) and renders them.
       const fileId = requireString(params, 'fileId');
 
-      const result = await execute([
-        'drive', 'permissions', 'list',
-        '--params', JSON.stringify({
-          fileId,
-          fields: 'permissions(id, type, role, emailAddress, domain, displayName, deleted, pendingOwner)',
-          supportsAllDrives: true,
-        }),
-      ], { account });
-      const data = result.data as Record<string, unknown>;
+      const data = await call('drive', 'permissions.list', {
+        fileId,
+        fields: 'permissions(id, type, role, emailAddress, domain, displayName, deleted, pendingOwner)',
+        supportsAllDrives: true,
+      }, { account }) as Record<string, unknown>;
       const permissions = (data.permissions || []) as Array<Record<string, unknown>>;
 
       if (permissions.length === 0) {
@@ -509,12 +481,10 @@ export const drivePatch: ServicePatch = {
         queryParams.sendNotificationEmail = false;
       }
 
-      const result = await execute([
-        'drive', 'permissions', 'create',
-        '--params', JSON.stringify(queryParams),
-        '--json', JSON.stringify(body),
-      ], { account });
-      const data = result.data as Record<string, unknown>;
+      const data = await call('drive', 'permissions.create', {
+        ...queryParams,
+        ...body,
+      }, { account }) as Record<string, unknown>;
 
       const target =
         type === 'user' || type === 'group'
@@ -536,17 +506,12 @@ export const drivePatch: ServicePatch = {
       const commentId = requireString(params, 'commentId');
       const content = requireString(params, 'content');
 
-      const result = await execute([
-        'drive', 'replies', 'create',
-        '--params', JSON.stringify({
-          fileId,
-          commentId,
-          fields: 'id, content, htmlContent, author(displayName), createdTime',
-          supportsAllDrives: true,
-        }),
-        '--json', JSON.stringify({ content }),
-      ], { account });
-      const data = result.data as Record<string, unknown>;
+      const data = await call('drive', 'replies.create', {
+        fileId,
+        commentId,
+        fields: 'id, content, htmlContent, author(displayName), createdTime',
+        content,
+      }, { account }) as Record<string, unknown>;
       return {
         text: `Reply added.\n\n**ID:** ${data.id}\n**Content:** ${data.content}`,
         refs: { replyId: data.id, commentId, fileId },

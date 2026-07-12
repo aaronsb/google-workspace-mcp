@@ -1,18 +1,22 @@
 import { vi } from 'vitest';
 
 // Registered here, not in the shared helper: vi.mock hoists per-file.
-vi.mock('../../executor/gws.js');
+// ONE seam (ADR-103): every calendar operation — agenda, freebusy, create,
+// update, delete — goes through the Google API client we own. Nothing shells
+// out, so the gws executor is not mocked here: it is not on any path.
+vi.mock('../../google/client.js');
 /**
  * Tests for the calendar service patch — custom handlers and formatters
  * that extend the factory-generated handler.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { mockCall } from '../server/handlers/__mocks__/client.js';
 import {
-  mockExecute, mockGwsResponse,
-  calendarAgendaResponse, calendarEventsListResponse, calendarInsertResponse,
+  calendarEventsListResponse, calendarInsertResponse,
   calendarFreeBusyResponse, calendarFreeBusyErrorResponse,
-} from '../server/handlers/__mocks__/executor.js';
+} from '../server/handlers/__mocks__/fixtures.js';
+import { requestFor, queryOf } from '../support/request.js';
 import { calendarPatch } from '../../services/calendar/patch.js';
 import type { PatchContext } from '../../factory/types.js';
 
@@ -26,7 +30,9 @@ function ctx(overrides: Partial<PatchContext> = {}): PatchContext {
 }
 
 describe('calendarPatch', () => {
-  beforeEach(() => mockExecute.mockReset());
+  beforeEach(() => {
+    mockCall.mockReset();
+  });
 
   describe('formatList (events)', () => {
     it('defaults calendarId to primary in refs', () => {
@@ -56,69 +62,167 @@ describe('calendarPatch', () => {
     });
   });
 
+  describe('beforeExecute.list', () => {
+    // The hook used to do JSON surgery on a `--params` argv slot. It now takes
+    // the params themselves, so the assertion looks at the params.
+    it('defaults timeMin to the start of today when the caller gave none', async () => {
+      const params = await calendarPatch.beforeExecute!.list({ calendarId: 'primary' }, ctx());
+      expect(typeof params.timeMin).toBe('string');
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      expect(params.timeMin).toBe(todayStart);
+      expect(params.calendarId).toBe('primary'); // untouched params survive
+    });
+
+    it('leaves an explicit timeMin alone', async () => {
+      const params = await calendarPatch.beforeExecute!.list({ timeMin: '2026-01-01T00:00:00Z' }, ctx());
+      expect(params.timeMin).toBe('2026-01-01T00:00:00Z');
+    });
+  });
+
   describe('agenda custom handler', () => {
-    it('defaults to --today flag', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarAgendaResponse));
+    // These tests used to assert gws ARGV FLAGS (--today/--week/--tomorrow/--days)
+    // and consumed gws's INVENTED response shape. Agenda is now built from raw
+    // Google: calendarList.list -> events.list per calendar -> merge. So they now
+    // assert the thing that actually determines the answer — the TIME WINDOW sent
+    // to Google, and the merge.
+    //
+    // One test was DELETED, not ported: "falls back to organizer email when
+    // calendarId missing". That fallback existed because gws's shape did not
+    // reliably carry the calendar. We now set calendarId from the calendar we
+    // QUERIED, so it is never missing — the failure it guarded cannot occur.
+
+    /** Two calendars, one event each, so we can see the merge. */
+    function mockTwoCalendars() {
+      mockCall.mockImplementation(async (_service: string, resource: string, params: Record<string, unknown>) => {
+        if (resource === 'calendarList.list') {
+          return { items: [
+            { id: 'work@test.com', summary: 'Work' },
+            { id: 'home@test.com', summary: 'Home' },
+          ] };
+        }
+        if (resource === 'events.list') {
+          const isWork = params.calendarId === 'work@test.com';
+          return { items: [{
+            id: isWork ? 'evt-work' : 'evt-home',
+            summary: isWork ? 'Standup' : 'Dentist',
+            start: { dateTime: isWork ? '2026-07-12T09:00:00Z' : '2026-07-12T15:00:00Z' },
+            end: { dateTime: isWork ? '2026-07-12T09:30:00Z' : '2026-07-12T16:00:00Z' },
+          }] };
+        }
+        return {};
+      });
+    }
+
+    /** The timeMin/timeMax we actually sent to Google, for the first events.list. */
+    function windowSent() {
+      const call = mockCall.mock.calls.find((c) => c[1] === 'events.list');
+      const params = call![2] as { timeMin: string; timeMax: string };
+      return { min: new Date(params.timeMin), max: new Date(params.timeMax) };
+    }
+
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    it('defaults to a one-day window starting at midnight today', async () => {
+      mockTwoCalendars();
       await calendarPatch.customHandlers!.agenda({}, 'user@test.com');
 
-      const args = mockExecute.mock.calls[0][0];
-      expect(args).toContain('--today');
+      const { min, max } = windowSent();
+      expect(min.getHours()).toBe(0);        // midnight LOCAL, not "now"
+      expect(min.getMinutes()).toBe(0);
+      expect(Math.round((max.getTime() - min.getTime()) / DAY_MS)).toBe(1);
     });
 
-    it('passes --week flag', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarAgendaResponse));
+    it('week gives a 7-day window that still starts at midnight today', async () => {
+      mockTwoCalendars();
       await calendarPatch.customHandlers!.agenda({ week: true }, 'user@test.com');
 
-      const args = mockExecute.mock.calls[0][0];
-      expect(args).toContain('--week');
-      expect(args).not.toContain('--today');
+      const { min, max } = windowSent();
+      // The bug this fixes: gws's --week was a ROLLING [now, now+7d], so asking
+      // for your week at 11am silently hid your 9am meeting.
+      expect(min.getHours()).toBe(0);
+      expect(Math.round((max.getTime() - min.getTime()) / DAY_MS)).toBe(7);
     });
 
-    it('passes --tomorrow flag', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarAgendaResponse));
+    it('tomorrow gives the single day AFTER today', async () => {
+      mockTwoCalendars();
       await calendarPatch.customHandlers!.agenda({ tomorrow: true }, 'user@test.com');
 
-      expect(mockExecute.mock.calls[0][0]).toContain('--tomorrow');
+      const { min, max } = windowSent();
+      const midnightToday = new Date();
+      midnightToday.setHours(0, 0, 0, 0);
+      expect(Math.round((min.getTime() - midnightToday.getTime()) / DAY_MS)).toBe(1);
+      expect(Math.round((max.getTime() - min.getTime()) / DAY_MS)).toBe(1);
     });
 
-    it('passes --days N', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarAgendaResponse));
+    it('days: N gives an N-day window', async () => {
+      mockTwoCalendars();
       await calendarPatch.customHandlers!.agenda({ days: 3 }, 'user@test.com');
 
-      const args = mockExecute.mock.calls[0][0];
-      expect(args).toContain('--days');
-      expect(args).toContain('3');
+      const { min, max } = windowSent();
+      expect(Math.round((max.getTime() - min.getTime()) / DAY_MS)).toBe(3);
     });
 
-    it('passes --calendar filter', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarAgendaResponse));
-      await calendarPatch.customHandlers!.agenda({ calendarId: 'work@test.com' }, 'user@test.com');
-
-      const args = mockExecute.mock.calls[0][0];
-      expect(args).toContain('--calendar');
-      expect(args).toContain('work@test.com');
-    });
-
-    it('includes calendarId in event refs', async () => {
-      const response = {
-        events: [{ id: 'evt-1', summary: 'Meeting', calendarId: 'shared@test.com' }],
-      };
-      mockExecute.mockResolvedValue(mockGwsResponse(response));
+    it('merges events from every calendar, sorted by start', async () => {
+      mockTwoCalendars();
       const result = await calendarPatch.customHandlers!.agenda({}, 'user@test.com');
 
       const events = result.refs.events as Array<{ id: string; calendarId: string }>;
-      expect(events[0]).toEqual({ id: 'evt-1', calendarId: 'shared@test.com' });
+      expect(events.map((e) => e.id)).toEqual(['evt-work', 'evt-home']);   // 09:00 before 15:00
+      expect(result.refs.count).toBe(2);
+      expect(result.text).toContain('Standup');
+      expect(result.text).toContain('Dentist');
     });
 
-    it('falls back to organizer email when calendarId missing', async () => {
-      const response = {
-        events: [{ id: 'evt-1', summary: 'Meeting', organizer: { email: 'owner@test.com' } }],
-      };
-      mockExecute.mockResolvedValue(mockGwsResponse(response));
+    it('carries the calendarId of the calendar each event came FROM', async () => {
+      mockTwoCalendars();
       const result = await calendarPatch.customHandlers!.agenda({}, 'user@test.com');
 
+      // This is the whole reason agenda exists rather than list: a follow-up `get`
+      // on a shared calendar needs to know WHICH calendar. It is now always known,
+      // because we set it from the calendar we queried.
       const events = result.refs.events as Array<{ id: string; calendarId: string }>;
-      expect(events[0].calendarId).toBe('owner@test.com');
+      expect(events).toEqual([
+        { id: 'evt-work', calendarId: 'work@test.com', summary: 'Standup' },
+        { id: 'evt-home', calendarId: 'home@test.com', summary: 'Dentist' },
+      ]);
+    });
+
+    it('filters to one calendar by id or by name substring', async () => {
+      mockTwoCalendars();
+      const result = await calendarPatch.customHandlers!.agenda({ calendarId: 'Work' }, 'user@test.com');
+
+      const listed = mockCall.mock.calls.filter((c) => c[1] === 'events.list');
+      expect(listed).toHaveLength(1);
+      expect((listed[0][2] as { calendarId: string }).calendarId).toBe('work@test.com');
+      expect(result.refs.count).toBe(1);
+    });
+
+    it('SURFACES an unreadable calendar instead of silently dropping it', async () => {
+      // gws swallowed per-calendar failures (`_ => return vec![]`), so a calendar
+      // you had lost access to contributed zero events and said NOTHING. That is a
+      // defect, not an opinion, and we do not reproduce it.
+      mockCall.mockImplementation(async (_service: string, resource: string, params: Record<string, unknown>) => {
+        if (resource === 'calendarList.list') {
+          return { items: [
+            { id: 'ok@test.com', summary: 'Fine' },
+            { id: 'gone@test.com', summary: 'Revoked' },
+          ] };
+        }
+        if (params.calendarId === 'gone@test.com') throw new Error('Not Found');
+        return { items: [{
+          id: 'evt-1', summary: 'Standup',
+          start: { dateTime: '2026-07-12T09:00:00Z' },
+          end: { dateTime: '2026-07-12T09:30:00Z' },
+        }] };
+      });
+
+      const result = await calendarPatch.customHandlers!.agenda({}, 'user@test.com');
+
+      expect(result.refs.count).toBe(1);                      // the good calendar still works
+      expect(result.text).toContain('Revoked');               // and the broken one is REPORTED
+      expect(result.text).toContain('could not be read');
+      expect(result.refs.unreadableCalendars).toHaveLength(1);
     });
   });
 
@@ -130,46 +234,51 @@ describe('calendarPatch', () => {
       await expect(
         calendarPatch.customHandlers!.freebusy({ timeMin: 'X' }, 'user@test.com'),
       ).rejects.toThrow('timeMax');
+      expect(mockCall).not.toHaveBeenCalled();
     });
 
-    it('sends POST body via --json with own calendar', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarFreeBusyResponse));
+    it('sends the whole query as the POST body, with own calendar in items', async () => {
+      mockCall.mockResolvedValue(calendarFreeBusyResponse);
       await calendarPatch.customHandlers!.freebusy(
         { timeMin: '2026-04-09T08:00:00Z', timeMax: '2026-04-09T17:00:00Z' },
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      expect(args.slice(0, 3)).toEqual(['calendar', 'freebusy', 'query']);
-      expect(args).toContain('--json');
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
-      expect(body).toEqual({
-        timeMin: '2026-04-09T08:00:00Z',
-        timeMax: '2026-04-09T17:00:00Z',
-        items: [{ id: 'user@test.com' }],
-      });
+      expect(mockCall).toHaveBeenCalledWith(
+        'calendar',
+        'freebusy.query',
+        {
+          timeMin: '2026-04-09T08:00:00Z',
+          timeMax: '2026-04-09T17:00:00Z',
+          items: [{ id: 'user@test.com' }],
+        },
+        expect.objectContaining({ account: 'user@test.com' }),
+      );
     });
 
-    it('does not use --params (the original bug)', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarFreeBusyResponse));
+    it('puts nothing in the query string (the original bug)', async () => {
+      mockCall.mockResolvedValue(calendarFreeBusyResponse);
       await calendarPatch.customHandlers!.freebusy(
         { timeMin: 'X', timeMax: 'Y' },
         'user@test.com',
       );
 
-      expect(mockExecute.mock.calls[0][0]).not.toContain('--params');
+      // freebusy.query declares no query params: timeMin/timeMax/items are the
+      // request BODY. Passing them as query params returned an empty result.
+      const request = await requestFor('calendar', 'freebusy.query', mockCall.mock.calls[0][2]);
+      expect(request.method).toBe('POST');
+      expect(queryOf(request)).toEqual({});
+      expect(request.body).toEqual({ timeMin: 'X', timeMax: 'Y', items: [{ id: 'user@test.com' }] });
     });
 
     it('includes attendees in items', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarFreeBusyResponse));
+      mockCall.mockResolvedValue(calendarFreeBusyResponse);
       await calendarPatch.customHandlers!.freebusy(
         { timeMin: 'X', timeMax: 'Y', attendees: 'colleague@test.com, other@test.com' },
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
-      expect(body.items).toEqual([
+      expect(mockCall.mock.calls[0][2].items).toEqual([
         { id: 'user@test.com' },
         { id: 'colleague@test.com' },
         { id: 'other@test.com' },
@@ -177,30 +286,26 @@ describe('calendarPatch', () => {
     });
 
     it('deduplicates own email from attendees', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarFreeBusyResponse));
+      mockCall.mockResolvedValue(calendarFreeBusyResponse);
       await calendarPatch.customHandlers!.freebusy(
         { timeMin: 'X', timeMax: 'Y', attendees: 'user@test.com, colleague@test.com' },
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
-      expect(body.items).toEqual([
+      expect(mockCall.mock.calls[0][2].items).toEqual([
         { id: 'user@test.com' },
         { id: 'colleague@test.com' },
       ]);
     });
 
     it('deduplicates across attendees and calendarId params', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarFreeBusyResponse));
+      mockCall.mockResolvedValue(calendarFreeBusyResponse);
       await calendarPatch.customHandlers!.freebusy(
         { timeMin: 'X', timeMax: 'Y', attendees: 'a@test.com', calendarId: 'a@test.com, b@test.com' },
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
-      expect(body.items).toEqual([
+      expect(mockCall.mock.calls[0][2].items).toEqual([
         { id: 'user@test.com' },
         { id: 'a@test.com' },
         { id: 'b@test.com' },
@@ -208,7 +313,7 @@ describe('calendarPatch', () => {
     });
 
     it('formats busy blocks with human-readable times', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarFreeBusyResponse));
+      mockCall.mockResolvedValue(calendarFreeBusyResponse);
       const result = await calendarPatch.customHandlers!.freebusy(
         { timeMin: 'X', timeMax: 'Y' },
         'user@test.com',
@@ -222,7 +327,7 @@ describe('calendarPatch', () => {
     });
 
     it('populates busyBlocks in refs', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarFreeBusyResponse));
+      mockCall.mockResolvedValue(calendarFreeBusyResponse);
       const result = await calendarPatch.customHandlers!.freebusy(
         { timeMin: 'X', timeMax: 'Y' },
         'user@test.com',
@@ -234,7 +339,7 @@ describe('calendarPatch', () => {
     });
 
     it('surfaces API errors per calendar instead of showing Free', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarFreeBusyErrorResponse));
+      mockCall.mockResolvedValue(calendarFreeBusyErrorResponse);
       const result = await calendarPatch.customHandlers!.freebusy(
         { timeMin: 'X', timeMax: 'Y' },
         'user@test.com',
@@ -246,29 +351,89 @@ describe('calendarPatch', () => {
   });
 
   describe('create custom handler', () => {
-    it('passes --meet flag when meet: true', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarInsertResponse));
+    // Was gws's `+insert`. These tests used to assert ARGV FLAGS — `--meet`, and
+    // an `--attendee`/`--attendees` spelling quirk of the CLI's parser. There is
+    // no command line: create is now events.insert with a JSON body, so the tests
+    // assert what Google is actually sent.
+
+    it('routes via events.insert with the event in the body', async () => {
+      mockCall.mockResolvedValue(calendarInsertResponse);
+      await calendarPatch.customHandlers!.create(
+        { summary: 'Meeting', start: '2026-05-01T10:00:00Z', end: '2026-05-01T11:00:00Z', location: 'Room A' },
+        'user@test.com',
+      );
+
+      const [service, resourcePath, params, options] = mockCall.mock.calls[0];
+      expect(service).toBe('calendar');
+      expect(resourcePath).toBe('events.insert');
+      expect(options).toMatchObject({ account: 'user@test.com' });
+
+      const request = await requestFor('calendar', 'events.insert', params);
+      expect(request.method).toBe('POST');
+      expect(request.url).toContain('/calendars/primary/events');
+      expect(request.body).toMatchObject({
+        summary: 'Meeting',
+        location: 'Room A',
+        start: { dateTime: '2026-05-01T10:00:00Z' },
+        end: { dateTime: '2026-05-01T11:00:00Z' },
+      });
+    });
+
+    it('asks Google to mint a Meet link when meet: true', async () => {
+      mockCall.mockResolvedValue(calendarInsertResponse);
       const result = await calendarPatch.customHandlers!.create(
         { summary: 'Meeting', start: 'X', end: 'Y', meet: true },
         'user@test.com',
       );
 
-      expect(mockExecute.mock.calls[0][0]).toContain('--meet');
+      // The flag was `--meet`. The reality is a conferenceData.createRequest in
+      // the body PLUS conferenceDataVersion=1 in the query — without the latter
+      // Google accepts the request and silently ignores the conference.
+      const request = await requestFor('calendar', 'events.insert', mockCall.mock.calls[0][2]);
+      expect(queryOf(request).conferenceDataVersion).toBe('1');
+      const conferenceData = request.body!.conferenceData as Record<string, any>;
+      expect(conferenceData.conferenceSolutionKey).toBeUndefined();
+      expect(conferenceData.createRequest.conferenceSolutionKey.type).toBe('hangoutsMeet');
+      expect(conferenceData.createRequest.requestId).toEqual(expect.any(String));
+
       expect(result.text).toContain('with Google Meet');
     });
 
-    it('omits --meet flag when meet is false/undefined', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarInsertResponse));
+    it('reuses the same requestId for an identical event (idempotency key)', async () => {
+      // requestId is Google's idempotency key: a retried create with the same key
+      // reuses the conference instead of minting a second one.
+      mockCall.mockResolvedValue(calendarInsertResponse);
+      const args = { summary: 'Meeting', start: 'X', end: 'Y', meet: true };
+
+      await calendarPatch.customHandlers!.create(args, 'user@test.com');
+      await calendarPatch.customHandlers!.create(args, 'user@test.com');
+
+      const requestIdOf = (i: number) =>
+        ((mockCall.mock.calls[i][2].conferenceData as any).createRequest.requestId as string);
+      expect(requestIdOf(0)).toBe(requestIdOf(1));
+
+      // ...and a DIFFERENT event must not collide with it.
+      await calendarPatch.customHandlers!.create({ ...args, summary: 'Other' }, 'user@test.com');
+      expect(requestIdOf(2)).not.toBe(requestIdOf(0));
+    });
+
+    it('sends no conferenceData at all when meet is false/undefined', async () => {
+      mockCall.mockResolvedValue(calendarInsertResponse);
       await calendarPatch.customHandlers!.create(
         { summary: 'Meeting', start: 'X', end: 'Y' },
         'user@test.com',
       );
 
-      expect(mockExecute.mock.calls[0][0]).not.toContain('--meet');
+      const params = mockCall.mock.calls[0][2];
+      expect(params.conferenceData).toBeUndefined();
+      expect(params.conferenceDataVersion).toBeUndefined();
+      const request = await requestFor('calendar', 'events.insert', params);
+      expect(request.body!.conferenceData).toBeUndefined();
+      expect(queryOf(request).conferenceDataVersion).toBeUndefined();
     });
 
     it('includes calendarId in refs', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarInsertResponse));
+      mockCall.mockResolvedValue(calendarInsertResponse);
       const result = await calendarPatch.customHandlers!.create(
         { summary: 'X', start: 'Y', end: 'Z', calendarId: 'shared@test.com' },
         'user@test.com',
@@ -276,30 +441,37 @@ describe('calendarPatch', () => {
 
       expect(result.refs.calendarId).toBe('shared@test.com');
       expect(result.text).toContain('**Calendar:** shared@test.com');
+      const request = await requestFor('calendar', 'events.insert', mockCall.mock.calls[0][2]);
+      expect(request.url).toContain('/calendars/shared%40test.com/events');
     });
 
     it('defaults calendarId to primary', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarInsertResponse));
+      mockCall.mockResolvedValue(calendarInsertResponse);
       const result = await calendarPatch.customHandlers!.create(
         { summary: 'X', start: 'Y', end: 'Z' },
         'user@test.com',
       );
 
       expect(result.refs.calendarId).toBe('primary');
+      expect(mockCall.mock.calls[0][2].calendarId).toBe('primary');
     });
 
-    it('passes attendees via --attendee (singular) — gws rejects the plural form', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(calendarInsertResponse));
+    it('converts comma-separated attendees into an array of {email} objects', async () => {
+      // REPLACES "passes attendees via --attendee (singular) — gws rejects the
+      // plural form". That test's entire subject was the CLI's argument parser;
+      // with the CLI gone it measures nothing. What determines whether the guests
+      // are actually invited is the SHAPE of `attendees` in the JSON body.
+      mockCall.mockResolvedValue(calendarInsertResponse);
       await calendarPatch.customHandlers!.create(
-        { summary: 'X', start: 'Y', end: 'Z', attendees: 'a@b.com,c@d.com' },
+        { summary: 'X', start: 'Y', end: 'Z', attendees: 'a@b.com, c@d.com' },
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      expect(args).toContain('--attendee');
-      expect(args).not.toContain('--attendees');
-      const idx = args.indexOf('--attendee');
-      expect(args[idx + 1]).toBe('a@b.com,c@d.com');
+      const request = await requestFor('calendar', 'events.insert', mockCall.mock.calls[0][2]);
+      expect(request.body!.attendees).toEqual([
+        { email: 'a@b.com' },
+        { email: 'c@d.com' },
+      ]);
     });
   });
 
@@ -314,49 +486,50 @@ describe('calendarPatch', () => {
       await expect(
         calendarPatch.customHandlers!.update({ eventId: 'evt-1' }, 'user@test.com'),
       ).rejects.toThrow('at least one field');
+      expect(mockCall).not.toHaveBeenCalled();
     });
 
-    it('routes via events.patch with --params and --json', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse({ id: 'evt-1', summary: 'New title' }));
+    it('routes via events.patch, with the ids in the path and the changes in the body', async () => {
+      mockCall.mockResolvedValue({ id: 'evt-1', summary: 'New title' });
       await calendarPatch.customHandlers!.update(
         { eventId: 'evt-1', summary: 'New title' },
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      expect(args.slice(0, 3)).toEqual(['calendar', 'events', 'patch']);
-      expect(args).toContain('--params');
-      expect(args).toContain('--json');
+      const [service, resourcePath, params, options] = mockCall.mock.calls[0];
+      expect(service).toBe('calendar');
+      expect(resourcePath).toBe('events.patch');
+      expect(options).toMatchObject({ account: 'user@test.com' });
+      expect(params).toEqual({ calendarId: 'primary', eventId: 'evt-1', summary: 'New title' });
 
-      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
-      expect(queryParams).toEqual({ calendarId: 'primary', eventId: 'evt-1' });
-
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
-      expect(body).toEqual({ summary: 'New title' });
+      // The manifest-driven path would have sent an empty body and Google would
+      // have returned 200 without applying anything. Assert the split explicitly.
+      const request = await requestFor('calendar', 'events.patch', params);
+      expect(request.method).toBe('PATCH');
+      expect(request.body).toEqual({ summary: 'New title' });
+      expect(request.url).toContain('/calendars/primary/events/evt-1');
     });
 
     it('maps start and end to dateTime objects', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse({ id: 'evt-1' }));
+      mockCall.mockResolvedValue({ id: 'evt-1' });
       await calendarPatch.customHandlers!.update(
         { eventId: 'evt-1', start: '2026-05-01T10:00:00Z', end: '2026-05-01T11:00:00Z' },
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[0][2])).body!;
       expect(body.start).toEqual({ dateTime: '2026-05-01T10:00:00Z' });
       expect(body.end).toEqual({ dateTime: '2026-05-01T11:00:00Z' });
     });
 
     it('converts comma-separated attendees string into array of {email}', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse({ id: 'evt-1' }));
+      mockCall.mockResolvedValue({ id: 'evt-1' });
       await calendarPatch.customHandlers!.update(
         { eventId: 'evt-1', attendees: 'a@b.com, c@d.com , e@f.com' },
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[0][2])).body!;
       expect(body.attendees).toEqual([
         { email: 'a@b.com' },
         { email: 'c@d.com' },
@@ -365,47 +538,49 @@ describe('calendarPatch', () => {
     });
 
     it('clears attendees when attendees is an empty string', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse({ id: 'evt-1' }));
+      mockCall.mockResolvedValue({ id: 'evt-1' });
       await calendarPatch.customHandlers!.update(
         { eventId: 'evt-1', attendees: '' },
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
+      // An empty array is a meaningful body value (Google replaces the guest list
+      // wholesale), so read it off the params — an empty array in the body would
+      // otherwise be indistinguishable from "absent" only if it were dropped.
+      expect(mockCall.mock.calls[0][2].attendees).toEqual([]);
+      const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[0][2])).body!;
       expect(body.attendees).toEqual([]);
     });
 
-    it('adds conferenceData + conferenceDataVersion=1 when meet: true', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse({ id: 'evt-1', hangoutLink: 'https://meet.google.com/abc' }));
+    it('adds conferenceData to the body + conferenceDataVersion=1 to the query when meet: true', async () => {
+      mockCall.mockResolvedValue({ id: 'evt-1', hangoutLink: 'https://meet.google.com/abc' });
       await calendarPatch.customHandlers!.update(
         { eventId: 'evt-1', meet: true },
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
-      const body = JSON.parse(args[args.indexOf('--json') + 1]);
-
-      expect(queryParams.conferenceDataVersion).toBe(1);
-      expect(body.conferenceData).toBeDefined();
-      expect(body.conferenceData.createRequest.conferenceSolutionKey.type).toBe('hangoutsMeet');
+      const params = mockCall.mock.calls[0][2];
+      const request = await requestFor('calendar', 'events.patch', params);
+      expect(queryOf(request).conferenceDataVersion).toBe('1');
+      const conferenceData = request.body!.conferenceData as Record<string, any>;
+      expect(conferenceData).toBeDefined();
+      expect(conferenceData.createRequest.conferenceSolutionKey.type).toBe('hangoutsMeet');
     });
 
     it('honors explicit calendarId', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse({ id: 'evt-1' }));
+      mockCall.mockResolvedValue({ id: 'evt-1' });
       await calendarPatch.customHandlers!.update(
         { eventId: 'evt-1', summary: 'X', calendarId: 'shared@test.com' },
         'user@test.com',
       );
 
-      const args = mockExecute.mock.calls[0][0];
-      const queryParams = JSON.parse(args[args.indexOf('--params') + 1]);
-      expect(queryParams.calendarId).toBe('shared@test.com');
+      expect(mockCall.mock.calls[0][2].calendarId).toBe('shared@test.com');
+      const request = await requestFor('calendar', 'events.patch', mockCall.mock.calls[0][2]);
+      expect(request.url).toContain('/calendars/shared%40test.com/events/evt-1');
     });
 
     it('lists changed fields in response text and refs', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse({ id: 'evt-1', summary: 'New' }));
+      mockCall.mockResolvedValue({ id: 'evt-1', summary: 'New' });
       const result = await calendarPatch.customHandlers!.update(
         { eventId: 'evt-1', summary: 'New', location: 'Room B' },
         'user@test.com',
@@ -414,6 +589,25 @@ describe('calendarPatch', () => {
       expect(result.text).toContain('summary');
       expect(result.text).toContain('location');
       expect(result.refs.changed).toEqual(['summary', 'location']);
+    });
+  });
+
+  describe('delete custom handler', () => {
+    it('routes via events.delete and reports the deletion', async () => {
+      mockCall.mockResolvedValue({});
+      const result = await calendarPatch.customHandlers!.delete(
+        { eventId: 'evt-1' },
+        'user@test.com',
+      );
+
+      expect(mockCall).toHaveBeenCalledWith(
+        'calendar',
+        'events.delete',
+        { calendarId: 'primary', eventId: 'evt-1' },
+        expect.objectContaining({ account: 'user@test.com' }),
+      );
+      expect(result.text).toContain('Event deleted: evt-1');
+      expect(result.refs.status).toBe('deleted');
     });
   });
 });
