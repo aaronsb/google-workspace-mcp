@@ -69,6 +69,18 @@
       "description": "Manage task lists and tasks"
     },
     {
+      "name": "manage_meet",
+      "description": "Browse past Google Meet conferences, participants, transcripts, recordings, and Gemini smart notes"
+    },
+    {
+      "name": "manage_scratchpad",
+      "description": "Compose, edit, and deliver multi-line content: edit by line or JSON path, attach files, then send to email, Docs, Sheets, Tasks, or Calendar"
+    },
+    {
+      "name": "manage_workspace",
+      "description": "Manage files in the workspace sandbox — the exchange point for attachments, downloads, and exports"
+    },
+    {
       "name": "queue_operations",
       "description": "Chain multiple operations sequentially with result references between steps"
     }

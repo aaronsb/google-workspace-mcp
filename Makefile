@@ -1,8 +1,8 @@
 .DEFAULT_GOAL := help
 .PHONY: help test test-all test-unit test-integration build clean typecheck lint smoke smoke-reject check-gates check-node-floor \
-        manifest-diff manifest-lint \
+        manifest-lint \
         coverage coverage-update \
-        mcpb mcpb-all version-sync publish-all \
+        mcpb version-sync publish-all \
         release-patch release-minor release-major check
 
 # Prerequisites in a target's list are only ordered when make runs serially. Under
@@ -77,30 +77,19 @@ smoke-reject: build ## Assert the server REFUSES a below-floor Node (run on Node
 check: typecheck lint check-gates check-node-floor test build smoke ## Type-check, lint, test, build, smoke (CI gate)
 
 clean: ## Remove build artifacts
-	rm -rf build/ mcpb/server mcpb/bin *.mcpb
+	rm -rf build/ mcpb/server *.mcpb
 
 # --- Manifest management ---
 
-# `manifest-discover` is gone with gws. It shelled out to the CLI to enumerate the
-# API. That job now belongs to `npm run generate-descriptor` (Google's Discovery
-# documents -> src/google/descriptor.json) and `make coverage` (what we expose vs
-# what Google offers). See ADR-103.
-
-manifest-diff: ## Diff discovered operations against curated manifest
-	@echo "=== Operations in discovered but not in curated manifest ==="
-	@node -e " \
-		const fs = require('fs'), path = require('path'); \
-		const dir = 'src/factory/manifest'; \
-		let out = 'services:\n'; \
-		for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.yaml')).sort()) { \
-			out += '  ' + path.basename(f, '.yaml') + ':\n'; \
-			out += fs.readFileSync(path.join(dir, f), 'utf-8') \
-				.split('\n').map(l => l === '' ? '' : '    ' + l).join('\n'); \
-			if (!out.endsWith('\n')) out += '\n'; \
-		} \
-		fs.writeFileSync('/tmp/gws-curated-manifest-reassembled.yaml', out); \
-	"
-	@diff --color=auto -u /tmp/gws-curated-manifest-reassembled.yaml discovered-manifest.yaml || true
+# `manifest-discover` and `manifest-diff` are gone with gws. Both were built on the
+# CLI: discover shelled out to enumerate the API, and diff compared the curated
+# manifest against `discovered-manifest.yaml` — a file ADR-103 deleted. The target
+# outlived its input, and would have kept "passing" on any machine with a stale copy
+# of that yaml still on disk while diffing against nothing on a fresh clone.
+#
+# Both jobs now belong to `npm run generate-descriptor` (Google's Discovery documents
+# -> src/google/descriptor.json) and `make coverage` (what we expose vs what Google
+# actually offers). See ADR-103.
 
 manifest-lint: ## Validate manifest YAML syntax and structure
 	@node -e " \
@@ -137,10 +126,24 @@ coverage-update: build ## Update coverage baseline from Google's current surface
 
 # --- MCPB packaging ---
 
-mcpb: build ## Build .mcpb for current platform (PLATFORM=linux-x64 etc.)
-	$(eval PLATFORM ?= $(shell node -e "const os=require('os'); const a=os.arch()==='arm64'?'arm64':'x64'; const p=os.platform()==='darwin'?'darwin':os.platform()==='win32'?'windows':'linux'; console.log(p+'-'+a)"))
-	@echo "Building mcpb v$(VERSION) for $(PLATFORM) (no binary — ADR-103)"
-	rm -rf mcpb/server mcpb/bin
+# ONE bundle, not five.
+#
+# The per-platform build existed for exactly one reason: the bundle used to carry a
+# ~19 MB gws executable, and that executable was platform-specific. ADR-103 deleted it.
+# What ships now is Node + pure JavaScript: 112 production packages, zero native
+# addons, zero `os`/`cpu`-gated packages. So `mcpb-all` was packing the SAME BYTES five
+# times and labelling them darwin-arm64, darwin-x64, linux-arm64, linux-x64 and
+# windows-x64 — measured, not assumed: two of those bundles built out to 3191 files
+# each under an identical content hash.
+#
+# That was worse than redundant, it was a lie a user could act on. Someone on an M1 who
+# grabbed `darwin-arm64` got a bundle whose `npm ci --omit=dev` had been resolved on
+# whatever machine ran the release — a GitHub ubuntu-latest runner. It worked only
+# because nothing in the tree is platform-specific. The name promised a guarantee the
+# build never made.
+mcpb: build ## Build the .mcpb bundle (one bundle, all platforms)
+	@echo "Building mcpb v$(VERSION) — pure JS, one bundle for every platform"
+	rm -rf mcpb/server
 	mkdir -p mcpb/server
 	cp -r build/* mcpb/server/
 	cp package.json package-lock.json mcpb/server/
@@ -153,20 +156,10 @@ mcpb: build ## Build .mcpb for current platform (PLATFORM=linux-x64 etc.)
 	@# run, on exactly the runtimes that guard exists for. Make the bundle explicitly ESM.
 	@node -e "require('fs').writeFileSync('mcpb/server/package.json', JSON.stringify({type:'module'}, null, 2) + '\n')"
 	@echo "  mcpb/server/package.json → {\"type\": \"module\"}"
-	mcpb pack mcpb google-workspace-mcp-$(PLATFORM).mcpb
-	node scripts/verify-mcpb.cjs google-workspace-mcp-$(PLATFORM).mcpb
+	mcpb pack mcpb google-workspace-mcp.mcpb
+	node scripts/verify-mcpb.cjs google-workspace-mcp.mcpb
 	@echo ""
-	@echo "Built: google-workspace-mcp-$(PLATFORM).mcpb ($$(du -h google-workspace-mcp-$(PLATFORM).mcpb | cut -f1))"
-
-mcpb-all: build ## Build .mcpb for all platforms
-	@for plat in darwin-arm64 darwin-x64 linux-arm64 linux-x64 windows-x64; do \
-		echo ""; \
-		echo "=== $$plat ==="; \
-		$(MAKE) mcpb PLATFORM=$$plat; \
-	done
-	@echo ""
-	@echo "All platform bundles built:"
-	@ls -lh google-workspace-mcp-*.mcpb 2>/dev/null
+	@echo "Built: google-workspace-mcp.mcpb ($$(du -h google-workspace-mcp.mcpb | cut -f1))"
 
 # --- Version & Release ---
 
@@ -218,12 +211,12 @@ check-release-tag: ## Refuse to publish unless v$(VERSION) is tagged AT the comm
 	fi; \
 	echo "check-release-tag: $$tag -> $$(git log --oneline -1 $$tagged)"
 
-publish-all: check-release-tag mcpb-all ## Publish to npm, MCP Registry, GitHub Release
+publish-all: check-release-tag mcpb ## Publish to npm, MCP Registry, GitHub Release
 	@echo ""
 	@echo "Publishing v$(VERSION) to all channels."
 	@echo "  1. npm (2FA in the browser — passkey/security key)"
 	@echo "  2. MCP Registry (requires GitHub auth)"
-	@echo "  3. GitHub Release (with all .mcpb bundles)"
+	@echo "  3. GitHub Release (with the .mcpb bundle)"
 	@echo ""
 	@read -p "Continue? [y/N] " confirm && [ "$$confirm" = "y" ] || (echo "Aborted." && exit 1)
 	@echo ""

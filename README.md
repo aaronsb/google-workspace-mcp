@@ -70,17 +70,11 @@ The underlying engine is Google's `@googleworkspace/cli` — a Rust binary that 
 
 ### MCPB Bundle (Claude Desktop and other MCP clients)
 
-Download the `.mcpb` bundle for your platform from the [latest release](https://github.com/aaronsb/google-workspace-mcp/releases):
+Download `google-workspace-mcp.mcpb` from the [latest release](https://github.com/aaronsb/google-workspace-mcp/releases).
 
-| Platform | File |
-|----------|------|
-| macOS (Apple Silicon) | `google-workspace-mcp-darwin-arm64.mcpb` |
-| macOS (Intel) | `google-workspace-mcp-darwin-x64.mcpb` |
-| Linux x64 | `google-workspace-mcp-linux-x64.mcpb` |
-| Linux ARM64 | `google-workspace-mcp-linux-arm64.mcpb` |
-| Windows x64 | `google-workspace-mcp-windows-x64.mcpb` |
+One bundle covers every platform — macOS (Intel and Apple Silicon), Linux (x64 and ARM64), and Windows. There is nothing to choose. The server is pure JavaScript on Node, so there is no platform-specific payload to pick between; it needs Node 22.12 or newer.
 
-In Claude Desktop, drag the `.mcpb` file into the app — it will prompt you for your Google OAuth credentials, then you're ready to go. Other MCP clients that support `.mcpb` extensions can install it the same way. The bundle includes everything: the server, the gws binary, and all dependencies.
+In Claude Desktop, drag the `.mcpb` file into the app — it will prompt you for your Google OAuth credentials, then you're ready to go. Other MCP clients that support `.mcpb` extensions can install it the same way. The bundle includes the server and all of its dependencies.
 
 ### Claude Code / npm
 

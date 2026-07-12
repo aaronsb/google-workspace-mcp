@@ -72,12 +72,13 @@ npm view @anthropic-ai/google-workspace-mcp version
 gh release view vX.Y.Z
 ```
 
-The GitHub Release should have 5 `.mcpb` files:
-- `google-workspace-mcp-darwin-arm64.mcpb`
-- `google-workspace-mcp-darwin-x64.mcpb`
-- `google-workspace-mcp-linux-arm64.mcpb`
-- `google-workspace-mcp-linux-x64.mcpb`
-- `google-workspace-mcp-windows-x64.mcpb`
+The GitHub Release should have exactly one `.mcpb` file:
+- `google-workspace-mcp.mcpb`
+
+It used to carry five, one per platform. That made sense while the bundle shipped a
+platform-specific gws executable; ADR-103 deleted it, and what remains is Node plus
+pure JavaScript. The five bundles were byte-identical in content, so the platform in
+the filename promised a guarantee the build never made.
 
 ## Pre-release Versions
 
@@ -109,8 +110,7 @@ git push --tags                           # triggers CI again
 For testing or manual distribution without CI:
 
 ```bash
-make mcpb              # current platform only
-make mcpb-all          # all 5 platforms
+make mcpb              # the bundle — one, for every platform
 ```
 
 Requires `mcpb` CLI installed (`npm install -g @anthropic-ai/mcpb`).
