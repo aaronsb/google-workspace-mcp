@@ -98,50 +98,62 @@ Because method names are generated into a TypeScript union, calling a method Goo
 
 ## Install
 
-### MCPB Bundle (Claude Desktop and other MCP clients)
+First, you need **Google OAuth credentials** — the one prerequisite common to every path:
 
-Download `google-workspace-mcp.mcpb` from the [latest release](https://github.com/aaronsb/google-workspace-mcp/releases).
+1. Go to [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials)
+2. Create an **OAuth 2.0 Client ID**, application type **Desktop app**
+3. Enable the APIs you want (Gmail, Calendar, Drive, Sheets, Docs, Tasks, Meet)
+4. Keep the **Client ID** and **Client Secret** handy — you'll paste them in below
 
-One bundle covers every platform — macOS (Intel and Apple Silicon), Linux (x64 and ARM64), and Windows. There is nothing to choose: the server is pure JavaScript on Node, so there is no platform-specific payload to pick between. It needs Node 22.12 or newer.
+Then pick the path that matches how you work. All three run the same server.
 
-In Claude Desktop, drag the `.mcpb` file into the app — it will prompt for your Google OAuth credentials. Other MCP clients that support `.mcpb` extensions install it the same way. The bundle includes the server and all of its dependencies.
+Node 22.12 or newer. (Node 18 and 20 are both end-of-life.)
 
-### Claude Code / npm
+---
+
+### 📦 → 🤖 Claude Desktop — one-click `.mcpb` install (recommended)
+
+Download **`google-workspace-mcp.mcpb`** from the [latest release](https://github.com/aaronsb/google-workspace-mcp/releases/latest), then **drag it onto the Claude Desktop window**, or double-click it.
+
+Claude Desktop opens an install dialog with three fields:
+
+| Field | |
+|---|---|
+| **Google OAuth Client ID** | required — from the step above |
+| **Google OAuth Client Secret** | required — from the step above |
+| **Workspace Directory** | optional — where attachments, downloads and exports land. Defaults to `~/.local/share/google-workspace-mcp/workspace/`. Give it a dedicated folder — not your home, Documents, Desktop, or a Google Drive folder. |
+
+Paste, hit Save, done. No JSON to edit, no Node to install, no paths to get right — the bundle carries the server and every dependency.
+
+**One bundle covers every platform** — macOS (Intel and Apple Silicon), Linux (x64 and ARM64), and Windows. There is nothing to choose: the server is pure JavaScript, so there is no platform-specific payload to pick between.
+
+> *Cross-platform note:* `.mcpb` files install via Claude Desktop's bundled handler. If double-clicking doesn't trigger Claude on your system, drag the file onto the Claude Desktop window instead, or right-click → "Open with…" and pick Claude Desktop (then "always open with" if your OS offers). Behavior varies: macOS usually auto-associates, Windows may need a one-time association, Linux varies by desktop environment.
+
+---
+
+### Claude Code — one command
 
 ```bash
-npm install @aaronsb/google-workspace-mcp
+claude mcp add google-workspace \
+  -e GOOGLE_CLIENT_ID=your-client-id \
+  -e GOOGLE_CLIENT_SECRET=your-client-secret \
+  -- npx -y @aaronsb/google-workspace-mcp
 ```
 
-Or run directly:
+That's it — no file to edit. Verify with `/mcp`.
 
-```bash
-npx @aaronsb/google-workspace-mcp
-```
+---
 
-### Prerequisites
+### Other MCP clients
 
-1. **Node.js** 22.12 or newer — Node 18 and 20 are both end-of-life.
-2. **Google Cloud OAuth credentials** — create at [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials):
-   - Create an OAuth 2.0 Client ID (Desktop application)
-   - Enable the APIs you want (Gmail, Calendar, Drive, Sheets, …)
-3. Set environment variables:
-   ```bash
-   export GOOGLE_CLIENT_ID="your-client-id"
-   export GOOGLE_CLIENT_SECRET="your-client-secret"
-   ```
-
-## MCP Client Configuration
-
-### Claude Desktop
-
-Add to `claude_desktop_config.json`:
+Add an entry to the client's MCP config file (for Claude Desktop by hand, that's `claude_desktop_config.json`; for Claude Code, `.mcp.json`):
 
 ```json
 {
   "mcpServers": {
     "google-workspace": {
       "command": "npx",
-      "args": ["@aaronsb/google-workspace-mcp"],
+      "args": ["-y", "@aaronsb/google-workspace-mcp"],
       "env": {
         "GOOGLE_CLIENT_ID": "your-client-id",
         "GOOGLE_CLIENT_SECRET": "your-client-secret"
@@ -151,23 +163,10 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
-### Claude Code
+Or install it globally and point at the binary directly:
 
-Add to `.mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "google-workspace": {
-      "command": "npx",
-      "args": ["@aaronsb/google-workspace-mcp"],
-      "env": {
-        "GOOGLE_CLIENT_ID": "your-client-id",
-        "GOOGLE_CLIENT_SECRET": "your-client-secret"
-      }
-    }
-  }
-}
+```bash
+npm install -g @aaronsb/google-workspace-mcp
 ```
 
 ## Usage
