@@ -74,18 +74,46 @@ function formatDefaultDetail(data: unknown): HandlerResponse {
   };
 }
 
-/** Generic action formatter — confirmation message with returned fields. */
+/**
+ * Generic action formatter — confirm, and say WHAT was acted on.
+ *
+ * Google does not agree with itself about what an identifier is called: Tasks returns
+ * `id`, Docs returns `documentId`, Sheets returns `spreadsheetId`. This used to print
+ * only a key named exactly `id`, so creating a document produced the entire response
+ * "Operation completed." — no id, no title, nothing an agent could act on. The id was
+ * in `refs` (so `$0.documentId` chaining worked), but anything reading the text was
+ * told only that *something* had happened.
+ *
+ * So name the thing: whichever identifier came back, plus whatever the resource calls
+ * itself. A confirmation you cannot act on is barely a confirmation.
+ */
+const ID_KEYS = ['id', 'documentId', 'spreadsheetId', 'fileId', 'eventId', 'threadId'];
+const NAME_KEYS = ['title', 'name', 'summary'];
+
 function formatDefaultAction(data: unknown): HandlerResponse {
   const obj = (data ?? {}) as Record<string, unknown>;
-  const id = String(obj.id ?? 'unknown');
+
+  const idKey = ID_KEYS.find((k) => obj[k] !== undefined && obj[k] !== null);
+  const id = idKey ? String(obj[idKey]) : 'unknown';
+  const nameKey = NAME_KEYS.find((k) => typeof obj[k] === 'string' && obj[k] !== '');
 
   const parts: string[] = ['Operation completed.'];
-  if (obj.id) parts.push(`\n**ID:** ${id}`);
+  if (nameKey) parts.push(`\n\n**${titleCase(nameKey)}:** ${String(obj[nameKey])}`);
+  if (idKey) parts.push(`\n**${titleCase(idKey)}:** ${id}`);
 
   return {
     text: parts.join(''),
+    // `id` stays populated whatever Google called the field, so next-steps and
+    // queue_operations references keep resolving.
     refs: { id, ...extractScalarRefs(obj) },
   };
+}
+
+/** documentId -> "Document ID"; title -> "Title" */
+function titleCase(key: string): string {
+  return key
+    .replace(/Id$/, ' ID')
+    .replace(/^./, (c) => c.toUpperCase());
 }
 
 /** Find the first array in a response object (items, files, messages, etc). */
