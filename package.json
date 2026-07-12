@@ -27,7 +27,8 @@
     "test:integration": "vitest run --no-file-parallelism src/__tests__/integration",
     "test:all": "vitest run --no-file-parallelism",
     "generate-descriptor": "node scripts/generate-descriptor.mjs",
-    "check-descriptor": "node scripts/generate-descriptor.mjs --check"
+    "check-descriptor": "node scripts/generate-descriptor.mjs --check",
+    "verify:live": "vitest run src/__tests__/integration/live.test.ts"
   },
   "dependencies": {
     "@googleworkspace/cli": "^0.22.5",
