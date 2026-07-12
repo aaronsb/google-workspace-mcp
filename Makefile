@@ -225,8 +225,16 @@ publish-all: check-release-tag mcpb ## Publish to npm, MCP Registry, GitHub Rele
 	@echo ""
 	@echo "── npm ──"
 	@who=$$(npm whoami 2>/dev/null) && echo "npm: logged in as $$who" || { \
-	  echo "npm: not logged in — starting 'npm login' (2FA in the browser)"; npm login; }
-	npm publish --access public
+	  echo "npm: not logged in — starting 'npm login' (browser + security key)"; npm login; }
+	@# A PRE-RELEASE must not become `latest`.
+	@#
+	@# `npm publish` with no --tag publishes as `latest`, which every `npm install` and
+	@# every `^x.y.z` range picks up. So an alpha published bare is not "available to
+	@# people who want it" — it is shipped to everyone. This detection used to live in
+	@# the CI workflow; the workflow is gone, so it lives here, where the publish is.
+	@tag=$$(echo "$(VERSION)" | grep -oE 'alpha|beta|rc' || echo latest); \
+	  echo "npm: publishing $(VERSION) under dist-tag '$$tag'"; \
+	  npm publish --access public --tag "$$tag"
 	@echo ""
 	@echo "── MCP Registry ──"
 	mcp-publisher login github
