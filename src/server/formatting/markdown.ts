@@ -175,6 +175,10 @@ export function formatEmailList(data: unknown): HandlerResponse {
 
   const lines = messages.map(msg => {
     const id = String(msg.id ?? '');
+    // A message we FAILED TO FETCH is not a message with no sender and no subject.
+    // Rendering it as blank columns is a lie the reader cannot detect — it looks like
+    // an empty email. Say what actually happened, in the row.
+    if (msg.error) return `${id} | ⚠ ${String(msg.error)}`;
     const from = truncate(String(msg.from ?? ''), 30);
     const subject = truncate(String(msg.subject ?? '(no subject)'), 50);
     const date = formatShortDate(msg.date);

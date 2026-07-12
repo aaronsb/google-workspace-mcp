@@ -7,6 +7,17 @@ vi.mock('../../../google/client.js');
 import { mockCall } from '../handlers/__mocks__/client.js';
 import { SessionTracker } from '../../../server/session/tracker.js';
 
+// The counts come from two DIFFERENT Google calls, and these helpers name which:
+//   unread -> users.labels.get(INBOX).messagesUnread   — exact, maintained by Gmail
+//   today  -> users.messages.list, COUNTING the ids it returns
+//
+// They used to be read from `resultSizeEstimate`, which is an estimate in name and in
+// fact: on a real mailbox it returned 201 for both `is:unread` (135,824) and
+// `after:<today>` (30). These mocks asserted that behaviour, so the tests passed while
+// the counts were meaningless and the "new since session start" delta was always zero.
+const unread = (n: number) => ({ id: 'INBOX', messagesTotal: n * 2, messagesUnread: n });
+const today = (n: number) => ({ messages: Array.from({ length: n }, (_, i) => ({ id: `m${i}` })) });
+
 describe('SessionTracker', () => {
   let tracker: SessionTracker;
 
@@ -18,8 +29,8 @@ describe('SessionTracker', () => {
   describe('ensureBaseline', () => {
     it('captures baseline counts on first call', async () => {
       mockCall
-        .mockResolvedValueOnce({ resultSizeEstimate: 5, messages: [] })   // unread
-        .mockResolvedValueOnce({ resultSizeEstimate: 12, messages: [] })  // today
+        .mockResolvedValueOnce(unread(5))   // unread
+        .mockResolvedValueOnce(today(12))  // today
         .mockResolvedValueOnce({                                           // calendar
           items: [{ summary: 'Standup', start: { dateTime: '2026-03-31T10:00:00Z' } }],
         });
@@ -38,8 +49,8 @@ describe('SessionTracker', () => {
 
     it('is idempotent — second call does not re-execute', async () => {
       mockCall
-        .mockResolvedValueOnce({ resultSizeEstimate: 5, messages: [] })
-        .mockResolvedValueOnce({ resultSizeEstimate: 12, messages: [] })
+        .mockResolvedValueOnce(unread(5))
+        .mockResolvedValueOnce(today(12))
         .mockResolvedValueOnce({ items: [] });
 
       await tracker.ensureBaseline('user@test.com', 1);
@@ -51,7 +62,7 @@ describe('SessionTracker', () => {
 
     it('handles partial API failures gracefully', async () => {
       mockCall
-        .mockResolvedValueOnce({ resultSizeEstimate: 5, messages: [] })   // unread ok
+        .mockResolvedValueOnce(unread(5))   // unread ok
         .mockRejectedValueOnce(new Error('quota exceeded'))                                 // today fails
         .mockResolvedValueOnce({ items: [] });                             // calendar ok
 
@@ -67,11 +78,11 @@ describe('SessionTracker', () => {
 
     it('tracks accounts independently', async () => {
       mockCall
-        .mockResolvedValueOnce({ resultSizeEstimate: 3, messages: [] })
-        .mockResolvedValueOnce({ resultSizeEstimate: 8, messages: [] })
+        .mockResolvedValueOnce(unread(3))
+        .mockResolvedValueOnce(today(8))
         .mockResolvedValueOnce({ items: [] })
-        .mockResolvedValueOnce({ resultSizeEstimate: 10, messages: [] })
-        .mockResolvedValueOnce({ resultSizeEstimate: 20, messages: [] })
+        .mockResolvedValueOnce(unread(10))
+        .mockResolvedValueOnce(today(20))
         .mockResolvedValueOnce({ items: [] });
 
       await tracker.ensureBaseline('a@test.com', 1);
@@ -86,16 +97,16 @@ describe('SessionTracker', () => {
     it('updates current counts but not baseline', async () => {
       // Baseline
       mockCall
-        .mockResolvedValueOnce({ resultSizeEstimate: 5, messages: [] })
-        .mockResolvedValueOnce({ resultSizeEstimate: 12, messages: [] })
+        .mockResolvedValueOnce(unread(5))
+        .mockResolvedValueOnce(today(12))
         .mockResolvedValueOnce({ items: [] });
 
       await tracker.ensureBaseline('user@test.com', 1);
 
       // Refresh
       mockCall
-        .mockResolvedValueOnce({ resultSizeEstimate: 8, messages: [] })
-        .mockResolvedValueOnce({ resultSizeEstimate: 15, messages: [] })
+        .mockResolvedValueOnce(unread(8))
+        .mockResolvedValueOnce(today(15))
         .mockResolvedValueOnce({
           items: [{ summary: 'Lunch', start: { dateTime: '2026-03-31T12:00:00Z' } }],
         });
@@ -115,8 +126,8 @@ describe('SessionTracker', () => {
     it('retains previous values on refresh failure', async () => {
       // Baseline
       mockCall
-        .mockResolvedValueOnce({ resultSizeEstimate: 5, messages: [] })
-        .mockResolvedValueOnce({ resultSizeEstimate: 12, messages: [] })
+        .mockResolvedValueOnce(unread(5))
+        .mockResolvedValueOnce(today(12))
         .mockResolvedValueOnce({ items: [] });
 
       await tracker.ensureBaseline('user@test.com', 1);
@@ -137,8 +148,8 @@ describe('SessionTracker', () => {
 
     it('skips refresh when epoch distance < 10', async () => {
       mockCall
-        .mockResolvedValueOnce({ resultSizeEstimate: 5, messages: [] })
-        .mockResolvedValueOnce({ resultSizeEstimate: 12, messages: [] })
+        .mockResolvedValueOnce(unread(5))
+        .mockResolvedValueOnce(today(12))
         .mockResolvedValueOnce({ items: [] });
 
       await tracker.ensureBaseline('user@test.com', 1);
@@ -165,8 +176,8 @@ describe('SessionTracker', () => {
   describe('reset', () => {
     it('clears all sessions', async () => {
       mockCall
-        .mockResolvedValueOnce({ resultSizeEstimate: 5, messages: [] })
-        .mockResolvedValueOnce({ resultSizeEstimate: 12, messages: [] })
+        .mockResolvedValueOnce(unread(5))
+        .mockResolvedValueOnce(today(12))
         .mockResolvedValueOnce({ items: [] });
 
       await tracker.ensureBaseline('user@test.com', 1);

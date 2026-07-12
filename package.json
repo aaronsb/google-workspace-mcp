@@ -25,7 +25,7 @@
     "type-check": "tsc --noEmit --skipLibCheck && tsc -p tsconfig.test.json --skipLibCheck",
     "lint": "eslint \"src/**/*.ts\"",
     "watch": "tsc --watch --skipLibCheck",
-    "test": "vitest run src/__tests__/coverage src/__tests__/executor src/__tests__/accounts src/__tests__/server src/__tests__/factory src/__tests__/services src/server/scratchpad",
+    "test": "vitest run src/__tests__/coverage src/__tests__/google src/__tests__/executor src/__tests__/accounts src/__tests__/server src/__tests__/factory src/__tests__/services src/server/scratchpad",
     "test:watch": "vitest src/__tests__/executor src/__tests__/accounts src/__tests__/server src/__tests__/factory src/__tests__/services src/server/scratchpad",
     "test:integration": "vitest run --no-file-parallelism src/__tests__/integration",
     "test:all": "vitest run --no-file-parallelism",
