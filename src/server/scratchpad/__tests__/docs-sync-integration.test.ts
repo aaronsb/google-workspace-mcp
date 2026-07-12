@@ -1,6 +1,6 @@
 /**
  * Integration-ish tests for the docs-bound mutation path through the
- * scratchpad handler. Mocks `execute` from the gws executor; everything
+ * scratchpad handler. Mocks `call` from the Google API client; everything
  * else is real (ScratchpadManager, the docs-sync translator).
  *
  * Covers the two test cases that the pure-translator tests can't:
@@ -10,14 +10,18 @@
  */
 import { beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
 
-vi.mock('../../../executor/gws.js');
+// The docs sync path is a RESOURCE path: documents.batchUpdate / documents.get
+// go through the Google API client we own (ADR-103). A mocked `call()` resolves
+// to raw Google JSON — there is no { success, data, stderr } envelope.
+vi.mock('../../../google/client.js');
 vi.mock('../../handler.js', () => ({ getEpoch: () => 0 }));
 
-import { execute } from '../../../executor/gws.js';
+import { call } from '../../../google/client.js';
 import { handleScratchpad } from '../handler.js';
 import { getScratchpadManager } from '../handler.js';
+import { requestFor } from '../../../__tests__/support/request.js';
 
-const mockExecute = execute as MockedFunction<typeof execute>;
+const mockCall = call as MockedFunction<typeof call>;
 
 /** Seed a docs-bound JSON scratchpad with a one-paragraph doc and return its id. */
 function seedDocsBoundScratchpad(opts?: { revisionId?: string }): string {
@@ -52,7 +56,7 @@ function seedDocsBoundScratchpad(opts?: { revisionId?: string }): string {
 
 describe('docs-bound json_set', () => {
   beforeEach(() => {
-    mockExecute.mockReset();
+    mockCall.mockReset();
   });
 
   it('rejects an unsupported path WITHOUT mutating the local buffer (pre-validation)', async () => {
@@ -72,7 +76,7 @@ describe('docs-bound json_set', () => {
     expect(result.text).toMatch(/not supported/);
     // Pre-validation contract: the buffer is untouched on rejection.
     expect(manager.get(id)!.lines).toEqual(linesBefore);
-    expect(mockExecute).not.toHaveBeenCalled();
+    expect(mockCall).not.toHaveBeenCalled();
   });
 
   it('on API success, pushes batchUpdate and reloads the buffer from documents.get', async () => {
@@ -81,25 +85,21 @@ describe('docs-bound json_set', () => {
 
     // First call: batchUpdate succeeds.
     // Second call: documents.get returns the fresh doc (with bumped revisionId).
-    mockExecute
-      .mockResolvedValueOnce({ success: true, data: {}, stderr: '' })
+    mockCall
+      .mockResolvedValueOnce({})
       .mockResolvedValueOnce({
-        success: true,
-        data: {
-          documentId: 'doc-1',
-          revisionId: 'rev-2',
-          body: {
-            content: [{
-              startIndex: 1,
-              endIndex: 9,
-              paragraph: {
-                elements: [{ startIndex: 1, endIndex: 9, textRun: { content: 'Goodbye\n' } }],
-                paragraphStyle: { namedStyleType: 'NORMAL_TEXT' },
-              },
-            }],
-          },
+        documentId: 'doc-1',
+        revisionId: 'rev-2',
+        body: {
+          content: [{
+            startIndex: 1,
+            endIndex: 9,
+            paragraph: {
+              elements: [{ startIndex: 1, endIndex: 9, textRun: { content: 'Goodbye\n' } }],
+              paragraphStyle: { namedStyleType: 'NORMAL_TEXT' },
+            },
+          }],
         },
-        stderr: '',
       });
 
     const result = await handleScratchpad({
@@ -110,18 +110,29 @@ describe('docs-bound json_set', () => {
     });
 
     expect(result.refs.synced).toBe(true);
-    expect(mockExecute).toHaveBeenCalledTimes(2);
+    expect(mockCall).toHaveBeenCalledTimes(2);
 
     // First call: batchUpdate with the translated request + writeControl.
-    const batchArgs = mockExecute.mock.calls[0][0];
-    expect(batchArgs.slice(0, 3)).toEqual(['docs', 'documents', 'batchUpdate']);
-    const body = JSON.parse(batchArgs[batchArgs.indexOf('--json') + 1]);
-    expect(body.requests[0]).toEqual({ deleteContentRange: { range: { startIndex: 1, endIndex: 12 } } });
-    expect(body.requests[1]).toEqual({ insertText: { text: 'Goodbye', location: { index: 1 } } });
-    expect(body.writeControl).toEqual({ requiredRevisionId: 'rev-1' });
+    const [service, resourcePath, params, options] = mockCall.mock.calls[0];
+    expect(service).toBe('docs');
+    expect(resourcePath).toBe('documents.batchUpdate');
+    expect(options).toMatchObject({ account: 'me@test.com' });
+    expect(params.documentId).toBe('doc-1');
+    const requests = params.requests as Array<Record<string, unknown>>;
+    expect(requests[0]).toEqual({ deleteContentRange: { range: { startIndex: 1, endIndex: 12 } } });
+    expect(requests[1]).toEqual({ insertText: { text: 'Goodbye', location: { index: 1 } } });
+    expect(params.writeControl).toEqual({ requiredRevisionId: 'rev-1' });
+
+    // …and the descriptor puts requests/writeControl in the POST body, with only
+    // documentId in the path. (The old assertion read this off a `--json` argv
+    // slot; this reads it off what Google actually declares.)
+    const request = await requestFor('docs', 'documents.batchUpdate', params);
+    expect(request.method).toBe('POST');
+    expect(request.body).toEqual({ requests, writeControl: { requiredRevisionId: 'rev-1' } });
+    expect(request.url).toContain('/documents/doc-1:batchUpdate');
 
     // Second call: documents.get for the reload.
-    expect(mockExecute.mock.calls[1][0].slice(0, 3)).toEqual(['docs', 'documents', 'get']);
+    expect(mockCall.mock.calls[1][1]).toBe('documents.get');
 
     // Buffer reloaded from fresh response.
     const reloaded = JSON.parse(manager.get(id)!.lines.join('\n'));
@@ -136,7 +147,7 @@ describe('docs-bound json_set', () => {
     const manager = getScratchpadManager();
 
     // Simulate the API rejecting (e.g., stale requiredRevisionId).
-    mockExecute.mockRejectedValueOnce(new Error('precondition failed: revisionId mismatch'));
+    mockCall.mockRejectedValueOnce(new Error('precondition failed: revisionId mismatch'));
 
     const result = await handleScratchpad({
       operation: 'json_set',
@@ -150,7 +161,7 @@ describe('docs-bound json_set', () => {
     expect(result.text).toMatch(/Retry or use scratchpad reset to discard/);
 
     // The batchUpdate was attempted; the reload (second call) was NOT.
-    expect(mockExecute).toHaveBeenCalledTimes(1);
+    expect(mockCall).toHaveBeenCalledTimes(1);
 
     // Local buffer holds the would-have-synced change — agent retries or discards.
     const buffer = JSON.parse(manager.get(id)!.lines.join('\n'));
@@ -173,7 +184,7 @@ describe('docs-bound json_set', () => {
     expect(result.text).toMatch(/rejected/);
     expect(result.text).toMatch(/structural/);
     expect(manager.get(id)!.lines).toEqual(linesBefore);
-    expect(mockExecute).not.toHaveBeenCalled();
+    expect(mockCall).not.toHaveBeenCalled();
   });
 
   it('omits writeControl when the binding has no revisionId (legacy import)', async () => {
@@ -182,22 +193,18 @@ describe('docs-bound json_set', () => {
     const manager = getScratchpadManager();
     manager.setBinding(id, { service: 'docs', resourceId: 'doc-1', account: 'me@test.com' });
 
-    mockExecute
-      .mockResolvedValueOnce({ success: true, data: {}, stderr: '' })
+    mockCall
+      .mockResolvedValueOnce({})
       .mockResolvedValueOnce({
-        success: true,
-        data: {
-          documentId: 'doc-1',
-          revisionId: 'rev-9',
-          body: { content: [{
-            startIndex: 1, endIndex: 13,
-            paragraph: {
-              elements: [{ startIndex: 1, endIndex: 13, textRun: { content: 'Hello world\n' } }],
-              paragraphStyle: {},
-            },
-          }] },
-        },
-        stderr: '',
+        documentId: 'doc-1',
+        revisionId: 'rev-9',
+        body: { content: [{
+          startIndex: 1, endIndex: 13,
+          paragraph: {
+            elements: [{ startIndex: 1, endIndex: 13, textRun: { content: 'Hello world\n' } }],
+            paragraphStyle: {},
+          },
+        }] },
       });
 
     await handleScratchpad({
@@ -207,8 +214,7 @@ describe('docs-bound json_set', () => {
       value: 'X',
     });
 
-    const body = JSON.parse(mockExecute.mock.calls[0][0][mockExecute.mock.calls[0][0].indexOf('--json') + 1]);
-    expect(body.writeControl).toBeUndefined();
+    expect(mockCall.mock.calls[0][2].writeControl).toBeUndefined();
     // But the reload picks up a fresh revisionId for the next sync.
     expect(manager.getBinding(id)?.revisionId).toBe('rev-9');
   });

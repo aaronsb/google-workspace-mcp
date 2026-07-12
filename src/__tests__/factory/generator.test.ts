@@ -6,10 +6,15 @@ import { loadManifest, generateTools, generateSchema, generateHandler } from '..
 import { patches } from '../../factory/patches.js';
 import type { Manifest, ServiceDef } from '../../factory/types.js';
 
-// Mock executor for handler tests
+// BOTH seams are mocked (ADR-103). The generator sends RESOURCE ops to the
+// Google API client we own (raw JSON back, no envelope) and HELPER ops to the
+// gws executor (still the { success, data, stderr } envelope).
 vi.mock('../../executor/gws.js');
+vi.mock('../../google/client.js');
 import { execute } from '../../executor/gws.js';
+import { call } from '../../google/client.js';
 const mockExecute = execute as MockedFunction<typeof execute>;
+const mockCall = call as MockedFunction<typeof call>;
 
 describe('loadManifest', () => {
   it('loads and parses the manifest YAML', () => {
@@ -107,18 +112,23 @@ describe('generateHandler', () => {
 
   beforeEach(() => {
     mockExecute.mockReset();
+    mockCall.mockReset();
   });
 
-  it('calls execute with correct args for resource-based operations', async () => {
-    mockExecute.mockResolvedValue({ success: true, data: { files: [] }, stderr: '' });
+  it('calls the Google client with (service, resourcePath, params) for resource operations', async () => {
+    mockCall.mockResolvedValue({ files: [] });
     const handler = generateHandler(manifest.services.drive, patches.drive);
 
     await handler({ operation: 'search', email: 'u@t.com', query: 'budget' });
 
-    expect(mockExecute).toHaveBeenCalledWith(
-      expect.arrayContaining(['drive', 'files', 'list']),
+    expect(mockCall).toHaveBeenCalledWith(
+      'drive',
+      'files.list',
+      expect.objectContaining({ q: 'budget' }),
       expect.objectContaining({ account: 'u@t.com' }),
     );
+    // A resource op never reaches gws.
+    expect(mockExecute).not.toHaveBeenCalled();
   });
 
   it('calls execute with correct args for helper-based operations', async () => {
@@ -342,35 +352,23 @@ describe('generateHandler', () => {
 
   it('applies afterExecute hook for gmail search hydration', async () => {
     // First call: messages.list returns IDs
-    mockExecute.mockResolvedValueOnce({
-      success: true,
-      data: { messages: [{ id: 'msg-1' }, { id: 'msg-2' }] },
-      stderr: '',
-    });
+    mockCall.mockResolvedValueOnce({ messages: [{ id: 'msg-1' }, { id: 'msg-2' }] });
     // Hydration calls for each message
-    mockExecute.mockResolvedValueOnce({
-      success: true,
-      data: {
-        id: 'msg-1', threadId: 't1', snippet: 'hello',
-        payload: { headers: [
-          { name: 'From', value: 'alice@t.com' },
-          { name: 'Subject', value: 'Meeting' },
-          { name: 'Date', value: '2024-01-15' },
-        ]},
-      },
-      stderr: '',
+    mockCall.mockResolvedValueOnce({
+      id: 'msg-1', threadId: 't1', snippet: 'hello',
+      payload: { headers: [
+        { name: 'From', value: 'alice@t.com' },
+        { name: 'Subject', value: 'Meeting' },
+        { name: 'Date', value: '2024-01-15' },
+      ]},
     });
-    mockExecute.mockResolvedValueOnce({
-      success: true,
-      data: {
-        id: 'msg-2', threadId: 't2', snippet: 'world',
-        payload: { headers: [
-          { name: 'From', value: 'bob@t.com' },
-          { name: 'Subject', value: 'Update' },
-          { name: 'Date', value: '2024-01-16' },
-        ]},
-      },
-      stderr: '',
+    mockCall.mockResolvedValueOnce({
+      id: 'msg-2', threadId: 't2', snippet: 'world',
+      payload: { headers: [
+        { name: 'From', value: 'bob@t.com' },
+        { name: 'Subject', value: 'Update' },
+        { name: 'Date', value: '2024-01-16' },
+      ]},
     });
 
     const handler = generateHandler(manifest.services.gmail, patches.gmail);
@@ -389,15 +387,16 @@ describe('generateHandler', () => {
 describe('generateHandler — custom-handler next-steps wrapping', () => {
   const manifest = loadManifest();
 
-  beforeEach(() => mockExecute.mockReset());
+  beforeEach(() => {
+    mockExecute.mockReset();
+    mockCall.mockReset();
+  });
 
   it('appends next-steps to a custom handler response', async () => {
     // sheets.addSheet is a customHandler — its handler return has no footer,
     // but the factory should wrap with one from the next-steps registry.
-    mockExecute.mockResolvedValueOnce({
-      success: true,
-      data: { replies: [{ addSheet: { properties: { sheetId: 42, title: 'T', gridProperties: {} } } }] },
-      stderr: '',
+    mockCall.mockResolvedValueOnce({
+      replies: [{ addSheet: { properties: { sheetId: 42, title: 'T', gridProperties: {} } } }],
     });
 
     const handler = generateHandler(manifest.services.sheets, patches.sheets);
@@ -413,11 +412,7 @@ describe('generateHandler — custom-handler next-steps wrapping', () => {
   });
 
   it('resolves placeholder values from the input params on custom handlers', async () => {
-    mockExecute.mockResolvedValueOnce({
-      success: true,
-      data: { replies: [{}] },
-      stderr: '',
-    });
+    mockCall.mockResolvedValueOnce({ replies: [{}] });
 
     const handler = generateHandler(manifest.services.sheets, patches.sheets);
     const result = await handler({
@@ -435,10 +430,8 @@ describe('generateHandler — custom-handler next-steps wrapping', () => {
   });
 
   it('does not double-append next-steps (regression for ADR-303 migration)', async () => {
-    mockExecute.mockResolvedValueOnce({
-      success: true,
-      data: { replies: [{ addSheet: { properties: { sheetId: 99, title: 'Q', gridProperties: {} } } }] },
-      stderr: '',
+    mockCall.mockResolvedValueOnce({
+      replies: [{ addSheet: { properties: { sheetId: 99, title: 'Q', gridProperties: {} } } }],
     });
 
     const handler = generateHandler(manifest.services.sheets, patches.sheets);

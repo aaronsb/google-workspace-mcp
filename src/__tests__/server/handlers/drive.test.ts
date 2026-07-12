@@ -1,15 +1,22 @@
 import { vi, beforeEach, describe, expect, it } from 'vitest';
 
 // Registered here, not in the shared helper: vi.mock hoists per-file.
+// BOTH seams are mocked: `search`/`get` are resource ops and go through the
+// client; `upload` is still a gws helper (+upload) and goes through execute.
 vi.mock('../../../executor/gws.js');
+vi.mock('../../../google/client.js');
+import { mockExecute, mockGwsResponse } from './__mocks__/executor.js';
+import { mockCall } from './__mocks__/client.js';
 import {
-  mockExecute, mockGwsResponse,
   driveFileListResponse, driveFileDetailResponse, driveUploadResponse,
-} from './__mocks__/executor.js';
+} from './__mocks__/fixtures.js';
 import { handleDrive } from '../../../server/handlers/drive.js';
 
 describe('handleDrive', () => {
-  beforeEach(() => mockExecute.mockReset());
+  beforeEach(() => {
+    mockExecute.mockReset();
+    mockCall.mockReset();
+  });
 
   it('rejects missing email', async () => {
     await expect(handleDrive({ operation: 'search' })).rejects.toThrow('valid email');
@@ -17,7 +24,7 @@ describe('handleDrive', () => {
 
   describe('search', () => {
     it('returns markdown file list', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(driveFileListResponse));
+      mockCall.mockResolvedValue(driveFileListResponse);
       const result = await handleDrive({ operation: 'search', email: 'user@test.com' });
 
       expect(result.text).toContain('## Files (2)');
@@ -26,22 +33,23 @@ describe('handleDrive', () => {
       expect(result.refs.count).toBe(2);
     });
 
-    it('passes query to gws', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(driveFileListResponse));
+    it('passes query to drive.files.list', async () => {
+      mockCall.mockResolvedValue(driveFileListResponse);
       await handleDrive({ operation: 'search', email: 'user@test.com', query: "name contains 'report'" });
 
-      const args = mockExecute.mock.calls[0][0];
-      const params = JSON.parse(args[args.indexOf('--params') + 1]);
-      expect(params.q).toBe("name contains 'report'");
+      expect(mockCall).toHaveBeenCalledWith(
+        'drive',
+        'files.list',
+        expect.objectContaining({ q: "name contains 'report'" }),
+        expect.objectContaining({ account: 'user@test.com' }),
+      );
     });
 
     it('clamps maxResults to 50', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(driveFileListResponse));
+      mockCall.mockResolvedValue(driveFileListResponse);
       await handleDrive({ operation: 'search', email: 'user@test.com', maxResults: 999 });
 
-      const args = mockExecute.mock.calls[0][0];
-      const params = JSON.parse(args[args.indexOf('--params') + 1]);
-      expect(params.pageSize).toBe(50);
+      expect(mockCall.mock.calls[0][2].pageSize).toBe(50);
     });
   });
 
@@ -51,9 +59,15 @@ describe('handleDrive', () => {
     });
 
     it('returns markdown file detail', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(driveFileDetailResponse));
+      mockCall.mockResolvedValue(driveFileDetailResponse);
       const result = await handleDrive({ operation: 'get', email: 'user@test.com', fileId: 'file-1' });
 
+      expect(mockCall).toHaveBeenCalledWith(
+        'drive',
+        'files.get',
+        expect.objectContaining({ fileId: 'file-1' }),
+        expect.objectContaining({ account: 'user@test.com' }),
+      );
       expect(result.text).toContain('## report.pdf');
       expect(result.refs.fileId).toBe('file-1');
     });

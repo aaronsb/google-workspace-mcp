@@ -1,14 +1,11 @@
-import { beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
-vi.mock('../../../executor/gws.js');
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { execute } from '../../../executor/gws.js';
+// The tracker's three probes (unread, today, next event) are RESOURCE calls, so
+// they go through the client we own — not gws (ADR-103). A mocked `call()`
+// returns raw Google JSON: no { success, data, stderr } envelope.
+vi.mock('../../../google/client.js');
+import { mockCall } from '../handlers/__mocks__/client.js';
 import { SessionTracker } from '../../../server/session/tracker.js';
-
-const mockExecute = execute as MockedFunction<typeof execute>;
-
-function mockGwsResponse(data: unknown) {
-  return { success: true, data, stderr: '' };
-}
 
 describe('SessionTracker', () => {
   let tracker: SessionTracker;
@@ -20,12 +17,12 @@ describe('SessionTracker', () => {
 
   describe('ensureBaseline', () => {
     it('captures baseline counts on first call', async () => {
-      mockExecute
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 5, messages: [] }))   // unread
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 12, messages: [] }))  // today
-        .mockResolvedValueOnce(mockGwsResponse({                                           // calendar
+      mockCall
+        .mockResolvedValueOnce({ resultSizeEstimate: 5, messages: [] })   // unread
+        .mockResolvedValueOnce({ resultSizeEstimate: 12, messages: [] })  // today
+        .mockResolvedValueOnce({                                           // calendar
           items: [{ summary: 'Standup', start: { dateTime: '2026-03-31T10:00:00Z' } }],
-        }));
+        });
 
       await tracker.ensureBaseline('user@test.com', 1);
 
@@ -40,23 +37,23 @@ describe('SessionTracker', () => {
     });
 
     it('is idempotent — second call does not re-execute', async () => {
-      mockExecute
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 5, messages: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 12, messages: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({ items: [] }));
+      mockCall
+        .mockResolvedValueOnce({ resultSizeEstimate: 5, messages: [] })
+        .mockResolvedValueOnce({ resultSizeEstimate: 12, messages: [] })
+        .mockResolvedValueOnce({ items: [] });
 
       await tracker.ensureBaseline('user@test.com', 1);
-      const callCount = mockExecute.mock.calls.length;
+      const callCount = mockCall.mock.calls.length;
 
       await tracker.ensureBaseline('user@test.com', 2);
-      expect(mockExecute.mock.calls.length).toBe(callCount);
+      expect(mockCall.mock.calls.length).toBe(callCount);
     });
 
     it('handles partial API failures gracefully', async () => {
-      mockExecute
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 5, messages: [] }))   // unread ok
+      mockCall
+        .mockResolvedValueOnce({ resultSizeEstimate: 5, messages: [] })   // unread ok
         .mockRejectedValueOnce(new Error('quota exceeded'))                                 // today fails
-        .mockResolvedValueOnce(mockGwsResponse({ items: [] }));                             // calendar ok
+        .mockResolvedValueOnce({ items: [] });                             // calendar ok
 
       await tracker.ensureBaseline('user@test.com', 1);
 
@@ -69,13 +66,13 @@ describe('SessionTracker', () => {
     });
 
     it('tracks accounts independently', async () => {
-      mockExecute
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 3, messages: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 8, messages: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({ items: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 10, messages: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 20, messages: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({ items: [] }));
+      mockCall
+        .mockResolvedValueOnce({ resultSizeEstimate: 3, messages: [] })
+        .mockResolvedValueOnce({ resultSizeEstimate: 8, messages: [] })
+        .mockResolvedValueOnce({ items: [] })
+        .mockResolvedValueOnce({ resultSizeEstimate: 10, messages: [] })
+        .mockResolvedValueOnce({ resultSizeEstimate: 20, messages: [] })
+        .mockResolvedValueOnce({ items: [] });
 
       await tracker.ensureBaseline('a@test.com', 1);
       await tracker.ensureBaseline('b@test.com', 2);
@@ -88,20 +85,20 @@ describe('SessionTracker', () => {
   describe('refresh', () => {
     it('updates current counts but not baseline', async () => {
       // Baseline
-      mockExecute
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 5, messages: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 12, messages: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({ items: [] }));
+      mockCall
+        .mockResolvedValueOnce({ resultSizeEstimate: 5, messages: [] })
+        .mockResolvedValueOnce({ resultSizeEstimate: 12, messages: [] })
+        .mockResolvedValueOnce({ items: [] });
 
       await tracker.ensureBaseline('user@test.com', 1);
 
       // Refresh
-      mockExecute
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 8, messages: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 15, messages: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({
+      mockCall
+        .mockResolvedValueOnce({ resultSizeEstimate: 8, messages: [] })
+        .mockResolvedValueOnce({ resultSizeEstimate: 15, messages: [] })
+        .mockResolvedValueOnce({
           items: [{ summary: 'Lunch', start: { dateTime: '2026-03-31T12:00:00Z' } }],
-        }));
+        });
 
       tracker.refresh('user@test.com', 11); // epoch >= baseline + 10 triggers refresh
       // Wait for fire-and-forget to complete
@@ -117,15 +114,15 @@ describe('SessionTracker', () => {
 
     it('retains previous values on refresh failure', async () => {
       // Baseline
-      mockExecute
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 5, messages: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 12, messages: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({ items: [] }));
+      mockCall
+        .mockResolvedValueOnce({ resultSizeEstimate: 5, messages: [] })
+        .mockResolvedValueOnce({ resultSizeEstimate: 12, messages: [] })
+        .mockResolvedValueOnce({ items: [] });
 
       await tracker.ensureBaseline('user@test.com', 1);
 
       // Refresh — all fail
-      mockExecute
+      mockCall
         .mockRejectedValueOnce(new Error('network'))
         .mockRejectedValueOnce(new Error('network'))
         .mockRejectedValueOnce(new Error('network'));
@@ -139,23 +136,23 @@ describe('SessionTracker', () => {
     });
 
     it('skips refresh when epoch distance < 10', async () => {
-      mockExecute
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 5, messages: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 12, messages: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({ items: [] }));
+      mockCall
+        .mockResolvedValueOnce({ resultSizeEstimate: 5, messages: [] })
+        .mockResolvedValueOnce({ resultSizeEstimate: 12, messages: [] })
+        .mockResolvedValueOnce({ items: [] });
 
       await tracker.ensureBaseline('user@test.com', 1);
-      const callCount = mockExecute.mock.calls.length;
+      const callCount = mockCall.mock.calls.length;
 
       tracker.refresh('user@test.com', 5); // only 4 epochs since baseline
       await new Promise(r => setTimeout(r, 50));
 
-      expect(mockExecute.mock.calls.length).toBe(callCount); // no new calls
+      expect(mockCall.mock.calls.length).toBe(callCount); // no new calls
     });
 
     it('skips refresh for uninitialized account', () => {
       tracker.refresh('unknown@test.com', 1);
-      expect(mockExecute).not.toHaveBeenCalled();
+      expect(mockCall).not.toHaveBeenCalled();
     });
   });
 
@@ -167,10 +164,10 @@ describe('SessionTracker', () => {
 
   describe('reset', () => {
     it('clears all sessions', async () => {
-      mockExecute
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 5, messages: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({ resultSizeEstimate: 12, messages: [] }))
-        .mockResolvedValueOnce(mockGwsResponse({ items: [] }));
+      mockCall
+        .mockResolvedValueOnce({ resultSizeEstimate: 5, messages: [] })
+        .mockResolvedValueOnce({ resultSizeEstimate: 12, messages: [] })
+        .mockResolvedValueOnce({ items: [] });
 
       await tracker.ensureBaseline('user@test.com', 1);
       expect(tracker.getContext('user@test.com')).toBeDefined();

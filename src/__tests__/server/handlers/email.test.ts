@@ -1,16 +1,24 @@
 import { vi, beforeEach, describe, expect, it } from 'vitest';
 
 // Registered here, not in the shared helper: vi.mock hoists per-file.
+// BOTH seams are mocked (ADR-103): `search`/`read` are resource ops and go
+// through the client; `triage` and `send` are still gws helpers (+triage/+send)
+// and go through execute().
 vi.mock('../../../executor/gws.js');
+vi.mock('../../../google/client.js');
+import { mockExecute, mockGwsResponse, gmailTriageResponse } from './__mocks__/executor.js';
+import { mockCall } from './__mocks__/client.js';
 import {
-  mockExecute, mockGwsResponse,
-  gmailTriageResponse, gmailMessageDetailResponse, gmailSendResponse, gmailMessageListResponse,
+  gmailMessageDetailResponse, gmailSendResponse, gmailMessageListResponse,
   gmailMetadataResponse,
-} from './__mocks__/executor.js';
+} from './__mocks__/fixtures.js';
 import { handleEmail } from '../../../server/handlers/email.js';
 
 describe('handleEmail', () => {
-  beforeEach(() => mockExecute.mockReset());
+  beforeEach(() => {
+    mockExecute.mockReset();
+    mockCall.mockReset();
+  });
 
   it('rejects missing email', async () => {
     await expect(handleEmail({ operation: 'triage' })).rejects.toThrow('valid email');
@@ -34,26 +42,33 @@ describe('handleEmail', () => {
   });
 
   describe('search', () => {
-    it('passes query to gws and hydrates results with metadata', async () => {
+    it('passes the query to users.messages.list and hydrates results with metadata', async () => {
       // First call: messages.list returns IDs only
       // Subsequent calls: messages.get with format=metadata for each ID
-      mockExecute
-        .mockResolvedValueOnce(mockGwsResponse(gmailMessageListResponse))
-        .mockResolvedValueOnce(mockGwsResponse(gmailMetadataResponse('msg-1', 'alice@test.com', 'Hello', 'Mon, 10 Mar 2026')))
-        .mockResolvedValueOnce(mockGwsResponse(gmailMetadataResponse('msg-2', 'bob@test.com', 'Meeting', 'Mon, 10 Mar 2026')));
+      mockCall
+        .mockResolvedValueOnce(gmailMessageListResponse)
+        .mockResolvedValueOnce(gmailMetadataResponse('msg-1', 'alice@test.com', 'Hello', 'Mon, 10 Mar 2026'))
+        .mockResolvedValueOnce(gmailMetadataResponse('msg-2', 'bob@test.com', 'Meeting', 'Mon, 10 Mar 2026'));
 
       const result = await handleEmail({ operation: 'search', email: 'user@test.com', query: 'from:alice' });
 
-      // Verify list call
-      const listArgs = mockExecute.mock.calls[0][0];
-      const listParams = JSON.parse(listArgs[listArgs.indexOf('--params') + 1]);
-      expect(listParams.q).toBe('from:alice');
-      expect(listParams.userId).toBe('me');
+      // The list call: `query` maps to `q`, and userId defaults to `me`.
+      expect(mockCall).toHaveBeenNthCalledWith(
+        1,
+        'gmail',
+        'users.messages.list',
+        expect.objectContaining({ q: 'from:alice', userId: 'me' }),
+        expect.objectContaining({ account: 'user@test.com' }),
+      );
 
-      // Verify hydration calls used metadata format
-      const getArgs = mockExecute.mock.calls[1][0];
-      const getParams = JSON.parse(getArgs[getArgs.indexOf('--params') + 1]);
-      expect(getParams.format).toBe('metadata');
+      // The hydration calls: messages.get with format=metadata.
+      expect(mockCall).toHaveBeenNthCalledWith(
+        2,
+        'gmail',
+        'users.messages.get',
+        expect.objectContaining({ userId: 'me', id: 'msg-1', format: 'metadata' }),
+        expect.objectContaining({ account: 'user@test.com' }),
+      );
 
       // Verify formatted output has actual content
       expect(result.text).toContain('alice@test.com');
@@ -62,21 +77,18 @@ describe('handleEmail', () => {
     });
 
     it('clamps maxResults to 50', async () => {
-      mockExecute
-        .mockResolvedValueOnce(mockGwsResponse({ messages: [] }));
+      mockCall.mockResolvedValueOnce({ messages: [] });
       await handleEmail({ operation: 'search', email: 'user@test.com', maxResults: 200 });
 
-      const args = mockExecute.mock.calls[0][0];
-      const params = JSON.parse(args[args.indexOf('--params') + 1]);
-      expect(params.maxResults).toBe(50);
+      expect(mockCall.mock.calls[0][2].maxResults).toBe(50);
     });
 
     it('handles empty search results without hydration calls', async () => {
-      mockExecute.mockResolvedValueOnce(mockGwsResponse({ messages: [], resultSizeEstimate: 0 }));
+      mockCall.mockResolvedValueOnce({ messages: [], resultSizeEstimate: 0 });
 
       const result = await handleEmail({ operation: 'search', email: 'user@test.com', query: 'nonexistent' });
 
-      expect(mockExecute).toHaveBeenCalledTimes(1); // only the list call
+      expect(mockCall).toHaveBeenCalledTimes(1); // only the list call
       expect(result.text).toContain('No messages found');
     });
   });
@@ -87,9 +99,15 @@ describe('handleEmail', () => {
     });
 
     it('returns markdown email detail', async () => {
-      mockExecute.mockResolvedValue(mockGwsResponse(gmailMessageDetailResponse));
+      mockCall.mockResolvedValue(gmailMessageDetailResponse);
       const result = await handleEmail({ operation: 'read', email: 'user@test.com', messageId: 'msg-1' });
 
+      expect(mockCall).toHaveBeenCalledWith(
+        'gmail',
+        'users.messages.get',
+        expect.objectContaining({ id: 'msg-1', userId: 'me' }),
+        expect.objectContaining({ account: 'user@test.com' }),
+      );
       expect(result.text).toContain('## Test Subject');
       expect(result.text).toContain('**From:** alice@test.com');
       expect(result.refs.from).toBe('alice@test.com');
