@@ -11,7 +11,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { readFile } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { basename, isAbsolute } from 'node:path';
 
 import { call, download, upload } from '../../google/client.js';
 import { lookupMimeType } from '../gmail/mime.js';
@@ -53,7 +53,17 @@ export const drivePatch: ServicePatch = {
      * for a small file.
      */
     upload: async (params, account): Promise<HandlerResponse> => {
-      const filePath = requireString(params, 'filePath');
+      // A RELATIVE path is workspace-relative — the same convention `download`,
+      // `export` and email attachments already use. It used to resolve against the
+      // server's cwd (which is wherever the MCP client happened to launch it, often
+      // `/`), so a file just written by manage_workspace or a scratchpad `send` could
+      // not be uploaded by the name it was given: `ENOENT: smoke/report.md`. The two
+      // halves of the same tool disagreed about what a path meant.
+      //
+      // Absolute paths are untouched, so anything uploading from outside the workspace
+      // keeps working.
+      const given = requireString(params, 'filePath');
+      const filePath = isAbsolute(given) ? given : resolveWorkspacePath(given);
       await verifyPathSafety(filePath);
       const media = await readFile(filePath);
 
