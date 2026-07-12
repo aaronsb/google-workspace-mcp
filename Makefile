@@ -204,17 +204,34 @@ _release-commit:
 
 # --- Publishing ---
 
-publish-all: mcpb-all ## Publish to npm, MCP Registry, GitHub Release
+check-release-tag: ## Refuse to publish unless v$(VERSION) is tagged AT the commit we are publishing
+	@tag="v$(VERSION)"; \
+	git rev-parse -q --verify "refs/tags/$$tag" >/dev/null || { \
+	  echo "check-release-tag: no tag $$tag."; \
+	  echo "  package.json says $(VERSION), but nothing is tagged for it."; \
+	  echo "  Fix: git tag -a $$tag <release-commit> -m \"$$tag\""; exit 1; }; \
+	tagged=$$(git rev-parse "$$tag^{}"); head=$$(git rev-parse HEAD); \
+	if [ "$$tagged" != "$$head" ]; then \
+	  echo "check-release-tag: $$tag points at $$(git log --oneline -1 $$tagged)"; \
+	  echo "  but HEAD is        $$(git log --oneline -1 $$head)"; \
+	  echo "  Publishing would ship HEAD's code under a tag that names a different commit."; \
+	  echo "  (This is not hypothetical: v3.0.0 was first cut on the wrong commit.)"; exit 1; \
+	fi; \
+	echo "check-release-tag: $$tag -> $$(git log --oneline -1 $$tagged)"
+
+publish-all: check-release-tag mcpb-all ## Publish to npm, MCP Registry, GitHub Release
 	@echo ""
 	@echo "Publishing v$(VERSION) to all channels."
-	@echo "  1. npm (requires OTP)"
+	@echo "  1. npm (2FA in the browser — passkey/security key)"
 	@echo "  2. MCP Registry (requires GitHub auth)"
 	@echo "  3. GitHub Release (with all .mcpb bundles)"
 	@echo ""
 	@read -p "Continue? [y/N] " confirm && [ "$$confirm" = "y" ] || (echo "Aborted." && exit 1)
 	@echo ""
 	@echo "── npm ──"
-	@read -p "npm OTP: " otp && npm publish --access public --otp "$$otp"
+	@who=$$(npm whoami 2>/dev/null) && echo "npm: logged in as $$who" || { \
+	  echo "npm: not logged in — starting 'npm login' (2FA in the browser)"; npm login; }
+	npm publish --access public
 	@echo ""
 	@echo "── MCP Registry ──"
 	mcp-publisher login github
