@@ -5,96 +5,9 @@
 [![Node](https://img.shields.io/node/v/@aaronsb/google-workspace-mcp?logo=node.js&label=node)](https://nodejs.org)
 [![License](https://img.shields.io/github/license/aaronsb/google-workspace-mcp)](LICENSE)
 
-Give AI agents real access to Google Workspace — Gmail, Calendar, Drive, Docs, Sheets, Tasks, and Meet — through a single MCP server that handles multi-account credential routing, response shaping for AI consumption, and contextual next-step guidance.
+**Give your AI agent real access to Google Workspace** — Gmail, Calendar, Drive, Docs, Sheets, Tasks and Meet — from one MCP server, across as many accounts as you have.
 
-The server talks to Google's REST APIs directly, through a client it builds **from Google's own machine-readable API specifications**. Google publishes a [Discovery document](https://developers.google.com/discovery) for every API; a build step reads them and generates the descriptor this server dispatches against. Google's API surface *is* the source of truth — not a hand-maintained wrapper, and not a third-party CLI.
-
-## Why This MCP Server
-
-**For users:** One install gives your agent authenticated access to your Google accounts. Search email, check your calendar, manage Drive files, chain multi-step workflows — through natural conversation.
-
-**For teams:** Multi-account support lets one agent work across personal and work accounts at once, with per-account credential isolation and XDG-compliant storage.
-
-**For developers:** Adding an operation is a YAML edit, not a code change. The manifest curates which of Google's methods to expose; the generated descriptor already knows every method's path, HTTP verb, parameters, and scopes. Nothing is transcribed by hand, so nothing drifts from Google.
-
-## What's Available
-
-**11 tools — 7 Google services (80 operations), plus accounts, batching, content authoring, and a file sandbox.**
-
-| Tool | What It Does |
-|------|--------------|
-| `manage_email` | Gmail — search, read (plain or sanitized HTML), send, reply / reply-all, forward, triage, trash, labels, threads, attachments |
-| `manage_calendar` | Calendar — list, agenda, get, create, quickAdd (natural language), update, delete, calendars, freebusy |
-| `manage_drive` | Drive — search, get, upload, download, copy, rename / move, delete, export, permissions, comments, view images |
-| `manage_sheets` | Sheets — read / write ranges (row-numbered output), append, clear, manage tabs, copy / duplicate / rename |
-| `manage_docs` | Docs — get, create, append, insert text, find-and-replace |
-| `manage_tasks` | Tasks — list / create / update / complete tasks and task lists |
-| `manage_meet` | Meet — browse past conferences, participants, transcripts, recordings, smart notes |
-| `manage_accounts` | Multi-account lifecycle — add accounts, manage credentials and scopes |
-| `manage_scratchpad` | Compose / edit multi-line content (line- or JSON-path-addressed), attach files, send to any target; JSON mode live-syncs to Docs / Sheets |
-| `manage_workspace` | File operations in the workspace sandbox (exchange point for attachments, downloads, exports) |
-| `queue_operations` | Chain operations sequentially with `$N.field` result references |
-
-Every response carries **next-steps** guidance, so the agent always knows what it can do next.
-
-Those 80 operations reach 60 of the 233 methods Google publishes across these seven APIs.
-
-**Missing something you need?** The rest of the surface is mapped, not guessed. **[Browse every method Google publishes](docs/api-surface.md)** — what it does, whether we expose it, and a one-click link to request it. The descriptions are Google's own, and the page is generated from the same specification the client is built from, so it can't drift.
-
-The subset is curated on purpose: an agent has to *choose* among these, and every method it must weigh is one it can pick wrongly. But that judgement was made without you — if it's wrong for your case, **[say so](docs/coverage.md)**. A good request names the task, not the method.
-
-## How It Works
-
-Two phases. Google's API specification is acquired at **build time** and frozen into a committed artifact; at **runtime** the server only reads it.
-
-### Build time — acquire the specification
-
-```mermaid
-flowchart LR
-    disco["Google Discovery<br>documents"] --> gen["descriptor generator<br>generate-descriptor.mjs"]
-    gen --> desc[("src/google/descriptor.json<br>233 methods · committed<br>paths · verbs · params · scopes")]
-    desc --> gate{{"CI drift gate<br>regenerate and compare"}}
-
-    classDef external fill:#f6821f,color:#1a1a1a,stroke:#d97706
-    classDef process  fill:#2d7d9a,color:#ffffff,stroke:#4a5568
-    classDef artifact fill:#2d8e5e,color:#ffffff,stroke:#4a5568
-    classDef guard    fill:#fbbf24,color:#1a1a1a,stroke:#d97706
-    class disco external
-    class gen process
-    class desc artifact
-    class gate guard
-```
-
-### Runtime — dispatch against it
-
-```mermaid
-flowchart LR
-    mcp["MCP client"] -->|stdio| factory["factory generator<br>schemas + handlers"]
-    manifest["manifest/*.yaml<br>which ops to expose"] --> factory
-    factory --> patches["patches<br>Gmail hydration · agenda merge · MIME"]
-    patches --> client["Google API client<br>+ account router"]
-    desc[("descriptor.json")] -. read at startup .-> client
-    client --> google["Google REST APIs"]
-
-    classDef external fill:#f6821f,color:#1a1a1a,stroke:#d97706
-    classDef artifact fill:#2d8e5e,color:#ffffff,stroke:#4a5568
-    classDef config   fill:#fbbf24,color:#1a1a1a,stroke:#d97706
-    classDef core     fill:#7c3aed,color:#ffffff,stroke:#8b5cf6
-    classDef inert    fill:#475569,color:#ffffff,stroke:#94a3b8
-    class google external
-    class desc artifact
-    class manifest config
-    class factory,patches,client core
-    class mcp inert
-```
-
-**The descriptor** is generated from Google's Discovery documents and committed. A CI drift gate re-generates it and fails if the result differs, so the spec we dispatch against cannot silently fall behind Google.
-
-**The client** (`src/google/client.ts`) is deliberately opinion-free: it builds the request Google's spec describes and returns exactly what Google returned. It does not reshape responses. All interpretation lives in patches and formatters, aimed at the MCP contract — which is what keeps "what Google said" and "what we chose to show" separable.
-
-**The factory** reads the YAML manifest and generates MCP tool schemas and handlers at startup. **Patches** add behavior where an agent needs more than a raw API response — hydrating Gmail search results with senders and subjects, merging an agenda across calendars, building MIME for outbound mail. Operations without a patch get sensible defaults.
-
-Because method names are generated into a TypeScript union, calling a method Google doesn't publish is a **compile error**, not a 404 at runtime.
+Search your mail, check your calendar, write a doc, file a task — in conversation, as yourself.
 
 ## Install
 
@@ -169,6 +82,122 @@ Or install it globally and point at the binary directly:
 npm install -g @aaronsb/google-workspace-mcp
 ```
 
+## How it fits together
+
+```mermaid
+flowchart LR
+    human["🧑 You<br>ask in plain language"]
+    agent["🤖 Your AI agent<br>Claude Desktop, Claude Code…"]
+    server["⚙️ This MCP server<br>picks the right account,<br>builds the real request"]
+    keys[("🔑 Your accounts<br>OAuth tokens, kept<br>on your own machine")]
+    google["☁️ Google<br>Gmail · Calendar · Drive<br>Docs · Sheets · Tasks · Meet"]
+
+    human -->|"“what's on my calendar?”"| agent
+    agent -->|"tool call"| server
+    server <-->|"which account?"| keys
+    server -->|"real API call, as you"| google
+    google -->|"your data"| server
+    server -->|"shaped for an agent<br>+ what to do next"| agent
+    agent -->|"an answer"| human
+
+    classDef person   fill:#475569,color:#ffffff,stroke:#94a3b8
+    classDef robot    fill:#2d7d9a,color:#ffffff,stroke:#4a5568
+    classDef ours     fill:#7c3aed,color:#ffffff,stroke:#8b5cf6
+    classDef secrets  fill:#2d8e5e,color:#ffffff,stroke:#4a5568
+    classDef external fill:#f6821f,color:#1a1a1a,stroke:#d97706
+
+    class human person
+    class agent robot
+    class server ours
+    class keys secrets
+    class google external
+```
+
+**Your credentials never leave your machine.** The server holds an OAuth token per account, on your own disk, and calls Google *as you* — there is no middleman service, no account of ours, nothing to sign up for. Add as many accounts as you like (personal and work, side by side); the server routes each request to the right one.
+
+## What it can do
+
+**11 tools across 7 Google services**, plus multi-account handling, batching, content authoring, and a file sandbox.
+
+| Tool | What It Does |
+|------|--------------|
+| `manage_email` | Gmail — search, read (plain or sanitized HTML), send, reply / reply-all, forward, triage, trash, labels, threads, attachments |
+| `manage_calendar` | Calendar — list, agenda, get, create, quickAdd (natural language), update, delete, calendars, freebusy |
+| `manage_drive` | Drive — search, get, upload, download, copy, rename / move, delete, export, permissions, comments, view images |
+| `manage_sheets` | Sheets — read / write ranges (row-numbered output), append, clear, manage tabs, copy / duplicate / rename |
+| `manage_docs` | Docs — get, create, append, insert text, find-and-replace |
+| `manage_tasks` | Tasks — list / create / update / complete tasks and task lists |
+| `manage_meet` | Meet — browse past conferences, participants, transcripts, recordings, smart notes |
+| `manage_accounts` | Multi-account lifecycle — add accounts, manage credentials and scopes |
+| `manage_scratchpad` | Compose / edit multi-line content (line- or JSON-path-addressed), attach files, send to any target; JSON mode live-syncs to Docs / Sheets |
+| `manage_workspace` | File operations in the workspace sandbox (exchange point for attachments, downloads, exports) |
+| `queue_operations` | Chain operations sequentially with `$N.field` result references |
+
+Every response carries **next-steps** guidance, so the agent always knows what it can do next.
+
+## One ask, many steps
+
+The useful part isn't any single operation — it's that your agent can **string them together**.
+
+You ask for one thing. The agent works out that it needs four API calls, in order, each one feeding the next:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant H as 🧑 You
+    participant A as 🤖 Your agent
+    participant S as ⚙️ MCP server
+    participant G as ☁️ Google
+
+    H->>A: "file the invoice from Acme<br>and remind me to pay it Friday"
+    A->>S: find the email
+    S->>G: search Gmail
+    G-->>S: the message
+    S-->>A: found it — and here's what you can do next
+    A->>S: save the attachment
+    S->>G: download it
+    A->>S: put it in Drive
+    S->>G: upload
+    A->>S: create a task, due Friday
+    S->>G: Google Tasks
+    A-->>H: Done. Invoice filed, task set for Friday.
+```
+
+Two things make this work. Every response tells the agent **what it can do next**, so it isn't guessing at the next step. And `queue_operations` lets it run a whole chain in **one call**, feeding each result into the next — so "find the invoice, file it, remind me" is a single round trip rather than four.
+
+## Ask for what's missing
+
+This server exposes **80 operations**, reaching 60 of the **233 methods** Google publishes across those seven APIs. It is a curated subset on purpose: an agent has to *choose* among these, and every method it must weigh is one it can pick wrongly. A tool with 233 operations isn't more capable than one with 80 — it's harder to use correctly.
+
+But that judgement was made without you.
+
+**→ [Browse every method Google publishes](docs/api-surface.md)**
+
+Every method is listed — what it does, whether we expose it, and a **Request** link that opens a pre-filled issue. The descriptions are Google's own, quoted verbatim, and the page is generated from the same specification the client is built from, so it can't drift from reality.
+
+That page also lists **four whole APIs this server doesn't touch yet** — Chat, Contacts, Slides and Forms — for the same reason: *not targeted* is a decision, not a fact of nature.
+
+A good request **names the task, not the method**:
+
+> *"I want the agent to file incoming invoices into a folder automatically."*
+
+That can be evaluated. It might turn out an existing operation already does it, or that the right answer is a different method than the one you found. *"Expose `users.settings.filters.create`"* is a conclusion, not a case — lead with the problem and let the method follow.
+
+## Why Apache 2.0, and not open core
+
+**Everything is here.** There is no paid tier, no "enterprise" build, no feature held back to sell you later. What you install is what exists.
+
+Open core works by keeping the good part back. The free thing is a lead magnet, and the moment your use gets serious you discover the operation you need lives behind a licence. That model would be especially rotten *here*: this is a piece of plumbing between you and **your own data**, using **your own Google credentials**, running on **your own machine**. Nothing about that arrangement should have a paywall in the middle of it, and nothing about it needs a vendor.
+
+[Apache 2.0](LICENSE) rather than MIT for two concrete reasons:
+
+- **An explicit patent grant.** Contributors licence their patent claims along with their code, so using this can't become a patent problem later. MIT is silent on patents, which means the question is merely unanswered rather than settled.
+- **It's safe to adopt at work.** Apache 2.0 is on essentially every corporate allow-list. Fork it, vendor it, ship it inside a commercial product — you don't owe anyone anything, and you don't need to ask.
+
+The one obligation is attribution: keep the notices ([`NOTICE`](NOTICE), [`LICENSE`](LICENSE)) with the code. That's it.
+
+Through v3.0.0 this project was MIT-licensed, and that history is preserved rather than erased — MIT-era contributions keep their original notice in [`LICENSE-MIT`](LICENSE-MIT), and their authors are credited in [`NOTICE`](NOTICE). Apache 2.0 takes back nothing MIT permitted.
+
 ## Usage
 
 Add an account (opens a browser for OAuth):
@@ -198,20 +227,7 @@ Chain operations with result references — the output of one step feeds the nex
 }
 ```
 
-## Expanding Coverage
-
-The coverage mapper diffs what the manifest exposes against what Google actually publishes, so the frontier is always measured rather than estimated:
-
-```bash
-npm run generate-descriptor   # re-read Google's Discovery documents
-make coverage                 # what we expose vs. what Google offers
-make manifest-lint            # validate the curated manifest
-make check                    # type-check, lint, test, build, smoke
-```
-
-To expose a new operation, add it to the relevant `src/factory/manifest/*.yaml`. The descriptor already knows its path, verb, parameters, and scopes, and the factory generates the tool schema and handler. New operations get default formatting automatically — add a patch only when an agent needs a shaped response rather than a raw one.
-
-## Data Storage
+## Where your data lives
 
 Follows the XDG Base Directory Specification:
 
@@ -223,19 +239,17 @@ Follows the XDG Base Directory Specification:
 
 Credentials are per-account files holding standard OAuth tokens. No secrets are stored in the project directory.
 
-## Design
+## Under the hood
 
-The server generates its API client from Google's own Discovery documents and calls Google directly. Nothing sits between the server and the API it targets: there is no subprocess, no second response shape, and no unversioned wrapper to keep in step. The descriptor is regenerated and diffed against Google on every build, so a method that does not exist is a compile error rather than a runtime surprise.
+You don't need any of this to use the server. But if you're curious, or you want to add an operation:
 
-On top of that sits the manifest-driven tool factory: adding an operation is a YAML edit, not a code change. The coverage mapper reads Google's real published surface, so "what we expose vs what exists" is a measured number.
+The server builds its Google API client **from Google's own machine-readable API specifications**. Nothing is transcribed by hand, so the surface can't drift from reality, and adding an operation is a YAML edit rather than a code change.
 
-The reasoning behind this design, including what was verified and what it cost, is in **[ADR-103](docs/architecture/core/ADR-103-generate-a-google-api-descriptor-retire-the-gws-facade.md)**.
+- **[How it works](docs/how-it-works.md)** — the build-time / runtime split, the descriptor, the factory
+- **[API coverage](docs/coverage.md)** — what's exposed, what isn't, and how to ask for more
+- **[The full API surface](docs/api-surface.md)** — every method Google publishes, plus the four APIs we don't target yet
+- **[Architecture decisions](docs/architecture/)** — the ADRs, including why this server owns its Google client outright
 
 ## License
 
-[Apache License 2.0](LICENSE).
-
-Through v3.0.0 this project was MIT-licensed. Those contributions keep their original
-notice (`LICENSE-MIT`), and the contributors are credited in [`NOTICE`](NOTICE). Apache 2.0
-adds an explicit patent grant and a state-your-changes requirement; it does not take back
-anything MIT permitted.
+[Apache License 2.0](LICENSE) — see [Why Apache 2.0](#why-apache-20-and-not-open-core) above.
