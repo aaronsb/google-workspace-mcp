@@ -9,7 +9,7 @@
  *   → participant resolution into a single agent-friendly response
  */
 
-import { execute } from '../../executor/gws.js';
+import { call } from '../../google/client.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
@@ -331,12 +331,12 @@ async function getFullTranscript(
   const parent = confId.startsWith('conferenceRecords/') ? confId : `conferenceRecords/${confId}`;
 
   // Step 1: List transcripts for this conference
-  const transcriptsResult = await execute([
-    'meet', 'conferenceRecords', 'transcripts', 'list',
-    '--params', JSON.stringify({ parent }),
-  ], { account, format: 'json' });
-
-  const transcriptsData = transcriptsResult.data as Record<string, unknown>;
+  const transcriptsData = await call(
+    'meet',
+    'conferenceRecords.transcripts.list',
+    { parent },
+    { account },
+  ) as Record<string, unknown>;
   const transcripts = (transcriptsData?.transcripts ?? []) as Array<Record<string, unknown>>;
 
   if (transcripts.length === 0) {
@@ -352,18 +352,11 @@ async function getFullTranscript(
   const entriesParams: Record<string, unknown> = { parent: transcriptName, pageSize: 100 };
   if (pageToken) entriesParams.pageToken = pageToken;
 
-  const [entriesResult, participantsResult] = await Promise.all([
-    execute([
-      'meet', 'conferenceRecords', 'transcripts', 'entries', 'list',
-      '--params', JSON.stringify(entriesParams),
-    ], { account, format: 'json' }),
-    execute([
-      'meet', 'conferenceRecords', 'participants', 'list',
-      '--params', JSON.stringify({ parent, pageSize: 100 }),
-    ], { account, format: 'json' }),
-  ]);
+  const [entriesData, participantsData] = await Promise.all([
+    call('meet', 'conferenceRecords.transcripts.entries.list', entriesParams, { account }),
+    call('meet', 'conferenceRecords.participants.list', { parent, pageSize: 100 }, { account }),
+  ]) as [Record<string, unknown>, Record<string, unknown>];
 
-  const entriesData = entriesResult.data as Record<string, unknown>;
   const entries = (entriesData?.transcriptEntries ?? []) as Array<Record<string, unknown>>;
 
   if (entries.length === 0) {
@@ -374,7 +367,6 @@ async function getFullTranscript(
   }
 
   // Step 3: Build participant ID → display name map
-  const participantsData = participantsResult.data as Record<string, unknown>;
   const participants = (participantsData?.participants ?? []) as Array<Record<string, unknown>>;
   const nameMap = new Map<string, string>();
   for (const p of participants) {
@@ -435,25 +427,34 @@ async function getFullTranscript(
 }
 
 /**
- * Prefix a bare conference ID with "conferenceRecords/" in the --params JSON.
- * The Meet API requires full resource names but agents pass bare IDs.
+ * Prefix a bare conference ID with "conferenceRecords/".
+ *
+ * Meet's API takes full resource names ("conferenceRecords/abc"); agents pass
+ * bare IDs. This is OUR opinion, applied in OUR layer — exactly where it belongs.
+ *
+ * It used to do this by re-serialising an argv slot's JSON. The seam now carries
+ * params, so it is a plain object transform (ADR-103).
+ *
+ * Note these values are precisely the ones that must reach the wire with their
+ * slash INTACT: Meet's paths are `{+name}` / `{+parent}`, RFC 6570 reserved
+ * expansion, and percent-encoding that `/` 404s every Meet sub-resource call. The
+ * client honours the `+`; see src/google/client.ts.
  */
-function prefixResourceName(args: string[], paramKey: string, prefix: string): string[] {
-  const idx = args.indexOf('--params');
-  if (idx === -1 || idx + 1 >= args.length) return args;
-  const gwsParams = JSON.parse(args[idx + 1]);
-  if (gwsParams[paramKey] && !String(gwsParams[paramKey]).startsWith(prefix)) {
-    gwsParams[paramKey] = `${prefix}${gwsParams[paramKey]}`;
-    args[idx + 1] = JSON.stringify(gwsParams);
-  }
-  return args;
+function prefixResourceName(
+  params: Record<string, unknown>,
+  paramKey: string,
+  prefix: string,
+): Record<string, unknown> {
+  const value = params[paramKey];
+  if (!value || String(value).startsWith(prefix)) return params;
+  return { ...params, [paramKey]: `${prefix}${value}` };
 }
 
-const prefixConferenceParent = async (args: string[]) =>
-  prefixResourceName(args, 'parent', 'conferenceRecords/');
+const prefixConferenceParent = async (params: Record<string, unknown>) =>
+  prefixResourceName(params, 'parent', 'conferenceRecords/');
 
-const prefixConferenceName = async (args: string[]) =>
-  prefixResourceName(args, 'name', 'conferenceRecords/');
+const prefixConferenceName = async (params: Record<string, unknown>) =>
+  prefixResourceName(params, 'name', 'conferenceRecords/');
 
 export const meetPatch: ServicePatch = {
   beforeExecute: {

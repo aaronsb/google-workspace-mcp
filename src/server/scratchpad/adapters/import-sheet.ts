@@ -2,7 +2,7 @@
  * Import adapter: sheet — loads a Google Sheet as CSV lines into a scratchpad.
  */
 
-import { execute } from '../../../executor/gws.js';
+import { call } from '../../../google/client.js';
 import type { HandlerResponse } from '../../handler.js';
 import type { ScratchpadManager } from '../manager.js';
 
@@ -29,12 +29,11 @@ export async function importSheet(
     // Default to first sheet if no range specified
     const rangeArg = range ?? 'Sheet1';
 
-    const result = await execute([
-      'sheets', 'spreadsheets', 'values', 'get',
-      '--params', JSON.stringify({ spreadsheetId, range: rangeArg }),
-    ], { account: email });
+    const data = await call('sheets', 'spreadsheets.values.get', {
+      spreadsheetId,
+      range: rangeArg,
+    }, { account: email }) as Record<string, unknown>;
 
-    const data = result.data as Record<string, unknown>;
     const values = (data.values ?? []) as string[][];
 
     if (values.length === 0) {

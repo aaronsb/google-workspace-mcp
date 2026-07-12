@@ -26,6 +26,7 @@ import { pipeline } from 'node:stream/promises';
 import { getAccessToken } from '../accounts/token-service.js';
 import { GoogleApiError, type GoogleErrorBody } from './errors.js';
 import { loadDescriptor, type ApiDescriptor, type ApiMethod } from './descriptor.js';
+import type { GoogleService, ServiceMethods } from './methods.js';
 
 export interface CallOptions {
   /** Account email — the token is minted for this identity. */
@@ -135,9 +136,9 @@ function parseJson(text: string): unknown {
  * Call a Google API method. Returns RAW Google JSON — no envelope, no reshaping.
  * Throws GoogleApiError carrying Google's real error body.
  */
-export async function call(
-  service: string,
-  resourcePath: string,
+export async function call<S extends GoogleService>(
+  service: S,
+  resourcePath: ServiceMethods[S],
   params: Record<string, unknown>,
   options: CallOptions,
 ): Promise<unknown> {
@@ -175,9 +176,9 @@ export async function call(
  * ~40 MB string, then an object, then a Buffer. Here the bytes go from the socket
  * to the file and are never a string at all.
  */
-export async function download(
-  service: string,
-  resourcePath: string,
+export async function download<S extends GoogleService>(
+  service: S,
+  resourcePath: ServiceMethods[S],
   params: Record<string, unknown>,
   outputPath: string,
   options: CallOptions,
@@ -222,9 +223,9 @@ export interface UploadOptions extends CallOptions {
  * RFC822, 93% of Google's declared 36,700,160-byte cap — uploaded in 5 chunks and
  * read back byte-for-byte identical.
  */
-export async function upload(
-  service: string,
-  resourcePath: string,
+export async function upload<S extends GoogleService>(
+  service: S,
+  resourcePath: ServiceMethods[S],
   params: Record<string, unknown>,
   options: UploadOptions,
 ): Promise<unknown> {

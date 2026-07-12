@@ -5,7 +5,7 @@
  * a --json request body, not --params.
  */
 
-import { execute } from '../../executor/gws.js';
+import { call } from '../../google/client.js';
 import { requireString } from '../../server/handlers/validate.js';
 import type { ServicePatch } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
@@ -20,20 +20,15 @@ export const docsPatch: ServicePatch = {
         throw new Error('index must be a positive integer (1 = start of document body)');
       }
 
-      const body = {
+      await call('docs', 'documents.batchUpdate', {
+        documentId,
         requests: [{
           insertText: {
             text,
             location: { index },
           },
         }],
-      };
-
-      await execute([
-        'docs', 'documents', 'batchUpdate',
-        '--params', JSON.stringify({ documentId }),
-        '--json', JSON.stringify(body),
-      ], { account });
+      }, { account });
 
       return {
         text: `Text inserted at index ${index}.\n\n**Document:** ${documentId}\n**Inserted:** ${text.length} characters`,
@@ -47,7 +42,8 @@ export const docsPatch: ServicePatch = {
       const replaceWith = requireString(params, 'replaceWith');
       const matchCase = params.matchCase !== false;
 
-      const body = {
+      const data = await call('docs', 'documents.batchUpdate', {
+        documentId,
         requests: [{
           replaceAllText: {
             containsText: {
@@ -57,16 +53,9 @@ export const docsPatch: ServicePatch = {
             replaceText: replaceWith,
           },
         }],
-      };
-
-      const result = await execute([
-        'docs', 'documents', 'batchUpdate',
-        '--params', JSON.stringify({ documentId }),
-        '--json', JSON.stringify(body),
-      ], { account });
+      }, { account }) as Record<string, unknown>;
 
       // Extract occurrence count from the reply
-      const data = result.data as Record<string, unknown>;
       const replies = (data.replies as Array<Record<string, unknown>>) || [];
       const replaceReply = replies[0]?.replaceAllText as Record<string, unknown> | undefined;
       const occurrences = replaceReply?.occurrencesChanged || 0;

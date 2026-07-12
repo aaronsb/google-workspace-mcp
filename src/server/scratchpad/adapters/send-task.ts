@@ -3,7 +3,7 @@
  * First line becomes the task title, remaining lines become the notes.
  */
 
-import { execute } from '../../../executor/gws.js';
+import { call } from '../../../google/client.js';
 import type { HandlerResponse } from '../../handler.js';
 import type { ScratchpadManager } from '../manager.js';
 
@@ -43,16 +43,16 @@ export async function sendTaskCreate(
   const title = lines[titleLine].replace(/^#+\s*/, '').trim(); // strip markdown heading prefix
   const notes = lines.slice(titleLine + 1).join('\n').trim();
 
-  const requestBody: Record<string, string> = { title };
-  if (notes) requestBody.notes = notes;
+  const body: Record<string, string> = { title };
+  if (notes) body.notes = notes;
 
   try {
-    const result = await execute([
-      'tasks', 'tasks', 'insert',
-      '--params', JSON.stringify({ tasklist: taskListId, requestBody }),
-    ], { account: email });
-
-    const data = result.data as Record<string, unknown>;
+    // `tasklist` is the path param; title/notes are the request body — the old
+    // `requestBody: {...}` nesting was a gws-ism and goes at the top level now.
+    const data = await call('tasks', 'tasks.insert', {
+      tasklist: taskListId,
+      ...body,
+    }, { account: email }) as Record<string, unknown>;
 
     return {
       text: `Task created: **${title}**\n\n` +

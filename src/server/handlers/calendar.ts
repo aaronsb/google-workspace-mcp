@@ -1,4 +1,5 @@
 import { execute } from '../../executor/gws.js';
+import { call } from '../../google/client.js';
 import { formatEventList, formatEventDetail } from '../formatting/markdown.js';
 import { nextSteps } from '../formatting/next-steps.js';
 import { requireEmail, requireString, clamp } from './validate.js';
@@ -13,18 +14,15 @@ export async function handleCalendar(params: Record<string, unknown>): Promise<H
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
       const calendarId = (params.calendarId as string) || 'primary';
-      const result = await execute([
-        'calendar', 'events', 'list',
-        '--params', JSON.stringify({
-          calendarId,
-          timeMin: params.timeMin || todayStart,
-          timeMax: params.timeMax || undefined,
-          maxResults: clamp(params.maxResults, 10, 50),
-          singleEvents: true,
-          orderBy: 'startTime',
-        }),
-      ], { account: email });
-      const formatted = formatEventList(result.data);
+      const data = await call('calendar', 'events.list', {
+        calendarId,
+        timeMin: params.timeMin || todayStart,
+        timeMax: params.timeMax || undefined,
+        maxResults: clamp(params.maxResults, 10, 50),
+        singleEvents: true,
+        orderBy: 'startTime',
+      }, { account: email });
+      const formatted = formatEventList(data);
       return {
         text: formatted.text + nextSteps('calendar', 'list', { email }),
         refs: formatted.refs,
@@ -71,11 +69,8 @@ export async function handleCalendar(params: Record<string, unknown>): Promise<H
     case 'get': {
       const eventId = requireString(params, 'eventId');
       const calendarId = (params.calendarId as string) || 'primary';
-      const result = await execute([
-        'calendar', 'events', 'get',
-        '--params', JSON.stringify({ calendarId, eventId }),
-      ], { account: email });
-      const formatted = formatEventDetail(result.data);
+      const data = await call('calendar', 'events.get', { calendarId, eventId }, { account: email });
+      const formatted = formatEventDetail(data);
       return {
         text: formatted.text + nextSteps('calendar', 'get', { email, eventId }),
         refs: formatted.refs,
@@ -85,10 +80,7 @@ export async function handleCalendar(params: Record<string, unknown>): Promise<H
     case 'delete': {
       const eventId = requireString(params, 'eventId');
       const calendarId = (params.calendarId as string) || 'primary';
-      await execute([
-        'calendar', 'events', 'delete',
-        '--params', JSON.stringify({ calendarId, eventId }),
-      ], { account: email });
+      await call('calendar', 'events.delete', { calendarId, eventId }, { account: email });
       return {
         text: `Event deleted: ${eventId}` + nextSteps('calendar', 'delete', { email }),
         refs: { eventId, status: 'deleted' },

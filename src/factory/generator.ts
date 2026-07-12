@@ -13,6 +13,8 @@ import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from '../factory/yaml.js';
 import { execute } from '../executor/gws.js';
+import { call as googleCall } from '../google/client.js';
+import type { GoogleService, ServiceMethods } from '../google/methods.js';
 import { requireEmail, clamp } from '../server/handlers/validate.js';
 import { formatDefault } from './defaults.js';
 import { nextSteps } from '../server/formatting/next-steps.js';
@@ -223,21 +225,54 @@ export function generateHandler(
       };
     }
 
-    // Build gws args
-    let args = policyResult.action === 'downgrade' && policyResult.replacementArgs
-      ? policyResult.replacementArgs
-      : buildArgs(service.gws_service, opDef, params);
+    // THE SEAM (ADR-103). Resource operations go to the Google API client we own,
+    // driven by the generated descriptor. Helper operations still shell out to the
+    // gws facade — they are gws INVENTIONS with no Google method behind them, and
+    // they are dismantled next. This is deliberately a staged migration: the 70
+    // resource ops move together, and nothing else changes underneath them.
+    //
+    // Safe to do in one step because item 2 measured it: for the 26 resource ops
+    // diffed live, gws and the client returned BYTE-IDENTICAL JSON. The formatters
+    // below are reading exactly what they read before.
+    let data: unknown;
 
-    // beforeExecute hook (service-specific)
-    if (patch?.beforeExecute?.[operation]) {
-      args = await patch.beforeExecute[operation](args, ctx);
+    if (opDef.resource) {
+      let callParams = buildResourceParams(opDef, params);
+
+      // beforeExecute now takes PARAMS, not gws argv. The old hooks did JSON
+      // surgery on an argv slot — `JSON.parse(args[args.indexOf('--params') + 1])`
+      // — purely because the seam was a command line. That is gone.
+      if (patch?.beforeExecute?.[operation]) {
+        callParams = await patch.beforeExecute[operation](callParams, ctx);
+      }
+
+      // The one place a cast is honest. Here the service and the resource path come
+      // from the MANIFEST — YAML, read at runtime — so no compile-time type can
+      // check them. That is fine, because this path has its own guard at a
+      // different stage:
+      //
+      //   hand-written call sites  -> COMPILE time  (ServiceMethods[S]; see src/google/methods.ts)
+      //   manifest-driven ops      -> BUILD time    (check-conformance: manifest ⊆ descriptor)
+      //
+      // Between them, every route to Google is checked before it can reach a user.
+      // The conformance check is probed and goes red on a bogus resource path, so
+      // a typo in the YAML fails the build rather than the call.
+      data = await googleCall(
+        service.gws_service as GoogleService,
+        opDef.resource as ServiceMethods[GoogleService],
+        callParams,
+        { account },
+      );
+    } else {
+      const args = buildHelperArgs(service.gws_service, opDef, params);
+      const result = await execute(args, { account, format: 'json' });
+      data = result.data;
     }
 
-    // Execute gws
-    const result = await execute(args, { account, format: 'json' });
-
-    // afterExecute hook
-    let data = result.data;
+    // afterExecute hook — takes DATA, and is unaffected by the seam change.
+    // This is the hook that already turns raw Google into OUR shape (see
+    // gmailPatch.afterExecute.search, which walks payload.headers). It is the
+    // right place for interpretation, and it is where the helpers' opinions go.
     if (patch?.afterExecute?.[operation]) {
       data = await patch.afterExecute[operation](data, ctx);
     }
@@ -262,63 +297,45 @@ export function generateHandler(
   };
 }
 
-/** Build gws CLI args from an operation definition and user params. */
-function buildArgs(
-  gwsService: string,
+// `buildArgs()` is gone. Resource operations no longer become a command line at
+// all — they become params for the client (see buildResourceParams above). Only
+// helper operations still build argv, and only until they are dismantled: they are
+// gws INVENTIONS with no Google method behind them. See ADR-103.
+
+/**
+ * Build the params a resource operation sends to Google.
+ *
+ * This is the manifest's mapping — declared params, `maps_to` renames, defaults,
+ * clamps — and it is unchanged by the move off gws. It used to be serialised into
+ * a `--params` JSON argv slot; now it is simply the request params. The mapping
+ * was never gws-specific, which is why the migration is mechanical.
+ */
+export function buildResourceParams(
   opDef: OperationDef,
   params: Record<string, unknown>,
-): string[] {
-  // Helper-based operations use positional/flag args
-  if (opDef.helper) {
-    return buildHelperArgs(gwsService, opDef, params);
-  }
-
-  // Resource-based operations use --params JSON
-  if (opDef.resource) {
-    return buildResourceArgs(gwsService, opDef, params);
-  }
-
-  throw new Error(`Operation must define either 'resource' or 'helper'`);
-}
-
-/** Build args for gws resource calls: `gws service resource method --params '{...}'` */
-function buildResourceArgs(
-  gwsService: string,
-  opDef: OperationDef,
-  params: Record<string, unknown>,
-): string[] {
-  const resourceParts = opDef.resource!.split('.');
-  const args = [gwsService, ...resourceParts];
-
-  // Build the --params JSON object
-  const gwsParams: Record<string, unknown> = { ...opDef.defaults };
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...opDef.defaults };
 
   if (opDef.params) {
     for (const [paramName, paramDef] of Object.entries(opDef.params)) {
-      if (paramDef.client_only) continue; // formatter-only; never reaches gws
+      if (paramDef.client_only) continue; // formatter-only; never reaches Google
       const value = params[paramName];
       const targetKey = paramDef.maps_to ?? paramName;
 
       if (value !== undefined && value !== null) {
-        gwsParams[targetKey] = paramDef.max
+        out[targetKey] = paramDef.max
           ? clamp(value, paramDef.default as number ?? 10, paramDef.max)
           : value;
       } else if (paramDef.default !== undefined) {
-        gwsParams[targetKey] = paramDef.default;
+        out[targetKey] = paramDef.default;
       }
     }
   }
 
-  // Clean undefined values
-  for (const [key, val] of Object.entries(gwsParams)) {
-    if (val === undefined) delete gwsParams[key];
+  for (const [key, val] of Object.entries(out)) {
+    if (val === undefined) delete out[key];
   }
-
-  if (Object.keys(gwsParams).length > 0) {
-    args.push('--params', JSON.stringify(gwsParams));
-  }
-
-  return args;
+  return out;
 }
 
 /** Build args for gws helper calls: `gws service +helper --flag value ...` */

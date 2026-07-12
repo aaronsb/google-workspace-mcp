@@ -1,4 +1,5 @@
 import { execute } from '../../executor/gws.js';
+import { call } from '../../google/client.js';
 import { formatEmailList, formatEmailDetail } from '../formatting/markdown.js';
 import { nextSteps } from '../formatting/next-steps.js';
 import { requireEmail, requireString, clamp } from './validate.js';
@@ -15,16 +16,12 @@ async function hydrateMessages(
   const hydrated = await Promise.all(
     messageIds.map(async (msg) => {
       try {
-        const result = await execute([
-          'gmail', 'users', 'messages', 'get',
-          '--params', JSON.stringify({
-            userId: 'me',
-            id: msg.id,
-            format: 'metadata',
-            metadataHeaders: ['From', 'Subject', 'Date'],
-          }),
-        ], { account });
-        const data = result.data as Record<string, unknown>;
+        const data = await call('gmail', 'users.messages.get', {
+          userId: 'me',
+          id: msg.id,
+          format: 'metadata',
+          metadataHeaders: ['From', 'Subject', 'Date'],
+        }, { account }) as Record<string, unknown>;
         const headers = ((data.payload as Record<string, unknown>)?.headers ?? []) as Array<{ name: string; value: string }>;
         const getHeader = (name: string) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value;
         return {
@@ -50,17 +47,13 @@ export async function handleEmail(params: Record<string, unknown>): Promise<Hand
 
   switch (operation) {
     case 'search': {
-      const result = await execute([
-        'gmail', 'users', 'messages', 'list',
-        '--params', JSON.stringify({
-          userId: 'me',
-          q: params.query || '',
-          maxResults: clamp(params.maxResults, 10, 50),
-        }),
-      ], { account: email });
+      const raw = await call('gmail', 'users.messages.list', {
+        userId: 'me',
+        q: params.query || '',
+        maxResults: clamp(params.maxResults, 10, 50),
+      }, { account: email }) as Record<string, unknown>;
 
       // messages.list only returns IDs — hydrate with metadata
-      const raw = result.data as Record<string, unknown>;
       const ids = (raw?.messages ?? []) as Array<{ id: string }>;
       const messages = ids.length > 0 ? await hydrateMessages(ids, email) : [];
       const formatted = formatEmailList({
@@ -76,11 +69,11 @@ export async function handleEmail(params: Record<string, unknown>): Promise<Hand
 
     case 'read': {
       const messageId = requireString(params, 'messageId');
-      const result = await execute([
-        'gmail', 'users', 'messages', 'get',
-        '--params', JSON.stringify({ userId: 'me', id: messageId }),
-      ], { account: email });
-      const formatted = formatEmailDetail(result.data);
+      const data = await call('gmail', 'users.messages.get', {
+        userId: 'me',
+        id: messageId,
+      }, { account: email });
+      const formatted = formatEmailDetail(data);
       return {
         text: formatted.text + nextSteps('email', 'read', { email, messageId }),
         refs: formatted.refs,

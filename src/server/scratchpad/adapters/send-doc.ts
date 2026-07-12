@@ -5,6 +5,7 @@
  */
 
 import { execute } from '../../../executor/gws.js';
+import { call } from '../../../google/client.js';
 import type { HandlerResponse } from '../../handler.js';
 import type { ScratchpadManager } from '../manager.js';
 
@@ -37,13 +38,9 @@ export async function sendDocCreate(
   }
 
   try {
-    // Step 1: Create empty doc (title goes in --json request body)
-    const createResult = await execute([
-      'docs', 'documents', 'create',
-      '--json', JSON.stringify({ title }),
-    ], { account: email });
-
-    const doc = createResult.data as Record<string, unknown>;
+    // Step 1: Create empty doc (title is the request body — documents.create
+    // declares no path/query params, so it lands in the body).
+    const doc = await call('docs', 'documents.create', { title }, { account: email }) as Record<string, unknown>;
     const documentId = doc.documentId as string;
 
     // Step 2: Write content

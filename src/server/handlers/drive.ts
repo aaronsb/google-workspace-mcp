@@ -1,4 +1,5 @@
 import { execute } from '../../executor/gws.js';
+import { call } from '../../google/client.js';
 import { formatFileList, formatFileDetail } from '../formatting/markdown.js';
 import { nextSteps } from '../formatting/next-steps.js';
 import { requireEmail, requireString, clamp } from './validate.js';
@@ -10,15 +11,12 @@ export async function handleDrive(params: Record<string, unknown>): Promise<Hand
 
   switch (operation) {
     case 'search': {
-      const result = await execute([
-        'drive', 'files', 'list',
-        '--params', JSON.stringify({
-          q: params.query || undefined,
-          pageSize: clamp(params.maxResults, 10, 50),
-          fields: 'files(id, name, mimeType, modifiedTime, size, webViewLink)',
-        }),
-      ], { account: email });
-      const formatted = formatFileList(result.data);
+      const data = await call('drive', 'files.list', {
+        q: params.query || undefined,
+        pageSize: clamp(params.maxResults, 10, 50),
+        fields: 'files(id, name, mimeType, modifiedTime, size, webViewLink)',
+      }, { account: email });
+      const formatted = formatFileList(data);
       return {
         text: formatted.text + nextSteps('drive', 'search', { email }),
         refs: formatted.refs,
@@ -27,14 +25,11 @@ export async function handleDrive(params: Record<string, unknown>): Promise<Hand
 
     case 'get': {
       const fileId = requireString(params, 'fileId');
-      const result = await execute([
-        'drive', 'files', 'get',
-        '--params', JSON.stringify({
-          fileId,
-          fields: 'id, name, mimeType, modifiedTime, size, webViewLink, owners, shared',
-        }),
-      ], { account: email });
-      const formatted = formatFileDetail(result.data);
+      const data = await call('drive', 'files.get', {
+        fileId,
+        fields: 'id, name, mimeType, modifiedTime, size, webViewLink, owners, shared',
+      }, { account: email });
+      const formatted = formatFileDetail(data);
       return {
         text: formatted.text + nextSteps('drive', 'get', { email, fileId }),
         refs: formatted.refs,

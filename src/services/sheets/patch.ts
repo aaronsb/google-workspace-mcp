@@ -14,7 +14,7 @@
  *   or `jsonValues` (JSON 2D array) and sends them via `--json`.
  */
 
-import { execute } from '../../executor/gws.js';
+import { call } from '../../google/client.js';
 import { requireString } from '../../server/handlers/validate.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
@@ -254,13 +254,14 @@ async function updateValuesHandler(
 
   const values = parseValuesInput(params, 'updateValues');
 
-  const result = await execute([
-    'sheets', 'spreadsheets', 'values', 'update',
-    '--params', JSON.stringify({ spreadsheetId, range, valueInputOption }),
-    '--json', JSON.stringify({ range, majorDimension: 'ROWS', values }),
-  ], { account });
+  const data = (await call('sheets', 'spreadsheets.values.update', {
+    spreadsheetId,
+    range,
+    valueInputOption,
+    majorDimension: 'ROWS',
+    values,
+  }, { account }) ?? {}) as Record<string, unknown>;
 
-  const data = (result.data ?? {}) as Record<string, unknown>;
   const updatedRange = String(data.updatedRange ?? range);
   const updatedRows = Number(data.updatedRows ?? values.length);
   const updatedCells = Number(data.updatedCells ?? values.reduce((n, r) => n + (r?.length ?? 0), 0));
@@ -296,13 +297,15 @@ async function appendHandler(
 
   const values = parseValuesInput(params, 'append');
 
-  const result = await execute([
-    'sheets', 'spreadsheets', 'values', 'append',
-    '--params', JSON.stringify({ spreadsheetId, range, valueInputOption }),
-    '--json', JSON.stringify({ range, majorDimension: 'ROWS', values }),
-  ], { account });
+  const data = await call('sheets', 'spreadsheets.values.append', {
+    spreadsheetId,
+    range,
+    valueInputOption,
+    majorDimension: 'ROWS',
+    values,
+  }, { account });
 
-  return formatAppendAction(result.data);
+  return formatAppendAction(data);
 }
 
 /** Parse a sheetId param — Google assigns integers and `0` is valid. */
@@ -327,12 +330,10 @@ async function runBatchUpdate(
   request: Record<string, unknown>,
   account: string,
 ): Promise<Record<string, unknown>> {
-  const result = await execute([
-    'sheets', 'spreadsheets', 'batchUpdate',
-    '--params', JSON.stringify({ spreadsheetId }),
-    '--json', JSON.stringify({ requests: [request] }),
-  ], { account });
-  const data = (result.data ?? {}) as Record<string, unknown>;
+  const data = (await call('sheets', 'spreadsheets.batchUpdate', {
+    spreadsheetId,
+    requests: [request],
+  }, { account }) ?? {}) as Record<string, unknown>;
   const replies = (data.replies as Array<Record<string, unknown>> | undefined) ?? [];
   return replies[0] ?? {};
 }
@@ -477,13 +478,11 @@ async function copySheetToHandler(
   const sheetId = requireSheetId(params);
   const destinationSpreadsheetId = requireString(params, 'destinationSpreadsheetId');
 
-  const result = await execute([
-    'sheets', 'spreadsheets', 'sheets', 'copyTo',
-    '--params', JSON.stringify({ spreadsheetId, sheetId }),
-    '--json', JSON.stringify({ destinationSpreadsheetId }),
-  ], { account });
-
-  const data = (result.data ?? {}) as Record<string, unknown>;
+  const data = (await call('sheets', 'spreadsheets.sheets.copyTo', {
+    spreadsheetId,
+    sheetId,
+    destinationSpreadsheetId,
+  }, { account }) ?? {}) as Record<string, unknown>;
   return {
     text: `Sheet copied.\n\n**Source:** ${spreadsheetId} (sheet ${sheetId})\n**Destination:** ${destinationSpreadsheetId}\n**New sheet ID:** ${data.sheetId ?? 'unknown'}\n**New title:** ${data.title ?? '?'}`,
     refs: {
@@ -510,12 +509,13 @@ async function createSpreadsheetHandler(
   account: string,
 ): Promise<HandlerResponse> {
   const title = params.title ? String(params.title) : undefined;
-  const args = ['sheets', 'spreadsheets', 'create'];
-  if (title) {
-    args.push('--json', JSON.stringify({ properties: { title } }));
-  }
-  const result = await execute(args, { account });
-  return formatCreateAction(result.data);
+  const data = await call(
+    'sheets',
+    'spreadsheets.create',
+    title ? { properties: { title } } : {},
+    { account },
+  );
+  return formatCreateAction(data);
 }
 
 // --- Patch export ---

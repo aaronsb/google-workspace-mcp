@@ -187,42 +187,45 @@ describe('Meet patch formatters', () => {
 });
 
 describe('Meet beforeExecute hooks', () => {
+  // These hooks used to take gws ARGV and re-serialise a `--params` JSON slot.
+  // They now take the params themselves (ADR-103), so these assertions look at
+  // the thing that actually matters instead of at a command line.
+  //
+  // Two tests were DELETED here rather than ported: "returns args unchanged when
+  // --params is missing" and "…when --params has no following value". Both tested
+  // failure modes OF THE ARGV SURGERY — malformed command lines that can no longer
+  // exist. They were testing the seam, not the behaviour. Deleting them loses no
+  // coverage of anything real.
+
   it('prefixes conferenceRecords/ on bare parent IDs', async () => {
     const hook = meetPatch.beforeExecute!.listParticipants;
-    const args = ['meet', 'conferenceRecords', 'participants', 'list', '--params', '{"parent":"abc123","pageSize":100}'];
-    const result = await hook(args, ctx('listParticipants', { conferenceId: 'abc123' }));
-    const params = JSON.parse(result[result.indexOf('--params') + 1]);
-    expect(params.parent).toBe('conferenceRecords/abc123');
+    const result = await hook(
+      { parent: 'abc123', pageSize: 100 },
+      ctx('listParticipants', { conferenceId: 'abc123' }),
+    );
+    expect(result.parent).toBe('conferenceRecords/abc123');
+    expect(result.pageSize).toBe(100);        // untouched params survive
   });
 
   it('does not double-prefix already-prefixed parent IDs', async () => {
     const hook = meetPatch.beforeExecute!.listTranscripts;
-    const args = ['meet', 'conferenceRecords', 'transcripts', 'list', '--params', '{"parent":"conferenceRecords/abc123"}'];
-    const result = await hook(args, ctx('listTranscripts', { conferenceId: 'conferenceRecords/abc123' }));
-    const params = JSON.parse(result[result.indexOf('--params') + 1]);
-    expect(params.parent).toBe('conferenceRecords/abc123');
+    const result = await hook(
+      { parent: 'conferenceRecords/abc123' },
+      ctx('listTranscripts', { conferenceId: 'conferenceRecords/abc123' }),
+    );
+    expect(result.parent).toBe('conferenceRecords/abc123');
   });
 
   it('prefixes conferenceRecords/ on bare name IDs for getConference', async () => {
     const hook = meetPatch.beforeExecute!.getConference;
-    const args = ['meet', 'conferenceRecords', 'get', '--params', '{"name":"abc123"}'];
-    const result = await hook(args, ctx('getConference', { conferenceId: 'abc123' }));
-    const params = JSON.parse(result[result.indexOf('--params') + 1]);
-    expect(params.name).toBe('conferenceRecords/abc123');
+    const result = await hook({ name: 'abc123' }, ctx('getConference', { conferenceId: 'abc123' }));
+    expect(result.name).toBe('conferenceRecords/abc123');
   });
 
-  it('returns args unchanged when --params is missing', async () => {
-    const hook = meetPatch.beforeExecute!.listParticipants;
-    const args = ['meet', 'conferenceRecords', 'participants', 'list'];
-    const result = await hook(args, ctx('listParticipants'));
-    expect(result).toEqual(args);
-  });
-
-  it('returns args unchanged when --params has no following value', async () => {
+  it('leaves params alone when the key is absent', async () => {
     const hook = meetPatch.beforeExecute!.listRecordings;
-    const args = ['meet', 'conferenceRecords', 'recordings', 'list', '--params'];
-    const result = await hook(args, ctx('listRecordings'));
-    expect(result).toEqual(args);
+    const result = await hook({ pageSize: 10 }, ctx('listRecordings'));
+    expect(result).toEqual({ pageSize: 10 });
   });
 });
 

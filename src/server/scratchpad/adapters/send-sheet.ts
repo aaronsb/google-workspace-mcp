@@ -3,7 +3,7 @@
  * Parses CSV lines back into a values array for spreadsheets.values.update.
  */
 
-import { execute } from '../../../executor/gws.js';
+import { call } from '../../../google/client.js';
 import type { HandlerResponse } from '../../handler.js';
 import type { ScratchpadManager } from '../manager.js';
 
@@ -36,15 +36,15 @@ export async function sendSheetWrite(
   const values = lines.map(parseCsvLine);
 
   try {
-    await execute([
-      'sheets', 'spreadsheets', 'values', 'update',
-      '--params', JSON.stringify({
-        spreadsheetId,
-        range,
-        valueInputOption: 'USER_ENTERED',
-        requestBody: { values },
-      }),
-    ], { account: email });
+    // `values` is the request BODY; the descriptor declares only
+    // spreadsheetId/range/valueInputOption, so it goes at the top level
+    // rather than nested under a `requestBody` key.
+    await call('sheets', 'spreadsheets.values.update', {
+      spreadsheetId,
+      range,
+      valueInputOption: 'USER_ENTERED',
+      values,
+    }, { account: email });
 
     return {
       text: `Written ${values.length} rows to sheet ${spreadsheetId} (${range}).`,

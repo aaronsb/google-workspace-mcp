@@ -10,6 +10,7 @@
  */
 
 import { execute } from '../../executor/gws.js';
+import { call } from '../../google/client.js';
 import { formatEventList, formatEventDetail } from '../../server/formatting/markdown.js';
 import { requireString } from '../../server/handlers/validate.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
@@ -122,22 +123,17 @@ function formatAgenda(data: unknown, account: string): HandlerResponse {
 
 export const calendarPatch: ServicePatch = {
   beforeExecute: {
-    list: async (args, ctx) => {
-      // Inject default timeMin (today start) if not provided
-      if (!ctx.params.timeMin) {
-        const now = new Date();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-        // Patch the --params JSON to include timeMin
-        const paramsIdx = args.indexOf('--params');
-        if (paramsIdx !== -1) {
-          const gwsParams = JSON.parse(args[paramsIdx + 1]);
-          if (!gwsParams.timeMin) {
-            gwsParams.timeMin = todayStart;
-          }
-          args[paramsIdx + 1] = JSON.stringify(gwsParams);
-        }
-      }
-      return args;
+    // Default the range to "from the start of today" when the caller gave none.
+    //
+    // This used to reach into an argv slot and re-serialise its JSON:
+    //   const i = args.indexOf('--params'); JSON.parse(args[i + 1]) …
+    // — surgery on a command line, only because the seam WAS a command line.
+    // The hook now receives the params themselves (ADR-103).
+    list: async (params) => {
+      if (params.timeMin) return params;
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      return { ...params, timeMin: todayStart };
     },
   },
 
@@ -188,10 +184,8 @@ export const calendarPatch: ServicePatch = {
         }
       }
 
-      const body = { timeMin, timeMax, items };
-      const args = ['calendar', 'freebusy', 'query', '--json', JSON.stringify(body)];
-      const result = await execute(args, { account });
-      return formatFreeBusy(result.data, { operation: 'freebusy', params, account });
+      const data = await call('calendar', 'freebusy.query', { timeMin, timeMax, items }, { account });
+      return formatFreeBusy(data, { operation: 'freebusy', params, account });
     },
 
     create: async (params, account): Promise<HandlerResponse> => {
@@ -223,10 +217,7 @@ export const calendarPatch: ServicePatch = {
     delete: async (params, account): Promise<HandlerResponse> => {
       const eventId = requireString(params, 'eventId');
       const calendarId = (params.calendarId as string) || 'primary';
-      await execute([
-        'calendar', 'events', 'delete',
-        '--params', JSON.stringify({ calendarId, eventId }),
-      ], { account });
+      await call('calendar', 'events.delete', { calendarId, eventId }, { account });
       return {
         text: `Event deleted: ${eventId}`,
         refs: { eventId, status: 'deleted' },
@@ -281,12 +272,10 @@ export const calendarPatch: ServicePatch = {
         );
       }
 
-      const result = await execute([
-        'calendar', 'events', 'patch',
-        '--params', JSON.stringify(queryParams),
-        '--json', JSON.stringify(body),
-      ], { account });
-      const data = result.data as Record<string, unknown>;
+      const data = await call('calendar', 'events.patch', {
+        ...queryParams,
+        ...body,
+      }, { account }) as Record<string, unknown>;
 
       const changed = Object.keys(body);
       const meetLink = data.hangoutLink ? `\n**Meet:** ${data.hangoutLink}` : '';

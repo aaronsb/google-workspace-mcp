@@ -9,6 +9,7 @@
 
 import * as path from 'node:path';
 import { execute } from '../../executor/gws.js';
+import { call } from '../../google/client.js';
 import { resolveWorkspacePath, verifyPathSafety, getWorkspaceDir } from '../../executor/workspace.js';
 import { formatEmailList, formatEmailDetail, extractBodyFromPayload, type EmailBodyFormat } from '../../server/formatting/markdown.js';
 import { requireString } from '../../server/handlers/validate.js';
@@ -27,16 +28,12 @@ async function hydrateMessages(
   return Promise.all(
     messageIds.map(async (msg) => {
       try {
-        const result = await execute([
-          'gmail', 'users', 'messages', 'get',
-          '--params', JSON.stringify({
-            userId: 'me',
-            id: msg.id,
-            format: 'metadata',
-            metadataHeaders: ['From', 'Subject', 'Date'],
-          }),
-        ], { account });
-        const data = result.data as Record<string, unknown>;
+        const data = await call('gmail', 'users.messages.get', {
+          userId: 'me',
+          id: msg.id,
+          format: 'metadata',
+          metadataHeaders: ['From', 'Subject', 'Date'],
+        }, { account }) as Record<string, unknown>;
         const headers = ((data.payload as Record<string, unknown>)?.headers ?? []) as Array<{ name: string; value: string }>;
         const getHeader = (name: string) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value;
         return {
@@ -280,12 +277,11 @@ export const gmailPatch: ServicePatch = {
       if (addLabelIds.length > 0) body.addLabelIds = addLabelIds;
       if (removeLabelIds.length > 0) body.removeLabelIds = removeLabelIds;
 
-      const result = await execute([
-        'gmail', 'users', 'messages', 'modify',
-        '--params', JSON.stringify({ userId: 'me', id: messageId }),
-        '--json', JSON.stringify(body),
-      ], { account });
-      const data = result.data as Record<string, unknown>;
+      const data = await call('gmail', 'users.messages.modify', {
+        userId: 'me',
+        id: messageId,
+        ...body,
+      }, { account }) as Record<string, unknown>;
       const labels = (data.labelIds ?? []) as string[];
       return {
         text: `Labels updated on ${messageId}.\n\n**Current labels:** ${labels.join(', ') || '(none)'}`,
