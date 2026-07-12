@@ -1,7 +1,7 @@
 tool_name: manage_drive
 description: "Search, upload, download, share, comment on, or manage files in Google Drive."
 requires_email: true
-gws_service: drive
+google_service: drive
 operations:
 
   # --- File discovery ---

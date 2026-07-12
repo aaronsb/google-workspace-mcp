@@ -1,5 +1,5 @@
 /**
- * Compare curated manifest against discovered gws CLI surface.
+ * Compare the curated manifest against the API surface Google publishes.
  */
 
 import type { Manifest } from '../factory/types.js';
@@ -12,10 +12,9 @@ import { ELIGIBLE_SERVICES, SKIP_PARAMS } from './types.js';
 /**
  * Build the set of Google methods the manifest covers.
  *
- * There is no `opDef.helper` any more. gws's `+helpers` are gone: nine of them
- * were plain Google methods in a CLI costume, and the two that actually reshaped
- * anything are now built from raw Google in our own layer (ADR-103). An operation
- * either names a Google method or is a custom handler composed of them.
+ * An operation either names a Google method or is a custom handler composed of
+ * them. Anything that reshapes a response is built from raw Google in our own
+ * layer (ADR-103).
  */
 function buildCoveredPaths(manifest: Manifest): Map<string, { service: string; opName: string; params: Set<string> }> {
   const covered = new Map<string, { service: string; opName: string; params: Set<string> }>();
@@ -34,7 +33,7 @@ function buildCoveredPaths(manifest: Manifest): Map<string, { service: string; o
       }
 
       covered.set(path, {
-        service: serviceDef.gws_service,
+        service: serviceDef.google_service,
         opName,
         params: paramNames,
       });
@@ -47,18 +46,18 @@ function buildCoveredPaths(manifest: Manifest): Map<string, { service: string; o
 /** Compare params for a covered operation. */
 function compareParams(
   manifestParams: Set<string>,
-  gwsParams: Record<string, DiscoveredParam>,
+  googleParams: Record<string, DiscoveredParam>,
 ): ParamGap[] {
   const gaps: ParamGap[] = [];
 
-  for (const [name, param] of Object.entries(gwsParams)) {
+  for (const [name, param] of Object.entries(googleParams)) {
     if (SKIP_PARAMS.has(name)) continue;
     if (param.deprecated) continue;
 
     if (!manifestParams.has(name)) {
       gaps.push({
         paramName: name,
-        inGws: true,
+        inGoogle: true,
         inManifest: false,
         details: `${param.type}${param.required ? ', required' : ''} — ${param.description.slice(0, 80)}`,
       });
@@ -81,7 +80,7 @@ export function compareSurfaces(
   for (const service of ELIGIBLE_SERVICES) {
     const disc = discovered.services[service];
     if (!disc) {
-      // Service exists in eligible list but gws doesn't expose it
+      // Eligible, but Google publishes no Discovery document for it
       continue;
     }
 
@@ -103,6 +102,7 @@ export function compareSurfaces(
     const newOps: string[] = [];
     const removedOps: string[] = [];
     const paramGaps: Record<string, ParamGap[]> = {};
+    const coveredOpPaths: string[] = [];
 
     for (const opPath of allOps) {
       const isCovered = coveredPaths.has(opPath);
@@ -111,6 +111,7 @@ export function compareSurfaces(
 
       if (isCovered) {
         covered++;
+        coveredOpPaths.push(opPath);
         // Check param gaps for resource-based operations
         const discOp = disc.operations[opPath];
         const manifestEntry = coveredPaths.get(opPath);
@@ -130,7 +131,7 @@ export function compareSurfaces(
       }
     }
 
-    // Check for removed operations (in baseline but gone from gws)
+    // In the baseline, but Google no longer publishes it
     for (const opPath of Object.keys(baselineOps)) {
       if (!allOps.has(opPath)) {
         removedOps.push(opPath);
@@ -149,11 +150,12 @@ export function compareSurfaces(
       newOps,
       removedOps,
       paramGaps,
+      coveredPaths: coveredOpPaths,
     });
   }
 
   return {
-    gwsVersion: discovered.gwsVersion,
+    apiSurface: discovered.apiSurface,
     timestamp: new Date().toISOString(),
     totalOps: totalOps,
     coveredOps: totalCovered,

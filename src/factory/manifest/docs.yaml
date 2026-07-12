@@ -1,7 +1,7 @@
 tool_name: manage_docs
 description: "Read, write, insert, and find-replace text in Google Docs documents."
 requires_email: true
-gws_service: docs
+google_service: docs
 operations:
 
   get:
@@ -14,14 +14,23 @@ operations:
         description: "Document ID"
         required: true
 
+  # `title` rides in the BODY — documents.create declares no parameters at all
+  # (Discovery: `"parameters": {}`), so everything goes into the Document resource.
+  # Without this the tool could only ever produce documents called "Untitled document",
+  # and a caller passing a title got no error — the argument was simply not in the
+  # schema, so it was dropped in silence. manage_sheets.create has always taken one.
   create:
     type: action
-    description: "create a new blank document"
+    description: "create a new document"
     resource: documents.create
+    params:
+      title:
+        type: string
+        description: "Document title (default: 'Untitled document')"
 
-  # Was gws's `+write`. It was one documents.batchUpdate with a single insertText
-  # at endOfSegmentLocation — i.e. append-to-end-of-body. It needs a request body,
-  # so it is a custom handler rather than a bare resource op (docsPatch.write).
+  # One documents.batchUpdate with a single insertText at endOfSegmentLocation —
+  # append to end of body. It needs a request body, so it is a custom handler
+  # rather than a bare resource op (docsPatch.write).
   write:
     type: action
     description: "append text to the end of a document"

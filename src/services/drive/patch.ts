@@ -4,7 +4,7 @@
  * Key customizations:
  * - Custom formatters for file lists and details
  * - Upload: custom handler with positional file path arg
- * - Download/Export: save to workspace via gws --output, return inline for text
+ * - Download/Export: stream to the workspace, return inline for text
  */
 
 import * as fs from 'node:fs/promises';
@@ -47,10 +47,10 @@ export const drivePatch: ServicePatch = {
 
   customHandlers: {
     /**
-     * Upload. Was gws's `+upload`, which used `uploadType=multipart` at every
-     * size, with no chunking. We use the RESUMABLE endpoint, which ADR-103 item 4
-     * verified carries a 25 MB payload and round-trips it byte-for-byte. Same
-     * result for a small file, and it does not fall over on a large one.
+     * Upload. Uses the RESUMABLE endpoint, never `uploadType=multipart`, which has
+     * no chunking and falls over on a large file. ADR-103 item 4 verified resumable
+     * carries a 25 MB payload and round-trips it byte-for-byte, with the same result
+     * for a small file.
      */
     upload: async (params, account): Promise<HandlerResponse> => {
       const filePath = requireString(params, 'filePath');

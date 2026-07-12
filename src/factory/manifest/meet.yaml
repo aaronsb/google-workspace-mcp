@@ -1,7 +1,7 @@
 tool_name: manage_meet
 description: "Browse past Google Meet conferences, participants, transcripts, recordings, and AI-generated smart notes. Requires Workspace Business Standard+ for transcripts/recordings."
 requires_email: true
-gws_service: meet
+google_service: meet
 operations:
 
   # --- Conference records ---

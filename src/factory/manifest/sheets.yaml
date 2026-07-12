@@ -1,7 +1,7 @@
 tool_name: manage_sheets
 description: "Read, write, and manage Google Sheets spreadsheets."
 requires_email: true
-gws_service: sheets
+google_service: sheets
 operations:
 
   get:
@@ -26,9 +26,6 @@ operations:
   read:
     type: detail
     description: "read cell values from a range; rendered rows are prefixed with their sheet row number (e.g. 'R3: …') since blank rows are otherwise invisible"
-    # Was gws's `+read`. It called spreadsheets.values.get with {spreadsheetId,
-    # range} and NOTHING else, then printed Google's response verbatim. The helper
-    # was never doing anything — this is a plain resource op.
     resource: spreadsheets.values.get
     params:
       spreadsheetId:

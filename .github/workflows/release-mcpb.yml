@@ -1,4 +1,11 @@
-name: Build .mcpb release artifacts
+# One bundle, not five.
+#
+# This job used to run `make mcpb-all`, packing five bundles named for five platforms.
+# With the gws executable gone (ADR-103) the payload is Node + pure JavaScript, so all
+# five were byte-identical in content — the same 3191 files under the same content
+# hash, each carrying a `npm ci --omit=dev` tree resolved right here on ubuntu-latest
+# regardless of the platform in its name.
+name: Build .mcpb release artifact
 
 on:
   push:
@@ -6,7 +13,7 @@ on:
 
 jobs:
   build-mcpb:
-    name: Build .mcpb bundles
+    name: Build .mcpb bundle
     runs-on: ubuntu-latest
     permissions:
       contents: write  # needed for gh release upload
@@ -28,8 +35,8 @@ jobs:
       - name: Install mcpb CLI
         run: npm install -g @anthropic-ai/mcpb
 
-      - name: Build .mcpb for all platforms
-        run: make mcpb-all
+      - name: Build the .mcpb bundle
+        run: make mcpb
 
       - name: Create GitHub Release (if not exists)
         run: |
@@ -38,9 +45,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload .mcpb artifacts to release
+      - name: Upload the .mcpb artifact to the release
         run: |
           TAG="${GITHUB_REF_NAME}"
-          gh release upload "$TAG" google-workspace-mcp-*.mcpb --clobber
+          gh release upload "$TAG" google-workspace-mcp.mcpb --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -113,7 +113,7 @@ export async function warmTokenCache(emails: string[]): Promise<void> {
     const result = results[i];
     if (result.status === 'rejected') {
       process.stderr.write(
-        `[gws-mcp] token warmup failed for ${emails[i]}: ${(result.reason as Error).message}\n`,
+        `[google-workspace-mcp] token warmup failed for ${emails[i]}: ${(result.reason as Error).message}\n`,
       );
     }
   }

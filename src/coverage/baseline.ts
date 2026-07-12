@@ -23,12 +23,24 @@ export function loadBaseline(filePath?: string): CoverageBaseline | null {
   }
 }
 
-/** Build the set of manifest-covered resource/helper paths. */
+/**
+ * Build the set of manifest-covered resource paths.
+ *
+ * This used to read `svc.paramGaps` — "ops with param gaps are covered" — which is a
+ * PROXY for coverage, and a backwards one. An operation with every parameter mapped has
+ * no param gaps, so it was absent here, fell through the checks below, and got written
+ * as `status: "gap"`. Coverage this good was indistinguishable from no coverage at all.
+ * 25 fully-covered operations were committed to coverage-baseline.json as uncovered
+ * work, including `docs:documents.create`, which takes no parameters and so could never
+ * have had a gap.
+ *
+ * Now it reads what the report actually measured, from the manifest. Same source the
+ * printed count uses — which is why the count was right while the artifact was wrong.
+ */
 function getCoveredPaths(report: CoverageReport): Set<string> {
   const covered = new Set<string>();
   for (const svc of report.services) {
-    // Ops with param gaps are covered
-    for (const opPath of Object.keys(svc.paramGaps)) {
+    for (const opPath of svc.coveredPaths) {
       covered.add(`${svc.service}:${opPath}`);
     }
   }
@@ -43,9 +55,7 @@ export function generateBaseline(
 ): CoverageBaseline {
   const services: CoverageBaseline['services'] = {};
 
-  // Build a lookup of covered paths from the report's param gaps
-  // (ops with param gaps are definitely covered)
-  const paramGapPaths = getCoveredPaths(report);
+  const coveredPaths = getCoveredPaths(report);
 
   for (const svc of report.services) {
     const disc = discovered.services[svc.service];
@@ -67,9 +77,10 @@ export function generateBaseline(
         continue;
       }
 
-      // Check if covered (has param gaps recorded)
-      const key = `${svc.service}:${opPath}`;
-      if (paramGapPaths.has(key)) {
+      // Covered is covered — asked directly, not inferred from a side effect.
+      // A fully-mapped operation has no param gaps, and that is a sign of GOOD coverage,
+      // not missing coverage. `params` stays undefined when there is nothing to flag.
+      if (coveredPaths.has(`${svc.service}:${opPath}`)) {
         const gaps = svc.paramGaps[opPath] || [];
         operations[opPath] = {
           status: 'covered',
@@ -80,23 +91,32 @@ export function generateBaseline(
         continue;
       }
 
-      // Check if it's covered but without param gaps — need to check the report counts
-      // We can infer from whether the op was NOT in newOps and NOT excluded
-      const isNew = svc.newOps.includes(opPath);
-      const wasCovered = existingOps[opPath]?.status === 'covered';
-
-      if (wasCovered && !isNew) {
-        operations[opPath] = { status: 'covered' };
-      } else {
-        operations[opPath] = { status: 'gap' };
-      }
+      operations[opPath] = { status: 'gap' };
     }
 
     services[svc.service] = { operations };
   }
 
+  // The artifact must agree with the report it came from.
+  //
+  // This is the check whose absence let the bug live: `make coverage` PRINTED 60/233
+  // while the file it wrote recorded 35, and nothing ever compared the two. A baseline
+  // that silently contradicts its own report is worse than no baseline — it hands
+  // contributors a list of "gaps" that are already implemented.
+  const persisted = Object.values(services)
+    .flatMap(s => Object.values(s.operations))
+    .filter(op => op.status === 'covered').length;
+  const reported = report.services.reduce((n, s) => n + s.coveredOps, 0);
+  if (persisted !== reported) {
+    throw new Error(
+      `coverage baseline disagrees with the report it was generated from: ` +
+      `the report counts ${reported} covered operations, the baseline recorded ${persisted}. ` +
+      `Refusing to write an artifact that contradicts its own measurement.`,
+    );
+  }
+
   return {
-    gwsVersion: report.gwsVersion,
+    apiSurface: report.apiSurface,
     generatedAt: report.timestamp,
     services,
   };

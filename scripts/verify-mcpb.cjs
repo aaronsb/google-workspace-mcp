@@ -58,4 +58,45 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-console.log(`verify-mcpb: ok (${expected.size} service patches present in ${path.basename(bundle)})`);
+// --- the manifest's `tools` list must be the tools the server actually serves ---
+//
+// This is the list Claude Desktop shows a user when they install the extension: it is
+// the bundle's advertised surface. Nothing compared it to the server, so it drifted —
+// it sat at 8 tools while the server served 11, hiding manage_meet, manage_scratchpad
+// and manage_workspace from everyone who read the manifest to find out what they had
+// just installed. A stale list produces no error; it just quietly under-sells.
+//
+// The oracle is the BUILT server's own toolSchemas, not a re-derivation of it from the
+// yaml manifests — a second derivation can agree with the manifest and still be wrong
+// about the server. Dynamic-import it out-of-process because this script is CJS and
+// build/ is ESM.
+const served = JSON.parse(execSync(
+  `node --input-type=module -e "` +
+  `const m = await import('${path.join(__dirname, '..', 'build', 'server', 'tools.js')}');` +
+  `console.log(JSON.stringify(m.toolSchemas.map(t => t.name)));"`,
+  { encoding: 'utf-8' },
+));
+
+if (served.length === 0) {
+  console.error('verify-mcpb: the server reports ZERO tools — refusing to silently pass');
+  process.exit(2);
+}
+
+const declared = require(path.join(__dirname, '..', 'mcpb', 'manifest.json'))
+  .tools.map((t) => t.name);
+
+const undeclared = served.filter((t) => !declared.includes(t));
+const phantom = declared.filter((t) => !served.includes(t));
+
+if (undeclared.length > 0 || phantom.length > 0) {
+  console.error('verify-mcpb: mcpb/manifest.json does not match the tools the server serves.');
+  for (const t of undeclared) console.error(`  - ${t}: served, but NOT declared in the manifest`);
+  for (const t of phantom) console.error(`  - ${t}: declared in the manifest, but NOT served`);
+  console.error('\nFix mcpb/manifest.json "tools" so it lists exactly what the server exposes.');
+  process.exit(1);
+}
+
+console.log(
+  `verify-mcpb: ok (${expected.size} service patches present, ` +
+  `${served.length} tools declared == served, in ${path.basename(bundle)})`,
+);

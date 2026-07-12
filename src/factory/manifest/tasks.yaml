@@ -1,7 +1,7 @@
 tool_name: manage_tasks
 description: "Manage task lists and tasks in Google Tasks."
 requires_email: true
-gws_service: tasks
+google_service: tasks
 operations:
 
   # --- Task lists ---
@@ -22,10 +22,18 @@ operations:
         required: true
         maps_to: tasklist
 
+  # A TaskList's only meaningful field is its title, and it rides in the BODY —
+  # tasklists.insert declares no parameters. Without it this could only ever create
+  # nameless task lists, and did so without complaint.
   createTaskList:
     type: action
     description: "create a new task list"
     resource: tasklists.insert
+    params:
+      title:
+        type: string
+        description: "Task list name"
+        required: true
 
   deleteTaskList:
     type: action
@@ -75,6 +83,10 @@ operations:
         required: true
         maps_to: task
 
+  # title / notes / due are BODY fields (the Task resource). tasks.insert declares only
+  # `tasklist` (path) and `parent`/`previous` (query), so anything else goes in the body.
+  # Without them, `create` sent an empty Task and produced a BLANK task — no title, no
+  # content, no error. A titleless task is not a degraded task; it is a useless one.
   create:
     type: action
     description: "create a new task"
@@ -85,10 +97,23 @@ operations:
         description: "Task list ID"
         required: true
         maps_to: tasklist
+      title:
+        type: string
+        description: "Task title"
+        required: true
+      notes:
+        type: string
+        description: "Task notes / details"
+      due:
+        type: string
+        description: "Due date (RFC 3339, e.g. 2026-07-20T00:00:00.000Z — Google stores the date, not the time)"
 
+  # An `update` with no updatable fields could only ever PATCH an empty body, which
+  # Google Tasks answers with a 500 "Internal error encountered". So this operation did
+  # not merely fail to update — it failed EVERY time, and blamed Google while doing it.
   update:
     type: action
-    description: "update a task (patch semantics)"
+    description: "update a task (patch semantics — only the fields you pass are changed)"
     resource: tasks.patch
     params:
       taskListId:
@@ -101,6 +126,19 @@ operations:
         description: "Task ID"
         required: true
         maps_to: task
+      title:
+        type: string
+        description: "New task title"
+      notes:
+        type: string
+        description: "New task notes / details"
+      due:
+        type: string
+        description: "New due date (RFC 3339)"
+      status:
+        type: string
+        description: "Task status"
+        enum: [needsAction, completed]
 
   complete:
     type: action

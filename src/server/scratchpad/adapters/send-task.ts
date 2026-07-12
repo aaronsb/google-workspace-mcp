@@ -47,8 +47,8 @@ export async function sendTaskCreate(
   if (notes) body.notes = notes;
 
   try {
-    // `tasklist` is the path param; title/notes are the request body — the old
-    // `requestBody: {...}` nesting was a gws-ism and goes at the top level now.
+    // `tasklist` is the path param; title/notes are the request body, and the body
+    // goes at the top level — not nested under `requestBody`.
     const data = await call('tasks', 'tasks.insert', {
       tasklist: taskListId,
       ...body,

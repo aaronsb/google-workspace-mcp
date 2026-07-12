@@ -46,8 +46,8 @@ export async function importDriveFile(
     }
 
     // Download to workspace, then read. `alt: 'media'` is what turns files.get from
-    // a metadata read into a byte stream — the old `drive +download` subcommand
-    // never existed (gws exits 3), so this feature has been broken since it landed.
+    // a metadata read into a byte stream. Without it this is a metadata read, and the
+    // feature silently returns no bytes.
     await ensureWorkspaceDir();
     const filePath = resolveWorkspacePath(name);
     await verifyPathSafety(filePath);

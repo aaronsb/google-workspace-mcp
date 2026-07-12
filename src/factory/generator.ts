@@ -3,7 +3,7 @@
  *
  * For each service in the manifest, generates:
  * 1. A JSON Schema tool definition (operation enum, typed params)
- * 2. A handler function (maps operations to gws CLI calls, applies formatting)
+ * 2. A handler function (maps operations to Google API calls, applies formatting)
  *
  * Patches are optional per-service hooks that override default behavior.
  */
@@ -178,21 +178,21 @@ export function generateHandler(
     manage_calendar: 'calendar',
     manage_drive: 'drive',
   };
-  const domain = domainMap[service.tool_name] ?? service.gws_service;
+  const domain = domainMap[service.tool_name] ?? service.google_service;
 
   return async (params: Record<string, unknown>): Promise<HandlerResponse> => {
     const operation = params.operation as string;
     const opDef = service.operations[operation];
     if (!opDef) {
-      throw new Error(`Unknown ${service.gws_service} operation: ${operation}`);
+      throw new Error(`Unknown ${service.google_service} operation: ${operation}`);
     }
 
     const account = service.requires_email ? requireEmail(params) : '';
     const ctx: PatchContext = { operation, params, account };
 
     // Safety policies — run before anything else, including custom handlers.
-    // A blocked operation never reaches the handler or gws.
-    const policyResult = evaluatePolicies([], ctx, service.gws_service);
+    // A blocked operation never reaches the handler or Google.
+    const policyResult = evaluatePolicies([], ctx, service.google_service);
     if (policyResult.action === 'block') {
       return {
         text: `**Blocked by safety policy:** ${policyResult.reason}`,
@@ -224,23 +224,17 @@ export function generateHandler(
       };
     }
 
-    // THE SEAM (ADR-103). Resource operations go to the Google API client we own,
-    // driven by the generated descriptor. Helper operations still shell out to the
-    // gws facade — they are gws INVENTIONS with no Google method behind them, and
-    // they are dismantled next. This is deliberately a staged migration: the 70
-    // resource ops move together, and nothing else changes underneath them.
-    //
-    // Safe to do in one step because item 2 measured it: for the 26 resource ops
-    // diffed live, gws and the client returned BYTE-IDENTICAL JSON. The formatters
-    // below are reading exactly what they read before.
+    // THE SEAM (ADR-103). Every operation goes to the Google API client we own, driven
+    // by the generated descriptor. There is no second path, and nothing shells out. An
+    // operation names a Google method, or a custom handler composes several, or it does
+    // not exist.
     let data: unknown;
 
     if (opDef.resource) {
       let callParams = buildResourceParams(opDef, params);
 
-      // beforeExecute now takes PARAMS, not gws argv. The old hooks did JSON
-      // surgery on an argv slot — `JSON.parse(args[args.indexOf('--params') + 1])`
-      // — purely because the seam was a command line. That is gone.
+      // beforeExecute takes PARAMS. Hooks mutate the param object directly; there is
+      // no command line to do surgery on.
       if (patch?.beforeExecute?.[operation]) {
         callParams = await patch.beforeExecute[operation](callParams, ctx);
       }
@@ -257,27 +251,23 @@ export function generateHandler(
       // The conformance check is probed and goes red on a bogus resource path, so
       // a typo in the YAML fails the build rather than the call.
       data = await googleCall(
-        service.gws_service as GoogleService,
+        service.google_service as GoogleService,
         opDef.resource as ServiceMethods[GoogleService],
         callParams,
         { account },
       );
     } else {
       // No resource, and no custom handler took it. There is nothing left to call.
-      //
-      // This branch USED to shell out to a gws `+helper`. Every one of those is
-      // gone: nine of them were plain Google methods wearing a CLI costume, and
-      // the two that genuinely reshaped anything (+triage, +agenda) are now built
-      // from raw Google in our own layer. See ADR-103.
+      // An operation is a Google method or a composition of them — there is no third
+      // kind. See ADR-103.
       throw new Error(
-        `${service.gws_service}.${operation} declares no 'resource' and has no custom handler.`,
+        `${service.google_service}.${operation} declares no 'resource' and has no custom handler.`,
       );
     }
 
-    // afterExecute hook — takes DATA, and is unaffected by the seam change.
-    // This is the hook that already turns raw Google into OUR shape (see
-    // gmailPatch.afterExecute.search, which walks payload.headers). It is the
-    // right place for interpretation, and it is where the helpers' opinions go.
+    // afterExecute hook — takes DATA. This is the hook that turns raw Google into OUR
+    // shape (see gmailPatch.afterExecute.search, which walks payload.headers). It is
+    // the right place for interpretation.
     if (patch?.afterExecute?.[operation]) {
       data = await patch.afterExecute[operation](data, ctx);
     }
@@ -302,18 +292,12 @@ export function generateHandler(
   };
 }
 
-// `buildArgs()` is gone. Resource operations no longer become a command line at
-// all — they become params for the client (see buildResourceParams above). Only
-// helper operations still build argv, and only until they are dismantled: they are
-// gws INVENTIONS with no Google method behind them. See ADR-103.
-
 /**
  * Build the params a resource operation sends to Google.
  *
  * This is the manifest's mapping — declared params, `maps_to` renames, defaults,
- * clamps — and it is unchanged by the move off gws. It used to be serialised into
- * a `--params` JSON argv slot; now it is simply the request params. The mapping
- * was never gws-specific, which is why the migration is mechanical.
+ * clamps. A resource operation never becomes a command line: the output here is
+ * the request params, handed straight to the client. See ADR-103.
  */
 export function buildResourceParams(
   opDef: OperationDef,

@@ -4,9 +4,8 @@
  * share / listPermissions / copy / update handlers whose whole reason to exist
  * is putting fields in the request BODY rather than the query.
  *
- * After ADR-103 every one of these is a RESOURCE op: they go through the Google
- * API client we own (`call` / `download`), not gws. `upload` is the one drive
- * handler still on the gws helper path, and it is covered in
+ * Every one of these is a RESOURCE op: they go through the Google API client we
+ * own (`call` / `download`). `upload` is covered in
  * src/__tests__/server/handlers/drive.test.ts.
  */
 import { afterAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';

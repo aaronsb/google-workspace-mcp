@@ -5,9 +5,8 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Every sheets custom handler is a RESOURCE op — none of them shell out to gws
-// any more (ADR-103). A mocked `call()` resolves to raw Google JSON; there is no
-// { success, data, stderr } envelope.
+// Every sheets custom handler is a RESOURCE op (ADR-103). A mocked `call()`
+// resolves to raw Google JSON; there is no { success, data, stderr } envelope.
 vi.mock('../../google/client.js');
 import { mockCall } from '../server/handlers/__mocks__/client.js';
 import { requestFor, queryOf } from '../support/request.js';
@@ -387,8 +386,8 @@ describe('sheetsPatch customHandlers.append', () => {
     const params = mockCall.mock.calls[0][2];
     expect(params.range).toBe('Q2 Metrics!A:Z');
     expect(params.valueInputOption).toBe('USER_ENTERED');
-    // `range` is a PATH param — it must reach the URL, which is exactly what the
-    // gws `+append` helper (no --range flag) could never do.
+    // `range` is a PATH param — it must reach the URL, or append silently lands on
+    // the default sheet instead of the one that was asked for.
     const request = await requestFor('sheets', 'spreadsheets.values.append', params);
     expect(decodeURIComponent(new URL(request.url).pathname)).toContain('/values/Q2 Metrics!A:Z:append');
   });

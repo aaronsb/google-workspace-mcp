@@ -21,7 +21,7 @@ interface DocWriteParams {
 /**
  * Append text to the end of a document's body.
  *
- * Was gws's `docs +write`. `documentId` is the only declared path param;
+ * `documentId` is the only declared path param;
  * `requests` is the batchUpdate body. `endOfSegmentLocation` with an empty
  * `segmentId` means "the end of the document body" — the append semantics the
  * adapter has always claimed.

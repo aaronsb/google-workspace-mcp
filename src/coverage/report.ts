@@ -28,8 +28,8 @@ export function formatTerminalReport(report: CoverageReport): string {
   const lines: string[] = [];
 
   lines.push('');
-  lines.push(`${BOLD}gws CLI Coverage Analysis${RESET}`);
-  lines.push(`${DIM}gws version: ${report.gwsVersion}${RESET}`);
+  lines.push(`${BOLD}Google API Coverage${RESET}`);
+  lines.push(`${DIM}surface: ${report.apiSurface}${RESET}`);
   lines.push(`${DIM}timestamp:   ${report.timestamp}${RESET}`);
   lines.push('');
 
@@ -77,7 +77,7 @@ export function formatTerminalReport(report: CoverageReport): string {
   const removedOps = report.services.flatMap(s => s.removedOps.map(op => ({ service: s.service, op })));
   if (removedOps.length > 0) {
     lines.push('');
-    lines.push(`${BOLD}Removed from gws:${RESET}`);
+    lines.push(`${BOLD}Removed from Google's surface:${RESET}`);
     for (const { service, op } of removedOps) {
       lines.push(`  ${RED}-${RESET} ${CYAN}${service}${RESET} ${op}`);
     }

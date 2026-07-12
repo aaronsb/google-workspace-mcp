@@ -415,7 +415,7 @@ async function syncIfBound(id: string): Promise<HandlerResponse | null> {
       if (values && range) {
         // `values` is the request BODY (the descriptor declares only
         // spreadsheetId/range/valueInputOption), so it goes at the top level —
-        // the old `requestBody: {...}` nesting was a gws-ism.
+        // not nested under `requestBody`.
         await call('sheets', 'spreadsheets.values.update', {
           spreadsheetId: binding.resourceId,
           range,

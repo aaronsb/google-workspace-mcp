@@ -9,9 +9,8 @@ import type { Manifest, ServiceDef } from '../../factory/types.js';
 // ONE seam (ADR-103). Every operation the generator can reach — resource ops via
 // the manifest, custom handlers via the patches — goes through the Google API
 // client we own, which returns RAW Google JSON (no { success, data, stderr }
-// envelope). The gws executor is deliberately NOT mocked: nothing on these paths
-// shells out any more, so a test that mocked it would be asserting against a
-// seam that no longer carries traffic.
+// envelope). Nothing on these paths shells out, so the client is the only seam a
+// test needs to mock.
 vi.mock('../../google/client.js');
 import { call, upload } from '../../google/client.js';
 const mockCall = call as MockedFunction<typeof call>;
@@ -105,7 +104,7 @@ describe('generateTools', () => {
     expect(names).toContain('manage_sheets');
     expect(names).toContain('manage_tasks');
     expect(names).toContain('manage_meet');
-    // manage_contacts excluded pending gws auth scope support
+    // manage_contacts excluded pending auth scope support
   });
 
   it('each tool has both schema and handler', () => {
@@ -142,19 +141,15 @@ describe('generateHandler', () => {
   });
 
   it('throws when an operation declares no resource and has no custom handler', async () => {
-    // REPLACES "calls execute with correct args for helper-based operations".
-    // That test had a FALSE PREMISE: there are no helper-based operations. Every
-    // gws `+helper` is gone — the nine that were plain Google methods in a CLI
-    // costume are manifest resource ops, and the two that genuinely reshaped
-    // anything (+triage, +agenda) are custom handlers / afterExecute hooks over
-    // raw Google. Nothing is left for the generator's else-branch to call, so the
-    // behaviour worth pinning is that such an op FAILS LOUDLY rather than
-    // silently doing nothing.
+    // An operation is a manifest resource op or a custom handler — there is no
+    // third kind, so nothing is left for the generator's else-branch to call. The
+    // behaviour worth pinning is that such an op FAILS LOUDLY rather than silently
+    // doing nothing.
     const orphan: ServiceDef = {
       tool_name: 'manage_orphan',
       description: 'a service with an unroutable operation',
       requires_email: true,
-      gws_service: 'gmail',
+      google_service: 'gmail',
       operations: {
         stranded: { type: 'action', description: 'declares no resource' },
       },
@@ -170,9 +165,9 @@ describe('generateHandler', () => {
   });
 
   it('uses patch formatList when available', async () => {
-    // triage is now a resource op (users.messages.list with an unread query) whose
+    // triage is a resource op (users.messages.list with an unread query) whose
     // afterExecute hydrates the bare IDs Google returns. The formatter therefore
-    // reads REAL Gmail shapes, not gws's invented flat {id,from,subject,date}.
+    // reads REAL Gmail shapes.
     mockCall.mockResolvedValueOnce({ messages: [{ id: 'msg-1' }] });
     mockCall.mockResolvedValueOnce({
       id: 'msg-1', threadId: 't1', snippet: 'hi',
@@ -252,11 +247,9 @@ describe('generateHandler', () => {
   });
 
   describe('reply and replyAll honour attachments, html and draft (#132)', () => {
-    // These tests used to read gws argv (`+reply`, `--draft`, `--attach`, `--html`,
-    // `--cc`, and a `cwd` because --attach paths were cwd-relative). reply/replyAll
-    // now build an RFC 5322 message themselves (src/services/gmail/mail.ts) and
-    // upload it, so the assertions look at the two things that decide what the user
-    // gets: WHICH endpoint (users.drafts.create vs users.messages.send) and WHAT
+    // reply/replyAll build an RFC 5322 message themselves (src/services/gmail/mail.ts)
+    // and upload it, so the assertions look at the two things that decide what the
+    // user gets: WHICH endpoint (users.drafts.create vs users.messages.send) and WHAT
     // message (the MIME bytes).
     let workspace: string;
     let originalWorkspaceDir: string | undefined;
@@ -312,8 +305,8 @@ describe('generateHandler', () => {
         attachments: 'report.pdf, data.csv',
       });
 
-      // Attachments still imply a draft — now a deliberate safety choice, not a
-      // gws limitation (the client can send attachments outright).
+      // Attachments imply a draft — a deliberate safety choice, not a technical
+      // limit (the client can send attachments outright).
       expect(mockUpload).toHaveBeenCalledWith(
         'gmail',
         'users.drafts.create',
@@ -409,9 +402,8 @@ describe('generateHandler', () => {
       ['reply'],
       ['replyAll'],
     ])('%s threads the reply to the original message', async (operation) => {
-      // Threading used to be gws's business. It is ours now, so it gets asserted:
       // In-Reply-To + References are what make a reply land in the conversation
-      // rather than start a new one.
+      // rather than start a new one, so they get asserted.
       mockOriginal();
       mockUpload.mockResolvedValue({ id: 'sent-1', threadId: 'thread-1' });
       const handler = generateHandler(manifest.services.gmail, patches.gmail);
@@ -466,7 +458,7 @@ describe('generateHandler', () => {
           attachments: '../../../etc/passwd',
         }),
       ).rejects.toThrow();
-      // Nothing was sent — the fence is ours now (gws's cwd fence is gone).
+      // Nothing was sent — the workspace fence rejected the path.
       expect(mockUpload).not.toHaveBeenCalled();
     });
   });

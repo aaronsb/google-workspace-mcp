@@ -1,10 +1,9 @@
 /**
- * Errors from Google, not from a subprocess.
+ * Errors from Google.
  *
- * The gws executor built errors by parsing stdout for `error.message`, and
- * failing that, by using raw stderr text as the message (`executor/errors.ts`).
- * We now get Google's actual error JSON, which carries a status, a reason and a
- * message that were written for an API caller rather than for a terminal.
+ * Built from Google's actual error JSON, which carries a status, a reason and a
+ * message written for an API caller rather than for a terminal. Do not reconstruct
+ * errors by parsing text meant for humans.
  *
  * ADR-103, verification item 7.
  */
@@ -38,10 +37,9 @@ export class GoogleApiError extends Error {
   /**
    * Is this the "you need to re-authenticate" case?
    *
-   * The old code branched on `GwsExitCode.AuthError` — an exit code invented by
-   * the CLI. Google says it directly: 401 means the token is bad, and a 403 whose
-   * reason is a permissions/scope failure means the token is valid but does not
-   * carry the scope this call needs. Both are fixed by re-consenting.
+   * Read it from Google, not from an invented status code. 401 means the token is
+   * bad; a 403 whose reason is a permissions/scope failure means the token is valid
+   * but does not carry the scope this call needs. Both are fixed by re-consenting.
    */
   get isAuthError(): boolean {
     if (this.status === 401) return true;

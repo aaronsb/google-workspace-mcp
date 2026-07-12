@@ -151,4 +151,10 @@ Feel free to open an issue for:
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your contributions will be licensed under the
+[Apache License 2.0](LICENSE).
+
+This project was MIT-licensed through v3.0.0. That history is preserved: the MIT notice
+is retained in `LICENSE-MIT`, and contributors from that period are credited in `NOTICE`.
+Apache 2.0 adds an explicit patent grant and a requirement to state changes — it does not
+restrict what MIT allowed.

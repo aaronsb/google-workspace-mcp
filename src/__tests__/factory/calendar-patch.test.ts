@@ -3,7 +3,7 @@ import { vi } from 'vitest';
 // Registered here, not in the shared helper: vi.mock hoists per-file.
 // ONE seam (ADR-103): every calendar operation — agenda, freebusy, create,
 // update, delete — goes through the Google API client we own. Nothing shells
-// out, so the gws executor is not mocked here: it is not on any path.
+// out, so the client is the only thing that needs mocking.
 vi.mock('../../google/client.js');
 /**
  * Tests for the calendar service patch — custom handlers and formatters
@@ -81,16 +81,12 @@ describe('calendarPatch', () => {
   });
 
   describe('agenda custom handler', () => {
-    // These tests used to assert gws ARGV FLAGS (--today/--week/--tomorrow/--days)
-    // and consumed gws's INVENTED response shape. Agenda is now built from raw
-    // Google: calendarList.list -> events.list per calendar -> merge. So they now
-    // assert the thing that actually determines the answer — the TIME WINDOW sent
-    // to Google, and the merge.
+    // Agenda is built from raw Google: calendarList.list -> events.list per
+    // calendar -> merge. These assert the two things that actually determine the
+    // answer — the TIME WINDOW sent to Google, and the merge.
     //
-    // One test was DELETED, not ported: "falls back to organizer email when
-    // calendarId missing". That fallback existed because gws's shape did not
-    // reliably carry the calendar. We now set calendarId from the calendar we
-    // QUERIED, so it is never missing — the failure it guarded cannot occur.
+    // calendarId is always set from the calendar we QUERIED, so it can never be
+    // missing; there is deliberately no organizer-email fallback to test.
 
     /** Two calendars, one event each, so we can see the merge. */
     function mockTwoCalendars() {
@@ -138,8 +134,8 @@ describe('calendarPatch', () => {
       await calendarPatch.customHandlers!.agenda({ week: true }, 'user@test.com');
 
       const { min, max } = windowSent();
-      // The bug this fixes: gws's --week was a ROLLING [now, now+7d], so asking
-      // for your week at 11am silently hid your 9am meeting.
+      // The bug this fixes: a ROLLING [now, now+7d] window means asking for your
+      // week at 11am silently hides your 9am meeting.
       expect(min.getHours()).toBe(0);
       expect(Math.round((max.getTime() - min.getTime()) / DAY_MS)).toBe(7);
     });
@@ -199,9 +195,8 @@ describe('calendarPatch', () => {
     });
 
     it('SURFACES an unreadable calendar instead of silently dropping it', async () => {
-      // gws swallowed per-calendar failures (`_ => return vec![]`), so a calendar
-      // you had lost access to contributed zero events and said NOTHING. That is a
-      // defect, not an opinion, and we do not reproduce it.
+      // Swallowing a per-calendar failure means a calendar you have lost access to
+      // contributes zero events and says NOTHING. Surface it instead.
       mockCall.mockImplementation(async (_service: string, resource: string, params: Record<string, unknown>) => {
         if (resource === 'calendarList.list') {
           return { items: [
@@ -351,10 +346,8 @@ describe('calendarPatch', () => {
   });
 
   describe('create custom handler', () => {
-    // Was gws's `+insert`. These tests used to assert ARGV FLAGS — `--meet`, and
-    // an `--attendee`/`--attendees` spelling quirk of the CLI's parser. There is
-    // no command line: create is now events.insert with a JSON body, so the tests
-    // assert what Google is actually sent.
+    // create is events.insert with a JSON body, so these assert what Google is
+    // actually sent.
 
     it('routes via events.insert with the event in the body', async () => {
       mockCall.mockResolvedValue(calendarInsertResponse);
@@ -457,10 +450,8 @@ describe('calendarPatch', () => {
     });
 
     it('converts comma-separated attendees into an array of {email} objects', async () => {
-      // REPLACES "passes attendees via --attendee (singular) — gws rejects the
-      // plural form". That test's entire subject was the CLI's argument parser;
-      // with the CLI gone it measures nothing. What determines whether the guests
-      // are actually invited is the SHAPE of `attendees` in the JSON body.
+      // What determines whether the guests are actually invited is the SHAPE of
+      // `attendees` in the JSON body: an array of {email} objects.
       mockCall.mockResolvedValue(calendarInsertResponse);
       await calendarPatch.customHandlers!.create(
         { summary: 'X', start: 'Y', end: 'Z', attendees: 'a@b.com, c@d.com' },

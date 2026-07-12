@@ -4,9 +4,9 @@
  * The methods Google actually declares, per service. `call()` is typed against
  * these, so a method that does not exist is a COMPILE ERROR.
  *
- * This exists because two features shipped broken for months by calling gws
- * subcommands that never existed (`docs +export`, `drive +download`). The tests
- * mocked the executor, so the mock answered yes to a command the binary always
+ * This exists because two features shipped broken for months by calling methods
+ * that never existed (`docs +export`, `drive +download`). The tests mocked the
+ * dispatch layer, so the mock answered yes to a call the real API always
  * rejected. See ADR-103 and docs/design-notes/adr-103-helper-semantics.md.
  */
 

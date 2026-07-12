@@ -1,7 +1,7 @@
 tool_name: manage_calendar
 description: "List events, view agenda, check availability, or manage calendar events."
 requires_email: true
-gws_service: calendar
+google_service: calendar
 operations:
 
   # --- Event viewing ---

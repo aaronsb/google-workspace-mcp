@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // The tracker's three probes (unread, today, next event) are RESOURCE calls, so
-// they go through the client we own — not gws (ADR-103). A mocked `call()`
-// returns raw Google JSON: no { success, data, stderr } envelope.
+// they go through the client we own (ADR-103). A mocked `call()` returns raw
+// Google JSON: no { success, data, stderr } envelope.
 vi.mock('../../../google/client.js');
 import { mockCall } from '../handlers/__mocks__/client.js';
 import { SessionTracker } from '../../../server/session/tracker.js';

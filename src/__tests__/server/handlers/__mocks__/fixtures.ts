@@ -2,12 +2,9 @@
  * Shared response fixtures for handler and patch tests.
  *
  * These are RAW Google JSON — exactly what `call()` from src/google/client.ts
- * hands back. There is no envelope: the `{ success, data, stderr }` wrapper was
- * a gws artifact and it is gone (ADR-103). A fixture that needs wrapping is a
- * fixture for the gws executor, and those live in `./executor.ts`.
+ * hands back. There is no `{ success, data, stderr }` envelope (ADR-103).
  *
- * Pure data, no vi.mock guard — safe to import from a test that mocks only the
- * client, only the executor, or both.
+ * Pure data, no vi.mock guard — safe to import from any test.
  */
 
 // --- Gmail ---

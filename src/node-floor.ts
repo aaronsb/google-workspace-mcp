@@ -53,7 +53,7 @@ export function meets(actual: string, min: string): boolean {
 
 export function floorMessage(actual: string, min: string = MIN_NODE): string {
   return (
-    `\n[gws-mcp] This server requires Node >=${min}, but is running on ${actual}.\n\n` +
+    `\n[google-workspace-mcp] This server requires Node >=${min}, but is running on ${actual}.\n\n` +
     `  Node 18 and Node 20 are both end-of-life (April 2025 and April 2026).\n` +
     `  Upgrading is the fix: https://nodejs.org/en/download\n\n` +
     `  Running this as a Claude Desktop extension (.mcpb)? The bundle uses the Node\n` +
