@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "version-stamp": "node scripts/version-stamp.mjs",
-    "build": "npm run version-stamp && tsc --skipLibCheck && rm -rf build/factory/manifest && cp -r src/factory/manifest build/factory/manifest",
+    "build": "npm run version-stamp && tsc --skipLibCheck && rm -rf build/factory/manifest && cp -r src/factory/manifest build/factory/manifest && cp src/google/descriptor.json build/google/descriptor.json",
     "postbuild": "node scripts/check-build.mjs",
     "prepublishOnly": "npm run build",
     "type-check": "tsc --noEmit --skipLibCheck && tsc -p tsconfig.test.json --skipLibCheck",
@@ -25,7 +25,9 @@
     "test": "vitest run src/__tests__/executor src/__tests__/accounts src/__tests__/server src/__tests__/factory src/__tests__/services src/server/scratchpad",
     "test:watch": "vitest src/__tests__/executor src/__tests__/accounts src/__tests__/server src/__tests__/factory src/__tests__/services src/server/scratchpad",
     "test:integration": "vitest run --no-file-parallelism src/__tests__/integration",
-    "test:all": "vitest run --no-file-parallelism"
+    "test:all": "vitest run --no-file-parallelism",
+    "generate-descriptor": "node scripts/generate-descriptor.mjs",
+    "check-descriptor": "node scripts/generate-descriptor.mjs --check"
   },
   "dependencies": {
     "@googleworkspace/cli": "^0.22.5",

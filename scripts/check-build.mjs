@@ -98,6 +98,30 @@ if (errors.length === 0) {
   }
 }
 
+// Same discipline, for the API descriptor. `tsc` does not copy .json, so the
+// descriptor reaches build/ only because the build script copies it. If that copy
+// silently stops working, every Google call dies at runtime while the build stays
+// green — a build check that passes on an unshippable artifact.
+//
+// So do not test that the FILE exists. Ask the LOADER the server actually uses.
+let descriptorMethods = 0;
+if (errors.length === 0) {
+  try {
+    const { loadDescriptor } = await import(pathToFileURL(resolve(ROOT, 'build/google/descriptor.js')).href);
+    const descriptor = await loadDescriptor();
+    const services = Object.keys(descriptor.services ?? {});
+    descriptorMethods = services.reduce((n, s) => n + Object.keys(descriptor.services[s].methods ?? {}).length, 0);
+    if (services.length === 0 || descriptorMethods === 0) {
+      errors.push('the built API descriptor loaded but is empty — no services or no methods.');
+    }
+  } catch (err) {
+    errors.push(
+      `the built server cannot load its API descriptor: ${err.message}\n` +
+      `    build/google/descriptor.json is what every Google call reads. Without it the server starts and then fails on first use.`,
+    );
+  }
+}
+
 if (errors.length > 0) {
   console.error('check-build: the built output is not shippable:\n');
   for (const e of errors) console.error(`  ${e}`);
@@ -106,5 +130,6 @@ if (errors.length > 0) {
 }
 
 console.log(
-  `check-build: build/ is complete (${got.length} service manifests, loader resolves all of them, entrypoint present).`,
+  `check-build: build/ is complete (${got.length} service manifests, loader resolves all of them, ` +
+  `API descriptor loads ${descriptorMethods} methods, entrypoint present).`,
 );

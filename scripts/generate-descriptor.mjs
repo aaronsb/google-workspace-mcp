@@ -1,0 +1,177 @@
+/**
+ * Build-time code generator: Google Discovery -> src/google/descriptor.json
+ *
+ * This is the piece that replaces the gws facade. gws is itself generated from
+ * these same documents — which is why its surface and Google's are identical
+ * (233 operations, 233 in agreement). We want the generator, not the facade.
+ *
+ * THE ONE RULE: the descriptor is a TRANSCRIPTION, not an interpretation. It
+ * records how to make a REQUEST and says nothing about what a RESPONSE means.
+ * Discovery's `schemas` block — response shapes, ~90% of each document — is
+ * deliberately DISCARDED.
+ *
+ *   raw Discovery, 7 services : 983 KB, 233 methods
+ *   descriptor               : 160 KB, 233 methods
+ *   the gws binary it replaces: 19.2 MB
+ *
+ *   node scripts/generate-descriptor.mjs           regenerate and write
+ *   node scripts/generate-descriptor.mjs --check   fail if the committed file is stale (CI drift gate)
+ *
+ * See ADR-103.
+ */
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const OUT = resolve(HERE, '..', 'src', 'google', 'descriptor.json');
+const DIRECTORY = 'https://www.googleapis.com/discovery/v1/apis';
+
+/** The services and versions our manifest targets. The one thing we state; all else is asked. */
+const SERVICE_VERSIONS = {
+  gmail: 'v1', drive: 'v3', calendar: 'v3', docs: 'v1',
+  sheets: 'v4', tasks: 'v1', meet: 'v2',
+};
+
+/**
+ * Where does a service's Discovery document live? NOT a template — measured:
+ *
+ *   gmail, docs, sheets, tasks   central 200   self-hosted 200
+ *   drive, calendar              central 200   self-hosted 404
+ *   meet                         central 404   self-hosted 200
+ *
+ * Neither pattern is universal, so ANY URL TEMPLATE IS A GUESS. The directory
+ * publishes a `discoveryRestUrl` per API, and Calendar proves this is not
+ * pedantry: it lives at `calendar-json.googleapis.com`, which no template would
+ * ever produce. Look the document up; do not construct its address.
+ */
+async function resolveDiscoveryUrls() {
+  const res = await fetch(DIRECTORY);
+  if (!res.ok) throw new Error(`discovery directory: ${res.status}`);
+  const { items } = await res.json();
+
+  const urls = {};
+  for (const [service, version] of Object.entries(SERVICE_VERSIONS)) {
+    const hit = items.find((i) => i.name === service && i.version === version);
+    if (!hit) throw new Error(`${service}/${version} is not in the Discovery directory`);
+    urls[service] = hit.discoveryRestUrl;
+  }
+  return urls;
+}
+
+/** Request-side facts only. `response`/`request` $refs into `schemas` are dropped. */
+function distillMethod(m) {
+  const parameters = {};
+  for (const [name, p] of Object.entries(m.parameters ?? {})) {
+    parameters[name] = {
+      location: p.location,
+      ...(p.required ? { required: true } : {}),
+      ...(p.repeated ? { repeated: true } : {}),
+    };
+  }
+
+  const out = { path: m.path, httpMethod: m.httpMethod, parameters };
+  if (m.scopes) out.scopes = m.scopes;
+  if (m.supportsMediaDownload) out.supportsMediaDownload = true;
+  if (m.supportsMediaUpload) {
+    // Discovery DECLARES the upload paths, for both protocols. Both are served
+    // (verified live). Transcribe them; do not reconstruct them.
+    out.mediaUpload = {
+      maxSize: m.mediaUpload?.maxSize,
+      accept: m.mediaUpload?.accept,
+      simple: m.mediaUpload?.protocols?.simple?.path,
+      resumable: m.mediaUpload?.protocols?.resumable?.path,
+    };
+  }
+  return out;
+}
+
+/** resources -> methods, flattened to dotted keys: `users.messages.attachments.get`. */
+function walkMethods(node, prefix, out) {
+  for (const [name, m] of Object.entries(node.methods ?? {})) {
+    out[prefix ? `${prefix}.${name}` : name] = distillMethod(m);
+  }
+  for (const [name, child] of Object.entries(node.resources ?? {})) {
+    walkMethods(child, prefix ? `${prefix}.${name}` : name, out);
+  }
+  return out;
+}
+
+async function generate() {
+  const urls = await resolveDiscoveryUrls();
+  const services = {};
+
+  for (const [service, version] of Object.entries(SERVICE_VERSIONS)) {
+    const res = await fetch(urls[service]);
+    if (!res.ok) throw new Error(`discovery ${service}/${version} at ${urls[service]}: ${res.status}`);
+    const doc = await res.json();
+
+    // Global parameters live ONCE at the document root, not per method: `fields`,
+    // `alt`, `quotaUser`, `prettyPrint`. A client that reads only method params
+    // cannot place `fields`, drops it into the body, and a GET silently discards
+    // it — which is how drive.listComments died with
+    // "The 'fields' parameter is required".
+    const globalParameters = {};
+    for (const [name, p] of Object.entries(doc.parameters ?? {})) {
+      globalParameters[name] = { location: p.location };
+    }
+
+    services[service] = {
+      version: doc.version,
+      rootUrl: doc.rootUrl,
+      servicePath: doc.servicePath ?? '',
+      discoveryUrl: urls[service],
+      globalParameters,
+      methods: walkMethods(doc, '', {}),
+    };
+  }
+
+  return { generatedFrom: DIRECTORY, services };
+}
+
+/**
+ * Canonicalise: sort every object key, recursively.
+ *
+ * NOT cosmetic. Google's Discovery service returns object keys in a
+ * NONDETERMINISTIC ORDER — two consecutive fetches of the same document emit
+ * `parameters` in different orders. Serialised naively, the committed descriptor
+ * churns on every regeneration, every diff is noise, and the drift gate below
+ * fires forever on a difference that means nothing.
+ *
+ * A vendored generated artifact must be CANONICAL, or its diff cannot be read and
+ * its staleness cannot be detected. Sorting makes a real drift — Google actually
+ * changing — the only thing that can show up in the diff.
+ */
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value === null || typeof value !== 'object') return value;
+  const out = {};
+  for (const key of Object.keys(value).sort()) out[key] = canonical(value[key]);
+  return out;
+}
+
+const descriptor = canonical(await generate());
+const serialized = JSON.stringify(descriptor, null, 2) + '\n';
+const methods = Object.values(descriptor.services).reduce((n, s) => n + Object.keys(s.methods).length, 0);
+
+if (process.argv.includes('--check')) {
+  // CI drift gate. A vendored artifact whose staleness nobody checks is a lie
+  // waiting to happen; this makes drift a build failure instead of a surprise.
+  let committed;
+  try { committed = readFileSync(OUT, 'utf-8'); }
+  catch { console.error('generate-descriptor --check: src/google/descriptor.json is missing.'); process.exit(1); }
+
+  if (committed !== serialized) {
+    console.error('generate-descriptor --check: DRIFT — Google\'s surface no longer matches the committed descriptor.');
+    console.error('  Run `npm run generate-descriptor`, review the diff, and commit it.');
+    process.exit(1);
+  }
+  console.log(`generate-descriptor --check: OK — descriptor matches Google (${methods} methods).`);
+  process.exit(0);
+}
+
+writeFileSync(OUT, serialized);
+console.log(`generate-descriptor: ${methods} methods across ${Object.keys(descriptor.services).length} services -> src/google/descriptor.json`);
+for (const [name, svc] of Object.entries(descriptor.services)) {
+  console.log(`  ${name.padEnd(9)} ${String(Object.keys(svc.methods).length).padStart(3)}  ${svc.discoveryUrl}`);
+}

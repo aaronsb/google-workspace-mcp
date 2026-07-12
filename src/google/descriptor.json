@@ -1,0 +1,5271 @@
+{
+  "generatedFrom": "https://www.googleapis.com/discovery/v1/apis",
+  "services": {
+    "calendar": {
+      "discoveryUrl": "https://calendar-json.googleapis.com/$discovery/rest?version=v3",
+      "globalParameters": {
+        "alt": {
+          "location": "query"
+        },
+        "fields": {
+          "location": "query"
+        },
+        "key": {
+          "location": "query"
+        },
+        "oauth_token": {
+          "location": "query"
+        },
+        "prettyPrint": {
+          "location": "query"
+        },
+        "quotaUser": {
+          "location": "query"
+        },
+        "userIp": {
+          "location": "query"
+        }
+      },
+      "methods": {
+        "acl.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "ruleId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "calendars/{calendarId}/acl/{ruleId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.acls"
+          ]
+        },
+        "acl.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "ruleId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "calendars/{calendarId}/acl/{ruleId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.acls",
+            "https://www.googleapis.com/auth/calendar.acls.readonly",
+            "https://www.googleapis.com/auth/calendar.readonly"
+          ]
+        },
+        "acl.insert": {
+          "httpMethod": "POST",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "sendNotifications": {
+              "location": "query"
+            }
+          },
+          "path": "calendars/{calendarId}/acl",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.acls"
+          ]
+        },
+        "acl.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "maxResults": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "showDeleted": {
+              "location": "query"
+            },
+            "syncToken": {
+              "location": "query"
+            }
+          },
+          "path": "calendars/{calendarId}/acl",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.acls",
+            "https://www.googleapis.com/auth/calendar.acls.readonly"
+          ]
+        },
+        "acl.patch": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "ruleId": {
+              "location": "path",
+              "required": true
+            },
+            "sendNotifications": {
+              "location": "query"
+            }
+          },
+          "path": "calendars/{calendarId}/acl/{ruleId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.acls"
+          ]
+        },
+        "acl.update": {
+          "httpMethod": "PUT",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "ruleId": {
+              "location": "path",
+              "required": true
+            },
+            "sendNotifications": {
+              "location": "query"
+            }
+          },
+          "path": "calendars/{calendarId}/acl/{ruleId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.acls"
+          ]
+        },
+        "acl.watch": {
+          "httpMethod": "POST",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "maxResults": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "showDeleted": {
+              "location": "query"
+            },
+            "syncToken": {
+              "location": "query"
+            }
+          },
+          "path": "calendars/{calendarId}/acl/watch",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.acls",
+            "https://www.googleapis.com/auth/calendar.acls.readonly"
+          ]
+        },
+        "calendarList.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "users/me/calendarList/{calendarId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.calendarlist"
+          ]
+        },
+        "calendarList.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "users/me/calendarList/{calendarId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.calendarlist",
+            "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+            "https://www.googleapis.com/auth/calendar.readonly"
+          ]
+        },
+        "calendarList.insert": {
+          "httpMethod": "POST",
+          "parameters": {
+            "colorRgbFormat": {
+              "location": "query"
+            }
+          },
+          "path": "users/me/calendarList",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.calendarlist"
+          ]
+        },
+        "calendarList.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "maxResults": {
+              "location": "query"
+            },
+            "minAccessRole": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "showDeleted": {
+              "location": "query"
+            },
+            "showHidden": {
+              "location": "query"
+            },
+            "syncToken": {
+              "location": "query"
+            }
+          },
+          "path": "users/me/calendarList",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.calendarlist",
+            "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+            "https://www.googleapis.com/auth/calendar.readonly"
+          ]
+        },
+        "calendarList.patch": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "colorRgbFormat": {
+              "location": "query"
+            }
+          },
+          "path": "users/me/calendarList/{calendarId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.calendarlist"
+          ]
+        },
+        "calendarList.update": {
+          "httpMethod": "PUT",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "colorRgbFormat": {
+              "location": "query"
+            }
+          },
+          "path": "users/me/calendarList/{calendarId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.calendarlist"
+          ]
+        },
+        "calendarList.watch": {
+          "httpMethod": "POST",
+          "parameters": {
+            "maxResults": {
+              "location": "query"
+            },
+            "minAccessRole": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "showDeleted": {
+              "location": "query"
+            },
+            "showHidden": {
+              "location": "query"
+            },
+            "syncToken": {
+              "location": "query"
+            }
+          },
+          "path": "users/me/calendarList/watch",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.calendarlist",
+            "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+            "https://www.googleapis.com/auth/calendar.readonly"
+          ]
+        },
+        "calendars.clear": {
+          "httpMethod": "POST",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "calendars/{calendarId}/clear",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.calendars"
+          ]
+        },
+        "calendars.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "calendars/{calendarId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.calendars"
+          ]
+        },
+        "calendars.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "calendars/{calendarId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.calendars",
+            "https://www.googleapis.com/auth/calendar.calendars.readonly",
+            "https://www.googleapis.com/auth/calendar.readonly"
+          ]
+        },
+        "calendars.insert": {
+          "httpMethod": "POST",
+          "parameters": {},
+          "path": "calendars",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.calendars"
+          ]
+        },
+        "calendars.patch": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "calendars/{calendarId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.calendars"
+          ]
+        },
+        "calendars.transferOwnership": {
+          "httpMethod": "POST",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "newDataOwner": {
+              "location": "query",
+              "required": true
+            },
+            "useAdminAccess": {
+              "location": "query",
+              "required": true
+            }
+          },
+          "path": "calendars/{calendarId}/transferOwnership",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.calendars"
+          ]
+        },
+        "calendars.update": {
+          "httpMethod": "PUT",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "calendars/{calendarId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.calendars"
+          ]
+        },
+        "channels.stop": {
+          "httpMethod": "POST",
+          "parameters": {},
+          "path": "channels/stop",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.acls",
+            "https://www.googleapis.com/auth/calendar.acls.readonly",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.calendarlist",
+            "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.events.freebusy",
+            "https://www.googleapis.com/auth/calendar.events.owned",
+            "https://www.googleapis.com/auth/calendar.events.owned.readonly",
+            "https://www.googleapis.com/auth/calendar.events.public.readonly",
+            "https://www.googleapis.com/auth/calendar.events.readonly",
+            "https://www.googleapis.com/auth/calendar.readonly",
+            "https://www.googleapis.com/auth/calendar.settings.readonly"
+          ]
+        },
+        "colors.get": {
+          "httpMethod": "GET",
+          "parameters": {},
+          "path": "colors",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.calendarlist",
+            "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+            "https://www.googleapis.com/auth/calendar.events.freebusy",
+            "https://www.googleapis.com/auth/calendar.events.owned",
+            "https://www.googleapis.com/auth/calendar.events.owned.readonly",
+            "https://www.googleapis.com/auth/calendar.events.public.readonly",
+            "https://www.googleapis.com/auth/calendar.readonly"
+          ]
+        },
+        "events.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "eventId": {
+              "location": "path",
+              "required": true
+            },
+            "sendNotifications": {
+              "location": "query"
+            },
+            "sendUpdates": {
+              "location": "query"
+            }
+          },
+          "path": "calendars/{calendarId}/events/{eventId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.events.owned"
+          ]
+        },
+        "events.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "alwaysIncludeEmail": {
+              "location": "query"
+            },
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "eventId": {
+              "location": "path",
+              "required": true
+            },
+            "maxAttendees": {
+              "location": "query"
+            },
+            "timeZone": {
+              "location": "query"
+            }
+          },
+          "path": "calendars/{calendarId}/events/{eventId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.events.freebusy",
+            "https://www.googleapis.com/auth/calendar.events.owned",
+            "https://www.googleapis.com/auth/calendar.events.owned.readonly",
+            "https://www.googleapis.com/auth/calendar.events.public.readonly",
+            "https://www.googleapis.com/auth/calendar.events.readonly",
+            "https://www.googleapis.com/auth/calendar.readonly"
+          ]
+        },
+        "events.import": {
+          "httpMethod": "POST",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "conferenceDataVersion": {
+              "location": "query"
+            },
+            "eventLabelVersion": {
+              "location": "query"
+            },
+            "supportsAttachments": {
+              "location": "query"
+            }
+          },
+          "path": "calendars/{calendarId}/events/import",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.events.owned"
+          ]
+        },
+        "events.insert": {
+          "httpMethod": "POST",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "conferenceDataVersion": {
+              "location": "query"
+            },
+            "eventLabelVersion": {
+              "location": "query"
+            },
+            "maxAttendees": {
+              "location": "query"
+            },
+            "sendNotifications": {
+              "location": "query"
+            },
+            "sendUpdates": {
+              "location": "query"
+            },
+            "supportsAttachments": {
+              "location": "query"
+            }
+          },
+          "path": "calendars/{calendarId}/events",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.events.owned"
+          ]
+        },
+        "events.instances": {
+          "httpMethod": "GET",
+          "parameters": {
+            "alwaysIncludeEmail": {
+              "location": "query"
+            },
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "eventId": {
+              "location": "path",
+              "required": true
+            },
+            "maxAttendees": {
+              "location": "query"
+            },
+            "maxResults": {
+              "location": "query"
+            },
+            "originalStart": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "showDeleted": {
+              "location": "query"
+            },
+            "timeMax": {
+              "location": "query"
+            },
+            "timeMin": {
+              "location": "query"
+            },
+            "timeZone": {
+              "location": "query"
+            }
+          },
+          "path": "calendars/{calendarId}/events/{eventId}/instances",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.events.freebusy",
+            "https://www.googleapis.com/auth/calendar.events.owned",
+            "https://www.googleapis.com/auth/calendar.events.owned.readonly",
+            "https://www.googleapis.com/auth/calendar.events.public.readonly",
+            "https://www.googleapis.com/auth/calendar.events.readonly",
+            "https://www.googleapis.com/auth/calendar.readonly"
+          ]
+        },
+        "events.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "alwaysIncludeEmail": {
+              "location": "query"
+            },
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "eventTypes": {
+              "location": "query",
+              "repeated": true
+            },
+            "iCalUID": {
+              "location": "query"
+            },
+            "maxAttendees": {
+              "location": "query"
+            },
+            "maxResults": {
+              "location": "query"
+            },
+            "orderBy": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "privateExtendedProperty": {
+              "location": "query",
+              "repeated": true
+            },
+            "q": {
+              "location": "query"
+            },
+            "sharedExtendedProperty": {
+              "location": "query",
+              "repeated": true
+            },
+            "showDeleted": {
+              "location": "query"
+            },
+            "showHiddenInvitations": {
+              "location": "query"
+            },
+            "singleEvents": {
+              "location": "query"
+            },
+            "syncToken": {
+              "location": "query"
+            },
+            "timeMax": {
+              "location": "query"
+            },
+            "timeMin": {
+              "location": "query"
+            },
+            "timeZone": {
+              "location": "query"
+            },
+            "updatedMin": {
+              "location": "query"
+            }
+          },
+          "path": "calendars/{calendarId}/events",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.events.freebusy",
+            "https://www.googleapis.com/auth/calendar.events.owned",
+            "https://www.googleapis.com/auth/calendar.events.owned.readonly",
+            "https://www.googleapis.com/auth/calendar.events.public.readonly",
+            "https://www.googleapis.com/auth/calendar.events.readonly",
+            "https://www.googleapis.com/auth/calendar.readonly"
+          ]
+        },
+        "events.move": {
+          "httpMethod": "POST",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "destination": {
+              "location": "query",
+              "required": true
+            },
+            "eventId": {
+              "location": "path",
+              "required": true
+            },
+            "sendNotifications": {
+              "location": "query"
+            },
+            "sendUpdates": {
+              "location": "query"
+            }
+          },
+          "path": "calendars/{calendarId}/events/{eventId}/move",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.events.owned"
+          ]
+        },
+        "events.patch": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "alwaysIncludeEmail": {
+              "location": "query"
+            },
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "conferenceDataVersion": {
+              "location": "query"
+            },
+            "eventId": {
+              "location": "path",
+              "required": true
+            },
+            "eventLabelVersion": {
+              "location": "query"
+            },
+            "maxAttendees": {
+              "location": "query"
+            },
+            "sendNotifications": {
+              "location": "query"
+            },
+            "sendUpdates": {
+              "location": "query"
+            },
+            "supportsAttachments": {
+              "location": "query"
+            }
+          },
+          "path": "calendars/{calendarId}/events/{eventId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.events.owned"
+          ]
+        },
+        "events.quickAdd": {
+          "httpMethod": "POST",
+          "parameters": {
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "sendNotifications": {
+              "location": "query"
+            },
+            "sendUpdates": {
+              "location": "query"
+            },
+            "text": {
+              "location": "query",
+              "required": true
+            }
+          },
+          "path": "calendars/{calendarId}/events/quickAdd",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.events.owned"
+          ]
+        },
+        "events.update": {
+          "httpMethod": "PUT",
+          "parameters": {
+            "alwaysIncludeEmail": {
+              "location": "query"
+            },
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "conferenceDataVersion": {
+              "location": "query"
+            },
+            "eventId": {
+              "location": "path",
+              "required": true
+            },
+            "eventLabelVersion": {
+              "location": "query"
+            },
+            "maxAttendees": {
+              "location": "query"
+            },
+            "sendNotifications": {
+              "location": "query"
+            },
+            "sendUpdates": {
+              "location": "query"
+            },
+            "supportsAttachments": {
+              "location": "query"
+            }
+          },
+          "path": "calendars/{calendarId}/events/{eventId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.events.owned"
+          ]
+        },
+        "events.watch": {
+          "httpMethod": "POST",
+          "parameters": {
+            "alwaysIncludeEmail": {
+              "location": "query"
+            },
+            "calendarId": {
+              "location": "path",
+              "required": true
+            },
+            "eventTypes": {
+              "location": "query",
+              "repeated": true
+            },
+            "iCalUID": {
+              "location": "query"
+            },
+            "maxAttendees": {
+              "location": "query"
+            },
+            "maxResults": {
+              "location": "query"
+            },
+            "orderBy": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "privateExtendedProperty": {
+              "location": "query",
+              "repeated": true
+            },
+            "q": {
+              "location": "query"
+            },
+            "sharedExtendedProperty": {
+              "location": "query",
+              "repeated": true
+            },
+            "showDeleted": {
+              "location": "query"
+            },
+            "showHiddenInvitations": {
+              "location": "query"
+            },
+            "singleEvents": {
+              "location": "query"
+            },
+            "syncToken": {
+              "location": "query"
+            },
+            "timeMax": {
+              "location": "query"
+            },
+            "timeMin": {
+              "location": "query"
+            },
+            "timeZone": {
+              "location": "query"
+            },
+            "updatedMin": {
+              "location": "query"
+            }
+          },
+          "path": "calendars/{calendarId}/events/watch",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.app.created",
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.events.freebusy",
+            "https://www.googleapis.com/auth/calendar.events.owned",
+            "https://www.googleapis.com/auth/calendar.events.owned.readonly",
+            "https://www.googleapis.com/auth/calendar.events.public.readonly",
+            "https://www.googleapis.com/auth/calendar.events.readonly",
+            "https://www.googleapis.com/auth/calendar.readonly"
+          ]
+        },
+        "freebusy.query": {
+          "httpMethod": "POST",
+          "parameters": {},
+          "path": "freeBusy",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.events.freebusy",
+            "https://www.googleapis.com/auth/calendar.freebusy",
+            "https://www.googleapis.com/auth/calendar.readonly"
+          ]
+        },
+        "settings.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "setting": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "users/me/settings/{setting}",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.readonly",
+            "https://www.googleapis.com/auth/calendar.settings.readonly"
+          ]
+        },
+        "settings.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "maxResults": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "syncToken": {
+              "location": "query"
+            }
+          },
+          "path": "users/me/settings",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.readonly",
+            "https://www.googleapis.com/auth/calendar.settings.readonly"
+          ]
+        },
+        "settings.watch": {
+          "httpMethod": "POST",
+          "parameters": {
+            "maxResults": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "syncToken": {
+              "location": "query"
+            }
+          },
+          "path": "users/me/settings/watch",
+          "scopes": [
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.readonly",
+            "https://www.googleapis.com/auth/calendar.settings.readonly"
+          ]
+        }
+      },
+      "rootUrl": "https://www.googleapis.com/",
+      "servicePath": "calendar/v3/",
+      "version": "v3"
+    },
+    "docs": {
+      "discoveryUrl": "https://docs.googleapis.com/$discovery/rest?version=v1",
+      "globalParameters": {
+        "$.xgafv": {
+          "location": "query"
+        },
+        "access_token": {
+          "location": "query"
+        },
+        "alt": {
+          "location": "query"
+        },
+        "callback": {
+          "location": "query"
+        },
+        "fields": {
+          "location": "query"
+        },
+        "key": {
+          "location": "query"
+        },
+        "oauth_token": {
+          "location": "query"
+        },
+        "prettyPrint": {
+          "location": "query"
+        },
+        "quotaUser": {
+          "location": "query"
+        },
+        "uploadType": {
+          "location": "query"
+        },
+        "upload_protocol": {
+          "location": "query"
+        }
+      },
+      "methods": {
+        "documents.batchUpdate": {
+          "httpMethod": "POST",
+          "parameters": {
+            "documentId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v1/documents/{documentId}:batchUpdate",
+          "scopes": [
+            "https://www.googleapis.com/auth/documents",
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "documents.create": {
+          "httpMethod": "POST",
+          "parameters": {},
+          "path": "v1/documents",
+          "scopes": [
+            "https://www.googleapis.com/auth/documents",
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "documents.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "documentId": {
+              "location": "path",
+              "required": true
+            },
+            "includeTabsContent": {
+              "location": "query"
+            },
+            "suggestionsViewMode": {
+              "location": "query"
+            }
+          },
+          "path": "v1/documents/{documentId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/documents",
+            "https://www.googleapis.com/auth/documents.readonly",
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        }
+      },
+      "rootUrl": "https://docs.googleapis.com/",
+      "servicePath": "",
+      "version": "v1"
+    },
+    "drive": {
+      "discoveryUrl": "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest",
+      "globalParameters": {
+        "$.xgafv": {
+          "location": "query"
+        },
+        "access_token": {
+          "location": "query"
+        },
+        "alt": {
+          "location": "query"
+        },
+        "callback": {
+          "location": "query"
+        },
+        "fields": {
+          "location": "query"
+        },
+        "key": {
+          "location": "query"
+        },
+        "oauth_token": {
+          "location": "query"
+        },
+        "prettyPrint": {
+          "location": "query"
+        },
+        "quotaUser": {
+          "location": "query"
+        },
+        "uploadType": {
+          "location": "query"
+        },
+        "upload_protocol": {
+          "location": "query"
+        }
+      },
+      "methods": {
+        "about.get": {
+          "httpMethod": "GET",
+          "parameters": {},
+          "path": "about",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.photos.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "accessproposals.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "proposalId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/accessproposals/{proposalId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "accessproposals.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}/accessproposals",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "accessproposals.resolve": {
+          "httpMethod": "POST",
+          "parameters": {
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "proposalId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/accessproposals/{proposalId}:resolve",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "approvals.approve": {
+          "httpMethod": "POST",
+          "parameters": {
+            "approvalId": {
+              "location": "path",
+              "required": true
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/approvals/{approvalId}:approve",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.metadata"
+          ]
+        },
+        "approvals.cancel": {
+          "httpMethod": "POST",
+          "parameters": {
+            "approvalId": {
+              "location": "path",
+              "required": true
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/approvals/{approvalId}:cancel",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.metadata"
+          ]
+        },
+        "approvals.comment": {
+          "httpMethod": "POST",
+          "parameters": {
+            "approvalId": {
+              "location": "path",
+              "required": true
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/approvals/{approvalId}:comment",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.metadata"
+          ]
+        },
+        "approvals.decline": {
+          "httpMethod": "POST",
+          "parameters": {
+            "approvalId": {
+              "location": "path",
+              "required": true
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/approvals/{approvalId}:decline",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.metadata"
+          ]
+        },
+        "approvals.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "approvalId": {
+              "location": "path",
+              "required": true
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/approvals/{approvalId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "approvals.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}/approvals",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "approvals.reassign": {
+          "httpMethod": "POST",
+          "parameters": {
+            "approvalId": {
+              "location": "path",
+              "required": true
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/approvals/{approvalId}:reassign",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.metadata"
+          ]
+        },
+        "approvals.start": {
+          "httpMethod": "POST",
+          "parameters": {
+            "fileId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/approvals:start",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.metadata"
+          ]
+        },
+        "apps.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "appId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "apps/{appId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.apps.readonly",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "apps.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "appFilterExtensions": {
+              "location": "query"
+            },
+            "appFilterMimeTypes": {
+              "location": "query"
+            },
+            "languageCode": {
+              "location": "query"
+            }
+          },
+          "path": "apps",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive.apps.readonly"
+          ]
+        },
+        "changes.getStartPageToken": {
+          "httpMethod": "GET",
+          "parameters": {
+            "driveId": {
+              "location": "query"
+            },
+            "supportsAllDrives": {
+              "location": "query"
+            },
+            "supportsTeamDrives": {
+              "location": "query"
+            },
+            "teamDriveId": {
+              "location": "query"
+            }
+          },
+          "path": "changes/startPageToken",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.photos.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "changes.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "driveId": {
+              "location": "query"
+            },
+            "includeCorpusRemovals": {
+              "location": "query"
+            },
+            "includeItemsFromAllDrives": {
+              "location": "query"
+            },
+            "includeLabels": {
+              "location": "query"
+            },
+            "includePermissionsForView": {
+              "location": "query"
+            },
+            "includeRemoved": {
+              "location": "query"
+            },
+            "includeTeamDriveItems": {
+              "location": "query"
+            },
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query",
+              "required": true
+            },
+            "restrictToMyDrive": {
+              "location": "query"
+            },
+            "spaces": {
+              "location": "query"
+            },
+            "supportsAllDrives": {
+              "location": "query"
+            },
+            "supportsTeamDrives": {
+              "location": "query"
+            },
+            "teamDriveId": {
+              "location": "query"
+            }
+          },
+          "path": "changes",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.photos.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "changes.watch": {
+          "httpMethod": "POST",
+          "parameters": {
+            "driveId": {
+              "location": "query"
+            },
+            "includeCorpusRemovals": {
+              "location": "query"
+            },
+            "includeItemsFromAllDrives": {
+              "location": "query"
+            },
+            "includeLabels": {
+              "location": "query"
+            },
+            "includePermissionsForView": {
+              "location": "query"
+            },
+            "includeRemoved": {
+              "location": "query"
+            },
+            "includeTeamDriveItems": {
+              "location": "query"
+            },
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query",
+              "required": true
+            },
+            "restrictToMyDrive": {
+              "location": "query"
+            },
+            "spaces": {
+              "location": "query"
+            },
+            "supportsAllDrives": {
+              "location": "query"
+            },
+            "supportsTeamDrives": {
+              "location": "query"
+            },
+            "teamDriveId": {
+              "location": "query"
+            }
+          },
+          "path": "changes/watch",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.photos.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "channels.stop": {
+          "httpMethod": "POST",
+          "parameters": {},
+          "path": "channels/stop",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.photos.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "comments.create": {
+          "httpMethod": "POST",
+          "parameters": {
+            "fileId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/comments",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "comments.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "commentId": {
+              "location": "path",
+              "required": true
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/comments/{commentId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "comments.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "commentId": {
+              "location": "path",
+              "required": true
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "includeDeleted": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}/comments/{commentId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "comments.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "includeDeleted": {
+              "location": "query"
+            },
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "startModifiedTime": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}/comments",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "comments.update": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "commentId": {
+              "location": "path",
+              "required": true
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/comments/{commentId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "drives.create": {
+          "httpMethod": "POST",
+          "parameters": {
+            "requestId": {
+              "location": "query",
+              "required": true
+            }
+          },
+          "path": "drives",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive"
+          ]
+        },
+        "drives.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "allowItemDeletion": {
+              "location": "query"
+            },
+            "driveId": {
+              "location": "path",
+              "required": true
+            },
+            "useDomainAdminAccess": {
+              "location": "query"
+            }
+          },
+          "path": "drives/{driveId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive"
+          ]
+        },
+        "drives.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "driveId": {
+              "location": "path",
+              "required": true
+            },
+            "useDomainAdminAccess": {
+              "location": "query"
+            }
+          },
+          "path": "drives/{driveId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "drives.hide": {
+          "httpMethod": "POST",
+          "parameters": {
+            "driveId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "drives/{driveId}/hide",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive"
+          ]
+        },
+        "drives.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "q": {
+              "location": "query"
+            },
+            "useDomainAdminAccess": {
+              "location": "query"
+            }
+          },
+          "path": "drives",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "drives.unhide": {
+          "httpMethod": "POST",
+          "parameters": {
+            "driveId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "drives/{driveId}/unhide",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive"
+          ]
+        },
+        "drives.update": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "driveId": {
+              "location": "path",
+              "required": true
+            },
+            "useDomainAdminAccess": {
+              "location": "query"
+            }
+          },
+          "path": "drives/{driveId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive"
+          ]
+        },
+        "files.copy": {
+          "httpMethod": "POST",
+          "parameters": {
+            "enforceSingleParent": {
+              "location": "query"
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "ignoreDefaultVisibility": {
+              "location": "query"
+            },
+            "includeLabels": {
+              "location": "query"
+            },
+            "includePermissionsForView": {
+              "location": "query"
+            },
+            "keepRevisionForever": {
+              "location": "query"
+            },
+            "ocrLanguage": {
+              "location": "query"
+            },
+            "supportsAllDrives": {
+              "location": "query"
+            },
+            "supportsTeamDrives": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}/copy",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.photos.readonly"
+          ]
+        },
+        "files.create": {
+          "httpMethod": "POST",
+          "mediaUpload": {
+            "accept": [
+              "*/*"
+            ],
+            "maxSize": "5497558138880",
+            "resumable": "/resumable/upload/drive/v3/files",
+            "simple": "/upload/drive/v3/files"
+          },
+          "parameters": {
+            "enforceSingleParent": {
+              "location": "query"
+            },
+            "ignoreDefaultVisibility": {
+              "location": "query"
+            },
+            "includeLabels": {
+              "location": "query"
+            },
+            "includePermissionsForView": {
+              "location": "query"
+            },
+            "keepRevisionForever": {
+              "location": "query"
+            },
+            "ocrLanguage": {
+              "location": "query"
+            },
+            "supportsAllDrives": {
+              "location": "query"
+            },
+            "supportsTeamDrives": {
+              "location": "query"
+            },
+            "useContentAsIndexableText": {
+              "location": "query"
+            }
+          },
+          "path": "files",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "files.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "enforceSingleParent": {
+              "location": "query"
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "supportsAllDrives": {
+              "location": "query"
+            },
+            "supportsTeamDrives": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "files.download": {
+          "httpMethod": "POST",
+          "parameters": {
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "mimeType": {
+              "location": "query"
+            },
+            "revisionId": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}/download",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "files.emptyTrash": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "driveId": {
+              "location": "query"
+            },
+            "enforceSingleParent": {
+              "location": "query"
+            }
+          },
+          "path": "files/trash",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive"
+          ]
+        },
+        "files.export": {
+          "httpMethod": "GET",
+          "parameters": {
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "mimeType": {
+              "location": "query",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/export",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ],
+          "supportsMediaDownload": true
+        },
+        "files.generateCseToken": {
+          "httpMethod": "GET",
+          "parameters": {
+            "fileId": {
+              "location": "query"
+            },
+            "parent": {
+              "location": "query"
+            }
+          },
+          "path": "files/generateCseToken",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive"
+          ]
+        },
+        "files.generateIds": {
+          "httpMethod": "GET",
+          "parameters": {
+            "count": {
+              "location": "query"
+            },
+            "space": {
+              "location": "query"
+            },
+            "type": {
+              "location": "query"
+            }
+          },
+          "path": "files/generateIds",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "files.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "acknowledgeAbuse": {
+              "location": "query"
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "includeLabels": {
+              "location": "query"
+            },
+            "includePermissionsForView": {
+              "location": "query"
+            },
+            "supportsAllDrives": {
+              "location": "query"
+            },
+            "supportsTeamDrives": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.photos.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ],
+          "supportsMediaDownload": true
+        },
+        "files.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "corpora": {
+              "location": "query"
+            },
+            "corpus": {
+              "location": "query"
+            },
+            "driveId": {
+              "location": "query"
+            },
+            "includeItemsFromAllDrives": {
+              "location": "query"
+            },
+            "includeLabels": {
+              "location": "query"
+            },
+            "includePermissionsForView": {
+              "location": "query"
+            },
+            "includeTeamDriveItems": {
+              "location": "query"
+            },
+            "orderBy": {
+              "location": "query"
+            },
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "q": {
+              "location": "query"
+            },
+            "spaces": {
+              "location": "query"
+            },
+            "supportsAllDrives": {
+              "location": "query"
+            },
+            "supportsTeamDrives": {
+              "location": "query"
+            },
+            "teamDriveId": {
+              "location": "query"
+            }
+          },
+          "path": "files",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.photos.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "files.listLabels": {
+          "httpMethod": "GET",
+          "parameters": {
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "maxResults": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}/listLabels",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "files.modifyLabels": {
+          "httpMethod": "POST",
+          "parameters": {
+            "fileId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/modifyLabels",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.metadata"
+          ]
+        },
+        "files.update": {
+          "httpMethod": "PATCH",
+          "mediaUpload": {
+            "accept": [
+              "*/*"
+            ],
+            "maxSize": "5497558138880",
+            "resumable": "/resumable/upload/drive/v3/files/{fileId}",
+            "simple": "/upload/drive/v3/files/{fileId}"
+          },
+          "parameters": {
+            "addParents": {
+              "location": "query"
+            },
+            "enforceSingleParent": {
+              "location": "query"
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "includeLabels": {
+              "location": "query"
+            },
+            "includePermissionsForView": {
+              "location": "query"
+            },
+            "keepRevisionForever": {
+              "location": "query"
+            },
+            "ocrLanguage": {
+              "location": "query"
+            },
+            "removeParents": {
+              "location": "query"
+            },
+            "supportsAllDrives": {
+              "location": "query"
+            },
+            "supportsTeamDrives": {
+              "location": "query"
+            },
+            "useContentAsIndexableText": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.scripts"
+          ]
+        },
+        "files.watch": {
+          "httpMethod": "POST",
+          "parameters": {
+            "acknowledgeAbuse": {
+              "location": "query"
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "includeLabels": {
+              "location": "query"
+            },
+            "includePermissionsForView": {
+              "location": "query"
+            },
+            "supportsAllDrives": {
+              "location": "query"
+            },
+            "supportsTeamDrives": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}/watch",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.photos.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "operations.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "name": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "operations/{name}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "permissions.create": {
+          "httpMethod": "POST",
+          "parameters": {
+            "emailMessage": {
+              "location": "query"
+            },
+            "enforceExpansiveAccess": {
+              "location": "query"
+            },
+            "enforceSingleParent": {
+              "location": "query"
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "moveToNewOwnersRoot": {
+              "location": "query"
+            },
+            "sendNotificationEmail": {
+              "location": "query"
+            },
+            "supportsAllDrives": {
+              "location": "query"
+            },
+            "supportsTeamDrives": {
+              "location": "query"
+            },
+            "transferOwnership": {
+              "location": "query"
+            },
+            "useDomainAdminAccess": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}/permissions",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "permissions.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "enforceExpansiveAccess": {
+              "location": "query"
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "permissionId": {
+              "location": "path",
+              "required": true
+            },
+            "supportsAllDrives": {
+              "location": "query"
+            },
+            "supportsTeamDrives": {
+              "location": "query"
+            },
+            "useDomainAdminAccess": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}/permissions/{permissionId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "permissions.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "permissionId": {
+              "location": "path",
+              "required": true
+            },
+            "supportsAllDrives": {
+              "location": "query"
+            },
+            "supportsTeamDrives": {
+              "location": "query"
+            },
+            "useDomainAdminAccess": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}/permissions/{permissionId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.photos.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "permissions.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "includePermissionsForView": {
+              "location": "query"
+            },
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "supportsAllDrives": {
+              "location": "query"
+            },
+            "supportsTeamDrives": {
+              "location": "query"
+            },
+            "useDomainAdminAccess": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}/permissions",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.photos.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "permissions.update": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "enforceExpansiveAccess": {
+              "location": "query"
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "permissionId": {
+              "location": "path",
+              "required": true
+            },
+            "removeExpiration": {
+              "location": "query"
+            },
+            "supportsAllDrives": {
+              "location": "query"
+            },
+            "supportsTeamDrives": {
+              "location": "query"
+            },
+            "transferOwnership": {
+              "location": "query"
+            },
+            "useDomainAdminAccess": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}/permissions/{permissionId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "replies.create": {
+          "httpMethod": "POST",
+          "parameters": {
+            "commentId": {
+              "location": "path",
+              "required": true
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/comments/{commentId}/replies",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "replies.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "commentId": {
+              "location": "path",
+              "required": true
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "replyId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/comments/{commentId}/replies/{replyId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "replies.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "commentId": {
+              "location": "path",
+              "required": true
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "includeDeleted": {
+              "location": "query"
+            },
+            "replyId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/comments/{commentId}/replies/{replyId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "replies.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "commentId": {
+              "location": "path",
+              "required": true
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "includeDeleted": {
+              "location": "query"
+            },
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}/comments/{commentId}/replies",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "replies.update": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "commentId": {
+              "location": "path",
+              "required": true
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "replyId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/comments/{commentId}/replies/{replyId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "revisions.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "revisionId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/revisions/{revisionId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "revisions.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "acknowledgeAbuse": {
+              "location": "query"
+            },
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "revisionId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/revisions/{revisionId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.photos.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ],
+          "supportsMediaDownload": true
+        },
+        "revisions.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            }
+          },
+          "path": "files/{fileId}/revisions",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.meet.readonly",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.photos.readonly",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "revisions.update": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "fileId": {
+              "location": "path",
+              "required": true
+            },
+            "revisionId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "files/{fileId}/revisions/{revisionId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.appdata",
+            "https://www.googleapis.com/auth/drive.file"
+          ]
+        },
+        "teamdrives.create": {
+          "httpMethod": "POST",
+          "parameters": {
+            "requestId": {
+              "location": "query",
+              "required": true
+            }
+          },
+          "path": "teamdrives",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive"
+          ]
+        },
+        "teamdrives.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "teamDriveId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "teamdrives/{teamDriveId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive"
+          ]
+        },
+        "teamdrives.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "teamDriveId": {
+              "location": "path",
+              "required": true
+            },
+            "useDomainAdminAccess": {
+              "location": "query"
+            }
+          },
+          "path": "teamdrives/{teamDriveId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "teamdrives.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "q": {
+              "location": "query"
+            },
+            "useDomainAdminAccess": {
+              "location": "query"
+            }
+          },
+          "path": "teamdrives",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.readonly"
+          ]
+        },
+        "teamdrives.update": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "teamDriveId": {
+              "location": "path",
+              "required": true
+            },
+            "useDomainAdminAccess": {
+              "location": "query"
+            }
+          },
+          "path": "teamdrives/{teamDriveId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive"
+          ]
+        }
+      },
+      "rootUrl": "https://www.googleapis.com/",
+      "servicePath": "drive/v3/",
+      "version": "v3"
+    },
+    "gmail": {
+      "discoveryUrl": "https://gmail.googleapis.com/$discovery/rest?version=v1",
+      "globalParameters": {
+        "$.xgafv": {
+          "location": "query"
+        },
+        "access_token": {
+          "location": "query"
+        },
+        "alt": {
+          "location": "query"
+        },
+        "callback": {
+          "location": "query"
+        },
+        "fields": {
+          "location": "query"
+        },
+        "key": {
+          "location": "query"
+        },
+        "oauth_token": {
+          "location": "query"
+        },
+        "prettyPrint": {
+          "location": "query"
+        },
+        "quotaUser": {
+          "location": "query"
+        },
+        "uploadType": {
+          "location": "query"
+        },
+        "upload_protocol": {
+          "location": "query"
+        }
+      },
+      "methods": {
+        "users.drafts.create": {
+          "httpMethod": "POST",
+          "mediaUpload": {
+            "accept": [
+              "message/*"
+            ],
+            "maxSize": "36700160",
+            "resumable": "/resumable/upload/gmail/v1/users/{userId}/drafts",
+            "simple": "/upload/gmail/v1/users/{userId}/drafts"
+          },
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/drafts",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.addons.current.action.compose",
+            "https://www.googleapis.com/auth/gmail.compose",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.drafts.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/drafts/{id}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.addons.current.action.compose",
+            "https://www.googleapis.com/auth/gmail.compose",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.drafts.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "format": {
+              "location": "query"
+            },
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/drafts/{id}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.compose",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly"
+          ]
+        },
+        "users.drafts.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "includeSpamTrash": {
+              "location": "query"
+            },
+            "maxResults": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "q": {
+              "location": "query"
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/drafts",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.compose",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly"
+          ]
+        },
+        "users.drafts.send": {
+          "httpMethod": "POST",
+          "mediaUpload": {
+            "accept": [
+              "message/*"
+            ],
+            "maxSize": "36700160",
+            "resumable": "/resumable/upload/gmail/v1/users/{userId}/drafts/send",
+            "simple": "/upload/gmail/v1/users/{userId}/drafts/send"
+          },
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/drafts/send",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.addons.current.action.compose",
+            "https://www.googleapis.com/auth/gmail.compose",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.drafts.update": {
+          "httpMethod": "PUT",
+          "mediaUpload": {
+            "accept": [
+              "message/*"
+            ],
+            "maxSize": "36700160",
+            "resumable": "/resumable/upload/gmail/v1/users/{userId}/drafts/{id}",
+            "simple": "/upload/gmail/v1/users/{userId}/drafts/{id}"
+          },
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/drafts/{id}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.addons.current.action.compose",
+            "https://www.googleapis.com/auth/gmail.compose",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.getProfile": {
+          "httpMethod": "GET",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/profile",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.compose",
+            "https://www.googleapis.com/auth/gmail.metadata",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly"
+          ]
+        },
+        "users.history.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "historyTypes": {
+              "location": "query",
+              "repeated": true
+            },
+            "labelId": {
+              "location": "query"
+            },
+            "maxResults": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "startHistoryId": {
+              "location": "query"
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/history",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.metadata",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly"
+          ]
+        },
+        "users.labels.create": {
+          "httpMethod": "POST",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/labels",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.labels",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.labels.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/labels/{id}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.labels",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.labels.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/labels/{id}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.labels",
+            "https://www.googleapis.com/auth/gmail.metadata",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly"
+          ]
+        },
+        "users.labels.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/labels",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.labels",
+            "https://www.googleapis.com/auth/gmail.metadata",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly"
+          ]
+        },
+        "users.labels.patch": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/labels/{id}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.labels",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.labels.update": {
+          "httpMethod": "PUT",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/labels/{id}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.labels",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.messages.attachments.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "messageId": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/messages/{messageId}/attachments/{id}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.addons.current.message.action",
+            "https://www.googleapis.com/auth/gmail.addons.current.message.readonly",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly"
+          ]
+        },
+        "users.messages.batchDelete": {
+          "httpMethod": "POST",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/messages/batchDelete",
+          "scopes": [
+            "https://mail.google.com/"
+          ]
+        },
+        "users.messages.batchModify": {
+          "httpMethod": "POST",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/messages/batchModify",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.messages.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/messages/{id}",
+          "scopes": [
+            "https://mail.google.com/"
+          ]
+        },
+        "users.messages.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "format": {
+              "location": "query"
+            },
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "metadataHeaders": {
+              "location": "query",
+              "repeated": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/messages/{id}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.addons.current.message.action",
+            "https://www.googleapis.com/auth/gmail.addons.current.message.metadata",
+            "https://www.googleapis.com/auth/gmail.addons.current.message.readonly",
+            "https://www.googleapis.com/auth/gmail.metadata",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly"
+          ]
+        },
+        "users.messages.import": {
+          "httpMethod": "POST",
+          "mediaUpload": {
+            "accept": [
+              "message/*"
+            ],
+            "maxSize": "157286400",
+            "resumable": "/resumable/upload/gmail/v1/users/{userId}/messages/import",
+            "simple": "/upload/gmail/v1/users/{userId}/messages/import"
+          },
+          "parameters": {
+            "deleted": {
+              "location": "query"
+            },
+            "internalDateSource": {
+              "location": "query"
+            },
+            "neverMarkSpam": {
+              "location": "query"
+            },
+            "processForCalendar": {
+              "location": "query"
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/messages/import",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.insert",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.messages.insert": {
+          "httpMethod": "POST",
+          "mediaUpload": {
+            "accept": [
+              "message/*"
+            ],
+            "maxSize": "157286400",
+            "resumable": "/resumable/upload/gmail/v1/users/{userId}/messages",
+            "simple": "/upload/gmail/v1/users/{userId}/messages"
+          },
+          "parameters": {
+            "deleted": {
+              "location": "query"
+            },
+            "internalDateSource": {
+              "location": "query"
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/messages",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.insert",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.messages.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "includeSpamTrash": {
+              "location": "query"
+            },
+            "labelIds": {
+              "location": "query",
+              "repeated": true
+            },
+            "maxResults": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "q": {
+              "location": "query"
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/messages",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.metadata",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly"
+          ]
+        },
+        "users.messages.modify": {
+          "httpMethod": "POST",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/messages/{id}/modify",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.messages.send": {
+          "httpMethod": "POST",
+          "mediaUpload": {
+            "accept": [
+              "message/*"
+            ],
+            "maxSize": "36700160",
+            "resumable": "/resumable/upload/gmail/v1/users/{userId}/messages/send",
+            "simple": "/upload/gmail/v1/users/{userId}/messages/send"
+          },
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/messages/send",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.addons.current.action.compose",
+            "https://www.googleapis.com/auth/gmail.compose",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.send"
+          ]
+        },
+        "users.messages.trash": {
+          "httpMethod": "POST",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/messages/{id}/trash",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.messages.untrash": {
+          "httpMethod": "POST",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/messages/{id}/untrash",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.settings.cse.identities.create": {
+          "httpMethod": "POST",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/cse/identities",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.cse.identities.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "cseEmailAddress": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/cse/identities/{cseEmailAddress}",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.cse.identities.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "cseEmailAddress": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/cse/identities/{cseEmailAddress}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.cse.identities.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/cse/identities",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.cse.identities.patch": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "emailAddress": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/cse/identities/{emailAddress}",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.cse.keypairs.create": {
+          "httpMethod": "POST",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/cse/keypairs",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.cse.keypairs.disable": {
+          "httpMethod": "POST",
+          "parameters": {
+            "keyPairId": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/cse/keypairs/{keyPairId}:disable",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.cse.keypairs.enable": {
+          "httpMethod": "POST",
+          "parameters": {
+            "keyPairId": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/cse/keypairs/{keyPairId}:enable",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.cse.keypairs.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "keyPairId": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/cse/keypairs/{keyPairId}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.cse.keypairs.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/cse/keypairs",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.cse.keypairs.obliterate": {
+          "httpMethod": "POST",
+          "parameters": {
+            "keyPairId": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/cse/keypairs/{keyPairId}:obliterate",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.delegates.create": {
+          "httpMethod": "POST",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/delegates",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.delegates.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "delegateEmail": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/delegates/{delegateEmail}",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.delegates.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "delegateEmail": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/delegates/{delegateEmail}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.delegates.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/delegates",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.filters.create": {
+          "httpMethod": "POST",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/filters",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.filters.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/filters/{id}",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.filters.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/filters/{id}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.filters.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/filters",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.forwardingAddresses.create": {
+          "httpMethod": "POST",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/forwardingAddresses",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.forwardingAddresses.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "forwardingEmail": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/forwardingAddresses/{forwardingEmail}",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.forwardingAddresses.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "forwardingEmail": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/forwardingAddresses/{forwardingEmail}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.forwardingAddresses.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/forwardingAddresses",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.getAutoForwarding": {
+          "httpMethod": "GET",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/autoForwarding",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.getImap": {
+          "httpMethod": "GET",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/imap",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.getLanguage": {
+          "httpMethod": "GET",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/language",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.getPop": {
+          "httpMethod": "GET",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/pop",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.getVacation": {
+          "httpMethod": "GET",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/vacation",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.sendAs.create": {
+          "httpMethod": "POST",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/sendAs",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.sendAs.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "sendAsEmail": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/sendAs/{sendAsEmail}",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.sendAs.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "sendAsEmail": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/sendAs/{sendAsEmail}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.sendAs.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/sendAs",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.sendAs.patch": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "sendAsEmail": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/sendAs/{sendAsEmail}",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.sendAs.smimeInfo.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "sendAsEmail": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/sendAs/{sendAsEmail}/smimeInfo/{id}",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.sendAs.smimeInfo.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "sendAsEmail": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/sendAs/{sendAsEmail}/smimeInfo/{id}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.sendAs.smimeInfo.insert": {
+          "httpMethod": "POST",
+          "parameters": {
+            "sendAsEmail": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/sendAs/{sendAsEmail}/smimeInfo",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.sendAs.smimeInfo.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "sendAsEmail": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/sendAs/{sendAsEmail}/smimeInfo",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.sendAs.smimeInfo.setDefault": {
+          "httpMethod": "POST",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "sendAsEmail": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/sendAs/{sendAsEmail}/smimeInfo/{id}/setDefault",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.sendAs.update": {
+          "httpMethod": "PUT",
+          "parameters": {
+            "sendAsEmail": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/sendAs/{sendAsEmail}",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic",
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.sendAs.verify": {
+          "httpMethod": "POST",
+          "parameters": {
+            "sendAsEmail": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/sendAs/{sendAsEmail}/verify",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.updateAutoForwarding": {
+          "httpMethod": "PUT",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/autoForwarding",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.sharing"
+          ]
+        },
+        "users.settings.updateImap": {
+          "httpMethod": "PUT",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/imap",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.updateLanguage": {
+          "httpMethod": "PUT",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/language",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.updatePop": {
+          "httpMethod": "PUT",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/pop",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.settings.updateVacation": {
+          "httpMethod": "PUT",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/settings/vacation",
+          "scopes": [
+            "https://www.googleapis.com/auth/gmail.settings.basic"
+          ]
+        },
+        "users.stop": {
+          "httpMethod": "POST",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/stop",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.metadata",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly"
+          ]
+        },
+        "users.threads.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/threads/{id}",
+          "scopes": [
+            "https://mail.google.com/"
+          ]
+        },
+        "users.threads.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "format": {
+              "location": "query"
+            },
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "metadataHeaders": {
+              "location": "query",
+              "repeated": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/threads/{id}",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.addons.current.message.action",
+            "https://www.googleapis.com/auth/gmail.addons.current.message.metadata",
+            "https://www.googleapis.com/auth/gmail.addons.current.message.readonly",
+            "https://www.googleapis.com/auth/gmail.metadata",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly"
+          ]
+        },
+        "users.threads.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "includeSpamTrash": {
+              "location": "query"
+            },
+            "labelIds": {
+              "location": "query",
+              "repeated": true
+            },
+            "maxResults": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "q": {
+              "location": "query"
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/threads",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.metadata",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly"
+          ]
+        },
+        "users.threads.modify": {
+          "httpMethod": "POST",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/threads/{id}/modify",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.threads.trash": {
+          "httpMethod": "POST",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/threads/{id}/trash",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.threads.untrash": {
+          "httpMethod": "POST",
+          "parameters": {
+            "id": {
+              "location": "path",
+              "required": true
+            },
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/threads/{id}/untrash",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.modify"
+          ]
+        },
+        "users.watch": {
+          "httpMethod": "POST",
+          "parameters": {
+            "userId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "gmail/v1/users/{userId}/watch",
+          "scopes": [
+            "https://mail.google.com/",
+            "https://www.googleapis.com/auth/gmail.metadata",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.readonly"
+          ]
+        }
+      },
+      "rootUrl": "https://gmail.googleapis.com/",
+      "servicePath": "",
+      "version": "v1"
+    },
+    "meet": {
+      "discoveryUrl": "https://meet.googleapis.com/$discovery/rest?version=v2",
+      "globalParameters": {
+        "$.xgafv": {
+          "location": "query"
+        },
+        "access_token": {
+          "location": "query"
+        },
+        "alt": {
+          "location": "query"
+        },
+        "callback": {
+          "location": "query"
+        },
+        "fields": {
+          "location": "query"
+        },
+        "key": {
+          "location": "query"
+        },
+        "oauth_token": {
+          "location": "query"
+        },
+        "prettyPrint": {
+          "location": "query"
+        },
+        "quotaUser": {
+          "location": "query"
+        },
+        "uploadType": {
+          "location": "query"
+        },
+        "upload_protocol": {
+          "location": "query"
+        }
+      },
+      "methods": {
+        "conferenceRecords.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "name": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v2/{+name}",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly"
+          ]
+        },
+        "conferenceRecords.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "filter": {
+              "location": "query"
+            },
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            }
+          },
+          "path": "v2/conferenceRecords",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly"
+          ]
+        },
+        "conferenceRecords.participants.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "name": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v2/{+name}",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly"
+          ]
+        },
+        "conferenceRecords.participants.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "filter": {
+              "location": "query"
+            },
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "parent": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v2/{+parent}/participants",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly"
+          ]
+        },
+        "conferenceRecords.participants.participantSessions.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "name": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v2/{+name}",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly"
+          ]
+        },
+        "conferenceRecords.participants.participantSessions.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "filter": {
+              "location": "query"
+            },
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "parent": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v2/{+parent}/participantSessions",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly"
+          ]
+        },
+        "conferenceRecords.recordings.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "name": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v2/{+name}",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly"
+          ]
+        },
+        "conferenceRecords.recordings.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "parent": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v2/{+parent}/recordings",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly"
+          ]
+        },
+        "conferenceRecords.smartNotes.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "name": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v2/{+name}",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly"
+          ]
+        },
+        "conferenceRecords.smartNotes.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "parent": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v2/{+parent}/smartNotes",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly"
+          ]
+        },
+        "conferenceRecords.transcripts.entries.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "name": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v2/{+name}",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly"
+          ]
+        },
+        "conferenceRecords.transcripts.entries.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "parent": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v2/{+parent}/entries",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly"
+          ]
+        },
+        "conferenceRecords.transcripts.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "name": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v2/{+name}",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly"
+          ]
+        },
+        "conferenceRecords.transcripts.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "parent": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v2/{+parent}/transcripts",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly"
+          ]
+        },
+        "spaces.create": {
+          "httpMethod": "POST",
+          "parameters": {},
+          "path": "v2/spaces",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created"
+          ]
+        },
+        "spaces.endActiveConference": {
+          "httpMethod": "POST",
+          "parameters": {
+            "name": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v2/{+name}:endActiveConference",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created"
+          ]
+        },
+        "spaces.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "name": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v2/{+name}",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly",
+            "https://www.googleapis.com/auth/meetings.space.settings"
+          ]
+        },
+        "spaces.patch": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "name": {
+              "location": "path",
+              "required": true
+            },
+            "updateMask": {
+              "location": "query"
+            }
+          },
+          "path": "v2/{+name}",
+          "scopes": [
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.settings"
+          ]
+        }
+      },
+      "rootUrl": "https://meet.googleapis.com/",
+      "servicePath": "",
+      "version": "v2"
+    },
+    "sheets": {
+      "discoveryUrl": "https://sheets.googleapis.com/$discovery/rest?version=v4",
+      "globalParameters": {
+        "$.xgafv": {
+          "location": "query"
+        },
+        "access_token": {
+          "location": "query"
+        },
+        "alt": {
+          "location": "query"
+        },
+        "callback": {
+          "location": "query"
+        },
+        "fields": {
+          "location": "query"
+        },
+        "key": {
+          "location": "query"
+        },
+        "oauth_token": {
+          "location": "query"
+        },
+        "prettyPrint": {
+          "location": "query"
+        },
+        "quotaUser": {
+          "location": "query"
+        },
+        "uploadType": {
+          "location": "query"
+        },
+        "upload_protocol": {
+          "location": "query"
+        }
+      },
+      "methods": {
+        "spreadsheets.batchUpdate": {
+          "httpMethod": "POST",
+          "parameters": {
+            "spreadsheetId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v4/spreadsheets/{spreadsheetId}:batchUpdate",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/spreadsheets"
+          ]
+        },
+        "spreadsheets.create": {
+          "httpMethod": "POST",
+          "parameters": {},
+          "path": "v4/spreadsheets",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/spreadsheets"
+          ]
+        },
+        "spreadsheets.developerMetadata.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "metadataId": {
+              "location": "path",
+              "required": true
+            },
+            "spreadsheetId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v4/spreadsheets/{spreadsheetId}/developerMetadata/{metadataId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/spreadsheets"
+          ]
+        },
+        "spreadsheets.developerMetadata.search": {
+          "httpMethod": "POST",
+          "parameters": {
+            "spreadsheetId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v4/spreadsheets/{spreadsheetId}/developerMetadata:search",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/spreadsheets"
+          ]
+        },
+        "spreadsheets.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "excludeTablesInBandedRanges": {
+              "location": "query"
+            },
+            "includeGridData": {
+              "location": "query"
+            },
+            "ranges": {
+              "location": "query",
+              "repeated": true
+            },
+            "spreadsheetId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v4/spreadsheets/{spreadsheetId}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.readonly",
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/spreadsheets.readonly"
+          ]
+        },
+        "spreadsheets.getByDataFilter": {
+          "httpMethod": "POST",
+          "parameters": {
+            "spreadsheetId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v4/spreadsheets/{spreadsheetId}:getByDataFilter",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/spreadsheets"
+          ]
+        },
+        "spreadsheets.sheets.copyTo": {
+          "httpMethod": "POST",
+          "parameters": {
+            "sheetId": {
+              "location": "path",
+              "required": true
+            },
+            "spreadsheetId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v4/spreadsheets/{spreadsheetId}/sheets/{sheetId}:copyTo",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/spreadsheets"
+          ]
+        },
+        "spreadsheets.values.append": {
+          "httpMethod": "POST",
+          "parameters": {
+            "includeValuesInResponse": {
+              "location": "query"
+            },
+            "insertDataOption": {
+              "location": "query"
+            },
+            "range": {
+              "location": "path",
+              "required": true
+            },
+            "responseDateTimeRenderOption": {
+              "location": "query"
+            },
+            "responseValueRenderOption": {
+              "location": "query"
+            },
+            "spreadsheetId": {
+              "location": "path",
+              "required": true
+            },
+            "valueInputOption": {
+              "location": "query"
+            }
+          },
+          "path": "v4/spreadsheets/{spreadsheetId}/values/{range}:append",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/spreadsheets"
+          ]
+        },
+        "spreadsheets.values.batchClear": {
+          "httpMethod": "POST",
+          "parameters": {
+            "spreadsheetId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v4/spreadsheets/{spreadsheetId}/values:batchClear",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/spreadsheets"
+          ]
+        },
+        "spreadsheets.values.batchClearByDataFilter": {
+          "httpMethod": "POST",
+          "parameters": {
+            "spreadsheetId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v4/spreadsheets/{spreadsheetId}/values:batchClearByDataFilter",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/spreadsheets"
+          ]
+        },
+        "spreadsheets.values.batchGet": {
+          "httpMethod": "GET",
+          "parameters": {
+            "dateTimeRenderOption": {
+              "location": "query"
+            },
+            "majorDimension": {
+              "location": "query"
+            },
+            "ranges": {
+              "location": "query",
+              "repeated": true
+            },
+            "spreadsheetId": {
+              "location": "path",
+              "required": true
+            },
+            "valueRenderOption": {
+              "location": "query"
+            }
+          },
+          "path": "v4/spreadsheets/{spreadsheetId}/values:batchGet",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.readonly",
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/spreadsheets.readonly"
+          ]
+        },
+        "spreadsheets.values.batchGetByDataFilter": {
+          "httpMethod": "POST",
+          "parameters": {
+            "spreadsheetId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v4/spreadsheets/{spreadsheetId}/values:batchGetByDataFilter",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/spreadsheets"
+          ]
+        },
+        "spreadsheets.values.batchUpdate": {
+          "httpMethod": "POST",
+          "parameters": {
+            "spreadsheetId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v4/spreadsheets/{spreadsheetId}/values:batchUpdate",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/spreadsheets"
+          ]
+        },
+        "spreadsheets.values.batchUpdateByDataFilter": {
+          "httpMethod": "POST",
+          "parameters": {
+            "spreadsheetId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v4/spreadsheets/{spreadsheetId}/values:batchUpdateByDataFilter",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/spreadsheets"
+          ]
+        },
+        "spreadsheets.values.clear": {
+          "httpMethod": "POST",
+          "parameters": {
+            "range": {
+              "location": "path",
+              "required": true
+            },
+            "spreadsheetId": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v4/spreadsheets/{spreadsheetId}/values/{range}:clear",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/spreadsheets"
+          ]
+        },
+        "spreadsheets.values.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "dateTimeRenderOption": {
+              "location": "query"
+            },
+            "majorDimension": {
+              "location": "query"
+            },
+            "range": {
+              "location": "path",
+              "required": true
+            },
+            "spreadsheetId": {
+              "location": "path",
+              "required": true
+            },
+            "valueRenderOption": {
+              "location": "query"
+            }
+          },
+          "path": "v4/spreadsheets/{spreadsheetId}/values/{range}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.readonly",
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/spreadsheets.readonly"
+          ]
+        },
+        "spreadsheets.values.update": {
+          "httpMethod": "PUT",
+          "parameters": {
+            "includeValuesInResponse": {
+              "location": "query"
+            },
+            "range": {
+              "location": "path",
+              "required": true
+            },
+            "responseDateTimeRenderOption": {
+              "location": "query"
+            },
+            "responseValueRenderOption": {
+              "location": "query"
+            },
+            "spreadsheetId": {
+              "location": "path",
+              "required": true
+            },
+            "valueInputOption": {
+              "location": "query"
+            }
+          },
+          "path": "v4/spreadsheets/{spreadsheetId}/values/{range}",
+          "scopes": [
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/spreadsheets"
+          ]
+        }
+      },
+      "rootUrl": "https://sheets.googleapis.com/",
+      "servicePath": "",
+      "version": "v4"
+    },
+    "tasks": {
+      "discoveryUrl": "https://tasks.googleapis.com/$discovery/rest?version=v1",
+      "globalParameters": {
+        "$.xgafv": {
+          "location": "query"
+        },
+        "access_token": {
+          "location": "query"
+        },
+        "alt": {
+          "location": "query"
+        },
+        "callback": {
+          "location": "query"
+        },
+        "fields": {
+          "location": "query"
+        },
+        "key": {
+          "location": "query"
+        },
+        "oauth_token": {
+          "location": "query"
+        },
+        "prettyPrint": {
+          "location": "query"
+        },
+        "quotaUser": {
+          "location": "query"
+        },
+        "uploadType": {
+          "location": "query"
+        },
+        "upload_protocol": {
+          "location": "query"
+        }
+      },
+      "methods": {
+        "tasklists.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "tasklist": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "tasks/v1/users/@me/lists/{tasklist}",
+          "scopes": [
+            "https://www.googleapis.com/auth/tasks"
+          ]
+        },
+        "tasklists.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "tasklist": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "tasks/v1/users/@me/lists/{tasklist}",
+          "scopes": [
+            "https://www.googleapis.com/auth/tasks",
+            "https://www.googleapis.com/auth/tasks.readonly"
+          ]
+        },
+        "tasklists.insert": {
+          "httpMethod": "POST",
+          "parameters": {},
+          "path": "tasks/v1/users/@me/lists",
+          "scopes": [
+            "https://www.googleapis.com/auth/tasks"
+          ]
+        },
+        "tasklists.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "maxResults": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            }
+          },
+          "path": "tasks/v1/users/@me/lists",
+          "scopes": [
+            "https://www.googleapis.com/auth/tasks",
+            "https://www.googleapis.com/auth/tasks.readonly"
+          ]
+        },
+        "tasklists.patch": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "tasklist": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "tasks/v1/users/@me/lists/{tasklist}",
+          "scopes": [
+            "https://www.googleapis.com/auth/tasks"
+          ]
+        },
+        "tasklists.update": {
+          "httpMethod": "PUT",
+          "parameters": {
+            "tasklist": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "tasks/v1/users/@me/lists/{tasklist}",
+          "scopes": [
+            "https://www.googleapis.com/auth/tasks"
+          ]
+        },
+        "tasks.clear": {
+          "httpMethod": "POST",
+          "parameters": {
+            "tasklist": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "tasks/v1/lists/{tasklist}/clear",
+          "scopes": [
+            "https://www.googleapis.com/auth/tasks"
+          ]
+        },
+        "tasks.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "task": {
+              "location": "path",
+              "required": true
+            },
+            "tasklist": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "tasks/v1/lists/{tasklist}/tasks/{task}",
+          "scopes": [
+            "https://www.googleapis.com/auth/tasks"
+          ]
+        },
+        "tasks.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "task": {
+              "location": "path",
+              "required": true
+            },
+            "tasklist": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "tasks/v1/lists/{tasklist}/tasks/{task}",
+          "scopes": [
+            "https://www.googleapis.com/auth/tasks",
+            "https://www.googleapis.com/auth/tasks.readonly"
+          ]
+        },
+        "tasks.insert": {
+          "httpMethod": "POST",
+          "parameters": {
+            "parent": {
+              "location": "query"
+            },
+            "previous": {
+              "location": "query"
+            },
+            "tasklist": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "tasks/v1/lists/{tasklist}/tasks",
+          "scopes": [
+            "https://www.googleapis.com/auth/tasks"
+          ]
+        },
+        "tasks.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "completedMax": {
+              "location": "query"
+            },
+            "completedMin": {
+              "location": "query"
+            },
+            "dueMax": {
+              "location": "query"
+            },
+            "dueMin": {
+              "location": "query"
+            },
+            "maxResults": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "showAssigned": {
+              "location": "query"
+            },
+            "showCompleted": {
+              "location": "query"
+            },
+            "showDeleted": {
+              "location": "query"
+            },
+            "showHidden": {
+              "location": "query"
+            },
+            "tasklist": {
+              "location": "path",
+              "required": true
+            },
+            "updatedMin": {
+              "location": "query"
+            }
+          },
+          "path": "tasks/v1/lists/{tasklist}/tasks",
+          "scopes": [
+            "https://www.googleapis.com/auth/tasks",
+            "https://www.googleapis.com/auth/tasks.readonly"
+          ]
+        },
+        "tasks.move": {
+          "httpMethod": "POST",
+          "parameters": {
+            "destinationTasklist": {
+              "location": "query"
+            },
+            "parent": {
+              "location": "query"
+            },
+            "previous": {
+              "location": "query"
+            },
+            "task": {
+              "location": "path",
+              "required": true
+            },
+            "tasklist": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "tasks/v1/lists/{tasklist}/tasks/{task}/move",
+          "scopes": [
+            "https://www.googleapis.com/auth/tasks"
+          ]
+        },
+        "tasks.patch": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "task": {
+              "location": "path",
+              "required": true
+            },
+            "tasklist": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "tasks/v1/lists/{tasklist}/tasks/{task}",
+          "scopes": [
+            "https://www.googleapis.com/auth/tasks"
+          ]
+        },
+        "tasks.update": {
+          "httpMethod": "PUT",
+          "parameters": {
+            "task": {
+              "location": "path",
+              "required": true
+            },
+            "tasklist": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "tasks/v1/lists/{tasklist}/tasks/{task}",
+          "scopes": [
+            "https://www.googleapis.com/auth/tasks"
+          ]
+        }
+      },
+      "rootUrl": "https://tasks.googleapis.com/",
+      "servicePath": "",
+      "version": "v1"
+    }
+  }
+}
