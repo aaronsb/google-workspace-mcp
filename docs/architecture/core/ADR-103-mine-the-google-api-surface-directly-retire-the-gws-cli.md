@@ -109,6 +109,31 @@ This is a load-bearing constraint, not a matter of taste. The moment the core st
 
 We are explicitly **not** assuming Google's APIs are *simple*, only that they are *described*. The description is the contract. If this assumption fails, the miner fails, and the fallback is to pin `gws 0.22.5` and vendor its binary.
 
+**Verified: the surface is complete. All 70 resource operations in the manifest resolve against Discovery — zero unresolved.** (This is most of what item 10 asks; see the verification plan.)
+
+### Where the documents live is itself something to ask, not derive
+
+The obvious mental model — one Discovery endpoint, `…/discovery/v1/apis/{service}/{version}/rest` — **is wrong**, and so is the obvious correction. Measured, across the seven services we use:
+
+| service | central `discovery/v1/apis/…` | self-hosted `{svc}.googleapis.com/$discovery` |
+|---|---|---|
+| gmail/v1, docs/v1, sheets/v4, tasks/v1 | 200 | 200 |
+| drive/v3, calendar/v3 | 200 | **404** |
+| meet/v2 | **404** | 200 |
+
+Neither pattern is universal, so **a URL template is a guess**. The authoritative source is the Discovery **directory** (`https://www.googleapis.com/discovery/v1/apis`, 517 APIs), which publishes a `discoveryRestUrl` per API. Calendar is the proof that this is not pedantry: it lives at **`calendar-json.googleapis.com`** — a host no template would ever produce.
+
+So the miner's entry point is the directory: *look the document up, do not construct its address.* This is the same discipline as the rest of the ADR — we do not know, we ask.
+
+### The dispatcher is mechanical, but it is not trivial
+
+Item 1's spike was uninterpreted and correct for the three ops it tried. Run against **all** of them (item 2), the same code failed six — and every failure was in *our* dispatcher, not in `gws`. Both are cases of the doc telling us something we did not listen to:
+
+- **Global parameters are declared once, not per method.** `fields`, `alt`, `quotaUser`, `prettyPrint` live in `doc.parameters`, not `method.parameters`. Consulting only the method's, `fields` has no known `location`, falls through to the request body, and a `GET` silently drops it — which is precisely how `drive.listComments` died with *"The 'fields' parameter is required"*. **Merge `doc.parameters` with `method.parameters`.**
+- **`{+var}` is RFC 6570 reserved expansion.** Meet's identifiers are paths (`conferenceRecords/abc`). Percent-encoding the `/` into `%2F` 404s every Meet sub-resource operation. The `+` sigil is the document *telling us* not to encode reserved characters. **Honour it; do not strip it.**
+
+Neither adds interpretation — both are cases of reading *more* of the document, not of forming an opinion about the response. But they are the reason "it's just a fetch" is a dangerous summary.
+
 ## Consequences
 
 ### Positive
@@ -143,17 +168,27 @@ But the harness is **not a parity gate.** We *expect* divergence wherever `gws` 
 | # | Question | How it is answered | Status |
 |---|---|---|---|
 | 1 | Is resource-style dispatch a pure pass-through? | 87-line dispatcher vs `gws`, live, diffed | **Done — YES** (3 services) |
-| 2 | Does that hold for **all 70** resource ops? | Differential harness over the full manifest, live | Not started |
-| 3 | What does `gws` do that Discovery does not declare? | Triage every divergence from (2): Google's truth vs gws's opinion | Not started |
+| 2 | Does that hold for **all 70** resource ops? | Differential harness over the full manifest, live | **Partly — 26/70 diffed, 0 divergences.** All 26 read ops returned **byte-identical JSON** through `gws` and through uninterpreted dispatch. The 44 not yet diffed are named below. |
+| 3 | What does `gws` do that Discovery does not declare? | Triage every divergence from (2): Google's truth vs gws's opinion | **Nothing, so far.** Zero stable divergences in 26 ops — there has been nothing to triage. This is the strongest evidence yet for the thesis. |
 | 4 | **Media upload** — simple *and* resumable multipart? | Send a 35 MB attachment; upload to Drive. Both paths, working. | **Done — YES.** Simple, multipart and chunked-resumable all verified live. A 25 MB attachment (34.2 MB RFC822, 93% of Google's declared 36,700,160-byte cap) uploaded in 5 chunks and **read back byte-for-byte, SHA-256 identical**. |
 | 5 | **Media download** — attachments, Drive export (`alt=media`) | Fetch an attachment; export a Doc to PDF | **Partly done.** Gmail `attachments.get` round-trips (it is how item 4 was verified). Drive export / `alt=media` still owed. |
 | 6 | Pagination — who loops, and does anything rely on `gws` looping? | Inspect `nextPageToken` handling across the manifest | Not started |
 | 7 | Error shapes — what do our handlers actually depend on? | Compare Google's error JSON against scraped `gws` stderr | Not started |
 | 8 | Scopes — does Discovery's declared scope set match what we request? | Diff Discovery `scopes` against `src/accounts/oauth.ts` | Not started |
 | 9 | The 10 helpers — what does each actually do? | Read `gws`'s Rust source; reimplement as patches | Not started |
-| 10 | Does the mined contract cover every manifest op? | Build-time validation: manifest ⊆ contract | Not started |
+| 10 | Does the mined contract cover every manifest op? | Build-time validation: manifest ⊆ contract | **Containment proven; the build gate is not built.** All 70 resource ops resolve against Discovery, zero unresolved. Wiring that into the build as a failing check is still to do. |
 
 **The gate for retiring `gws` is that all ten are answered — and that (4) is answered by a working 35 MB attachment send, not by reading a specification.**
+
+### What item 2 has NOT covered — stated, so that "0 divergences" cannot be misread
+
+`0 divergences` is a true statement about **26 of 70** operations. It is not a statement about the other 44, and the harness prints them by name rather than letting a clean summary imply coverage it does not have.
+
+- **34 mutating ops** (`POST`/`PATCH`/`PUT`/`DELETE`). Not executed. Diffing these live means creating and deleting real data in a real account; they need reversible create→read→delete round-trips in a sandbox, not a naive replay.
+- **5 media ops** (`drive.download`, `drive.viewImage`, `drive.export`, `gmail.viewAttachment`, plus `drive.getComment`, which needs a comment to exist). These belong to item 5.
+- **5 Meet ops** (`getTranscript`, `listTranscriptEntries`, `getRecording`, `getSmartNote`, `getFullTranscript`) — the test account has no transcripts or recordings, so there is nothing to fetch.
+
+One further caveat worth its own line: three Meet list ops (`listTranscripts`, `listRecordings`, `listSmartNotes`) are recorded as *identical*, but **both sides returned an empty object**. That is a vacuous match. It proves the call succeeded and that both agree there is nothing; it does not compare a populated shape. It should not be counted as strong evidence.
 
 ## Alternatives Considered
 
