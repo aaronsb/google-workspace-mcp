@@ -1,199 +1,129 @@
 /**
- * gws CLI surface discovery — enumerates services, resources, methods,
- * helpers, and parameter schemas by invoking the gws binary.
+ * Discover Google's API surface — from Google, not from a CLI's help text.
+ *
+ * This module used to shell out to the gws binary and reconstruct the API surface
+ * by REGEX-SCRAPING `--help` output:
+ *
+ *     const resourceMatch = trimmed.match(/^(\w+)\s+Operations on the/);
+ *     const methodMatch   = trimmed.match(/^(\w+)\s+\S/);
+ *
+ * That is API truth derived from human-readable PROSE, and it produced exactly the
+ * defect you would expect. `calendars.The` — a word captured out of a wrapped
+ * description line — was recorded in coverage-baseline.json as an uncovered "gap":
+ * a method that does not exist, offered to future contributors as work they could
+ * pick up. Nothing caught it, because the scraper's only source of truth was
+ * typography.
+ *
+ * It also measured us against the WRONG SURFACE. The denominator was gws's: it
+ * counted gws's 12 helper INVENTIONS (which are not Google operations at all),
+ * that scraping phantom, and five services we deliberately do not support. Our
+ * headline "72/350 (21%)" was partly fiction.
+ *
+ * Now: we ask Google. The descriptor records where each service's Discovery
+ * document lives (which cannot be templated — Calendar is served from
+ * `calendar-json.googleapis.com`), so we look it up and read it.
+ *
+ * WHY FETCH RATHER THAN READ THE DESCRIPTOR: the committed descriptor is
+ * deliberately structure-only — no descriptions — because it ships at RUNTIME and
+ * descriptions would add +162 KB to every install for text no server ever reads.
+ * Coverage is a DEV command. It can afford the network, and it needs the prose to
+ * make "the frontier" actionable.
+ *
+ * See ADR-103, verification item 11.
  */
-
-import { execFileSync } from 'node:child_process';
-import { resolveGwsBinary } from '../executor/gws.js';
-import {
-  ELIGIBLE_SERVICES, SKIP_PARAMS,
-  type DiscoveredSurface, type DiscoveredService,
-  type DiscoveredOperation, type DiscoveredHelper, type DiscoveredParam,
+import { loadDescriptor } from '../google/descriptor.js';
+import type {
+  DiscoveredParam,
+  DiscoveredOperation,
+  DiscoveredService,
+  DiscoveredSurface,
 } from './types.js';
 
-const TIMEOUT = 10_000;
-let cachedBinary: string | undefined;
-
-function getBinary(): string {
-  if (!cachedBinary) cachedBinary = resolveGwsBinary();
-  return cachedBinary;
+/** A Discovery method, as Google publishes it. */
+interface DiscoveryMethod {
+  path: string;
+  httpMethod: string;
+  description?: string;
+  parameters?: Record<string, {
+    type?: string;
+    description?: string;
+    required?: boolean;
+    default?: unknown;
+    enum?: string[];
+    deprecated?: boolean;
+  }>;
 }
 
-function gws(args: string[]): string {
-  return execFileSync(getBinary(), args, {
-    encoding: 'utf8',
-    timeout: TIMEOUT,
-    env: { ...process.env },
-  });
+interface DiscoveryNode {
+  methods?: Record<string, DiscoveryMethod>;
+  resources?: Record<string, DiscoveryNode>;
 }
 
-function gwsSafe(args: string[]): string | null {
-  try {
-    return execFileSync(getBinary(), args, {
-      encoding: 'utf8',
-      timeout: TIMEOUT,
-      env: { ...process.env },
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
-  } catch {
-    return null;
+/** Flatten resources -> methods into dotted keys: `users.messages.attachments.get`. */
+function walkMethods(node: DiscoveryNode, prefix: string, out: Record<string, DiscoveryMethod>): Record<string, DiscoveryMethod> {
+  for (const [name, method] of Object.entries(node.methods ?? {})) {
+    out[prefix ? `${prefix}.${name}` : name] = method;
   }
-}
-
-/** Parse service --help to find resources and helpers. */
-function parseServiceHelp(output: string): { resources: string[]; helpers: DiscoveredHelper[] } {
-  const resources: string[] = [];
-  const helpers: DiscoveredHelper[] = [];
-
-  for (const line of output.split('\n')) {
-    const trimmed = line.trimStart();
-
-    // Helpers: lines starting with +
-    const helperMatch = trimmed.match(/^(\+\w+)\s+(?:\[Helper\]\s*)?(.*)$/);
-    if (helperMatch) {
-      helpers.push({ name: helperMatch[1], description: helperMatch[2].trim() });
-      continue;
-    }
-
-    // Resources: "word  Operations on the '...' resource"
-    const resourceMatch = trimmed.match(/^(\w+)\s+Operations on the/);
-    if (resourceMatch && resourceMatch[1] !== 'help') {
-      resources.push(resourceMatch[1]);
-    }
+  for (const [name, child] of Object.entries(node.resources ?? {})) {
+    walkMethods(child, prefix ? `${prefix}.${name}` : name, out);
   }
-
-  return { resources, helpers };
+  return out;
 }
 
-/** Parse resource --help to find methods and sub-resources. */
-function parseResourceHelp(output: string): { methods: string[]; subResources: string[] } {
-  const methods: string[] = [];
-  const subResources: string[] = [];
-
-  for (const line of output.split('\n')) {
-    const trimmed = line.trimStart();
-    if (!trimmed || trimmed.startsWith('Usage:') || trimmed.startsWith('FLAGS:')) continue;
-
-    const resourceMatch = trimmed.match(/^(\w+)\s+Operations on the/);
-    if (resourceMatch && resourceMatch[1] !== 'help') {
-      subResources.push(resourceMatch[1]);
-      continue;
-    }
-
-    // Methods: "word  Description text" (not "help", not "Operations on")
-    const methodMatch = trimmed.match(/^(\w+)\s+\S/);
-    if (methodMatch && methodMatch[1] !== 'help' && !trimmed.includes('Operations on')) {
-      methods.push(methodMatch[1]);
-    }
-  }
-
-  return { methods, subResources };
-}
-
-/** Parse gws schema JSON output into DiscoveredParam records. */
-function parseSchemaParams(json: string): Record<string, DiscoveredParam> {
+function toParams(method: DiscoveryMethod): Record<string, DiscoveredParam> {
   const params: Record<string, DiscoveredParam> = {};
-  try {
-    const schema = JSON.parse(json);
-    const rawParams = schema.parameters || {};
-    for (const [name, def] of Object.entries(rawParams)) {
-      if (SKIP_PARAMS.has(name)) continue;
-      const p = def as Record<string, unknown>;
-      params[name] = {
-        type: String(p.type === 'integer' ? 'number' : (p.type || 'string')),
-        description: String(p.description || '').replace(/\n/g, ' ').slice(0, 200),
-        required: Boolean(p.required),
-        ...(p.default !== undefined ? { default: p.default } : {}),
-        ...(p.enum ? { enum: p.enum as string[] } : {}),
-        ...(p.deprecated ? { deprecated: true } : {}),
-      };
-    }
-  } catch {
-    // Schema parse failed — return empty params
+  for (const [name, p] of Object.entries(method.parameters ?? {})) {
+    params[name] = {
+      type: p.type ?? 'string',
+      description: p.description ?? '',
+      required: p.required === true,
+      ...(p.default !== undefined ? { default: p.default } : {}),
+      ...(p.enum ? { enum: p.enum } : {}),
+      ...(p.deprecated ? { deprecated: true } : {}),
+    };
   }
   return params;
 }
 
-/** Recursively discover methods under a resource path. */
-function discoverResource(
-  service: string,
-  parentPath: string,
-  parts: string[],
-): Record<string, DiscoveredOperation> {
-  const operations: Record<string, DiscoveredOperation> = {};
-
-  const helpOutput = gwsSafe([service, ...parts, '--help']);
-  if (!helpOutput) return operations;
-
-  const { methods, subResources } = parseResourceHelp(helpOutput);
-
-  for (const method of methods) {
-    const resourcePath = `${parentPath}.${method}`;
-    // gws schema uses flat resource names (e.g. drive.replies.list),
-    // not nested CLI paths (e.g. drive.comments.replies.list).
-    // Try the full path first, fall back to leaf resource + method.
-    const leafResource = parts[parts.length - 1];
-    const schemaOutput = gwsSafe(['schema', `${service}.${parentPath}.${method}`])
-      || (parts.length > 1 ? gwsSafe(['schema', `${service}.${leafResource}.${method}`]) : null);
-
-    let params: Record<string, DiscoveredParam> = {};
-    let description = '';
-    let httpMethod: string | undefined;
-
-    if (schemaOutput) {
-      params = parseSchemaParams(schemaOutput);
-      try {
-        const schema = JSON.parse(schemaOutput);
-        description = String(schema.description || '').replace(/\n/g, ' ').slice(0, 200);
-        httpMethod = schema.httpMethod;
-      } catch { /* ignore */ }
-    }
-
-    operations[resourcePath] = { resourcePath, description, httpMethod, params };
-  }
-
-  for (const sub of subResources) {
-    const subOps = discoverResource(service, `${parentPath}.${sub}`, [...parts, sub]);
-    Object.assign(operations, subOps);
-  }
-
-  return operations;
-}
-
-/** Discover the full surface of a single gws service. */
-function discoverService(service: string): DiscoveredService {
-  const helpOutput = gwsSafe([service, '--help']);
-  if (!helpOutput) return { operations: {}, helpers: {} };
-
-  const { resources, helpers } = parseServiceHelp(helpOutput);
-  const helperMap: Record<string, DiscoveredHelper> = {};
-  for (const h of helpers) {
-    helperMap[h.name] = h;
-  }
-
-  let operations: Record<string, DiscoveredOperation> = {};
-  for (const resource of resources) {
-    const resourceOps = discoverResource(service, resource, [resource]);
-    operations = { ...operations, ...resourceOps };
-  }
-
-  return { operations, helpers: helperMap };
-}
-
-/** Discover the full gws CLI surface for all eligible services. */
-export function discoverSurface(): DiscoveredSurface {
-  // Get gws version
-  let gwsVersion = 'unknown';
-  try {
-    gwsVersion = gws(['--version']).trim().split('\n')[0];
-  } catch { /* ignore */ }
-
+/**
+ * Read Google's real surface for every service the descriptor knows about.
+ *
+ * There is no `helpers` concept any more — that was gws's, and gws is gone. An
+ * operation is a Google method or it does not exist.
+ */
+export async function discoverSurface(): Promise<DiscoveredSurface> {
+  const descriptor = await loadDescriptor();
   const services: Record<string, DiscoveredService> = {};
 
-  for (const service of ELIGIBLE_SERVICES) {
-    process.stderr.write(`[coverage] discovering ${service}...\n`);
-    services[service] = discoverService(service);
+  for (const [serviceName, service] of Object.entries(descriptor.services)) {
+    process.stderr.write(`[coverage] reading ${serviceName} from Google...\n`);
+
+    const response = await fetch(service.discoveryUrl);
+    if (!response.ok) {
+      throw new Error(
+        `[coverage] could not read Discovery for ${serviceName} at ${service.discoveryUrl}: ${response.status}`,
+      );
+    }
+    const doc = await response.json() as DiscoveryNode;
+
+    const operations: Record<string, DiscoveredOperation> = {};
+    for (const [resourcePath, method] of Object.entries(walkMethods(doc, '', {}))) {
+      operations[resourcePath] = {
+        resourcePath,
+        description: method.description ?? '',
+        httpMethod: method.httpMethod,
+        params: toParams(method),
+      };
+    }
+
+    services[serviceName] = { operations, helpers: {} };
   }
 
-  return { gwsVersion, services };
+  return {
+    // The surface is Google's now, so the version that matters is Google's, not a
+    // CLI's. Recorded per service in the descriptor.
+    gwsVersion: `google-discovery (${Object.entries(descriptor.services)
+      .map(([n, s]) => `${n}/${s.version}`).join(', ')})`,
+    services,
+  };
 }
