@@ -1,11 +1,11 @@
 /**
  * Send adapter: email — delivers scratchpad content as an email.
- * When attachments are present, creates a draft (with --attach and --draft flags)
- * so the agent can review before sending. Without attachments, sends directly.
+ * When attachments are present, creates a draft so the agent can review before
+ * sending. Without attachments, sends directly.
  */
 
 import * as path from 'node:path';
-import { execute } from '../../../executor/gws.js';
+import { sendMail } from '../../../services/gmail/mail.js';
 import { getWorkspaceDir } from '../../../executor/workspace.js';
 import type { HandlerResponse } from '../../handler.js';
 import type { ScratchpadManager } from '../manager.js';
@@ -37,32 +37,29 @@ export async function sendEmail(
     };
   }
 
+  // sendMail() takes WORKSPACE-RELATIVE names — it resolves and path-safety-checks
+  // them itself (that fence replaced gws's cwd fence). The side-table stores
+  // absolute locations, so relativise them here.
   const attachments = scratchpads.getAttachments(scratchpadId);
-  const attachmentRefs = attachments ? [...attachments.values()] : [];
-  const attachmentPaths = attachmentRefs.filter(a => a.location).map(a => a.location);
+  const wsDir = getWorkspaceDir();
+  const attachmentNames = attachments
+    ? [...attachments.values()].filter(a => a.location).map(a => path.relative(wsDir, a.location))
+    : [];
 
   try {
-    const args = ['gmail', '+send', '--to', to, '--subject', subject, '--body', content];
-    if (cc) args.push('--cc', cc);
-    if (bcc) args.push('--bcc', bcc);
+    // Attachments present → draft, so the agent can review before it goes out.
+    const isDraft = attachmentNames.length > 0;
+    const data = await sendMail(email, {
+      to,
+      subject,
+      body: content,
+      cc,
+      bcc,
+      ...(isDraft ? { draft: true, attachments: attachmentNames } : {}),
+    });
 
-    // Attachments present → create draft (gws handles MIME + upload endpoint, 35MB limit)
-    // gws validates --attach paths are within cwd, so set cwd to workspace dir
-    let execOptions: { account: string; cwd?: string } = { account: email };
-    if (attachmentPaths.length > 0) {
-      const wsDir = getWorkspaceDir();
-      args.push('--draft');
-      for (const p of attachmentPaths) {
-        args.push('--attach', path.relative(wsDir, p));
-      }
-      execOptions = { account: email, cwd: wsDir };
-    }
-
-    const result = await execute(args, execOptions);
-    const data = result.data as Record<string, unknown>;
-
-    if (attachmentPaths.length > 0) {
-      const attNote = ` (${attachmentPaths.length} attachment(s))`;
+    if (isDraft) {
+      const attNote = ` (${attachmentNames.length} attachment(s))`;
       return {
         text: `Draft created for ${to}${attNote}.\n\n**Subject:** ${subject}\n**Draft ID:** ${data.id ?? 'unknown'}\n\n` +
           `_Draft with attachments saved to Gmail. Review and send from Gmail or use manage_email to send the draft._` +

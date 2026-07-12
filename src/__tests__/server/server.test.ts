@@ -42,7 +42,7 @@ vi.mock('../../server/handler.js');
 
 import { createServer } from '../../server/server.js';
 import { handleToolCall } from '../../server/handler.js';
-import { GwsError, GwsExitCode } from '../../executor/errors.js';
+import { GoogleApiError } from '../../google/errors.js';
 import type { HandlerResponse } from '../../server/handler.js';
 
 const mockHandleToolCall = handleToolCall as MockedFunction<typeof handleToolCall>;
@@ -106,9 +106,19 @@ describe('createServer', () => {
       expect(result.isError).toBeUndefined();
     });
 
-    it('maps GwsError to structured isError response', async () => {
+    // The error surface is Google's now, not a subprocess's. This used to assert on
+    // `exitCode: 2` — a number a CLI made up — and on scraped stderr. It now asserts
+    // on the HTTP status and the reason Google itself states (ADR-103 item 7).
+    const googleError = (status: number, message: string, reason: string) =>
+      new GoogleApiError(
+        status,
+        { error: { code: status, message, errors: [{ reason }] } },
+        { url: 'https://gmail.googleapis.com/…', method: 'GET' },
+      );
+
+    it('maps a 401 to a structured error WITH auth remediation', async () => {
       mockHandleToolCall.mockRejectedValue(
-        new GwsError('Token expired', GwsExitCode.AuthError, 'authError', 'stderr: token invalid'),
+        googleError(401, 'Invalid Credentials', 'authError'),
       );
 
       const result = await callToolHandler({
@@ -117,13 +127,46 @@ describe('createServer', () => {
 
       expect(result.isError).toBe(true);
       const text = result.content[0].text as string;
-      // Error JSON is followed by auth remediation guidance
-      expect(text).toContain('"error": "Token expired"');
-      expect(text).toContain(`"exitCode": ${GwsExitCode.AuthError}`);
+      expect(text).toContain('"error": "Invalid Credentials"');   // Google's own message
+      expect(text).toContain('"status": 401');                    // the real status
       expect(text).toContain('"reason": "authError"');
-      // Auth error should include remediation guidance
       expect(text).toContain('**Next steps:**');
       expect(text).toContain('Re-authenticate');
+    });
+
+    it('maps a 403 SCOPE failure to auth remediation too — it is not a 401, but it is fixed by re-consenting', async () => {
+      // The case the old exit-code check could not distinguish. The token is VALID;
+      // it just does not carry the scope this call needs. Telling the user "error"
+      // and nothing else strands them, because the fix is the same as for a 401.
+      mockHandleToolCall.mockRejectedValue(
+        googleError(403, 'Request had insufficient authentication scopes.', 'insufficientPermissions'),
+      );
+
+      const result = await callToolHandler({
+        params: { name: 'manage_email', arguments: { operation: 'triage', email: 'u@t.com' } },
+      });
+
+      const text = result.content[0].text as string;
+      expect(text).toContain('"status": 403');
+      expect(text).toContain('**Next steps:**');
+      expect(text).toContain('Re-authenticate');
+    });
+
+    it('does NOT offer auth remediation for an error that re-authenticating cannot fix', async () => {
+      // A 404 is not an auth problem. Telling the user to re-authenticate would send
+      // them round a loop that cannot help.
+      mockHandleToolCall.mockRejectedValue(
+        googleError(404, 'File not found: abc123.', 'notFound'),
+      );
+
+      const result = await callToolHandler({
+        params: { name: 'manage_drive', arguments: { operation: 'get', email: 'u@t.com', fileId: 'abc123' } },
+      });
+
+      const text = result.content[0].text as string;
+      expect(text).toContain('"status": 404');
+      expect(text).toContain('"reason": "notFound"');
+      expect(text).not.toContain('Re-authenticate');
     });
 
     it('maps generic Error to plain error message', async () => {

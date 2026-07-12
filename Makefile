@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: help test test-all test-unit test-integration build clean typecheck lint smoke smoke-reject check-gates check-node-floor \
-        manifest-discover manifest-diff manifest-lint \
+        manifest-diff manifest-lint \
         coverage coverage-update \
         mcpb mcpb-all version-sync publish-all \
         release-patch release-minor release-major check
@@ -14,7 +14,6 @@
 .NOTPARALLEL:
 
 VERSION = $(shell node -p 'require("./package.json").version')
-GWS_VERSION = $(shell node -p 'require("@googleworkspace/cli/package.json").version')
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -82,11 +81,12 @@ clean: ## Remove build artifacts
 
 # --- Manifest management ---
 
-manifest-discover: ## Discover all gws operations → discovered-manifest.yaml
-	./scripts/gen-manifest.sh > discovered-manifest.yaml
-	@echo "Wrote discovered-manifest.yaml ($$(grep -c 'type:' discovered-manifest.yaml) operations)"
+# `manifest-discover` is gone with gws. It shelled out to the CLI to enumerate the
+# API. That job now belongs to `npm run generate-descriptor` (Google's Discovery
+# documents -> src/google/descriptor.json) and `make coverage` (what we expose vs
+# what Google offers). See ADR-103.
 
-manifest-diff: manifest-discover ## Diff discovered operations against curated manifest
+manifest-diff: ## Diff discovered operations against curated manifest
 	@echo "=== Operations in discovered but not in curated manifest ==="
 	@node -e " \
 		const fs = require('fs'), path = require('path'); \
@@ -129,17 +129,17 @@ manifest-lint: ## Validate manifest YAML syntax and structure
 
 # --- Coverage analysis ---
 
-coverage: build ## Analyze gws CLI coverage vs curated manifest
+coverage: build ## Analyze Google API coverage vs curated manifest
 	node build/coverage/analyze.js
 
-coverage-update: build ## Update coverage baseline from current gws surface
+coverage-update: build ## Update coverage baseline from Google's current surface
 	node build/coverage/analyze.js --update
 
 # --- MCPB packaging ---
 
 mcpb: build ## Build .mcpb for current platform (PLATFORM=linux-x64 etc.)
 	$(eval PLATFORM ?= $(shell node -e "const os=require('os'); const a=os.arch()==='arm64'?'arm64':'x64'; const p=os.platform()==='darwin'?'darwin':os.platform()==='win32'?'windows':'linux'; console.log(p+'-'+a)"))
-	@echo "Building mcpb v$(VERSION) with gws $(GWS_VERSION) for $(PLATFORM)"
+	@echo "Building mcpb v$(VERSION) for $(PLATFORM) (no binary — ADR-103)"
 	rm -rf mcpb/server mcpb/bin
 	mkdir -p mcpb/server
 	cp -r build/* mcpb/server/
@@ -153,7 +153,6 @@ mcpb: build ## Build .mcpb for current platform (PLATFORM=linux-x64 etc.)
 	@# run, on exactly the runtimes that guard exists for. Make the bundle explicitly ESM.
 	@node -e "require('fs').writeFileSync('mcpb/server/package.json', JSON.stringify({type:'module'}, null, 2) + '\n')"
 	@echo "  mcpb/server/package.json → {\"type\": \"module\"}"
-	./scripts/download-gws-binary.sh $(PLATFORM) $(GWS_VERSION)
 	mcpb pack mcpb google-workspace-mcp-$(PLATFORM).mcpb
 	node scripts/verify-mcpb.cjs google-workspace-mcp-$(PLATFORM).mcpb
 	@echo ""

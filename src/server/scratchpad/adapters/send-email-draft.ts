@@ -1,10 +1,10 @@
 /**
  * Send adapter: email_draft — creates a Gmail draft from scratchpad content.
- * Uses gws +send --draft for proper MIME construction and attachment support.
+ * sendMail(..., { draft: true }) builds the MIME message and uploads it.
  */
 
 import * as path from 'node:path';
-import { execute } from '../../../executor/gws.js';
+import { sendMail } from '../../../services/gmail/mail.js';
 import { getWorkspaceDir } from '../../../executor/workspace.js';
 import type { HandlerResponse } from '../../handler.js';
 import type { ScratchpadManager } from '../manager.js';
@@ -33,35 +33,27 @@ export async function sendEmailDraft(
     };
   }
 
-  // gws +send requires --to and --subject even for drafts
-  const args = [
-    'gmail', '+send', '--draft',
-    '--to', to || email,
-    '--subject', subject || '(draft)',
-    '--body', content,
-  ];
-
-  // Attach workspace files if scratchpad has attachments
+  // Attach workspace files if the scratchpad has attachments. sendMail() takes
+  // workspace-relative names and resolves + path-checks them itself.
   const attachments = scratchpads.getAttachments(scratchpadId);
-  const attachmentPaths = attachments
-    ? [...attachments.values()].filter(a => a.location).map(a => a.location)
+  const wsDir = getWorkspaceDir();
+  const attachmentNames = attachments
+    ? [...attachments.values()].filter(a => a.location).map(a => path.relative(wsDir, a.location))
     : [];
-  // gws validates --attach paths are within cwd, so set cwd to workspace dir
-  let execOptions: { account: string; cwd?: string } = { account: email };
-  if (attachmentPaths.length > 0) {
-    const wsDir = getWorkspaceDir();
-    for (const p of attachmentPaths) {
-      args.push('--attach', path.relative(wsDir, p));
-    }
-    execOptions = { account: email, cwd: wsDir };
-  }
 
   try {
-    const result = await execute(args, execOptions);
-    const data = result.data as Record<string, unknown>;
+    // A draft still needs To and Subject headers; fall back to the account itself.
+    const data = await sendMail(email, {
+      to: to || email,
+      subject: subject || '(draft)',
+      body: content,
+      draft: true,
+      ...(attachmentNames.length > 0 ? { attachments: attachmentNames } : {}),
+    });
+
     const draftId = data.id ?? 'unknown';
-    const attNote = attachmentPaths.length > 0
-      ? `\n**Attachments:** ${attachmentPaths.length}`
+    const attNote = attachmentNames.length > 0
+      ? `\n**Attachments:** ${attachmentNames.length}`
       : '';
     return {
       text: `Draft created.\n\n**Draft ID:** ${draftId}${to ? `\n**To:** ${to}` : ''}${subject ? `\n**Subject:** ${subject}` : ''}${attNote}`,

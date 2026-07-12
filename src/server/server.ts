@@ -8,7 +8,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { toolSchemas } from './tools.js';
 import { handleToolCall } from './handler.js';
-import { GwsError, GwsExitCode } from '../executor/errors.js';
+import { GoogleApiError } from '../google/errors.js';
 import { nextSteps } from './formatting/next-steps.js';
 import { manifest } from '../factory/registry.js';
 import { checkWorkspaceStatus } from '../executor/workspace.js';
@@ -96,18 +96,24 @@ export function createServer(): Server {
       }
       return { content };
     } catch (err) {
-      if (err instanceof GwsError) {
-        // Append auth remediation guidance for auth errors
+      if (err instanceof GoogleApiError) {
+        // Google's own error, not a subprocess's exit code and scraped stderr.
+        //
+        // This used to branch on `GwsExitCode.AuthError` — an exit code INVENTED
+        // by a CLI — and serialise the binary's stderr into the MCP payload. Google
+        // states the problem directly: 401 means the token is bad; a 403 whose
+        // reason is a permissions/scope failure means the token is valid but does
+        // not carry the scope this call needs. Both are fixed by re-consenting.
+        // (ADR-103, item 7.)
         const email = (args as Record<string, unknown>)?.email as string | undefined;
-        const guidance = err.exitCode === GwsExitCode.AuthError
+        const guidance = err.isAuthError
           ? nextSteps('accounts', 'auth_error', email ? { email } : undefined)
           : '';
         return {
           content: [{ type: 'text', text: JSON.stringify({
-            error: err.message,
-            exitCode: err.exitCode,
-            reason: err.reason,
-            stderr: err.stderr,
+            error: err.message,          // Google's message, written for an API caller
+            status: err.status,          // the HTTP status, not an invented exit code
+            reason: err.reason,          // e.g. notFound, insufficientPermissions, rateLimitExceeded
           }, null, 2) + guidance }],
           isError: true,
         };

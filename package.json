@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "version-stamp": "node scripts/version-stamp.mjs",
-    "build": "npm run version-stamp && tsc --skipLibCheck && rm -rf build/factory/manifest && cp -r src/factory/manifest build/factory/manifest && cp src/google/descriptor.json build/google/descriptor.json",
+    "build": "npm run version-stamp && rm -rf build && tsc --skipLibCheck && cp -r src/factory/manifest build/factory/manifest && cp src/google/descriptor.json build/google/descriptor.json",
     "postbuild": "node scripts/check-build.mjs",
     "prepublishOnly": "npm run build",
     "type-check": "tsc --noEmit --skipLibCheck && tsc -p tsconfig.test.json --skipLibCheck",
@@ -31,7 +31,6 @@
     "verify:live": "vitest run src/__tests__/integration/live.test.ts"
   },
   "dependencies": {
-    "@googleworkspace/cli": "^0.22.5",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "sanitize-html": "^2.17.6",
     "yaml": "^2.9.0"

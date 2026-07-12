@@ -7,7 +7,9 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { execute } from '../../../executor/gws.js';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { call, download } from '../../../google/client.js';
 import { resolveWorkspacePath } from '../../../executor/workspace.js';
 import { ensureWorkspaceDir } from '../../../executor/workspace.js';
 import type { HandlerResponse } from '../../handler.js';
@@ -42,15 +44,21 @@ async function importDocMarkdown(
   email: string,
   documentId: string,
 ): Promise<HandlerResponse> {
-  try {
-    // Export as markdown via gws docs export
-    const result = await execute([
-      'docs', '+export',
-      '--document', documentId,
-      '--mime', 'text/markdown',
-    ], { account: email });
+  // Export as markdown. This is DRIVE's files.export — the Docs API has no export
+  // method at all, which is why the old `docs +export` call could never have
+  // worked (gws exits 3, "unrecognized subcommand"; the feature shipped broken).
+  // A Doc's fileId IS its documentId.
+  const tmpPath = path.join(
+    os.tmpdir(),
+    `gws-doc-export-${documentId.replace(/[^a-zA-Z0-9_-]/g, '_')}-${Date.now()}.md`,
+  );
 
-    const markdown = typeof result.data === 'string' ? result.data : JSON.stringify(result.data);
+  try {
+    await download('drive', 'files.export',
+      { fileId: documentId, mimeType: 'text/markdown' },
+      tmpPath, { account: email });
+
+    const markdown = await fs.readFile(tmpPath, 'utf-8');
 
     // Strip base64 data URIs, save to workspace, register as attachments
     const { cleanedLines, attachmentCount } = await stripBase64Images(markdown, scratchpads, scratchpadId);
@@ -69,6 +77,10 @@ async function importDocMarkdown(
       text: `Import failed: ${message}`,
       refs: { error: true, scratchpadId },
     };
+  } finally {
+    // The export is a staging file, not a deliverable — it never belonged in the
+    // workspace. Only the extracted images do.
+    await fs.unlink(tmpPath).catch(() => {});
   }
 }
 
@@ -79,12 +91,9 @@ async function importDocJson(
   documentId: string,
 ): Promise<HandlerResponse> {
   try {
-    const result = await execute([
-      'docs', 'documents', 'get',
-      '--params', JSON.stringify({ documentId }),
-    ], { account: email });
+    const doc = await call('docs', 'documents.get',
+      { documentId }, { account: email }) as Record<string, unknown>;
 
-    const doc = result.data as Record<string, unknown>;
     const revisionId = typeof doc.revisionId === 'string' ? doc.revisionId : undefined;
     const json = JSON.stringify(doc, null, 2);
     const lines = json.split('\n');

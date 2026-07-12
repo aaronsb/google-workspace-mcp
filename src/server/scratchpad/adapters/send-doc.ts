@@ -4,7 +4,6 @@
  * doc_write: appends scratchpad content to an existing Google Doc.
  */
 
-import { execute } from '../../../executor/gws.js';
 import { call } from '../../../google/client.js';
 import type { HandlerResponse } from '../../handler.js';
 import type { ScratchpadManager } from '../manager.js';
@@ -17,6 +16,23 @@ interface DocCreateParams {
 interface DocWriteParams {
   email: string;
   documentId: string;
+}
+
+/**
+ * Append text to the end of a document's body.
+ *
+ * Was gws's `docs +write`. `documentId` is the only declared path param;
+ * `requests` is the batchUpdate body. `endOfSegmentLocation` with an empty
+ * `segmentId` means "the end of the document body" — the append semantics the
+ * adapter has always claimed.
+ */
+async function appendText(account: string, documentId: string, text: string): Promise<void> {
+  await call('docs', 'documents.batchUpdate', {
+    documentId,
+    requests: [
+      { insertText: { text, endOfSegmentLocation: { segmentId: '' } } },
+    ],
+  }, { account });
 }
 
 export async function sendDocCreate(
@@ -44,11 +60,7 @@ export async function sendDocCreate(
     const documentId = doc.documentId as string;
 
     // Step 2: Write content
-    await execute([
-      'docs', '+write',
-      '--document', documentId,
-      '--text', content,
-    ], { account: email });
+    await appendText(email, documentId, content);
 
     return {
       text: `Document created from scratchpad.\n\n**Title:** ${title}\n**Document ID:** ${documentId}`,
@@ -82,11 +94,7 @@ export async function sendDocWrite(
   }
 
   try {
-    await execute([
-      'docs', '+write',
-      '--document', documentId,
-      '--text', content,
-    ], { account: email });
+    await appendText(email, documentId, content);
 
     return {
       text: `Content appended to document ${documentId}.`,
