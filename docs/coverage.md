@@ -1,44 +1,52 @@
 # API Coverage
 
-This server exposes a **curated subset** of the [`gws` CLI](https://github.com/googleworkspace/cli)'s surface — the operations and parameters that are actually useful to an AI agent, with LLM-friendly descriptions, sensible defaults, and patched response formatting. It is not a 1:1 passthrough of every Google API method. See [ADR-100](architecture/core/ADR-100-build-time-coverage-analysis-of-gws-cli-surface.md) (build-time coverage analysis) and [ADR-300](architecture/api/ADR-300-service-tool-factory-with-manifest-driven-generation.md) (the manifest-driven factory).
+This server exposes a **curated subset** of Google's API surface — the operations and parameters actually useful to an AI agent, with LLM-friendly descriptions, sensible defaults, and patched response formatting. It is not a 1:1 passthrough of every Google method.
 
-Adding an operation is a config change, not a code change: drop an entry into `src/factory/manifest/<service>.yaml` and it becomes a fully-formed MCP tool operation. So coverage grows on demand, in the direction agents actually need.
+Coverage is *measured*, not estimated. The mapper reads Google's [Discovery documents](https://developers.google.com/discovery) — the same machine-readable specifications the client is generated from — and diffs them against the curated manifest. The denominator is Google's, so the frontier is real.
+
+Adding an operation is a config change, not a code change: drop an entry into `src/factory/manifest/<service>.yaml` and it becomes a fully-formed MCP tool operation. See [ADR-103](architecture/core/ADR-103-generate-a-google-api-descriptor-retire-the-gws-facade.md) (the generated descriptor) and [ADR-300](architecture/api/ADR-300-service-tool-factory-with-manifest-driven-generation.md) (the manifest-driven factory).
 
 ## Snapshot
 
-> Generated `2026-05-11` against `gws 0.22.5`. Regenerate with `make coverage`; this table will drift as gws adds methods or the manifest grows.
+> Generated `2026-07-12` against Google Discovery (calendar/v3, docs/v1, drive/v3, gmail/v1, meet/v2, sheets/v4, tasks/v1). Regenerate with `make coverage`; this table drifts as Google adds methods or the manifest grows.
 
-**72 / 344 operations covered (21%)** across 12 gws services. The MCP tools surface 7 of them (`manage_email`, `manage_calendar`, `manage_drive`, `manage_sheets`, `manage_docs`, `manage_tasks`, `manage_meet`); the rest aren't exposed yet.
+**60 / 233 methods covered (26%)** across the seven Google APIs this server targets.
 
 | Service | Covered | % | Gaps | MCP tool |
 |---|---:|---:|---:|---|
-| docs | 4 / 4 | 100% | — | `manage_docs` |
+| docs | 3 / 3 | 100% | — | `manage_docs` |
 | tasks | 9 / 14 | 64% | 5 | `manage_tasks` |
 | meet | 10 / 18 | 56% | 8 | `manage_meet` |
-| sheets | 9 / 19 | 47% | 10 | `manage_sheets` |
-| drive | 15 / 65 | 23% | 50 | `manage_drive` |
-| calendar | 9 / 40 | 23% | 31 | `manage_calendar` |
-| gmail | 14 / 85 | 16% | 71 | `manage_email` |
-| events | 1 / 17 | 6% | 16 | — |
-| chat | 1 / 46 | 2% | 45 | — |
-| slides | 0 / 5 | 0% | 5 | — |
-| people | 0 / 24 | 0% | 24 | — |
-| keep | 0 / 7 | 0% | 7 | — |
+| sheets | 8 / 17 | 47% | 9 | `manage_sheets` |
+| drive | 14 / 64 | 22% | 50 | `manage_drive` |
+| calendar | 7 / 38 | 18% | 31 | `manage_calendar` |
+| gmail | 9 / 79 | 11% | 70 | `manage_email` |
 
-Low percentages on the high-surface services (gmail, drive) are by design — most of the uncovered methods are admin/domain operations, label/permission plumbing variants, or pagination/filtering parameters that an agent rarely needs. The covered slice is the "do useful work in a conversation" set. `make coverage` prints the full per-operation parameter-gap list for anyone curating an addition.
+Those 60 Google methods back 80 MCP operations — a few operations compose more than one method (Gmail search hydrates each hit with `messages.get`; the agenda merges across calendars), and a few methods back more than one operation.
 
-### Not exposed yet
+Low percentages on the high-surface services are by design. Most uncovered Gmail and Drive methods are admin/domain operations, label and permission plumbing variants, or filtering parameters an agent rarely needs. The covered slice is the "do useful work in a conversation" set. `make coverage` prints the full per-operation parameter-gap list for anyone curating an addition.
 
-- **people** (Contacts) — `gws auth login` doesn't offer the `contacts.readonly` scope ([googleworkspace/cli#556](https://github.com/googleworkspace/cli/issues/556)).
-- **slides**, **keep**, **chat**, **events** — no concrete agent use case has driven coverage. Open an issue if you have one.
+### Note on the numbers
+
+Earlier revisions of this page reported **72 / 344 (21%)**. That is not comparable to the figure above, and the difference is not progress — it is a different measurement.
+
+The old denominator came from scraping the `gws` CLI's `--help` text. It counted twelve services (including chat, slides, people and keep, which this server never exposed), plus twelve helper *inventions* that were not Google methods at all, plus `calendars.The` — a word captured out of a wrapped description line by a regex, recorded in the baseline as a real uncovered method and offered to contributors as work. The surface was measured from typography.
+
+The denominator is now Google's own published surface for the seven APIs we target. See ADR-103, verification item 11.
 
 ## Regenerating
 
 | Command | What it does |
 |---|---|
-| `make coverage` | Discovers the live gws CLI surface, diffs it against the curated manifest, prints the coverage table + every uncovered operation + every parameter gap in covered operations. |
-| `make coverage-update` | Same, but writes the result to `coverage-baseline.json` so the next run can show "new since baseline." |
-| `make manifest-discover` | Dumps the full discovered manifest (all gws operations, with `# CURATE` markers) to `discovered-manifest.yaml` — the raw material for a new manifest entry. |
-| `make manifest-diff` | Diffs the curated manifest against `discovered-manifest.yaml`. |
+| `npm run generate-descriptor` | Re-reads Google's Discovery documents and regenerates `src/google/descriptor.json`. A CI drift gate runs this with `--check` and fails if the committed artifact is stale. |
+| `make coverage` | Reads Google's live surface, diffs it against the curated manifest, and prints the coverage table plus every uncovered operation and every parameter gap in covered operations. |
+| `make coverage-update` | Same, but writes the result to `coverage-baseline.json` so the next run can show "new since baseline". |
+| `make manifest-lint` | Validates the curated manifest. |
 
-To add an operation: find it in `discovered-manifest.yaml`, copy the entry into the right `src/factory/manifest/<service>.yaml`, curate the description / defaults / param mappings, then `make manifest-lint && make test`. See `.claude/ways/factory/way.md` for the full workflow.
+To add an operation, find it in the coverage report's gap list, add an entry to the right `src/factory/manifest/<service>.yaml`, and curate the description, defaults, and parameter mappings. The descriptor already knows its path, HTTP verb, parameters, and scopes — nothing is transcribed by hand. Then `make manifest-lint && make check`.
+
+An operation naming a method Google does not publish is a **compile error**: method names are generated into a TypeScript union from the descriptor.
+
+## Excluding an operation
+
+Not every gap should be closed. Mark a deliberate non-goal as `"status": "excluded"` with a `reason` in `coverage-baseline.json`; regeneration preserves it rather than re-offering it as work.

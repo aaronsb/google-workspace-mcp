@@ -33,9 +33,15 @@ Thumbs.db
 logs/
 *.log
 
-# Test coverage (jest output, not src/coverage/)
-coverage/
-!src/coverage/
+# Test-coverage output — the vitest/istanbul report directory at the repo ROOT.
+#
+# ANCHORED (leading slash) on purpose. Unanchored, `coverage/` matches a directory
+# named `coverage` at ANY depth, which silently swallowed `src/coverage/` (the coverage
+# MAPPER — source code) and then `src/__tests__/coverage/` (its tests). The mapper only
+# survived because it was already tracked, and someone patched around the symptom with
+# `!src/coverage/` rather than the cause. The tests were not so lucky: they were written,
+# probed, and staged, and git dropped them without a word.
+/coverage/
 commit-message.txt
 discovered-manifest.yaml
 

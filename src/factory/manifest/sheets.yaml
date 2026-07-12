@@ -1,7 +1,7 @@
 tool_name: manage_sheets
 description: "Read, write, and manage Google Sheets spreadsheets."
 requires_email: true
-gws_service: sheets
+google_service: sheets
 operations:
 
   get:

@@ -1,7 +1,7 @@
 tool_name: manage_email
 description: "Search, read, send, forward, or manage emails in a Google Workspace account. Supports Gmail search syntax."
 requires_email: true
-gws_service: gmail
+google_service: gmail
 operations:
 
   # --- Core message operations ---

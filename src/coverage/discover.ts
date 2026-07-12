@@ -122,7 +122,7 @@ export async function discoverSurface(): Promise<DiscoveredSurface> {
   return {
     // The surface is Google's now, so the version that matters is Google's, not a
     // CLI's. Recorded per service in the descriptor.
-    gwsVersion: `google-discovery (${Object.entries(descriptor.services)
+    apiSurface: `google-discovery (${Object.entries(descriptor.services)
       .map(([n, s]) => `${n}/${s.version}`).join(', ')})`,
     services,
   };

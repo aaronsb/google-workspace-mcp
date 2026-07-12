@@ -1,7 +1,7 @@
 tool_name: manage_tasks
 description: "Manage task lists and tasks in Google Tasks."
 requires_email: true
-gws_service: tasks
+google_service: tasks
 operations:
 
   # --- Task lists ---

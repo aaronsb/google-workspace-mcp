@@ -59,7 +59,7 @@ export interface ServiceDef {
   /** Whether this service requires an email account param. */
   requires_email: boolean;
   /** The gws service name (e.g. "gmail", "calendar", "drive"). */
-  gws_service: string;
+  google_service: string;
   operations: Record<string, OperationDef>;
 }
 

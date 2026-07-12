@@ -178,13 +178,13 @@ export function generateHandler(
     manage_calendar: 'calendar',
     manage_drive: 'drive',
   };
-  const domain = domainMap[service.tool_name] ?? service.gws_service;
+  const domain = domainMap[service.tool_name] ?? service.google_service;
 
   return async (params: Record<string, unknown>): Promise<HandlerResponse> => {
     const operation = params.operation as string;
     const opDef = service.operations[operation];
     if (!opDef) {
-      throw new Error(`Unknown ${service.gws_service} operation: ${operation}`);
+      throw new Error(`Unknown ${service.google_service} operation: ${operation}`);
     }
 
     const account = service.requires_email ? requireEmail(params) : '';
@@ -192,7 +192,7 @@ export function generateHandler(
 
     // Safety policies — run before anything else, including custom handlers.
     // A blocked operation never reaches the handler or gws.
-    const policyResult = evaluatePolicies([], ctx, service.gws_service);
+    const policyResult = evaluatePolicies([], ctx, service.google_service);
     if (policyResult.action === 'block') {
       return {
         text: `**Blocked by safety policy:** ${policyResult.reason}`,
@@ -257,7 +257,7 @@ export function generateHandler(
       // The conformance check is probed and goes red on a bogus resource path, so
       // a typo in the YAML fails the build rather than the call.
       data = await googleCall(
-        service.gws_service as GoogleService,
+        service.google_service as GoogleService,
         opDef.resource as ServiceMethods[GoogleService],
         callParams,
         { account },
@@ -270,7 +270,7 @@ export function generateHandler(
       // the two that genuinely reshaped anything (+triage, +agenda) are now built
       // from raw Google in our own layer. See ADR-103.
       throw new Error(
-        `${service.gws_service}.${operation} declares no 'resource' and has no custom handler.`,
+        `${service.google_service}.${operation} declares no 'resource' and has no custom handler.`,
       );
     }
 

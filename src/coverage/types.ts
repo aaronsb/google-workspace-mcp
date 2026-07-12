@@ -41,7 +41,7 @@ export interface DiscoveredService {
 }
 
 export interface DiscoveredSurface {
-  gwsVersion: string;
+  apiSurface: string;
   services: Record<string, DiscoveredService>;
 }
 
@@ -54,7 +54,7 @@ export interface BaselineEntry {
 }
 
 export interface CoverageBaseline {
-  gwsVersion: string;
+  apiSurface: string;
   generatedAt: string;
   services: Record<string, {
     operations: Record<string, BaselineEntry>;
@@ -63,7 +63,7 @@ export interface CoverageBaseline {
 
 export interface ParamGap {
   paramName: string;
-  inGws: boolean;
+  inGoogle: boolean;
   inManifest: boolean;
   details?: string;
 }
@@ -77,10 +77,25 @@ export interface ServiceCoverage {
   newOps: string[];
   removedOps: string[];
   paramGaps: Record<string, ParamGap[]>;
+  /**
+   * The Google methods this service's manifest actually covers.
+   *
+   * This exists because the baseline used to INFER coverage from `paramGaps` — an
+   * operation was recorded as covered only if it had a parameter gap. An operation
+   * covered *perfectly*, with every parameter mapped, therefore had no gap entry, fell
+   * through, and was written to the baseline as `status: "gap"`. The baseline called an
+   * operation uncovered BECAUSE it was flawlessly covered, and 25 of them were committed
+   * as uncovered work for contributors to pick up.
+   *
+   * `coveredOps` (the count) was right the whole time; only the persisted list was wrong,
+   * so the printed report and the committed artifact disagreed and nothing compared them.
+   * Coverage is now carried explicitly, from the manifest, and asserted against the count.
+   */
+  coveredPaths: string[];
 }
 
 export interface CoverageReport {
-  gwsVersion: string;
+  apiSurface: string;
   timestamp: string;
   totalOps: number;
   coveredOps: number;

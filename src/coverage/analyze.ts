@@ -2,7 +2,7 @@
 /**
  * Build-time coverage analysis tool (ADR-100).
  *
- * Compares the curated manifest against the gws CLI's actual surface
+ * Compares the curated manifest against Google's actual published API surface
  * to produce a structured coverage report.
  *
  * Usage:
