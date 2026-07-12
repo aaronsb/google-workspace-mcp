@@ -1,0 +1,167 @@
+---
+status: Draft
+date: 2026-07-11
+deciders:
+  - aaronsb
+related: [ADR-101, ADR-102, ADR-300, ADR-304]
+---
+
+# ADR-103: Mine the Google API surface directly; retire the gws CLI
+
+## Context
+
+Every tool this server exposes ultimately becomes a subprocess call to `gws`, the Google Workspace CLI (`@googleworkspace/cli`). That dependency is now in a bad state — and, more importantly, investigating *why* it is a dependency at all revealed that it was never the right shape for us.
+
+### gws is abandoned with the lights on
+
+Measured 2026-07-11, not assumed:
+
+| | |
+|---|---|
+| Last commit to `main` | **2026-03-31** (102 days) |
+| Last npm publish | **2026-03-31** (`0.22.5`) |
+| PRs merged since 2026-04-01 | **0** |
+| PRs closed **unmerged** since 2026-04-01 | **120** |
+| Open issues | 111 |
+| Archived? | No. 29.6k stars, Apache-2.0 |
+| Google's own framing | *"not an officially supported Google product"* |
+
+The 120 closures are not a policy decision. They are a bot:
+
+> `github-actions[bot]`: *"This PR has been inactive for 72 hours. Closing to keep the queue clean."*
+
+Contributors are still submitting fixes, nobody is reviewing them, and a janitor bot closes them three days later. The code works; the project does not. No rescue is coming, and waiting does not improve our position — it degrades it, because `gws` drifts further from Google's live API every month it sits.
+
+### But abandonment is not the real argument
+
+The dependency-risk framing is a distraction. The real finding is what `gws` actually *does* for us, which turns out to be almost nothing.
+
+**We already own identity.** `src/accounts/` mints and refreshes OAuth tokens directly against `oauth2.googleapis.com`. It never calls `gws`. The entire contract with the CLI is three lines in `src/executor/gws.ts`:
+
+```ts
+const accessToken = await getAccessToken(account);   // ours
+env.GOOGLE_WORKSPACE_CLI_TOKEN = accessToken;        // we inject it
+spawn(gws, [...args, '--format', 'json']);           // gws does HTTP, returns JSON
+```
+
+`gws` is a **stateless, token-injected HTTP client**. It holds no state we depend on.
+
+**And our manifest already speaks Google, not gws.** Of 80 operations across 7 services:
+
+- **70 (87%) are `resource:` style**, and those values are *literal Google Discovery method paths* — `users.messages.list`, `conferenceRecords.transcripts.list`, `documents.batchUpdate`. The responses our formatters parse are **raw Google API JSON** (`payload.headers`, `labelIds`, `{files:[…]}`). Google's contract in, Google's contract out.
+- **10 (13%) are `helper:` style** — `+triage`, `+send`, `+reply`, `+agenda`, `+upload`. These are `gws` *inventions*: `+triage` returns a flat `{from, subject, date}` that the Gmail API never emits; `gws` synthesised it by hydrating `payload.headers`.
+
+This is not a coincidence. `gws` is *itself* Discovery-driven — it reads Google's Discovery Service at runtime and builds its command surface dynamically. So its contract **is** Google's contract. **The factory (ADR-300, ADR-304) is portable by construction**, and that portability is the asset worth protecting.
+
+### Proven, not asserted
+
+An 87-line uninterpreted dispatcher — Discovery doc in, `fetch` out, raw JSON returned untouched — was run against live Google with our own token and diffed against `gws` for the same operations:
+
+| Operation | Top-level keys | Item shape |
+|---|---|---|
+| `gmail users.messages.list` | identical | identical |
+| `drive files.list` | identical | identical |
+| `calendar calendarList.list` | identical | — |
+
+**For the 70 resource operations, `gws` adds nothing.** It is a 19.2 MB Rust subprocess performing what `fetch` performs. Its remaining substance is the 10 helpers — and those are *interpretation for a CLI audience*, which we neither want nor should inherit. We already own an interpretation layer (patches, formatters, next-steps) aimed at the MCP contract. Consuming `gws`'s opinions and then re-forming them is formatting someone else's formatting.
+
+### The reframing
+
+`gws` is **someone else's miner, wrapped in the product baggage required to be an operational CLI** — argument parsing, human-readable output, terminal UX, cross-platform binary distribution, 40+ bundled "agent skills". We use the miner. We pay for the baggage: 19.2 MB of the bundle, a process fork on every tool call, PATH resolution, a Windows `.cmd` quoting workaround, stall detection, and a distribution problem that is a live blocker on Docker (#137).
+
+**We do not need a CLI. We need a miner.**
+
+## Decision
+
+**Mine Google's API surface directly from the Discovery Service, build the factory on that, and retire `gws`.**
+
+The supply chain becomes two stages with a hard, total boundary between them:
+
+```
+Google Discovery Service          ← the only upstream; Google's own contract
+        │
+        ▼  [ MINER ]              ← generated. Zero interpretation. Correct by construction.
+   CORE CONTRACT                  ← vendored artifact: services, methods, param locations,
+        │                            HTTP verbs, media protocols, scopes
+        ├──▶ [ VALIDATE ]         ← manifest ⊆ contract, checked at BUILD time
+        │
+        ▼  [ OUR FACTORY ]        ← everything below is already written, and ours
+   manifest (curation) → patches → formatters → next-steps → MCP tools
+```
+
+Three principles govern it.
+
+**1. The core contract is generated and uninterpreted.** Discovery declares everything needed: `rootUrl`, `servicePath`, path templates, which parameters are path vs query vs body, `httpMethod`, `supportsMediaUpload` and its protocols, and scopes. The dispatcher is a mechanical function of that document. It fixes nothing, reshapes nothing, and holds no opinions — so there is nothing in it to get wrong. It is correct *by construction*, in the same sense a client generated from an OpenAPI document is.
+
+This is a load-bearing constraint, not a matter of taste. The moment the core starts "helpfully" reshaping a response, it becomes a thing that can be subtly wrong in a way no test catches — which is precisely the defect class this codebase spent six review rounds learning to fear (ADR-101).
+
+**2. All interpretation lives in our layer, in MCP contract space.** The patches, formatters, and next-steps we already own. The 10 helpers get reimplemented here — and better, because today we consume a shape chosen for a terminal.
+
+**3. We mine the WHOLE surface, not only what we use.** The contract is generated for every method of every service we touch, including the hundreds of operations no tool exposes today. This costs nothing — it is a generated artifact — and buys three things:
+
+- **Build-time manifest validation.** A typo (`users.mesages.list`), a parameter Google does not accept, a method Google deprecated: these become build failures. Today they are runtime surprises that `gws` discovers on a user's behalf.
+- **Honest coverage.** `src/coverage/` currently diffs our manifest against *`gws`'s* surface. It would diff against *Google's*. Same tool, truthful source.
+- **A visible frontier.** "Google exposes this and we do not surface it yet" becomes a query rather than an investigation. New tool capability becomes a manifest edit, not a research project.
+
+### The assumption this ADR rests on
+
+**Google's Discovery surface is complete, consistent, and publicly accessible — for the whole API, not merely the parts we currently use.** It is the mechanism Google publishes so that clients can be generated from it, and it is the mechanism `gws` itself relies on.
+
+We are explicitly **not** assuming Google's APIs are *simple*, only that they are *described*. The description is the contract. If this assumption fails, the miner fails, and the fallback is to pin `gws 0.22.5` and vendor its binary.
+
+## Consequences
+
+### Positive
+
+- **The 19.2 MB binary is deleted.** The `.mcpb` bundle drops from ~11 MB to roughly 1 MB.
+- **No subprocess.** `spawn`, PATH resolution, the Windows `.cmd` quoting workaround, stall detection, `ENOENT` diagnostics — an entire class of failure disappears, along with a process fork on every tool call.
+- **Docker (#137) becomes tractable.** Much of that problem is shipping and locating a platform-specific binary. There would be no binary.
+- **Better errors.** Google's actual error JSON, rather than scraping `gws`'s stderr.
+- **Batching and concurrency become possible.** Google's batch endpoints are unreachable through a one-shot CLI.
+- **We own the stack.** No dead upstream, no fork decision, no waiting on a bot to close our PR.
+
+### Negative
+
+- **We inherit the transport.** Google's quirks become ours: Gmail's raw RFC822 encoding, Drive's export MIME types, Meet's transcript pagination. `gws` carries 283 commits of accumulated handling; an unknown fraction is real and an unknown fraction is CLI baggage. **Determining that fraction is the entire point of the verification plan below.**
+- **Media upload is a real protocol, not a `fetch` call.** Discovery declares `supportsMediaUpload` with simple and resumable multipart variants. The 35 MB attachment path, Drive upload, Drive export and attachment download all depend on it. **This is the single largest unknown in this ADR.**
+- **The 10 helpers must be reimplemented.** Desired work, but work.
+- **Discovery doc lifecycle is an open decision.** Fetch at runtime (network dependency at startup; breaks offline) or vendor snapshots (drift)? This ADR assumes **vendored, with a refresh script and a CI drift check** — but that is a decision, not a given.
+- **Scope risk.** The failure mode of "it's just a thin dispatcher" is accidentally writing a Google client library. The discipline is absolute: **build exactly what the manifest's operations require, and nothing more.**
+
+### Neutral
+
+- The manifest, patches, formatters, next-steps and every existing test are **unchanged**. `execute()` is the seam and it already exists — this is what the factory bought us.
+- `gws` remains Apache-2.0 and functional. Pinning `0.22.5` and vendoring the binary stays a legitimate fallback at any point.
+
+## Verification plan — what must be proven before gws is removed
+
+`gws` still works, which makes it a **test oracle** — and it is rotting. Use it while it is still trustworthy; every month of delay makes it a worse reference.
+
+But the harness is **not a parity gate.** We *expect* divergence wherever `gws` interpreted, and each divergence is a finding rather than a bug. The question for each is: **is this Google's truth, or `gws`'s opinion?** Google's truth we must reproduce. `gws`'s opinion we deliberately discard.
+
+| # | Question | How it is answered | Status |
+|---|---|---|---|
+| 1 | Is resource-style dispatch a pure pass-through? | 87-line dispatcher vs `gws`, live, diffed | **Done — YES** (3 services) |
+| 2 | Does that hold for **all 70** resource ops? | Differential harness over the full manifest, live | Not started |
+| 3 | What does `gws` do that Discovery does not declare? | Triage every divergence from (2): Google's truth vs gws's opinion | Not started |
+| 4 | **Media upload** — simple *and* resumable multipart? | Send a 35 MB attachment; upload to Drive. Both paths, working. | **Not started — biggest risk** |
+| 5 | **Media download** — attachments, Drive export (`alt=media`) | Fetch an attachment; export a Doc to PDF | Not started |
+| 6 | Pagination — who loops, and does anything rely on `gws` looping? | Inspect `nextPageToken` handling across the manifest | Not started |
+| 7 | Error shapes — what do our handlers actually depend on? | Compare Google's error JSON against scraped `gws` stderr | Not started |
+| 8 | Scopes — does Discovery's declared scope set match what we request? | Diff Discovery `scopes` against `src/accounts/oauth.ts` | Not started |
+| 9 | The 10 helpers — what does each actually do? | Read `gws`'s Rust source; reimplement as patches | Not started |
+| 10 | Does the mined contract cover every manifest op? | Build-time validation: manifest ⊆ contract | Not started |
+
+**The gate for retiring `gws` is that all ten are answered — and that (4) is answered by a working 35 MB attachment send, not by reading a specification.**
+
+## Alternatives Considered
+
+**Pin `gws 0.22.5`, vendor the binary, change nothing.** Entirely legitimate today: it works, it is Apache-2.0, and the pin costs nothing immediately. Rejected as a *destination* but retained as the **fallback** if the media tail proves long. Its cost is not static — every month `gws` drifts further from Google's live API with nobody to fix it, and the oracle we would use to escape it becomes less trustworthy. Doing this while `gws` still works is strictly cheaper than doing it after it breaks.
+
+**Fork `gws`.** We would maintain a cross-platform Rust CLI, its release pipeline and its argument surface, in order to use it as a library. All of the baggage, none of the users. Rejected.
+
+**Switch to another Workspace CLI.** Trades one unowned dependency for another in the same risk class, and we would rewrite the argument-construction layer regardless. It also keeps the subprocess, the binary, and the distribution problem. Rejected.
+
+**Adopt `googleapis` (the official Node client).** A real option: Google-maintained, generated from the same Discovery documents. Rejected as the *core* because it is a large static artifact that inverts our model — our manifest is dynamic and Discovery-shaped by design, and `googleapis` would have us map our contract onto its generated surface instead of onto Google's. It remains a sensible fallback for a specific hard sub-problem; **resumable media upload is the obvious candidate**, and using it there would not compromise principle (1).
+
+**Wait for Google's official Workspace MCP server.** Announced, but reportedly single-user by design. Our multi-account model — an `email` parameter on every call rather than a session-bound identity — is the product. Not a substitute. *(Unverified: reported, not measured. If it becomes load-bearing to this decision, verify it first.)*
