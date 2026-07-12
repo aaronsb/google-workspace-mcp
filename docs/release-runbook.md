@@ -4,14 +4,26 @@ How to ship a new version of google-workspace-mcp.
 
 ## What Happens on Release
 
-A single `git tag` push triggers two CI workflows:
+Pushing a `v*` tag triggers one CI workflow:
 
 | Workflow | File | What it does |
 |----------|------|-------------|
-| **Publish to npm** | `.github/workflows/npm-publish.yml` | Builds, tests, publishes to npm with provenance |
 | **Build .mcpb** | `.github/workflows/release-mcpb.yml` | Builds the .mcpb bundle and attaches it to the GitHub Release |
 
-Both trigger on `push: tags: ['v*']`.
+**npm is published by hand**, from `make publish-all`, authenticated interactively with a
+security key.
+
+There used to be a second workflow that published to npm from a long-lived `NPM_TOKEN`.
+The token expired, and the job then failed on three consecutive releases while the manual
+publish did the real work — a permanently-red workflow that nobody reads, which is worse
+than no workflow at all. It is gone. Publishing with a security key is also stronger than
+a token sitting in CI that can publish the package at any time, and there is no secret to
+rotate.
+
+The one thing that workflow did which the Makefile did not was pick the npm dist-tag: a
+pre-release must publish under `alpha`/`beta`/`rc`, never `latest`, or every `npm install`
+and every `^x.y.z` range picks it up. `make publish-all` now does that (see the `npm`
+section of the target).
 
 ## Release Flow
 
@@ -54,19 +66,24 @@ git push && git push --tags
 ### 4. Verify CI
 
 ```bash
-gh run list --limit 3   # should show both workflows running
-gh run watch <run-id>   # watch the npm publish
+gh run list --limit 3   # the .mcpb build should be running
+gh run watch <run-id>
 ```
 
-Check:
-- npm publish: green, published to correct tag (latest vs alpha/beta/rc)
-- .mcpb build: green, the bundle attached to the GitHub Release
+Check the .mcpb build is green and the bundle is attached to the GitHub Release.
 
 ### 5. Verify artifacts
 
+Check the PUBLISHED artifact, not the repo it was built from — those are different
+claims, and only one of them is what a user installs.
+
 ```bash
-# npm
-npm view @anthropic-ai/google-workspace-mcp version
+# npm — the right package name, and the dist-tag it landed under
+npm view @aaronsb/google-workspace-mcp version dist-tags license
+
+# and confirm the tarball a user would actually download carries the change
+npm pack @aaronsb/google-workspace-mcp@X.Y.Z --pack-destination /tmp
+tar tzf /tmp/aaronsb-google-workspace-mcp-X.Y.Z.tgz | grep -E 'LICENSE|NOTICE'
 
 # GitHub Release
 gh release view vX.Y.Z
@@ -91,7 +108,9 @@ make version-sync
 # commit, tag, push as above
 ```
 
-npm-publish.yml auto-detects the pre-release tag from the version string and publishes with `--tag alpha` (or beta/rc) instead of `--tag latest`.
+`make publish-all` reads the pre-release marker out of the version string and publishes
+with `--tag alpha` (or `beta`/`rc`) rather than `--tag latest`, so a pre-release is
+available to people who ask for it and invisible to everyone else.
 
 ## Retagging
 
