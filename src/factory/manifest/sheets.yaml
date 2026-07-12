@@ -26,7 +26,10 @@ operations:
   read:
     type: detail
     description: "read cell values from a range; rendered rows are prefixed with their sheet row number (e.g. 'R3: …') since blank rows are otherwise invisible"
-    helper: "+read"
+    # Was gws's `+read`. It called spreadsheets.values.get with {spreadsheetId,
+    # range} and NOTHING else, then printed Google's response verbatim. The helper
+    # was never doing anything — this is a plain resource op.
+    resource: spreadsheets.values.get
     params:
       spreadsheetId:
         type: string
@@ -36,9 +39,6 @@ operations:
         type: string
         description: "Range to read (e.g. 'Sheet1!A1:D10' or just 'Sheet1')"
         required: true
-    cli_args:
-      spreadsheetId: "--spreadsheet"
-      range: "--range"
 
   append:
     type: action

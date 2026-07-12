@@ -12,6 +12,34 @@ import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
 export const docsPatch: ServicePatch = {
   customHandlers: {
+    /**
+     * Append text to the end of the body. Was gws's `+write`, which was exactly
+     * one documents.batchUpdate carrying a single insertText at
+     * `endOfSegmentLocation` — append-only, no index targeting, no formatting.
+     * The helper added nothing Google did not already do.
+     */
+    write: async (params, account): Promise<HandlerResponse> => {
+      const documentId = requireString(params, 'documentId');
+      const text = requireString(params, 'text');
+
+      await call('docs', 'documents.batchUpdate', {
+        documentId,
+        requests: [{
+          insertText: {
+            text,
+            // An empty segmentId means the document BODY (as opposed to a header
+            // or footer), and endOfSegmentLocation means "append".
+            endOfSegmentLocation: { segmentId: '' },
+          },
+        }],
+      }, { account });
+
+      return {
+        text: `Appended ${text.length} character(s) to the document.\n\n**Document ID:** ${documentId}`,
+        refs: { documentId, appended: text.length },
+      };
+    },
+
     insertText: async (params, account): Promise<HandlerResponse> => {
       const documentId = requireString(params, 'documentId');
       const text = requireString(params, 'text');

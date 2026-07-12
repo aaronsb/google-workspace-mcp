@@ -12,7 +12,6 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from '../factory/yaml.js';
-import { execute } from '../executor/gws.js';
 import { call as googleCall } from '../google/client.js';
 import type { GoogleService, ServiceMethods } from '../google/methods.js';
 import { requireEmail, clamp } from '../server/handlers/validate.js';
@@ -264,9 +263,15 @@ export function generateHandler(
         { account },
       );
     } else {
-      const args = buildHelperArgs(service.gws_service, opDef, params);
-      const result = await execute(args, { account, format: 'json' });
-      data = result.data;
+      // No resource, and no custom handler took it. There is nothing left to call.
+      //
+      // This branch USED to shell out to a gws `+helper`. Every one of those is
+      // gone: nine of them were plain Google methods wearing a CLI costume, and
+      // the two that genuinely reshaped anything (+triage, +agenda) are now built
+      // from raw Google in our own layer. See ADR-103.
+      throw new Error(
+        `${service.gws_service}.${operation} declares no 'resource' and has no custom handler.`,
+      );
     }
 
     // afterExecute hook — takes DATA, and is unaffected by the seam change.
@@ -338,31 +343,3 @@ export function buildResourceParams(
   return out;
 }
 
-/** Build args for gws helper calls: `gws service +helper --flag value ...` */
-function buildHelperArgs(
-  gwsService: string,
-  opDef: OperationDef,
-  params: Record<string, unknown>,
-): string[] {
-  const args = [gwsService, opDef.helper!];
-
-  // Some helpers take a positional arg (e.g. +reply messageId)
-  // Check for required params that aren't in cli_args — those are positional
-  if (opDef.params) {
-    for (const [paramName, paramDef] of Object.entries(opDef.params)) {
-      if (paramDef.client_only) continue; // formatter-only; never reaches gws
-      const value = params[paramName];
-      if (value === undefined || value === null) continue;
-
-      if (opDef.cli_args?.[paramName]) {
-        // Flag-style arg
-        args.push(opDef.cli_args[paramName], String(value));
-      } else if (paramDef.required) {
-        // Positional arg
-        args.push(String(value));
-      }
-    }
-  }
-
-  return args;
-}

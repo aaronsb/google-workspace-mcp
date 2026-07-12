@@ -6,15 +6,27 @@ import { loadManifest, generateTools, generateSchema, generateHandler } from '..
 import { patches } from '../../factory/patches.js';
 import type { Manifest, ServiceDef } from '../../factory/types.js';
 
-// BOTH seams are mocked (ADR-103). The generator sends RESOURCE ops to the
-// Google API client we own (raw JSON back, no envelope) and HELPER ops to the
-// gws executor (still the { success, data, stderr } envelope).
-vi.mock('../../executor/gws.js');
+// ONE seam (ADR-103). Every operation the generator can reach — resource ops via
+// the manifest, custom handlers via the patches — goes through the Google API
+// client we own, which returns RAW Google JSON (no { success, data, stderr }
+// envelope). The gws executor is deliberately NOT mocked: nothing on these paths
+// shells out any more, so a test that mocked it would be asserting against a
+// seam that no longer carries traffic.
 vi.mock('../../google/client.js');
-import { execute } from '../../executor/gws.js';
-import { call } from '../../google/client.js';
-const mockExecute = execute as MockedFunction<typeof execute>;
+import { call, upload } from '../../google/client.js';
 const mockCall = call as MockedFunction<typeof call>;
+const mockUpload = upload as MockedFunction<typeof upload>;
+
+/** The RFC 5322 message handed to Gmail by the last upload() — what actually gets sent. */
+function uploadedMime(callIndex = 0): string {
+  return (mockUpload.mock.calls[callIndex][3].media as Buffer).toString('utf-8');
+}
+
+/** Decode the base64 body of a single-part (no attachments) RFC 5322 message. */
+function singlePartBody(mime: string): string {
+  const [, ...rest] = mime.split(/\r?\n\r?\n/);
+  return Buffer.from(rest.join('').replace(/\r?\n/g, ''), 'base64').toString('utf-8');
+}
 
 describe('loadManifest', () => {
   it('loads and parses the manifest YAML', () => {
@@ -111,8 +123,8 @@ describe('generateHandler', () => {
   const manifest = loadManifest();
 
   beforeEach(() => {
-    mockExecute.mockReset();
     mockCall.mockReset();
+    mockUpload.mockReset();
   });
 
   it('calls the Google client with (service, resourcePath, params) for resource operations', async () => {
@@ -127,44 +139,69 @@ describe('generateHandler', () => {
       expect.objectContaining({ q: 'budget' }),
       expect.objectContaining({ account: 'u@t.com' }),
     );
-    // A resource op never reaches gws.
-    expect(mockExecute).not.toHaveBeenCalled();
   });
 
-  it('calls execute with correct args for helper-based operations', async () => {
-    mockExecute.mockResolvedValue({ success: true, data: { messages: [] }, stderr: '' });
-    const handler = generateHandler(manifest.services.gmail, patches.gmail);
+  it('throws when an operation declares no resource and has no custom handler', async () => {
+    // REPLACES "calls execute with correct args for helper-based operations".
+    // That test had a FALSE PREMISE: there are no helper-based operations. Every
+    // gws `+helper` is gone — the nine that were plain Google methods in a CLI
+    // costume are manifest resource ops, and the two that genuinely reshaped
+    // anything (+triage, +agenda) are custom handlers / afterExecute hooks over
+    // raw Google. Nothing is left for the generator's else-branch to call, so the
+    // behaviour worth pinning is that such an op FAILS LOUDLY rather than
+    // silently doing nothing.
+    const orphan: ServiceDef = {
+      tool_name: 'manage_orphan',
+      description: 'a service with an unroutable operation',
+      requires_email: true,
+      gws_service: 'gmail',
+      operations: {
+        stranded: { type: 'action', description: 'declares no resource' },
+      },
+    };
 
-    await handler({ operation: 'triage', email: 'u@t.com' });
+    const handler = generateHandler(orphan, undefined);
 
-    expect(mockExecute).toHaveBeenCalledWith(
-      ['gmail', '+triage'],
-      expect.objectContaining({ account: 'u@t.com' }),
-    );
+    await expect(
+      handler({ operation: 'stranded', email: 'u@t.com' }),
+    ).rejects.toThrow("gmail.stranded declares no 'resource' and has no custom handler.");
+    expect(mockCall).not.toHaveBeenCalled();
+    expect(mockUpload).not.toHaveBeenCalled();
   });
 
   it('uses patch formatList when available', async () => {
-    mockExecute.mockResolvedValue({
-      success: true,
-      data: { messages: [{ id: 'msg-1', from: 'alice', subject: 'hi', date: '2024-01-01' }] },
-      stderr: '',
+    // triage is now a resource op (users.messages.list with an unread query) whose
+    // afterExecute hydrates the bare IDs Google returns. The formatter therefore
+    // reads REAL Gmail shapes, not gws's invented flat {id,from,subject,date}.
+    mockCall.mockResolvedValueOnce({ messages: [{ id: 'msg-1' }] });
+    mockCall.mockResolvedValueOnce({
+      id: 'msg-1', threadId: 't1', snippet: 'hi',
+      payload: { headers: [
+        { name: 'From', value: 'alice@t.com' },
+        { name: 'Subject', value: 'hi' },
+        { name: 'Date', value: '2024-01-01' },
+      ]},
     });
     const handler = generateHandler(manifest.services.gmail, patches.gmail);
 
     const result = await handler({ operation: 'triage', email: 'u@t.com' });
 
+    expect(mockCall).toHaveBeenCalledWith(
+      'gmail',
+      'users.messages.list',
+      expect.objectContaining({ userId: 'me', q: 'is:unread in:inbox' }),
+      expect.objectContaining({ account: 'u@t.com' }),
+    );
     // Gmail patch uses formatEmailList which produces pipe-delimited format
     expect(result.text).toContain('msg-1');
+    expect(result.text).toContain('alice@t.com');
     expect(result.text).toContain('|');
   });
 
   it('delegates to customHandler when defined', async () => {
-    // Gmail send is a custom handler
-    mockExecute.mockResolvedValue({
-      success: true,
-      data: { id: 'sent-1', threadId: 'thread-1' },
-      stderr: '',
-    });
+    // Gmail send is a custom handler: it builds an RFC 5322 message and uploads it
+    // to users.messages.send. Nothing shells out.
+    mockUpload.mockResolvedValue({ id: 'sent-1', threadId: 'thread-1' });
     const handler = generateHandler(manifest.services.gmail, patches.gmail);
 
     const result = await handler({
@@ -175,16 +212,23 @@ describe('generateHandler', () => {
       body: 'hi bob',
     });
 
+    expect(mockUpload).toHaveBeenCalledWith(
+      'gmail',
+      'users.messages.send',
+      { userId: 'me' },
+      expect.objectContaining({ account: 'u@t.com', contentType: 'message/rfc822' }),
+    );
+    expect(uploadedMime()).toContain('To: bob@t.com');
+    expect(uploadedMime()).toContain('Subject: hello');
     expect(result.text).toContain('Email sent to bob@t.com');
     expect(result.refs).toHaveProperty('to', 'bob@t.com');
   });
 
   it('passes from alias to Gmail send customHandler', async () => {
-    mockExecute.mockResolvedValue({
-      success: true,
-      data: { id: 'sent-1', threadId: 'thread-1' },
-      stderr: '',
-    });
+    // Was an argv assertion (`--from`, then the value in the next slot). The `from`
+    // alias only ever meant one thing: the From header of the message Gmail sends.
+    // So assert it lands there.
+    mockUpload.mockResolvedValue({ id: 'sent-1', threadId: 'thread-1' });
     const handler = generateHandler(manifest.services.gmail, patches.gmail);
 
     await handler({
@@ -196,9 +240,7 @@ describe('generateHandler', () => {
       from: 'Agent Name <agent@example.com>',
     });
 
-    const args = mockExecute.mock.calls[0][0];
-    expect(args).toContain('--from');
-    expect(args[args.indexOf('--from') + 1]).toBe('Agent Name <agent@example.com>');
+    expect(uploadedMime()).toContain('From: Agent Name <agent@example.com>');
   });
 
   it('throws on unknown operation', async () => {
@@ -210,6 +252,12 @@ describe('generateHandler', () => {
   });
 
   describe('reply and replyAll honour attachments, html and draft (#132)', () => {
+    // These tests used to read gws argv (`+reply`, `--draft`, `--attach`, `--html`,
+    // `--cc`, and a `cwd` because --attach paths were cwd-relative). reply/replyAll
+    // now build an RFC 5322 message themselves (src/services/gmail/mail.ts) and
+    // upload it, so the assertions look at the two things that decide what the user
+    // gets: WHICH endpoint (users.drafts.create vs users.messages.send) and WHAT
+    // message (the MIME bytes).
     let workspace: string;
     let originalWorkspaceDir: string | undefined;
 
@@ -227,14 +275,33 @@ describe('generateHandler', () => {
       await fs.rm(workspace, { recursive: true, force: true });
     });
 
-    const okDraft = { success: true as const, data: { id: 'draft-1' }, stderr: '' };
-    const okSent = { success: true as const, data: { id: 'sent-1', threadId: 'thread-1' }, stderr: '' };
+    /** The message being replied to — reply/replyAll fetch it to build headers and quote it. */
+    const originalMessage = {
+      id: 'msg-1',
+      threadId: 'thread-1',
+      payload: {
+        mimeType: 'text/plain',
+        headers: [
+          { name: 'Message-ID', value: '<orig@mail.test>' },
+          { name: 'Subject', value: 'Budget' },
+          { name: 'From', value: 'alice@t.com' },
+          { name: 'To', value: 'u@t.com, bob@t.com' },
+          { name: 'Cc', value: 'dave@t.com' },
+          { name: 'Date', value: 'Mon, 10 Mar 2026 10:00:00 -0500' },
+        ],
+        body: { data: Buffer.from('original body', 'utf-8').toString('base64url') },
+      },
+    };
+
+    /** users.messages.get -> the original; everything else is an upload. */
+    const mockOriginal = () => mockCall.mockResolvedValue(originalMessage);
 
     it.each([
-      ['reply', '+reply'],
-      ['replyAll', '+reply-all'],
-    ])('%s attaches workspace files and forces draft', async (operation, helper) => {
-      mockExecute.mockResolvedValue(okDraft);
+      ['reply'],
+      ['replyAll'],
+    ])('%s attaches workspace files and forces draft', async (operation) => {
+      mockOriginal();
+      mockUpload.mockResolvedValue({ id: 'draft-1' });
       const handler = generateHandler(manifest.services.gmail, patches.gmail);
 
       const result = await handler({
@@ -245,15 +312,28 @@ describe('generateHandler', () => {
         attachments: 'report.pdf, data.csv',
       });
 
-      const [args, options] = mockExecute.mock.calls[0];
-      expect(args).toContain(helper);
-      // Attachments imply a draft — gws cannot attach to a live send
-      expect(args).toContain('--draft');
-      expect(args.filter(a => a === '--attach')).toHaveLength(2);
-      expect(args).toContain('report.pdf');
-      expect(args).toContain('data.csv');
-      // --attach paths are relative to cwd, so cwd must be the workspace
-      expect(options).toMatchObject({ cwd: workspace });
+      // Attachments still imply a draft — now a deliberate safety choice, not a
+      // gws limitation (the client can send attachments outright).
+      expect(mockUpload).toHaveBeenCalledWith(
+        'gmail',
+        'users.drafts.create',
+        { userId: 'me' },
+        expect.objectContaining({
+          account: 'u@t.com',
+          contentType: 'message/rfc822',
+          // A draft reply must stay in the original thread.
+          metadata: { message: { threadId: 'thread-1' } },
+        }),
+      );
+
+      // The files are read from the WORKSPACE — this is what the old `cwd` assertion
+      // was really protecting — and carried as real MIME parts.
+      const mime = uploadedMime();
+      expect(mime).toContain('Content-Disposition: attachment; filename="report.pdf"');
+      expect(mime).toContain('Content-Disposition: attachment; filename="data.csv"');
+      expect(mime).toContain(Buffer.from('pdf').toString('base64'));
+      expect(mime).toContain(Buffer.from('a,b').toString('base64'));
+
       expect(result.refs).toMatchObject({ isDraft: true, draftId: 'draft-1' });
     });
 
@@ -261,7 +341,8 @@ describe('generateHandler', () => {
       ['reply'],
       ['replyAll'],
     ])('%s passes html flag through', async (operation) => {
-      mockExecute.mockResolvedValue(okSent);
+      mockOriginal();
+      mockUpload.mockResolvedValue({ id: 'sent-1', threadId: 'thread-1' });
       const handler = generateHandler(manifest.services.gmail, patches.gmail);
 
       await handler({
@@ -272,14 +353,19 @@ describe('generateHandler', () => {
         html: true,
       });
 
-      expect(mockExecute.mock.calls[0][0]).toContain('--html');
+      const mime = uploadedMime();
+      expect(mime).toContain('Content-Type: text/html');
+      expect(mime).not.toContain('Content-Type: text/plain');
+      // ...and the part really carries our HTML, not an escaped/stripped version.
+      expect(singlePartBody(mime)).toContain('<b>hi</b>');
     });
 
     it.each([
       ['reply'],
       ['replyAll'],
     ])('%s sends live when no attachments and no draft flag', async (operation) => {
-      mockExecute.mockResolvedValue(okSent);
+      mockOriginal();
+      mockUpload.mockResolvedValue({ id: 'sent-1', threadId: 'thread-1' });
       const handler = generateHandler(manifest.services.gmail, patches.gmail);
 
       const result = await handler({
@@ -289,7 +375,12 @@ describe('generateHandler', () => {
         body: 'plain reply',
       });
 
-      expect(mockExecute.mock.calls[0][0]).not.toContain('--draft');
+      expect(mockUpload).toHaveBeenCalledWith(
+        'gmail',
+        'users.messages.send',
+        { userId: 'me' },
+        expect.objectContaining({ metadata: { threadId: 'thread-1' } }),
+      );
       expect(result.refs).not.toHaveProperty('isDraft');
     });
 
@@ -297,7 +388,8 @@ describe('generateHandler', () => {
       ['reply'],
       ['replyAll'],
     ])('%s honours an explicit draft flag with no attachments', async (operation) => {
-      mockExecute.mockResolvedValue(okDraft);
+      mockOriginal();
+      mockUpload.mockResolvedValue({ id: 'draft-1' });
       const handler = generateHandler(manifest.services.gmail, patches.gmail);
 
       const result = await handler({
@@ -308,12 +400,33 @@ describe('generateHandler', () => {
         draft: true,
       });
 
-      expect(mockExecute.mock.calls[0][0]).toContain('--draft');
+      expect(mockUpload.mock.calls[0][1]).toBe('users.drafts.create');
+      expect(uploadedMime()).not.toContain('Content-Disposition: attachment');
       expect(result.refs).toMatchObject({ isDraft: true });
     });
 
+    it.each([
+      ['reply'],
+      ['replyAll'],
+    ])('%s threads the reply to the original message', async (operation) => {
+      // Threading used to be gws's business. It is ours now, so it gets asserted:
+      // In-Reply-To + References are what make a reply land in the conversation
+      // rather than start a new one.
+      mockOriginal();
+      mockUpload.mockResolvedValue({ id: 'sent-1', threadId: 'thread-1' });
+      const handler = generateHandler(manifest.services.gmail, patches.gmail);
+
+      await handler({ operation, email: 'u@t.com', messageId: 'msg-1', body: 'ok' });
+
+      const mime = uploadedMime();
+      expect(mime).toContain('In-Reply-To: <orig@mail.test>');
+      expect(mime).toContain('References: <orig@mail.test>');
+      expect(mime).toContain('Subject: Re: Budget');
+    });
+
     it('replyAll still passes cc alongside attachments', async () => {
-      mockExecute.mockResolvedValue(okDraft);
+      mockOriginal();
+      mockUpload.mockResolvedValue({ id: 'draft-1' });
       const handler = generateHandler(manifest.services.gmail, patches.gmail);
 
       await handler({
@@ -325,16 +438,23 @@ describe('generateHandler', () => {
         attachments: 'report.pdf',
       });
 
-      const args = mockExecute.mock.calls[0][0];
-      expect(args[args.indexOf('--cc') + 1]).toBe('carol@t.com');
-      expect(args).toContain('--attach');
+      const mime = uploadedMime();
+      const cc = mime.split(/\r?\n/).find(l => l.startsWith('Cc: '))!;
+      // The caller's cc, plus the thread's other participants that reply-all pulls
+      // in — and NOT the account's own address.
+      expect(cc).toContain('carol@t.com');
+      expect(cc).toContain('bob@t.com');
+      expect(cc).toContain('dave@t.com');
+      expect(cc).not.toContain('u@t.com');
+      expect(mime).toContain('Content-Disposition: attachment; filename="report.pdf"');
     });
 
     it.each([
       ['reply'],
       ['replyAll'],
     ])('%s rejects an attachment outside the workspace', async (operation) => {
-      mockExecute.mockResolvedValue(okDraft);
+      mockOriginal();
+      mockUpload.mockResolvedValue({ id: 'draft-1' });
       const handler = generateHandler(manifest.services.gmail, patches.gmail);
 
       await expect(
@@ -346,7 +466,8 @@ describe('generateHandler', () => {
           attachments: '../../../etc/passwd',
         }),
       ).rejects.toThrow();
-      expect(mockExecute).not.toHaveBeenCalled();
+      // Nothing was sent — the fence is ours now (gws's cwd fence is gone).
+      expect(mockUpload).not.toHaveBeenCalled();
     });
   });
 
@@ -388,8 +509,8 @@ describe('generateHandler — custom-handler next-steps wrapping', () => {
   const manifest = loadManifest();
 
   beforeEach(() => {
-    mockExecute.mockReset();
     mockCall.mockReset();
+    mockUpload.mockReset();
   });
 
   it('appends next-steps to a custom handler response', async () => {

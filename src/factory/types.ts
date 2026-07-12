@@ -42,8 +42,6 @@ export interface OperationDef {
   description: string;
   /** gws resource path (e.g. "users.messages.list"). */
   resource?: string;
-  /** gws helper shorthand (e.g. "+triage", "+send"). */
-  helper?: string;
   /** Named parameters the caller can provide. */
   params?: Record<string, ParamDef>;
   /** Default values merged into the gws --params JSON. */
@@ -52,8 +50,6 @@ export interface OperationDef {
   hydration?: HydrationDef;
   /** Fields to extract from the gws response for the result. */
   fields?: string;
-  /** CLI-style args instead of --params JSON (for helpers). */
-  cli_args?: Record<string, string>;
 }
 
 /** A service declaration in the manifest. */

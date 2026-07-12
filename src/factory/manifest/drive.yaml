@@ -44,7 +44,6 @@ operations:
   upload:
     type: action
     description: "upload a local file to Drive"
-    helper: "+upload"
     params:
       filePath:
         type: string
@@ -56,9 +55,6 @@ operations:
       parentFolderId:
         type: string
         description: "Destination folder ID"
-    cli_args:
-      name: "--name"
-      parentFolderId: "--parent"
 
   viewImage:
     type: detail

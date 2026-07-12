@@ -10,8 +10,11 @@
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { execute } from '../../executor/gws.js';
-import { call, download } from '../../google/client.js';
+import { readFile } from 'node:fs/promises';
+import { basename } from 'node:path';
+
+import { call, download, upload } from '../../google/client.js';
+import { lookupMimeType } from '../gmail/mime.js';
 import { formatFileList, formatFileDetail } from '../../server/formatting/markdown.js';
 import { requireString } from '../../server/handlers/validate.js';
 import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
@@ -43,13 +46,29 @@ export const drivePatch: ServicePatch = {
   formatDetail: (data: unknown) => formatFileDetail(data),
 
   customHandlers: {
+    /**
+     * Upload. Was gws's `+upload`, which used `uploadType=multipart` at every
+     * size, with no chunking. We use the RESUMABLE endpoint, which ADR-103 item 4
+     * verified carries a 25 MB payload and round-trips it byte-for-byte. Same
+     * result for a small file, and it does not fall over on a large one.
+     */
     upload: async (params, account): Promise<HandlerResponse> => {
       const filePath = requireString(params, 'filePath');
-      const args = ['drive', '+upload', filePath];
-      if (params.name) args.push('--name', String(params.name));
-      if (params.parentFolderId) args.push('--parent', String(params.parentFolderId));
-      const result = await execute(args, { account });
-      const data = result.data as Record<string, unknown>;
+      await verifyPathSafety(filePath);
+      const media = await readFile(filePath);
+
+      const metadata: Record<string, unknown> = {
+        name: params.name ? String(params.name) : basename(filePath),
+      };
+      if (params.parentFolderId) metadata.parents = [String(params.parentFolderId)];
+
+      const data = await upload('drive', 'files.create', {}, {
+        account,
+        media,
+        contentType: lookupMimeType(filePath),
+        metadata,
+      }) as Record<string, unknown>;
+
       return {
         text: `File uploaded: **${data.name ?? filePath}**\n\n**File ID:** ${data.id ?? 'unknown'}`,
         refs: { id: data.id, fileId: data.id, name: data.name },
