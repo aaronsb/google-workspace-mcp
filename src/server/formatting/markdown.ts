@@ -41,6 +41,25 @@ export type EmailBodyFormat = 'plain' | 'html';
  *
  * Decodes base64url body data either way.
  */
+/**
+ * Gmail returns `snippet` HTML-ESCAPED — an apostrophe arrives as `&#39;`, an ampersand
+ * as `&amp;`. We render snippets as plain text, so escaped is simply wrong: every
+ * preview containing a quote or an apostrophe read as `codename &#39;lando&#39;`.
+ *
+ * Only the five XML predefined entities plus numeric references; Gmail does not emit
+ * the wider HTML named set here, and a general HTML decoder is not what a snippet needs.
+ */
+export function decodeSnippet(text: string): string {
+  return text
+    .replace(/&#(\d+);/g, (_m, d) => String.fromCodePoint(Number(d)))
+    .replace(/&#x([0-9a-f]+);/gi, (_m, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');     // LAST — decoding it first would re-decode its own output
+}
+
 export function extractBodyFromPayload(
   payload: Record<string, unknown> | undefined,
   format: EmailBodyFormat = 'plain',
@@ -175,6 +194,10 @@ export function formatEmailList(data: unknown): HandlerResponse {
 
   const lines = messages.map(msg => {
     const id = String(msg.id ?? '');
+    // A message we FAILED TO FETCH is not a message with no sender and no subject.
+    // Rendering it as blank columns is a lie the reader cannot detect — it looks like
+    // an empty email. Say what actually happened, in the row.
+    if (msg.error) return `${id} | ⚠ ${String(msg.error)}`;
     const from = truncate(String(msg.from ?? ''), 30);
     const subject = truncate(String(msg.subject ?? '(no subject)'), 50);
     const date = formatShortDate(msg.date);

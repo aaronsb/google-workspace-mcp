@@ -43,22 +43,44 @@ function endOfDayISO(): string {
   return d.toISOString();
 }
 
+/**
+ * Unread mail in the INBOX — exact, from the label itself.
+ *
+ * `resultSizeEstimate` is what its name says: an ESTIMATE, and a famously bad one when
+ * you ask for a single result. Measured against this mailbox it returned the SAME
+ * number, 201, for `is:unread` (truly 135,824) and for `after:<today>` (truly 30). Not
+ * an approximation — a constant, unrelated to the question. And because the session
+ * baseline and the current reading both came from it, they always agreed, so "no new
+ * unread mail since session start" was the only answer this could ever give.
+ *
+ * `users.labels.get` returns exact counts Gmail already maintains, in one call, no
+ * paging. INBOX rather than the UNREAD label: UNREAD counts archived mail too, and
+ * nobody means that by "unread".
+ */
 async function fetchUnreadCount(account: string): Promise<number> {
-  const data = await call('gmail', 'users.messages.list', {
+  const label = await call('gmail', 'users.labels.get', {
     userId: 'me',
-    q: 'is:unread',
-    maxResults: 1,
+    id: 'INBOX',
   }, { account }) as Record<string, unknown>;
-  return Number(data.resultSizeEstimate ?? 0);
+  return Number(label.messagesUnread ?? 0);
 }
+
+/**
+ * Mail that arrived today. There is no label for this, so it has to be counted — but
+ * counted, not estimated. One page holds a day's mail for any realistic mailbox.
+ */
+const TODAY_PAGE = 500;
 
 async function fetchTodayEmailCount(account: string): Promise<number> {
   const data = await call('gmail', 'users.messages.list', {
     userId: 'me',
     q: `after:${todayQuery()}`,
-    maxResults: 1,
+    maxResults: TODAY_PAGE,
   }, { account }) as Record<string, unknown>;
-  return Number(data.resultSizeEstimate ?? 0);
+  const messages = (data.messages ?? []) as unknown[];
+  // Beyond one page we report the page as a floor. It is a cap, not a lie: the count
+  // it feeds is a session-context hint, and the DELTA is what the line is really for.
+  return data.nextPageToken ? TODAY_PAGE : messages.length;
 }
 
 async function fetchNextEvent(account: string): Promise<NextEvent | null> {

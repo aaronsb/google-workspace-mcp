@@ -25,13 +25,14 @@
     "type-check": "tsc --noEmit --skipLibCheck && tsc -p tsconfig.test.json --skipLibCheck",
     "lint": "eslint \"src/**/*.ts\"",
     "watch": "tsc --watch --skipLibCheck",
-    "test": "vitest run src/__tests__/coverage src/__tests__/executor src/__tests__/accounts src/__tests__/server src/__tests__/factory src/__tests__/services src/server/scratchpad",
+    "test": "vitest run src/__tests__/coverage src/__tests__/google src/__tests__/executor src/__tests__/accounts src/__tests__/server src/__tests__/factory src/__tests__/services src/server/scratchpad",
     "test:watch": "vitest src/__tests__/executor src/__tests__/accounts src/__tests__/server src/__tests__/factory src/__tests__/services src/server/scratchpad",
     "test:integration": "vitest run --no-file-parallelism src/__tests__/integration",
     "test:all": "vitest run --no-file-parallelism",
     "generate-descriptor": "node scripts/generate-descriptor.mjs",
     "check-descriptor": "node scripts/generate-descriptor.mjs --check",
-    "verify:live": "vitest run src/__tests__/integration/live.test.ts"
+    "verify:live": "vitest run src/__tests__/integration/live.test.ts",
+    "generate-api-surface": "node scripts/generate-api-surface.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",

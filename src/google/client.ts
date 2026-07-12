@@ -84,10 +84,22 @@ function splitParams(
 
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined || value === null) continue;
-    const location = declared[key]?.location;
-    if (location === 'path') path[key] = value;
-    else if (location === 'query') query[key] = value;
-    else body[key] = value;      // undeclared -> request body; Google validates it, not us
+    const decl = declared[key];
+    const location = decl?.location;
+    // A REPEATED parameter is sent once per value (`?h=From&h=Subject`), never as one
+    // comma-joined string. Google does not split it for us: asked for the single header
+    // named "From,Subject,Date,To", it finds none and returns a payload with no headers
+    // at all — which rendered a whole mail thread with empty senders and empty subjects,
+    // and raised no error. The descriptor already records which params are repeated, so
+    // accept a comma-separated string and expand it rather than trusting every caller
+    // to remember.
+    const coerced = decl?.repeated && typeof value === 'string'
+      ? value.split(',').map((v) => v.trim()).filter(Boolean)
+      : value;
+
+    if (location === 'path') path[key] = coerced;
+    else if (location === 'query') query[key] = coerced;
+    else body[key] = coerced;    // undeclared -> request body; Google validates it, not us
   }
   return { path, query, body };
 }
@@ -146,24 +158,69 @@ export async function call<S extends GoogleService>(
   const request = buildRequest(descriptor, service, resourcePath, params);
   const token = await getAccessToken(options.account);
 
-  const response = await doFetch(request.url, {
-    method: request.method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(request.body ? { 'Content-Type': 'application/json' } : {}),
-    },
-    ...(request.body ? { body: JSON.stringify(request.body) } : {}),
-  });
+  for (let attempt = 0; ; attempt++) {
+    const response = await doFetch(request.url, {
+      method: request.method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(request.body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(request.body ? { body: JSON.stringify(request.body) } : {}),
+    });
 
-  const text = await response.text();
-  const json = parseJson(text);
-  if (!response.ok) {
+    const text = await response.text();
+    const json = parseJson(text);
+
+    if (response.ok) return json;
+
+    // Google throttles per user, not per process. Two clients on one account — a
+    // desktop app and an editor, say — share the quota, so a burst of reads can be
+    // rejected even though nothing is wrong with the request. That is a TRANSIENT
+    // condition and the documented response to it is to back off and try again:
+    // https://developers.google.com/workspace/gmail/api/guides/handle-errors
+    //
+    // Retrying belongs here rather than in each caller. A caller that must decide
+    // for itself whether a 429 is fatal will get it wrong somewhere, and the way it
+    // gets it wrong is by treating "I could not read this" as "there is nothing to
+    // read" — which is how a rate-limited inbox rendered as rows with no sender and
+    // no subject.
+    if (shouldRetry(response.status) && attempt < RETRY_ATTEMPTS) {
+      await sleep(retryDelayMs(attempt, response.headers.get('retry-after')));
+      continue;
+    }
+
     throw new GoogleApiError(response.status, json as GoogleErrorBody, {
       url: request.url,
       method: request.method,
     });
   }
-  return json;
+}
+
+/** 429 = rate limited. 5xx = Google having a moment. Both are worth another go. */
+const RETRY_ATTEMPTS = 4;
+
+function shouldRetry(status: number): boolean {
+  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+}
+
+/**
+ * Exponential backoff with full jitter. The jitter is not decoration: without it, a
+ * batch of calls throttled together retries together, re-creating the burst that
+ * caused the throttling.
+ *
+ * `Retry-After` wins when Google sends one — it is Google telling us what it wants.
+ */
+function retryDelayMs(attempt: number, retryAfter: string | null): number {
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1000, 30_000);
+  }
+  const ceiling = Math.min(1000 * 2 ** attempt, 16_000);
+  return Math.random() * ceiling;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**

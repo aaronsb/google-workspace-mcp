@@ -8,7 +8,8 @@
  */
 
 import { call } from '../../google/client.js';
-import { formatEmailList, formatEmailDetail, extractBodyFromPayload, type EmailBodyFormat } from '../../server/formatting/markdown.js';
+import { GoogleApiError } from '../../google/errors.js';
+import { formatEmailList, formatEmailDetail, extractBodyFromPayload, decodeSnippet, type EmailBodyFormat } from '../../server/formatting/markdown.js';
 import { requireString } from '../../server/handlers/validate.js';
 import { handleGetAttachment, handleViewAttachment } from './attachments.js';
 import { sendMail, replyMail, forwardMail } from './mail.js';
@@ -23,30 +24,66 @@ async function hydrateMessages(
   messageIds: Array<{ id: string }>,
   account: string,
 ): Promise<Record<string, unknown>[]> {
-  return Promise.all(
-    messageIds.map(async (msg) => {
-      try {
-        const data = await call('gmail', 'users.messages.get', {
-          userId: 'me',
-          id: msg.id,
-          format: 'metadata',
-          metadataHeaders: ['From', 'Subject', 'Date'],
-        }, { account }) as Record<string, unknown>;
-        const headers = ((data.payload as Record<string, unknown>)?.headers ?? []) as Array<{ name: string; value: string }>;
-        const getHeader = (name: string) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value;
-        return {
-          id: data.id,
-          threadId: data.threadId,
-          from: getHeader('from'),
-          subject: getHeader('subject'),
-          date: getHeader('date'),
-          snippet: data.snippet,
-        };
-      } catch {
-        return { id: msg.id };
-      }
-    }),
-  );
+  // Google throttles per USER, not per process, so this burst competes with every
+  // other client signed in to the same account. Firing all 50 at once is the surest
+  // way to be told no. A modest window is barely slower — the calls still overlap —
+  // and it is far less likely to be throttled in the first place.
+  return mapLimited(messageIds, HYDRATE_CONCURRENCY, async (msg) => {
+    try {
+      const data = await call('gmail', 'users.messages.get', {
+        userId: 'me',
+        id: msg.id,
+        format: 'metadata',
+        metadataHeaders: ['From', 'Subject', 'Date'],
+      }, { account }) as Record<string, unknown>;
+      const headers = ((data.payload as Record<string, unknown>)?.headers ?? []) as Array<{ name: string; value: string }>;
+      const getHeader = (name: string) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value;
+      return {
+        id: data.id,
+        threadId: data.threadId,
+        from: getHeader('from'),
+        subject: getHeader('subject'),
+        date: getHeader('date'),
+        snippet: data.snippet,
+      };
+    } catch (err) {
+      // A message we could not READ must never look like a message with NOTHING IN IT.
+      //
+      // This used to `catch { return { id: msg.id } }` — every failure became a row
+      // with no sender, no subject and no date, indistinguishable from a genuinely
+      // empty message. Under rate limiting the tail of an inbox silently rendered as
+      // blank lines, and the tool reported success while showing the user nothing.
+      //
+      // The client retries a 429 now, so reaching here means it did not recover. Say
+      // so, in the row, where the person reading the list will actually see it.
+      return {
+        id: msg.id,
+        error: err instanceof GoogleApiError
+          ? `could not load (${err.status}${err.reason ? ' ' + err.reason : ''})`
+          : `could not load (${err instanceof Error ? err.message : String(err)})`,
+      };
+    }
+  });
+}
+
+/** Concurrent, but bounded. */
+const HYDRATE_CONCURRENCY = 8;
+
+async function mapLimited<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);      // fn never rejects — it catches internally
+    }
+  });
+  await Promise.all(workers);
+  return results;
 }
 
 /** Format labels list — name, type, unread count. */
@@ -99,7 +136,7 @@ function formatThreadList(data: unknown): HandlerResponse {
 
   const lines = threads.map(t => {
     const id = String(t.id ?? '');
-    const snippet = String(t.snippet ?? '').slice(0, 80);
+    const snippet = decodeSnippet(String(t.snippet ?? '')).slice(0, 80);
     return `${id} | ${snippet}`;
   });
 
@@ -135,7 +172,7 @@ function formatThreadDetail(data: unknown): HandlerResponse {
     const date = getHeader('date');
     const subject = getHeader('subject');
     const bodyText = extractBodyFromPayload(payload);
-    const snippet = String(msg.snippet ?? '');
+    const snippet = decodeSnippet(String(msg.snippet ?? ''));
     // getThread uses format:metadata so body data is usually absent;
     // fall back to snippet when extraction yields nothing
     const displayBody = bodyText || snippet;
