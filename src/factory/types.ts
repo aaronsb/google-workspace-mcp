@@ -14,12 +14,12 @@ export interface ParamDef {
   required?: boolean;
   default?: string | number | boolean;
   max?: number;
-  /** Maps this param name to a different key in the gws --params JSON. */
+  /** Maps this param name to a different key in the params sent to Google. */
   maps_to?: string;
   enum?: string[];
   /**
    * If true, the param is for the formatter/handler only and is NOT forwarded
-   * to the gws CLI. Used for client-side controls like `bodyFormat` (ADR-305)
+   * to Google. Used for client-side controls like `bodyFormat` (ADR-305)
    * that affect rendering, not the API call itself.
    */
   client_only?: boolean;
@@ -27,7 +27,7 @@ export interface ParamDef {
 
 /** Hydration config — fetch detail for each item in a list result. */
 export interface HydrationDef {
-  /** gws resource path for the detail call (e.g. "users.messages.get"). */
+  /** Google resource path for the detail call (e.g. "users.messages.get"). */
   resource: string;
   /** Format parameter passed to the detail call. */
   format?: string;
@@ -40,15 +40,15 @@ export interface OperationDef {
   /** Categorizes the operation for default formatting. */
   type: 'list' | 'detail' | 'action';
   description: string;
-  /** gws resource path (e.g. "users.messages.list"). */
+  /** Google resource path (e.g. "users.messages.list"). */
   resource?: string;
   /** Named parameters the caller can provide. */
   params?: Record<string, ParamDef>;
-  /** Default values merged into the gws --params JSON. */
+  /** Default values merged into the params sent to Google. */
   defaults?: Record<string, unknown>;
   /** Post-fetch hydration (list operations only). */
   hydration?: HydrationDef;
-  /** Fields to extract from the gws response for the result. */
+  /** Fields to extract from Google's response for the result. */
   fields?: string;
 }
 
@@ -58,7 +58,7 @@ export interface ServiceDef {
   description: string;
   /** Whether this service requires an email account param. */
   requires_email: boolean;
-  /** The gws service name (e.g. "gmail", "calendar", "drive"). */
+  /** The Google service name (e.g. "gmail", "calendar", "drive"). */
   google_service: string;
   operations: Record<string, OperationDef>;
 }
@@ -80,10 +80,8 @@ export interface PatchContext {
 /**
  * A patch hook that runs after the manifest's param mapping, before the call.
  *
- * It receives the PARAMS Google will be sent — not a gws command line. The hooks
- * used to take `string[]` and perform surgery on an argv slot
- * (`JSON.parse(args[args.indexOf('--params') + 1])`), which existed only because
- * the seam was a subprocess. See ADR-103.
+ * It receives the PARAMS Google will be sent. Hooks operate on the param object
+ * directly — never on a serialised command line. See ADR-103.
  */
 export type BeforeExecuteHook = (
   params: Record<string, unknown>,

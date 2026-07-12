@@ -190,15 +190,8 @@ describe('Meet patch formatters', () => {
 });
 
 describe('Meet beforeExecute hooks', () => {
-  // These hooks used to take gws ARGV and re-serialise a `--params` JSON slot.
-  // They now take the params themselves (ADR-103), so these assertions look at
-  // the thing that actually matters instead of at a command line.
-  //
-  // Two tests were DELETED here rather than ported: "returns args unchanged when
-  // --params is missing" and "…when --params has no following value". Both tested
-  // failure modes OF THE ARGV SURGERY — malformed command lines that can no longer
-  // exist. They were testing the seam, not the behaviour. Deleting them loses no
-  // coverage of anything real.
+  // The hooks take the params themselves (ADR-103), so these assert the params
+  // Google is actually sent.
 
   it('prefixes conferenceRecords/ on bare parent IDs', async () => {
     const hook = meetPatch.beforeExecute!.listParticipants;

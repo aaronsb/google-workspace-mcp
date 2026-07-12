@@ -11,11 +11,10 @@ export default defineConfig({
     exclude: [...configDefaults.exclude, 'build/**', 'mcpb/**'],
     // Replaces testSetup.ts's `beforeEach(() => jest.clearAllMocks())`
     clearMocks: true,
-    // NOTE: file parallelism stays ON here. The integration suites shell out to
-    // the real gws binary against live Google APIs on one shared OAuth
-    // credential, so *they* must run serially — but they are the only ones, and
-    // forcing the whole suite serial (jest's blanket --runInBand) slows the
-    // mocked suite CI actually runs. `npm run test:integration` passes
-    // --no-file-parallelism instead.
+    // NOTE: file parallelism stays ON here. The integration suites hit live Google
+    // APIs on one shared OAuth credential, so *they* must run serially — but they
+    // are the only ones, and forcing the whole suite serial slows the mocked suite
+    // CI actually runs. `npm run test:integration` passes --no-file-parallelism
+    // instead.
   },
 });

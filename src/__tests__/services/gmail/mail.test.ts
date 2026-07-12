@@ -1,10 +1,10 @@
 /**
  * Outbound mail: threading, recipients, and the reply-all rules.
  *
- * These are the behaviours gws used to own. They are worth testing precisely
- * because they are the kind of thing that is WRONG SILENTLY: a forward that
- * breaks a thread, or a reply-all that mails you your own reply, produces no
- * error — it just looks stupid in someone else's inbox.
+ * These are worth testing precisely because they are the kind of thing that is
+ * WRONG SILENTLY: a forward that breaks a thread, or a reply-all that mails you
+ * your own reply, produces no error — it just looks stupid in someone else's
+ * inbox.
  *
  * The forward-threading test exists because it was got WRONG once, on a confident
  * but invented belief that Gmail starts a new thread on forward. It does not.

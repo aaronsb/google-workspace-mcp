@@ -12,16 +12,12 @@
  * The fix is not to delete integration testing. It is to point it at the thing
  * the server actually runs: `handleToolCall`, which is what an MCP client invokes.
  *
- * WHY THIS EXISTS AT ALL (ADR-103): with `gws` gone, there is no second
- * implementation to diff against. That is fine — gws was never the real oracle.
- * GOOGLE is. And Google is a BETTER oracle, because it is the thing we have to be
- * correct against, whereas gws was an implementation we have now proven is wrong
- * in places (its `--week` window silently hides earlier-today events; it swallowed
- * per-calendar failures; it capped lists at 50 with no pagination). Diffing
- * against that risks PARITY WITH A BUG.
+ * WHY THIS EXISTS AT ALL (ADR-103): GOOGLE is the oracle. It is the thing we have
+ * to be correct against, so it is the only thing worth diffing against — checking
+ * ourselves against another implementation only risks PARITY WITH ITS BUGS.
  *
- * The one thing gws did give us was INDEPENDENCE: a second opinion on how to build
- * a request. We get that back a better way — by never asserting on what we SENT.
+ * What that costs us is INDEPENDENCE: a second opinion on how to build a request.
+ * We get it back a better way — by never asserting on what we SENT.
  * Every mutating check here is:
  *
  *      create  ->  READ IT BACK OFF GOOGLE  ->  assert the read-back
@@ -90,7 +86,7 @@ describeIf('live verification (real Google, through the real MCP entry point)', 
     const result = await handleToolCall('manage_calendar', { operation: 'agenda', email, week: true });
 
     expect(result.refs.count).toBeDefined();
-    // The window must start at midnight, not "now" — gws's rolling window hid
+    // The window must start at midnight, not "now". A rolling window hides
     // everything earlier today, which is the bug this operation exists to not have.
     const timeMin = new Date(result.refs.timeMin as string);
     expect(timeMin.getHours()).toBe(0);
@@ -129,9 +125,8 @@ describeIf('live verification (real Google, through the real MCP entry point)', 
 
     expect(stored.summary).toBe(summary);
     expect(stored.location).toBe('Somewhere');
-    // attendees must be an ARRAY OF OBJECTS. gws needed `--attendee` (singular)
-    // because of a CLI argument parser; what actually decides whether a guest is
-    // invited is this shape.
+    // attendees must be an ARRAY OF OBJECTS — that shape is what actually decides
+    // whether a guest is invited.
     const attendees = stored.attendees as Array<{ email: string }> | undefined;
     expect(attendees?.[0]?.email).toBe('nobody@example.com');
     const storedStart = (stored.start as { dateTime: string }).dateTime;

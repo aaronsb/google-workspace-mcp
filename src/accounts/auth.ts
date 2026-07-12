@@ -46,7 +46,7 @@ export async function reauthWithServices(
 
 /**
  * Check account status: token validity and granted scopes.
- * Reads scopes from the credential file (per-account, not from gws keyring).
+ * Reads scopes from the per-account credential file.
  * Validates token by attempting a refresh via the token service.
  */
 export async function checkAccountStatus(email: string): Promise<AccountStatus> {

@@ -25,10 +25,10 @@ import {
 } from '../factory/safety.js';
 
 function log(msg: string): void {
-  process.stderr.write(`[gws-mcp] ${msg}\n`);
+  process.stderr.write(`[google-workspace-mcp] ${msg}\n`);
 }
 
-/** Configure safety policies from GWS_SAFETY_POLICY env var. */
+/** Configure safety policies from the GWS_SAFETY_POLICY env var. */
 function initSafetyPolicies(): void {
   const policyEnv = process.env.GWS_SAFETY_POLICY || '';
   if (!policyEnv) return;
@@ -97,11 +97,8 @@ export function createServer(): Server {
       return { content };
     } catch (err) {
       if (err instanceof GoogleApiError) {
-        // Google's own error, not a subprocess's exit code and scraped stderr.
-        //
-        // This used to branch on `GwsExitCode.AuthError` — an exit code INVENTED
-        // by a CLI — and serialise the binary's stderr into the MCP payload. Google
-        // states the problem directly: 401 means the token is bad; a 403 whose
+        // Read the auth failure from Google, not from an invented status code.
+        // Google states the problem directly: 401 means the token is bad; a 403 whose
         // reason is a permissions/scope failure means the token is valid but does
         // not carry the scope this call needs. Both are fixed by re-consenting.
         // (ADR-103, item 7.)

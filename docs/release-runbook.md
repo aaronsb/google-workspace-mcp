@@ -9,7 +9,7 @@ A single `git tag` push triggers two CI workflows:
 | Workflow | File | What it does |
 |----------|------|-------------|
 | **Publish to npm** | `.github/workflows/npm-publish.yml` | Builds, tests, publishes to npm with provenance |
-| **Build .mcpb** | `.github/workflows/release-mcpb.yml` | Builds .mcpb bundles for 5 platforms, attaches to GitHub Release |
+| **Build .mcpb** | `.github/workflows/release-mcpb.yml` | Builds the .mcpb bundle and attaches it to the GitHub Release |
 
 Both trigger on `push: tags: ['v*']`.
 
@@ -20,10 +20,10 @@ Both trigger on `push: tags: ['v*']`.
 ```bash
 git checkout main && git pull
 make check          # types + all tests must pass
-make coverage       # review gws CLI coverage gaps (advisory, non-blocking)
+make coverage       # review API coverage gaps (advisory, non-blocking)
 ```
 
-The coverage report shows what the manifest exposes vs the full gws CLI surface. Review parameter gaps on covered operations — missing params like `supportsAllDrives` can cause user-facing issues. Run `make coverage-update` after adding new operations to refresh the baseline.
+The coverage report shows what the manifest exposes vs Google's full published API surface. Review parameter gaps on covered operations — missing params like `supportsAllDrives` can cause user-facing issues. Run `make coverage-update` after adding new operations to refresh the baseline.
 
 ### 2. Bump version
 
@@ -60,7 +60,7 @@ gh run watch <run-id>   # watch the npm publish
 
 Check:
 - npm publish: green, published to correct tag (latest vs alpha/beta/rc)
-- .mcpb build: green, 5 artifacts attached to GitHub Release
+- .mcpb build: green, the bundle attached to the GitHub Release
 
 ### 5. Verify artifacts
 
@@ -75,10 +75,10 @@ gh release view vX.Y.Z
 The GitHub Release should have exactly one `.mcpb` file:
 - `google-workspace-mcp.mcpb`
 
-It used to carry five, one per platform. That made sense while the bundle shipped a
-platform-specific gws executable; ADR-103 deleted it, and what remains is Node plus
-pure JavaScript. The five bundles were byte-identical in content, so the platform in
-the filename promised a guarantee the build never made.
+One bundle covers every platform: what ships is Node plus pure JavaScript, with no
+native addons and nothing `os`/`cpu`-gated. Per-platform bundles would be
+byte-identical, and the platform in the filename would promise a guarantee the build
+does not make.
 
 ## Pre-release Versions
 

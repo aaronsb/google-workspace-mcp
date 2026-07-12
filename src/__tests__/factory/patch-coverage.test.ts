@@ -14,9 +14,6 @@ import { patches } from '../../factory/patches.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
-// Mock executor — patches that call execute() in custom handlers need this
-vi.mock('../../executor/gws.js');
-
 const manifest = loadManifest();
 
 interface CoverageEntry {

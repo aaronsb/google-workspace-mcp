@@ -280,10 +280,9 @@ async function updateValuesHandler(
 /**
  * append — add rows after existing data in a range.
  *
- * The gws `+append` helper has no --range flag and always hits Sheet1.
- * This handler uses the underlying spreadsheets.values.append resource
- * so callers can target a specific tab. Accepts the same values /
- * jsonValues / valueInputOption shape as updateValues.
+ * Goes through spreadsheets.values.append with an explicit range, so callers can
+ * target a specific tab rather than always landing on Sheet1. Accepts the same
+ * values / jsonValues / valueInputOption shape as updateValues.
  */
 async function appendHandler(
   params: Record<string, unknown>,

@@ -28,9 +28,9 @@ operations:
         type: string
         description: "Document title (default: 'Untitled document')"
 
-  # Was gws's `+write`. It was one documents.batchUpdate with a single insertText
-  # at endOfSegmentLocation — i.e. append-to-end-of-body. It needs a request body,
-  # so it is a custom handler rather than a bare resource op (docsPatch.write).
+  # One documents.batchUpdate with a single insertText at endOfSegmentLocation —
+  # append to end of body. It needs a request body, so it is a custom handler
+  # rather than a bare resource op (docsPatch.write).
   write:
     type: action
     description: "append text to the end of a document"

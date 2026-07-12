@@ -12,7 +12,7 @@ import { getByPath, setByPath, deleteByPath } from './json-path.js';
 
 export type ScratchpadFormat = 'text' | 'markdown' | 'json' | 'csv';
 
-/** Present when scratchpad is a live view of a GWS resource (JSON mode). */
+/** Present when scratchpad is a live view of a Google Workspace resource (JSON mode). */
 export interface LiveBinding {
   service: 'docs' | 'sheets';
   resourceId: string;

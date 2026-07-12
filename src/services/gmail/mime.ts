@@ -1,11 +1,6 @@
 /**
  * MIME: type lookup, and the RFC 5322 message builder.
  *
- * The builder that used to live here was removed when gws 0.18+ added native
- * `--attach`, and MIME construction moved into the CLI. Retiring gws (ADR-103)
- * means owning it again — it is one of the very few things the facade genuinely
- * did *for* us rather than merely passing through.
- *
  * Two constraints worth stating, because getting either wrong is silent:
  *
  * 1. **Header injection.** A `To:` or `Subject:` carrying CR or LF splits the
@@ -16,7 +11,7 @@
  * 2. **Inline images belong in multipart/related, not multipart/mixed.** Gmail
  *    rewrites `Content-Disposition: inline` to `attachment` when a CID part sits
  *    in a `mixed` container, so an inline image silently becomes a dangling
- *    attachment. gws learned this the hard way; the comment is in its source.
+ *    attachment.
  */
 
 /** Common extension → MIME type map. Falls back to application/octet-stream. */

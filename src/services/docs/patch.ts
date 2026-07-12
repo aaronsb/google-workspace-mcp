@@ -75,10 +75,9 @@ export const docsPatch: ServicePatch = {
     },
 
     /**
-     * Append text to the end of the body. Was gws's `+write`, which was exactly
-     * one documents.batchUpdate carrying a single insertText at
-     * `endOfSegmentLocation` — append-only, no index targeting, no formatting.
-     * The helper added nothing Google did not already do.
+     * Append text to the end of the body: one documents.batchUpdate carrying a
+     * single insertText at `endOfSegmentLocation`. Append-only — no index
+     * targeting, no formatting.
      */
     write: async (params, account): Promise<HandlerResponse> => {
       const documentId = requireString(params, 'documentId');

@@ -45,8 +45,7 @@ async function importDocMarkdown(
   documentId: string,
 ): Promise<HandlerResponse> {
   // Export as markdown. This is DRIVE's files.export — the Docs API has no export
-  // method at all, which is why the old `docs +export` call could never have
-  // worked (gws exits 3, "unrecognized subcommand"; the feature shipped broken).
+  // method at all, so anything that reaches for `docs.export` cannot work.
   // A Doc's fileId IS its documentId.
   const tmpPath = path.join(
     os.tmpdir(),

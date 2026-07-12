@@ -1,5 +1,5 @@
 /**
- * Response formatters — shape raw gws JSON into token-efficient
+ * Response formatters — shape raw Google JSON into token-efficient
  * markdown for AI consumption.
  *
  * Design:

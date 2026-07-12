@@ -159,8 +159,7 @@ function formatThreadDetail(data: unknown): HandlerResponse {
 export const gmailPatch: ServicePatch = {
   afterExecute: {
     // triage IS search, with a different default query. Same raw Google shape
-    // (messages.list -> bare ids), same hydrate, same formatter. gws's +triage
-    // invented a flat {id,from,subject,date}; we never needed it.
+    // (messages.list -> bare ids), same hydrate, same formatter.
     triage: async (result, ctx) => gmailPatch.afterExecute!.search(result, ctx),
 
     search: async (result, ctx) => {
@@ -207,14 +206,13 @@ export const gmailPatch: ServicePatch = {
 
   customHandlers: {
     /**
-     * Forward. Was gws's `+forward`, which went through the generic helper path.
+     * Forward.
      *
-     * DELIBERATE DIVERGENCE: gws threads the forward — it sets In-Reply-To,
-     * References AND threadId, so the forward lands inside the ORIGINAL
-     * conversation. Gmail's own web client starts a new thread, which is what a
-     * user means by "forward": a new conversation with a new audience. Threading
-     * it also drops the forward into the original participants' view of the
-     * thread, which is a small privacy surprise. We do not thread forwards.
+     * We do NOT thread forwards: no In-Reply-To, no References, no threadId. Gmail's
+     * own web client starts a new thread, which is what a user means by "forward" —
+     * a new conversation with a new audience. Threading it would also drop the
+     * forward into the original participants' view of the thread, which is a small
+     * privacy surprise.
      */
     forward: async (params, account): Promise<HandlerResponse> => {
       const messageId = requireString(params, 'messageId');
@@ -245,11 +243,10 @@ export const gmailPatch: ServicePatch = {
         ? String(params.attachments).split(',').map(s => s.trim()).filter(Boolean)
         : [];
 
-      // An attachment still forces a draft. That is a SAFETY choice, not a gws
-      // limitation — our own client can send a 35 MB attachment outright
-      // (ADR-103 item 4 proved it round-trips byte-for-byte). Turning it into a
-      // real send would be a product change, and it does not belong inside a
-      // migration.
+      // An attachment forces a draft. That is a SAFETY choice, not a technical
+      // limit — the client can send a 35 MB attachment outright (ADR-103 item 4
+      // proved it round-trips byte-for-byte). Making it a real send is a product
+      // change, and needs to be decided as one.
       const data = await sendMail(account, {
         to, subject, body,
         from: params.from ? String(params.from) : undefined,

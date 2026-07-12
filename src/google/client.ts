@@ -1,8 +1,7 @@
 /**
  * The Google API client.
  *
- * This is what replaces `spawn(gws)`. It is the whole of what the gws facade did
- * for resource operations: get a token, make the call, hand back the JSON.
+ * The whole of a resource operation: get a token, make the call, hand back the JSON.
  *
  * LOAD-BEARING CONSTRAINT — this layer has NO OPINIONS. It never reshapes, never
  * "fixes", never fills in. It returns exactly what Google returned. Interpretation
@@ -170,11 +169,10 @@ export async function call<S extends GoogleService>(
 /**
  * Download media to disk.
  *
- * STREAMED, deliberately. The gws path brought binary back as base64 *through
- * stdout as a JSON string*: `executor/gws.ts` accumulated the whole response into
- * a JS string, uncapped, then JSON.parse'd it — a 30 MB attachment became a
- * ~40 MB string, then an object, then a Buffer. Here the bytes go from the socket
- * to the file and are never a string at all.
+ * STREAMED, deliberately. The bytes go from the socket to the file and are never a
+ * string at all. Never buffer a download through an in-memory string: accumulating
+ * the whole response and JSON.parse-ing it turns a 30 MB attachment into a ~40 MB
+ * string, then an object, then a Buffer — uncapped, for every download.
  */
 export async function download<S extends GoogleService>(
   service: S,

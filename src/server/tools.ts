@@ -2,7 +2,7 @@
  * Tool registry — combines factory-generated schemas with hand-coded tools.
  *
  * Factory tools come from the manifest (ADR-300). Hand-coded tools are
- * manage_accounts (not a gws wrapper) and queue_operations (meta-tool).
+ * manage_accounts (account lifecycle) and queue_operations (meta-tool).
  */
 
 import { generatedTools } from '../factory/registry.js';
@@ -24,7 +24,7 @@ const handCodedSchemas: ToolSchema[] = [
         operation: {
           type: 'string',
           enum: ['list', 'authenticate', 'remove', 'status', 'refresh', 'scopes', 'capabilities'],
-          description: 'list: show all accounts | authenticate: add new account (opens browser) | remove: delete account and credentials | status: check token validity and scopes | refresh: re-export credentials from gws | scopes: re-auth with different services | capabilities: show available services, safety policies, and workspace status',
+          description: 'list: show all accounts | authenticate: add new account (opens browser) | remove: delete account and credentials | status: check token validity and scopes | refresh: renew credentials | scopes: re-auth with different services | capabilities: show available services, safety policies, and workspace status',
         },
         email: { type: 'string', description: 'Required for remove, status, refresh, scopes' },
         category: { type: 'string', enum: ['personal', 'work', 'other'], description: 'For authenticate (default: personal)' },
@@ -71,7 +71,7 @@ const handCodedSchemas: ToolSchema[] = [
             'attach', 'detach',
             'import', 'send',
           ],
-          description: 'create: new buffer | view: show content | discard: free buffer | list: show all | insert_lines/append_lines/replace_lines/remove_lines: line editing | copy_lines: copy from another scratchpad | json_get/json_set/json_delete/json_insert: path-addressed JSON editing | attach/detach: file references | import: load from GWS resource | send: deliver to target',
+          description: 'create: new buffer | view: show content | discard: free buffer | list: show all | insert_lines/append_lines/replace_lines/remove_lines: line editing | copy_lines: copy from another scratchpad | json_get/json_set/json_delete/json_insert: path-addressed JSON editing | attach/detach: file references | import: load from Google Workspace resource | send: deliver to target',
         },
         scratchpadId: { type: 'string', description: 'Scratchpad ID (sp-XXXX). Required for all operations except create and list.' },
         // create

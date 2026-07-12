@@ -38,8 +38,7 @@ export async function sendEmail(
   }
 
   // sendMail() takes WORKSPACE-RELATIVE names — it resolves and path-safety-checks
-  // them itself (that fence replaced gws's cwd fence). The side-table stores
-  // absolute locations, so relativise them here.
+  // them itself. The side-table stores absolute locations, so relativise them here.
   const attachments = scratchpads.getAttachments(scratchpadId);
   const wsDir = getWorkspaceDir();
   const attachmentNames = attachments

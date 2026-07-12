@@ -108,7 +108,7 @@ export class SessionTracker {
       this.sessions.set(email, session);
     } catch (err) {
       process.stderr.write(
-        `[gws-mcp] session baseline failed for ${email}: ${err instanceof Error ? err.message : String(err)}\n`,
+        `[google-workspace-mcp] session baseline failed for ${email}: ${err instanceof Error ? err.message : String(err)}\n`,
       );
     }
   }
@@ -151,7 +151,7 @@ export class SessionTracker {
       session.lastRefreshedEpoch = epoch;
     } catch (err) {
       process.stderr.write(
-        `[gws-mcp] session refresh failed for ${email}: ${err instanceof Error ? err.message : String(err)}\n`,
+        `[google-workspace-mcp] session refresh failed for ${email}: ${err instanceof Error ? err.message : String(err)}\n`,
       );
     }
   }

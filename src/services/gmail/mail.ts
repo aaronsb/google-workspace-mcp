@@ -1,15 +1,11 @@
 /**
  * Outbound mail: send, reply, reply-all, forward.
  *
- * These were gws's `+send` / `+reply` / `+reply-all` / `+forward` helpers. They
- * are the one place the facade did real work rather than passing through, so this
- * is the one place the migration is a rewrite rather than a rename (ADR-103).
- *
  * The recipient logic below looks fussy. It is fussy because getting it wrong is
  * silent and embarrassing: a reply-all that mails the sender their own reply, or
- * that drops the one person who needed to see it. The rules are read from gws's
- * Rust source (docs/design-notes/adr-103-helper-semantics.md), which had already
- * been through those bugs.
+ * that drops the one person who needed to see it. The rules are spelled out in
+ * docs/design-notes/adr-103-helper-semantics.md — read them before changing any
+ * of it.
  */
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
@@ -43,7 +39,7 @@ export interface SendOptions {
 async function loadAttachments(names: string[]): Promise<MimeAttachment[]> {
   const parts = await Promise.all(names.map(async (name) => {
     const filePath = resolveWorkspacePath(name);
-    await verifyPathSafety(filePath);          // OUR fence — gws's cwd fence is gone, ours is not
+    await verifyPathSafety(filePath);          // the workspace fence — attachments cannot escape it
     const data = await readFile(filePath);
     if (data.length === 0) {
       throw new Error(`Attachment "${name}" is empty (0 bytes). Gmail rejects empty parts.`);
@@ -65,10 +61,10 @@ async function loadAttachments(names: string[]): Promise<MimeAttachment[]> {
 /**
  * Deliver a built message.
  *
- * Uses the RESUMABLE upload endpoint, always. gws used `uploadType=multipart` at
- * every size with no chunking; resumable is verified (ADR-103 item 4) to carry a
- * 25 MB attachment — 34.2 MB encoded, 93% of Google's declared cap — and to
- * round-trip byte-for-byte. There is no reason to keep the weaker path.
+ * Uses the RESUMABLE upload endpoint, always — never `uploadType=multipart`, which
+ * has no chunking and degrades at size. Resumable is verified (ADR-103 item 4) to
+ * carry a 25 MB attachment — 34.2 MB encoded, 93% of Google's declared cap — and to
+ * round-trip byte-for-byte.
  */
 async function deliver(
   message: Buffer,
@@ -181,7 +177,7 @@ function dedupeRecipients(
   return { to: keep(to), cc: keep(cc) };
 }
 
-/** `Re: ` unless it is already a reply. Case-insensitive, like gws (and Gmail). */
+/** `Re: ` unless it is already a reply. Case-insensitive, like Gmail. */
 const rePrefix = (subject: string): string =>
   /^re:/i.test(subject.trim()) ? subject : `Re: ${subject}`;
 

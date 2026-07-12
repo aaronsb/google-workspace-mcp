@@ -28,9 +28,9 @@ async function main(): Promise<void> {
   // Load existing baseline (if any)
   const baseline = loadBaseline();
 
-  // Read Google's real surface. This used to scrape `gws --help` with regexes —
-  // API truth from prose — which invented a method (`calendars.The`) and measured
-  // us against gws's surface rather than Google's. See ADR-103 item 11.
+  // Read Google's real surface from Discovery. Never derive it from help text: a
+  // regex over prose once invented the method `calendars.The`, and measured us
+  // against the wrong denominator. See ADR-103 item 11.
   process.stderr.write("[coverage] Reading Google's API surface...\n");
   const discovered = await discoverSurface();
 

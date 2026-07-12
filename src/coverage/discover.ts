@@ -1,27 +1,18 @@
 /**
- * Discover Google's API surface — from Google, not from a CLI's help text.
+ * Discover Google's API surface — by asking Google.
  *
- * This module used to shell out to the gws binary and reconstruct the API surface
- * by REGEX-SCRAPING `--help` output:
+ * The descriptor records where each service's Discovery document lives (which
+ * cannot be templated — Calendar is served from `calendar-json.googleapis.com`),
+ * so we look it up and read it.
  *
- *     const resourceMatch = trimmed.match(/^(\w+)\s+Operations on the/);
- *     const methodMatch   = trimmed.match(/^(\w+)\s+\S/);
+ * NEVER DERIVE THE SURFACE FROM HUMAN-READABLE PROSE. A regex over `--help` text
+ * once captured `calendars.The` — a word from a wrapped description line — and
+ * recorded it in coverage-baseline.json as an uncovered "gap": a method that does
+ * not exist, offered to contributors as work they could pick up. Nothing caught
+ * it, because the only source of truth was typography.
  *
- * That is API truth derived from human-readable PROSE, and it produced exactly the
- * defect you would expect. `calendars.The` — a word captured out of a wrapped
- * description line — was recorded in coverage-baseline.json as an uncovered "gap":
- * a method that does not exist, offered to future contributors as work they could
- * pick up. Nothing caught it, because the scraper's only source of truth was
- * typography.
- *
- * It also measured us against the WRONG SURFACE. The denominator was gws's: it
- * counted gws's 12 helper INVENTIONS (which are not Google operations at all),
- * that scraping phantom, and five services we deliberately do not support. Our
- * headline "72/350 (21%)" was partly fiction.
- *
- * Now: we ask Google. The descriptor records where each service's Discovery
- * document lives (which cannot be templated — Calendar is served from
- * `calendar-json.googleapis.com`), so we look it up and read it.
+ * The denominator must be GOOGLE'S surface. Counting invented operations, or
+ * services we deliberately do not support, makes the headline percentage fiction.
  *
  * WHY FETCH RATHER THAN READ THE DESCRIPTOR: the committed descriptor is
  * deliberately structure-only — no descriptions — because it ships at RUNTIME and
@@ -88,8 +79,7 @@ function toParams(method: DiscoveryMethod): Record<string, DiscoveredParam> {
 /**
  * Read Google's real surface for every service the descriptor knows about.
  *
- * There is no `helpers` concept any more — that was gws's, and gws is gone. An
- * operation is a Google method or it does not exist.
+ * An operation is a Google method or it does not exist.
  */
 export async function discoverSurface(): Promise<DiscoveredSurface> {
   const descriptor = await loadDescriptor();

@@ -1,9 +1,8 @@
 /**
  * Build-time code generator: Google Discovery -> src/google/descriptor.json
  *
- * This is the piece that replaces the gws facade. gws is itself generated from
- * these same documents — which is why its surface and Google's are identical
- * (233 operations, 233 in agreement). We want the generator, not the facade.
+ * The API surface is generated from Google's own Discovery documents, so it is
+ * Google's surface by construction: 233 operations, transcribed.
  *
  * THE ONE RULE: the descriptor is a TRANSCRIPTION, not an interpretation. It
  * records how to make a REQUEST and says nothing about what a RESPONSE means.
@@ -11,8 +10,7 @@
  * deliberately DISCARDED.
  *
  *   raw Discovery, 7 services : 983 KB, 233 methods
- *   descriptor               : 160 KB, 233 methods
- *   the gws binary it replaces: 19.2 MB
+ *   descriptor                : 160 KB, 233 methods
  *
  *   node scripts/generate-descriptor.mjs           regenerate and write
  *   node scripts/generate-descriptor.mjs --check   fail if the committed file is stale (CI drift gate)
@@ -33,12 +31,11 @@ const DIRECTORY = 'https://www.googleapis.com/discovery/v1/apis';
  * calling a method that does not exist is a COMPILE ERROR rather than a runtime
  * surprise.
  *
- * This is not decoration. `src/server/scratchpad/adapters/import-doc.ts` called
- * `docs +export` and `import-drive.ts` called `drive +download` — gws subcommands
- * that NEVER EXISTED. Both features shipped broken from the commit that
- * introduced them, through every release, because the tests mock the executor:
- * the mock said yes to a command the binary always rejected with exit 3. Nothing
- * ever asked whether the method was real.
+ * This is not decoration. Two features once shipped broken from the commit that
+ * introduced them, through every release, because they called methods that NEVER
+ * EXISTED (`docs +export`, `drive +download`) and the tests mocked the dispatch
+ * layer: the mock said yes to a call the real API always rejected. Nothing ever
+ * asked whether the method was real.
  *
  * With this type, `call('docs', 'documents.export', …)` does not compile. The
  * whole bug class becomes unrepresentable, and it costs one generated file.
@@ -51,9 +48,9 @@ function renderTypes(descriptor) {
     ' * The methods Google actually declares, per service. `call()` is typed against',
     ' * these, so a method that does not exist is a COMPILE ERROR.',
     ' *',
-    ' * This exists because two features shipped broken for months by calling gws',
-    ' * subcommands that never existed (`docs +export`, `drive +download`). The tests',
-    ' * mocked the executor, so the mock answered yes to a command the binary always',
+    ' * This exists because two features shipped broken for months by calling methods',
+    ' * that never existed (`docs +export`, `drive +download`). The tests mocked the',
+    ' * dispatch layer, so the mock answered yes to a call the real API always',
     ' * rejected. See ADR-103 and docs/design-notes/adr-103-helper-semantics.md.',
     ' */',
     '',

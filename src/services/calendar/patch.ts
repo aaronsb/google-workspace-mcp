@@ -119,11 +119,9 @@ interface AgendaEvent {
 /**
  * Compute the agenda window.
  *
- * gws's flags are not what they sound like, and we keep the names but fix the
- * semantics: its `--week` is NOT a calendar week — it sets days=7 and produces a
- * rolling `[now, now+7d]`. That means "this week" silently excluded everything
- * earlier today. Here every window starts at the START OF A DAY, which is what a
- * person means when they ask for their agenda.
+ * Every window starts at the START OF A DAY, which is what a person means when they
+ * ask for their agenda. A rolling `[now, now+7d]` window is NOT a week: it silently
+ * excludes everything earlier today. Do not reintroduce one.
  */
 function agendaWindow(params: Record<string, unknown>): { timeMin: string; timeMax: string } {
   const startOfDay = (offsetDays: number): Date => {
@@ -217,18 +215,13 @@ export const calendarPatch: ServicePatch = {
     /**
      * Agenda: every calendar the account can see, merged into one timeline.
      *
-     * Was gws's `+agenda` — one of only two helpers that RESHAPED Google's
-     * response (it emitted a `{events:[{calendar,start,end,summary,location}]}`
-     * that the Calendar API never returns). We drop that shape and build our own
-     * from raw Google, which is the point of owning the layer.
+     * Built from raw Google, and reshaped here rather than anywhere below us.
      *
-     * Two of gws's behaviours are deliberately NOT reproduced, because they are
-     * defects rather than opinions:
-     *   - it SWALLOWED per-calendar failures (`_ => return vec![]`), so a calendar
-     *     you had lost access to contributed zero events and said nothing. We
-     *     surface it.
-     *   - it capped at 50 events per calendar with NO pagination, so a busy
-     *     calendar silently lost the tail. We ask for the window we were asked for.
+     * Two failure modes this deliberately avoids:
+     *   - do NOT swallow per-calendar failures. A calendar you have lost access to
+     *     must not contribute zero events in silence — surface it.
+     *   - do NOT cap events per calendar without pagination. A busy calendar would
+     *     silently lose the tail. Ask for the whole window we were asked for.
      */
     agenda: async (params, account): Promise<HandlerResponse> => {
       const window = agendaWindow(params);
@@ -329,9 +322,7 @@ export const calendarPatch: ServicePatch = {
       const end = requireString(params, 'end');
       const calendarId = (params.calendarId as string) || 'primary';
 
-      // Was gws's `+insert`. The whole `--attendee` (singular!) vs `--attendees`
-      // business — an entire comment explaining which spelling the CLI would
-      // accept — evaporates with the CLI. It is a JSON body now.
+      // Attendees are an ARRAY OF OBJECTS in the event body, not a repeated scalar.
       const body: Record<string, unknown> = {
         calendarId,
         summary,
@@ -349,8 +340,8 @@ export const calendarPatch: ServicePatch = {
       if (params.meet) {
         // Ask Google to mint a Meet link. `requestId` is an IDEMPOTENCY KEY: reuse
         // it and Google reuses the conference instead of creating a second one.
-        // gws derived it deterministically (a UUIDv5 over the event fields) so a
-        // retried create could not double-book — a good idea, and kept.
+        // Derive it deterministically from the event fields so a retried create
+        // cannot double-book.
         const fingerprint = createHash('sha256')
           .update(JSON.stringify({ calendarId, summary, start, end, location: params.location ?? '' }))
           .digest('hex').slice(0, 32);

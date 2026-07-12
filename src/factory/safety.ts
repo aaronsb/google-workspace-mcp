@@ -143,7 +143,7 @@ export const auditLog: SafetyPolicy = {
   evaluate: (_args, ctx, service) => {
     if (!isReadOperation(ctx.operation)) {
       process.stderr.write(
-        `[gws-mcp] AUDIT: ${service}.${ctx.operation} account=${ctx.account} ` +
+        `[google-workspace-mcp] AUDIT: ${service}.${ctx.operation} account=${ctx.account} ` +
         `args=${JSON.stringify(ctx.params)}\n`,
       );
     }
@@ -161,7 +161,7 @@ export function configurePolicies(policies: SafetyPolicy[]): void {
   activePolicies = policies;
   if (policies.length > 0) {
     process.stderr.write(
-      `[gws-mcp] safety: ${policies.length} policy(ies) active: ` +
+      `[google-workspace-mcp] safety: ${policies.length} policy(ies) active: ` +
       `${policies.map(p => p.name).join(', ')}\n`,
     );
   }
@@ -187,13 +187,13 @@ export function evaluatePolicies(
     const result = policy.evaluate(args, ctx, service);
     if (result.action === 'block') {
       process.stderr.write(
-        `[gws-mcp] safety: BLOCKED ${service}.${ctx.operation} by ${policy.name}: ${result.reason}\n`,
+        `[google-workspace-mcp] safety: BLOCKED ${service}.${ctx.operation} by ${policy.name}: ${result.reason}\n`,
       );
       return result;
     }
     if (result.action === 'downgrade' && result.replacementArgs) {
       process.stderr.write(
-        `[gws-mcp] safety: DOWNGRADED ${service}.${ctx.operation} by ${policy.name}: ${result.reason}\n`,
+        `[google-workspace-mcp] safety: DOWNGRADED ${service}.${ctx.operation} by ${policy.name}: ${result.reason}\n`,
       );
       return result;
     }

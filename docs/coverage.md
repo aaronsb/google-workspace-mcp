@@ -30,9 +30,7 @@ Low percentages on the high-surface services are by design. Most uncovered Gmail
 
 Earlier revisions of this page reported **72 / 344 (21%)**. That is not comparable to the figure above, and the difference is not progress — it is a different measurement.
 
-The old denominator came from scraping the `gws` CLI's `--help` text. It counted twelve services (including chat, slides, people and keep, which this server never exposed), plus twelve helper *inventions* that were not Google methods at all, plus `calendars.The` — a word captured out of a wrapped description line by a regex, recorded in the baseline as a real uncovered method and offered to contributors as work. The surface was measured from typography.
-
-The denominator is now Google's own published surface for the seven APIs we target. See ADR-103, verification item 11.
+The denominator is Google's own published surface for the seven APIs we target, read from the Discovery documents. It is never derived from help text or any other human-readable prose: a regex over descriptions once captured `calendars.The` — a word from a wrapped line — and recorded it in the baseline as a real uncovered method, offered to contributors as work. A denominator that also counts services we do not expose, or operations Google does not have, is measuring the wrong thing. See ADR-103, verification item 11.
 
 ## Regenerating
 

@@ -59,9 +59,9 @@ export async function handleAccounts(params: Record<string, unknown>): Promise<H
 
   switch (operation) {
     case 'list': {
-      process.stderr.write(`[gws-mcp] accounts.list: reading accounts file\n`);
+      process.stderr.write(`[google-workspace-mcp] accounts.list: reading accounts file\n`);
       const accounts = await listAccounts() as EnrichedAccount[];
-      process.stderr.write(`[gws-mcp] accounts.list: found ${accounts.length} accounts\n`);
+      process.stderr.write(`[google-workspace-mcp] accounts.list: found ${accounts.length} accounts\n`);
       if (accounts.length === 0) {
         return {
           text: 'No accounts configured.' + nextSteps('accounts', 'list_empty'),

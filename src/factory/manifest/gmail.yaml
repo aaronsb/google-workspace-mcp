@@ -146,11 +146,9 @@ operations:
 
   # --- Inbox management ---
 
-  # Was gws's `+triage`. It is not a helper any more, and never needed to be:
-  # gws implemented it as messages.list -> messages.get(format=metadata) and then
-  # reshaped the result into a flat {id,from,subject,date} that the Gmail API never
-  # emits. We ALREADY do that walk, better, in gmailPatch.afterExecute (it also
-  # carries threadId and snippet). So triage is just a filtered list.
+  # triage is just a filtered list: messages.list with an unread query. The
+  # hydration walk (messages.get per id) is already done by gmailPatch.afterExecute,
+  # which also carries threadId and snippet.
   triage:
     type: list
     description: "unread inbox summary (sender, subject, date)"

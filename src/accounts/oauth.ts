@@ -194,7 +194,7 @@ function listenForCallback(
       redirectUri = `http://127.0.0.1:${addr.port}/callback`;
 
       const authUrl = buildAuthUrl(clientId, redirectUri, scopes, state);
-      process.stderr.write(`[gws-mcp] OAuth: opening browser for consent\n`);
+      process.stderr.write(`[google-workspace-mcp] OAuth: opening browser for consent\n`);
       openBrowser(authUrl);
     });
 
@@ -226,8 +226,8 @@ function buildAuthUrl(
 export function openBrowser(url: string): void {
   const onError = (err: Error | null) => {
     if (!err) return;
-    process.stderr.write(`[gws-mcp] Failed to open browser: ${err.message}\n`);
-    process.stderr.write(`[gws-mcp] Open this URL manually:\n${url}\n`);
+    process.stderr.write(`[google-workspace-mcp] Failed to open browser: ${err.message}\n`);
+    process.stderr.write(`[google-workspace-mcp] Open this URL manually:\n${url}\n`);
   };
 
   if (platform() === 'win32') {

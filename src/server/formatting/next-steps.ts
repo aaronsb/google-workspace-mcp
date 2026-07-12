@@ -36,7 +36,7 @@ const suggestions: Record<string, Record<string, NextStep[]>> = {
     scopes: [
       { description: 'Verify new scopes', tool: 'manage_accounts', example: { operation: 'status', email: '<email>' } },
     ],
-    // Auth error guidance — used by server.ts when GwsError has exit code 2
+    // Auth error guidance — used by server.ts when Google reports an auth error
     auth_error: [
       { description: 'Re-authenticate account', tool: 'manage_accounts', example: { operation: 'authenticate' } },
       { description: 'Check account status', tool: 'manage_accounts', example: { operation: 'status', email: '<email>' } },

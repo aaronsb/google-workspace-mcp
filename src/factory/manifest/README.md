@@ -7,6 +7,7 @@ the `Manifest`.
 
 ## Notes
 
-- People (contacts) are supported by gws but excluded here because `gws auth login` does not
-  offer the `contacts.readonly` scope — see https://github.com/googleworkspace/cli/issues/556
-- Meet scopes are resolved — authorize with `gws auth login -s ...,meet`.
+- People (contacts) is excluded: the OAuth flow declares no contacts scope
+  (see `SERVICE_SCOPES` in `../../accounts/oauth.ts`).
+- Meet is supported — authorize it by including `meet` in the services list
+  (`manage_accounts`, operation `scopes`).

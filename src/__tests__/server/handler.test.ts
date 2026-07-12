@@ -55,7 +55,7 @@ describe('handleToolCall', () => {
   });
 
   it('routes manage_calendar to factory-generated handler', async () => {
-    // `list` is a resource op — it reaches Google through the client, not gws.
+    // `list` is a resource op — it reaches Google through the client.
     mockCall.mockResolvedValue({ items: [] });
     const params = { operation: 'list', email: 'u@t.com' };
 
@@ -113,8 +113,7 @@ describe('handleToolCall', () => {
 
   it('returns HandlerResponse with text and refs from factory handler', async () => {
     // Real Gmail shape: messages.list hands back bare IDs, and the gmail patch's
-    // afterExecute hydrates each one via messages.get. gws's invented flat
-    // {id, from, subject, date} never existed in the API.
+    // afterExecute hydrates each one via messages.get.
     mockCall.mockResolvedValueOnce({ messages: [{ id: 'msg-1' }] });
     mockCall.mockResolvedValueOnce({
       id: 'msg-1', threadId: 't1', snippet: 'test',
