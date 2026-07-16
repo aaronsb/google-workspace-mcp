@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help test test-all test-unit test-integration build clean typecheck lint smoke smoke-reject check-gates check-node-floor \
+.PHONY: help test test-all test-unit test-integration build clean typecheck lint smoke smoke-reject smoke-orphan check-gates check-node-floor \
         manifest-lint check-write-ops \
         coverage coverage-update \
         mcpb version-sync publish-all \
@@ -74,10 +74,16 @@ smoke: build ## Start the built server on a foreign cwd and assert it loads its 
 smoke-reject: build ## Assert the server REFUSES a below-floor Node (run on Node <22.12)
 	node scripts/smoke-reject.mjs
 
+# The unit tests prove `isOrphaned` answers correctly; only this proves a real process
+# tree reclaims itself. It runs the case with NO stdin EOF available, so deleting the
+# watchdog fails here instead of passing on a signal that wasn't there (#149, ADR-104).
+smoke-orphan: build ## Assert an orphaned server exits instead of pegging a CPU core
+	node scripts/smoke-orphan.mjs
+
 # Mirrors CI. `lint` used to be in the help text but not the prerequisites, so a
 # contributor could go green locally and red in CI on a job this target claimed
 # to cover.
-check: typecheck lint check-gates check-node-floor check-write-ops test build smoke ## Type-check, lint, test, build, smoke (CI gate)
+check: typecheck lint check-gates check-node-floor check-write-ops test build smoke smoke-orphan ## Type-check, lint, test, build, smoke (CI gate)
 
 clean: ## Remove build artifacts
 	rm -rf build/ mcpb/server mcpb/LICENSE mcpb/NOTICE mcpb/LICENSE-MIT *.mcpb

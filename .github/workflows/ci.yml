@@ -115,6 +115,29 @@ jobs:
     - run: node --version
     - run: node scripts/smoke-reject.mjs
 
+  orphan-exit:
+    # Proves an orphaned server EXITS rather than pegging a CPU core forever (#149).
+    #
+    # The unit tests cover `isOrphaned` as a predicate. Nothing there proves a real
+    # process tree actually reclaims itself, which is the only claim the user in #149
+    # cares about — they found two orphans that had each burned 31 minutes of CPU in
+    # 31 minutes of wall time.
+    #
+    # The smoke script runs the HARD case deliberately: stdin that never reports EOF, so
+    # only the watchdog can save the process. An easy orphan reclaims itself via stdin EOF
+    # and would pass with the watchdog deleted — a guard reporting on a signal that was
+    # never the one under test. Verified to fail against the pre-fix entrypoint.
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+    - run: npm ci
+    - run: npm run build
+    - run: node scripts/smoke-orphan.mjs
+
   lint:
     runs-on: ubuntu-latest
     steps:

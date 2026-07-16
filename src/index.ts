@@ -19,24 +19,27 @@
  * ERR_REQUIRE_ESM ever leaks (CI job `engines-floor-reject`), and `check-node-floor.mjs`
  * rejects a static import of the server graph outright. Those are what protect it.
  *
- * `./node-floor.js` imports only `node:fs` (a builtin), so it cannot trigger the failure
- * this file guards against. Only the SERVER GRAPH must stay behind the dynamic import.
+ * `./node-floor.js` and `./lifecycle.js` import only `node:fs` (a builtin), so they cannot
+ * trigger the failure this file guards against. Only the SERVER GRAPH must stay behind the
+ * dynamic import.
  */
 import { enforceNodeFloor } from './node-floor.js';
+import { installLifecycle } from './lifecycle.js';
 
 enforceNodeFloor();
 
+/**
+ * Before the server starts: notice if our client dies, and exit.
+ *
+ * This also installs the uncaughtException/unhandledRejection guards, which used to live
+ * here and wrote to `process.stderr` directly. That was the busy-loop in issue #149 — once
+ * the client died, the write raised the next uncaught exception, which re-entered the
+ * handler, forever, at 100% CPU. See lifecycle.ts and ADR-104.
+ */
+installLifecycle();
+
 // Dynamic, and only after the floor is enforced. See the file header.
 const { startServer } = await import('./server/server.js');
-
-// Prevent unhandled rejections from crashing the server
-process.on('unhandledRejection', (reason) => {
-  process.stderr.write(`[google-workspace-mcp] unhandled rejection: ${reason}\n`);
-});
-
-process.on('uncaughtException', (err) => {
-  process.stderr.write(`[google-workspace-mcp] uncaught exception: ${err.message}\n${err.stack}\n`);
-});
 
 startServer().catch((err) => {
   process.stderr.write(`[google-workspace-mcp] fatal: ${err.message}\n`);
