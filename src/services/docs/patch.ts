@@ -55,9 +55,20 @@ function tidy(text: string): string {
 
 interface FlatTab {
   title: string;
-  text: string;
+  /**
+   * NULL means Google returned no `documentTab` for this tab, so we did not read it.
+   * That is NOT the same claim as "this tab is empty", and collapsing the two is how a
+   * document nobody could read renders as a document with nothing in it — the defect
+   * this whole file is a correction for, one level in.
+   */
+  text: string | null;
   /** 0 for a top-level tab, +1 per level of `childTabs` nesting. */
   depth: number;
+}
+
+/** Lines in a tab's text — counted one way, so every number here means the same thing. */
+function countLines(text: string | null): number {
+  return text ? text.split('\n').length : 0;
 }
 
 /**
@@ -69,6 +80,9 @@ interface FlatTab {
  * level down.
  *
  * Google populates none of this unless documents.get is asked for it — see `get`.
+ *
+ * Array order is Google's order, which is reading order; `tabProperties.index` carries
+ * the same thing and is not consulted.
  */
 function flattenTabs(tabs: unknown, depth = 0): FlatTab[] {
   if (!Array.isArray(tabs)) return [];
@@ -83,13 +97,31 @@ function flattenTabs(tabs: unknown, depth = 0): FlatTab[] {
 
     out.push({
       title: typeof props?.title === 'string' && props.title ? props.title : '(untitled tab)',
-      text: tidy(extractText(documentTab?.body)),
+      // No documentTab at all is a failed read, not an empty tab. Keep them distinct.
+      text: documentTab ? tidy(extractText(documentTab.body)) : null,
       depth,
     });
     // Nested tabs belong directly after their parent, not in a separate pass.
     out.push(...flattenTabs(t.childTabs, depth + 1));
   }
   return out;
+}
+
+/**
+ * Render one tab as a titled section.
+ *
+ * The heading level tracks nesting depth so a subtab reads as subordinate to its parent.
+ * Depth is clamped at `######` because markdown has no seventh level: tabs nested more
+ * than three deep flatten to the same visual level. That is deliberate and currently
+ * unreachable — the Docs UI allows a single level of subtabs — so the clamp is a
+ * guard against a shape Google's API permits and its editor does not produce.
+ */
+function renderTab({ title, text, depth }: FlatTab): string {
+  const heading = '#'.repeat(Math.min(3 + depth, 6));
+  const body = text === null
+    ? '_(no content returned for this tab — it was not read, which is not the same as empty)_'
+    : text || '_(this tab is empty)_';
+  return `${heading} ${title}\n\n${body}\n`;
 }
 
 export const docsPatch: ServicePatch = {
@@ -116,6 +148,10 @@ export const docsPatch: ServicePatch = {
      * not a preference — read `body` first and a tabbed document comes back EMPTY. The
      * `body` fallback covers only the flagless shape, which nothing here now requests.
      *
+     * Google's reference says `body` is "left as empty" rather than dropped; measurement
+     * says dropped. The code assumes neither: it treats an empty `tabs[0]` and an absent
+     * `body` the same way round, so both shapes read correctly.
+     *
      * Single-tab documents report one tab titled "Tab 1" — a default, not something a
      * user typed, so one tab renders with no tab scaffolding at all.
      */
@@ -127,32 +163,78 @@ export const docsPatch: ServicePatch = {
 
       const title = typeof doc.title === 'string' ? doc.title : '(untitled)';
       const tabs = flattenTabs(doc.tabs);
+      const multiTab = tabs.length > 1;
 
-      // One tab is the ordinary case and reads best with no tab scaffolding at all, so
-      // it renders exactly as a single-body document does.
-      const body = tabs.length > 1
-        ? tabs
-          .map(({ title: tabTitle, text: tabText, depth }) =>
-            `${'#'.repeat(Math.min(3 + depth, 6))} ${tabTitle}\n\n` +
-            (tabText || '_(this tab is empty)_') + '\n')
-          .join('\n')
-          .trimEnd()
-        : (tabs[0]?.text ?? tidy(extractText(doc.body)));
+      // One tab is the ordinary case and reads best with no tab scaffolding at all, so it
+      // renders exactly as a single-body document does. `||` not `??`: a single tab that
+      // reported NO content must still fall back to `body`, and '' is not nullish — with
+      // `??` a populated `body` was discarded and the document reported as empty.
+      const singleText = tabs.length === 1
+        ? (tabs[0].text || tidy(extractText(doc.body)))
+        : tidy(extractText(doc.body));
 
-      const characters = tabs.length > 1
-        ? tabs.reduce((sum, t) => sum + t.text.length, 0)
-        : body.length;
-      const lines = body ? body.split('\n').length : 0;
+      const body = multiTab
+        ? tabs.map(renderTab).join('\n').trimEnd()
+        : singleText;
+
+      // Both numbers describe DOCUMENT TEXT, never the scaffolding rendered around it.
+      // They used to disagree: characters summed the tabs while lines counted the
+      // rendered output, headings and placeholders included, so a document of four
+      // one-line tabs reported "71 characters, 15 line(s)" and a wholly unread one
+      // managed "0 characters, 11 line(s)".
+      const characters = multiTab
+        ? tabs.reduce((sum, t) => sum + (t.text?.length ?? 0), 0)
+        : singleText.length;
+      const lines = multiTab
+        ? tabs.reduce((sum, t) => sum + countLines(t.text), 0)
+        : countLines(singleText);
+
+      const nested = tabs.filter((t) => t.depth > 0).length;
+      const unread = tabs.filter((t) => t.text === null).length;
+
+      // Anything that makes this response narrower than the document says so HERE, in the
+      // response, rather than leaving the reader to infer it from a number.
+      const caveats: string[] = [];
+      if (tabs.length === 0) {
+        // Asked for tab content and got none. Measured live, every document returns at
+        // least one tab when the flag is set, so this is an anomaly and `body` may well be
+        // the first tab of several.
+        caveats.push('Google returned no tab data, so this may be the first tab only.');
+      }
+      if (unread > 0) {
+        caveats.push(`${unread} tab(s) returned no content and could not be read.`);
+      }
+      if (multiTab) {
+        // The read spans tabs; the writes do not. See #157.
+        caveats.push('`insertText` indices are relative to the FIRST tab, and `write` appends to it — tab-targeted writes are not available yet (#157).');
+      }
 
       return {
         text:
           `## ${title}\n\n` +
           `**Document ID:** ${documentId}\n` +
           `**Revision:** ${String(doc.revisionId ?? '—')}\n` +
-          (tabs.length > 1 ? `**Tabs:** ${tabs.length}\n` : '') +
-          `**Length:** ${characters} characters, ${lines} line(s)\n\n` +
+          // The count includes nested tabs, which the Docs tab strip does not show — so
+          // say which is which rather than hand back a number that contradicts the UI.
+          (multiTab
+            ? `**Tabs:** ${tabs.length}${nested ? ` (${tabs.length - nested} top-level, ${nested} nested)` : ''}\n`
+            : '') +
+          `**Length:** ${characters} characters, ${lines} line(s)\n` +
+          caveats.map((c) => `\n> ${c}\n`).join('') +
+          '\n' +
           (body ? `---\n\n${body}\n` : '_(the document is empty)_\n'),
-        refs: { documentId, title, characters, lines, tabs: tabs.length },
+        refs: {
+          documentId,
+          title,
+          characters,
+          lines,
+          tabs: tabs.length,
+          // Titles ride along even for a single tab, whose heading is suppressed: the
+          // title is usually Google's default "Tab 1", but when a user has renamed a
+          // one-tab document's tab, that name is content and withholding it is a choice.
+          tabTitles: tabs.map((t) => t.title),
+          ...(unread > 0 ? { unreadTabs: unread } : {}),
+        },
       };
     },
 

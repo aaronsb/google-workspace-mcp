@@ -22,6 +22,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../google/client.js');
 import { mockCall } from '../server/handlers/__mocks__/client.js';
+import { queryOf, requestFor } from '../support/request.js';
 import { docsPatch } from '../../services/docs/patch.js';
 
 const ACCOUNT = 'user@test.com';
@@ -154,6 +155,22 @@ describe('docsPatch.get', () => {
     expect(sentParams).toMatchObject({ includeTabsContent: true });
   });
 
+  it('puts includeTabsContent on the WIRE, as a query parameter', async () => {
+    // Every other assertion in this file inspects a MOCKED `call()`, which sits above
+    // the path/query/body split. That split is where the flag can die silently: if
+    // `includeTabsContent` ever loses `location: query` in the descriptor — regenerated
+    // routinely, per ADR-103 — splitParams routes it to the request BODY, buildRequest
+    // drops the body on a GET, and Google returns the first tab again. #152 would be
+    // back with this entire suite still green. So check the real request.
+    const request = await requestFor('docs', 'documents.get', {
+      documentId: 'doc-1',
+      includeTabsContent: true,
+    });
+
+    expect(queryOf(request)).toMatchObject({ includeTabsContent: 'true' });
+    expect(request.body).toBeUndefined();
+  });
+
   it('renders a doc with no tabs exactly as before — body is still the fallback', async () => {
     // Not every response carries `tabs`. The legacy shape must keep working, and it
     // must not grow tab scaffolding it has no tabs for.
@@ -277,6 +294,114 @@ describe('docsPatch.get — multi-tab documents (#152)', () => {
 
     expect(result.text).toContain('### Later');
     expect(result.text).toContain('_(this tab is empty)_');
+  });
+
+  it('does not call an UNREAD tab empty — a failed read is not a blank page', async () => {
+    // Google returned tabProperties but no documentTab for any tab. Reporting that as
+    // "this tab is empty" tells the reader the document is blank, which is the exact
+    // substitution this fix exists to stop: "I could not see it" is not "there is
+    // nothing there".
+    mockCall.mockResolvedValue({
+      documentId: 'doc-6',
+      title: 'Unreadable',
+      tabs: [
+        { tabProperties: { title: 'One' } },
+        { tabProperties: { title: 'Two' } },
+      ],
+    });
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-6' }, ACCOUNT);
+
+    expect(result.text).not.toContain('this tab is empty');
+    expect(result.text).toContain('not the same as empty');
+    // …and the response says so up front rather than leaving it to be inferred.
+    expect(result.text).toContain('2 tab(s) returned no content');
+    expect(result.refs.unreadTabs).toBe(2);
+  });
+
+  it('falls back to body when a lone tab reports no content', async () => {
+    // The `??` bug: tabs[0].text was '' — not nullish — so a populated `body` was
+    // discarded and a document with content in it reported as empty.
+    mockCall.mockResolvedValue({
+      documentId: 'doc-7',
+      title: 'One empty tab',
+      tabs: [{ tabProperties: { title: 'Tab 1' }, documentTab: { body: { content: [] } } }],
+      body: { content: [para('real content here')] },
+    });
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-7' }, ACCOUNT);
+
+    expect(result.text).toContain('real content here');
+    expect(result.text).not.toContain('the document is empty');
+    expect(result.refs.characters).toBe('real content here'.length);
+  });
+
+  it('counts characters and lines against the same text', async () => {
+    // Both numbers must describe document TEXT. `lines` used to count the rendered
+    // output — headings, placeholders, blank separators — so it could not be reconciled
+    // with `characters` sitting next to it in the same sentence.
+    mockCall.mockResolvedValue(tabbedDoc());
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-2' }, ACCOUNT);
+
+    // Four tabs, one line of text each.
+    expect(result.refs.lines).toBe(4);
+    expect(result.text).toContain('**Length:** 71 characters, 4 line(s)');
+  });
+
+  it('distinguishes top-level tabs from nested ones in the count', async () => {
+    // The Docs tab strip shows 3 for this document; a bare "Tabs: 4" contradicts it with
+    // no way for the reader to tell which is wrong.
+    mockCall.mockResolvedValue(tabbedDoc());
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-2' }, ACCOUNT);
+
+    expect(result.text).toContain('**Tabs:** 4 (3 top-level, 1 nested)');
+  });
+
+  it('warns that writes cannot address a tab', async () => {
+    // get now spans tabs; insertText indices do not. Saying nothing invites an agent to
+    // compute an index from this output and write to the wrong place (#157).
+    mockCall.mockResolvedValue(tabbedDoc());
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-2' }, ACCOUNT);
+
+    expect(result.text).toContain('#157');
+    expect(result.text).toContain('relative to the FIRST tab');
+  });
+
+  it('flags a response that carries no tab data at all', async () => {
+    // With the flag set, every real document returned at least one tab. None is an
+    // anomaly, and `body` may be the first tab of several — so do not present it as
+    // the document without qualification.
+    mockCall.mockResolvedValue({
+      documentId: 'doc-8',
+      title: 'No tabs field',
+      body: { content: [para('Could be tab one of ten.')] },
+    });
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-8' }, ACCOUNT);
+
+    expect(result.text).toContain('Could be tab one of ten.');
+    expect(result.text).toContain('may be the first tab only');
+  });
+
+  it('exposes tab titles in refs even when the heading is suppressed', async () => {
+    // A one-tab document whose tab the user RENAMED: the title is real content, and the
+    // rendered output deliberately omits it.
+    mockCall.mockResolvedValue({
+      documentId: 'doc-9',
+      title: 'Untitled document',
+      tabs: [{
+        tabProperties: { title: 'Q3 Financial Model' },
+        documentTab: { body: { content: [para('numbers')] } },
+      }],
+    });
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-9' }, ACCOUNT);
+
+    expect(result.text).not.toContain('Q3 Financial Model');
+    expect(result.refs.tabTitles).toEqual(['Q3 Financial Model']);
   });
 
   it('survives a tab with no title and no documentTab', async () => {
