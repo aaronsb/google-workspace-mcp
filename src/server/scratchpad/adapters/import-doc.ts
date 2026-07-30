@@ -90,6 +90,17 @@ async function importDocJson(
   documentId: string,
 ): Promise<HandlerResponse> {
   try {
+    // NO includeTabsContent here, deliberately — do not "fix" this to match
+    // docsPatch.get (#152) without reading #155 first.
+    //
+    // The flag moves content to `tabs[].documentTab.body` and takes `body` away. This
+    // buffer is LIVE-BOUND (#79): docs-sync translates mutations against paths like
+    // `$.body.content[0].paragraph.elements[0].textRun.content`, so setting the flag
+    // trades a multi-tab import for a scratchpad that can no longer write anything back.
+    //
+    // The cost of leaving it: a multi-tab document imports as its first tab only. That is
+    // a real bug, tracked in #155, and it needs a decision about tab-aware sync paths
+    // rather than a one-line change here.
     const doc = await call('docs', 'documents.get',
       { documentId }, { account: email }) as Record<string, unknown>;
 
