@@ -1,5 +1,7 @@
 # Google Workspace MCP Server
 
+[![MCP Toplist](https://mcptoplist.com/badge/glama%2Faaronsb%2Fgoogle-workspace-mcp.svg)](https://mcptoplist.com/server/glama%2Faaronsb%2Fgoogle-workspace-mcp)
+
 [![npm version](https://img.shields.io/npm/v/@aaronsb/google-workspace-mcp?logo=npm&label=npm)](https://www.npmjs.com/package/@aaronsb/google-workspace-mcp)
 [![Latest release](https://img.shields.io/github/v/release/aaronsb/google-workspace-mcp?include_prereleases&label=release)](https://github.com/aaronsb/google-workspace-mcp/releases)
 [![Node](https://img.shields.io/node/v/@aaronsb/google-workspace-mcp?logo=node.js&label=node)](https://nodejs.org)
