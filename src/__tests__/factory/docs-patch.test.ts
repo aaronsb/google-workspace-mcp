@@ -418,6 +418,37 @@ describe('docsPatch.get — multi-tab documents (#152)', () => {
       .toEqual(['t1', 't2', 't2a', 't3']);
   });
 
+  it('prints the tab ids in the TEXT, which is all the model receives', async () => {
+    // server.ts returns result.text and nothing else — refs is internal, read by
+    // queue_operations for chaining. A tabId that lives only in refs cannot be used by
+    // the agent reading this response, so telling it to "pass the tabId" while keeping
+    // every id out of the text is #158's complaint with a new hiding place.
+    mockCall.mockResolvedValue(tabbedDoc());
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-2' }, ACCOUNT);
+
+    expect(result.text).toContain('### Monday — `t1`');
+    expect(result.text).toContain('#### Action items — `t2a`');
+    // …and the caveat points at them rather than at a field the reader cannot see.
+    expect(result.text).toContain('beside each heading below');
+  });
+
+  it('marks a tab Google gave no id as unaddressable rather than printing nothing', async () => {
+    mockCall.mockResolvedValue({
+      documentId: 'doc-11',
+      title: 'Odd',
+      tabs: [
+        { tabProperties: { title: 'No id' }, documentTab: { body: { content: [para('a')] } } },
+        { tabProperties: { tabId: 'x', title: 'Has id' }, documentTab: { body: { content: [para('b')] } } },
+      ],
+    });
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-11' }, ACCOUNT);
+
+    expect(result.text).toContain('### No id — _(no tab id; not individually addressable)_');
+    expect(result.text).toContain('### Has id — `x`');
+  });
+
   it('survives a tab with no title and no documentTab', async () => {
     // Defensive: tabProperties.title is not guaranteed, and a malformed tab must not
     // take down the read of the tabs around it.
@@ -576,6 +607,21 @@ describe('docsPatch.get — the size cap announces itself (#158)', () => {
     expect(result.refs.capped).toBeUndefined();
     expect(result.refs.characters).toBe(200_000);
     expect(result.text).toContain('there is no narrower read available');
+  });
+
+  it('caps the real document that slipped through — the client rejects before we do', async () => {
+    // Measured live: a 2-tab meeting archive of 79,944 characters. At a 25,000-token
+    // threshold this stayed whole, and the MCP client rejected the oversized result and
+    // handed the agent a file path — the tab index never rendered, so the cap protected
+    // nothing. The threshold is set by the client's ceiling, not by taste.
+    mockCall.mockResolvedValue(bigDoc(2, 39_972));
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-big' }, ACCOUNT);
+
+    expect(result.refs.capped).toBe(true);
+    expect(result.text).toContain('Showing the tab index instead of the text');
+    // And the whole response stays small enough to survive the trip.
+    expect(result.text.length).toBeLessThan(4_000);
   });
 
   it('leaves an ordinary multi-tab document whole', async () => {

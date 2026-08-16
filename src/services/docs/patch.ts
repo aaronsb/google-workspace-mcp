@@ -117,7 +117,13 @@ function flattenTabs(tabs: unknown, depth = 0): FlatTab[] {
 }
 
 /**
- * Render one tab as a titled section.
+ * Render one tab as a titled section, headed by the id that addresses it.
+ *
+ * The id goes in the TEXT, not just in `refs`. Only `result.text` is returned to the
+ * model — `refs` is internal, read by queue_operations for chaining — so a tab id that
+ * lives only in refs cannot be used by the agent reading this. Telling a reader to "pass
+ * the tabId" while keeping every tabId out of the response is #158's original complaint
+ * with a new hiding place.
  *
  * The heading level tracks nesting depth so a subtab reads as subordinate to its parent.
  * Depth is clamped at `######` because markdown has no seventh level: tabs nested more
@@ -125,23 +131,32 @@ function flattenTabs(tabs: unknown, depth = 0): FlatTab[] {
  * unreachable — the Docs UI allows a single level of subtabs — so the clamp is a
  * guard against a shape Google's API permits and its editor does not produce.
  */
-function renderTab({ title, text, depth }: FlatTab): string {
+function renderTab({ id, title, text, depth }: FlatTab): string {
   const heading = '#'.repeat(Math.min(3 + depth, 6));
+  const handle = id ? ` — \`${id}\`` : ' — _(no tab id; not individually addressable)_';
   const body = text === null
     ? '_(no content returned for this tab — it was not read, which is not the same as empty)_'
     : text || '_(this tab is empty)_';
-  return `${heading} ${title}\n\n${body}\n`;
+  return `${heading} ${title}${handle}\n\n${body}\n`;
 }
 
 /**
  * Size at which a whole-document read turns into an index of its tabs.
  *
- * ~100 KB. The precedent is `MAX_BODY_TOKENS` in server/formatting/markdown.ts, and so is
- * the rule it carries: a cap that does not say it capped recreates #152 with a different
- * cause. The measured 3-tab document from #152 is ~3,700 tokens and stays whole; the
- * 40-tab transcript archive that motivated #158 is ~50,000 and becomes an index.
+ * Matches `MAX_BODY_TOKENS` in server/formatting/markdown.ts, and carries the same rule:
+ * a cap that does not say it capped recreates #152 with a different cause.
+ *
+ * The number is set by the MCP CLIENT's tool-result ceiling, not by taste. Measured live
+ * against a real 2-tab meeting archive: 79,944 characters — 19,986 tokens by the estimate
+ * below — sailed under a 25,000 threshold, and the client rejected the response anyway,
+ * handing the agent a file path instead of the tab index this cap exists to produce. A cap
+ * above the client's ceiling never fires where it matters.
+ *
+ * That measurement also says `estimateTokens` runs OPTIMISTIC on dense prose: 4 chars per
+ * token, where the real tokenizer wanted closer to 3.2. So the threshold sits well under
+ * the ceiling rather than at it, and that document now becomes an index as intended.
  */
-const MAX_DOC_TOKENS = 25_000;
+const MAX_DOC_TOKENS = 12_000;
 
 /**
  * Render the tab index a caller gets instead of an over-sized document.
@@ -293,7 +308,7 @@ export const docsPatch: ServicePatch = {
         //
         // A capped response carries no text to measure an index in, and its own notice
         // already says what to do next — two instructions there would compete.
-        caveats.push('Indices in this response are per-tab. Pass the `tabId` of the tab you mean to `insertText`, `write` and `replaceText`, or they act on the FIRST tab.');
+        caveats.push('Indices in this response are per-tab. Pass the `tabId` beside each heading below to `get`, `insertText`, `write` or `replaceText` — without one they act on the FIRST tab.');
       }
       if (!capped && !multiTab && tokens > MAX_DOC_TOKENS) {
         // Whole, and large. Nothing here was withheld — the number is so the caller can
