@@ -45,3 +45,4 @@ _MCP tools, schemas, progressive disclosure_
 | [ADR-303](./api/ADR-303-auto-append-next-steps-in-factory-generator.md) | Auto-append next-steps in factory generator | Accepted |
 | [ADR-304](./api/ADR-304-split-manifest-yaml-into-per-service-files.md) | Split manifest.yaml into per-service files | Accepted |
 | [ADR-305](./api/ADR-305-shared-html-sanitization-for-agent-facing-authoring.md) | Shared HTML sanitization for agent-facing authoring | Accepted |
+| [ADR-306](./api/ADR-306-tab-addressed-docs-reads-and-writes.md) | Tab-addressed Docs reads and writes | Accepted |
