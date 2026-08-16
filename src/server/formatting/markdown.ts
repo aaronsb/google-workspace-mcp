@@ -140,7 +140,7 @@ function stripHtml(html: string): string {
 }
 
 /** Rough token estimate: ~4 chars per token for English text. */
-function estimateTokens(text: string): number {
+export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 

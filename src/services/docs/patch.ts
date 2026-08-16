@@ -8,7 +8,8 @@
  */
 
 import { call } from '../../google/client.js';
-import { requireString } from '../../server/handlers/validate.js';
+import { optionalString, requireString } from '../../server/handlers/validate.js';
+import { estimateTokens } from '../../server/formatting/markdown.js';
 import type { ServicePatch } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
@@ -54,6 +55,13 @@ function tidy(text: string): string {
 }
 
 interface FlatTab {
+  /**
+   * `tabProperties.tabId` — the ONLY handle that addresses a tab, on either side. A read
+   * scoped with `tabId` and a write targeted with it use the same value, which is what
+   * makes the two coordinate systems one (#157, #158). NULL when Google omitted it: such
+   * a tab can be read as part of the whole document but cannot be addressed.
+   */
+  id: string | null;
   title: string;
   /**
    * NULL means Google returned no `documentTab` for this tab, so we did not read it.
@@ -92,10 +100,11 @@ function flattenTabs(tabs: unknown, depth = 0): FlatTab[] {
     if (!tab || typeof tab !== 'object') continue;
     const t = tab as Record<string, unknown>;
 
-    const props = t.tabProperties as { title?: unknown } | undefined;
+    const props = t.tabProperties as { title?: unknown; tabId?: unknown } | undefined;
     const documentTab = t.documentTab as { body?: unknown } | undefined;
 
     out.push({
+      id: typeof props?.tabId === 'string' && props.tabId ? props.tabId : null,
       title: typeof props?.title === 'string' && props.title ? props.title : '(untitled tab)',
       // No documentTab at all is a failed read, not an empty tab. Keep them distinct.
       text: documentTab ? tidy(extractText(documentTab.body)) : null,
@@ -122,6 +131,42 @@ function renderTab({ title, text, depth }: FlatTab): string {
     ? '_(no content returned for this tab — it was not read, which is not the same as empty)_'
     : text || '_(this tab is empty)_';
   return `${heading} ${title}\n\n${body}\n`;
+}
+
+/**
+ * Size at which a whole-document read turns into an index of its tabs.
+ *
+ * ~100 KB. The precedent is `MAX_BODY_TOKENS` in server/formatting/markdown.ts, and so is
+ * the rule it carries: a cap that does not say it capped recreates #152 with a different
+ * cause. The measured 3-tab document from #152 is ~3,700 tokens and stays whole; the
+ * 40-tab transcript archive that motivated #158 is ~50,000 and becomes an index.
+ */
+const MAX_DOC_TOKENS = 25_000;
+
+/**
+ * Render the tab index a caller gets instead of an over-sized document.
+ *
+ * This is a cap with an escape hatch rather than a truncation: every tab is listed with
+ * the id that fetches it, so no text becomes unreachable — it becomes reachable one tab
+ * at a time. Truncating the concatenation instead would drop the tail of the document
+ * with no way to ask for it, which is what #152 was.
+ *
+ * A tab Google gave no id can only be read as part of the whole document, so say that in
+ * its row rather than printing an id that does not exist.
+ */
+function renderTabIndex(tabs: FlatTab[], tokens: number): string {
+  const rows = tabs.map((t) => {
+    const indent = '  '.repeat(t.depth);
+    const size = t.text === null
+      ? 'not read'
+      : `${t.text.length} chars, ${countLines(t.text)} line(s)`;
+    const handle = t.id ? `\`${t.id}\`` : '_(no tab id — not individually addressable)_';
+    return `${indent}- ${handle} — ${t.title} (${size})`;
+  });
+
+  return `> **This document is ~${tokens.toLocaleString()} tokens across ${tabs.length} tab(s).** ` +
+    `Showing the tab index instead of the text. Re-read with \`tabId\` set to one of the ids below.\n\n` +
+    rows.join('\n') + '\n';
 }
 
 export const docsPatch: ServicePatch = {
@@ -154,28 +199,65 @@ export const docsPatch: ServicePatch = {
      *
      * Single-tab documents report one tab titled "Tab 1" — a default, not something a
      * user typed, so one tab renders with no tab scaffolding at all.
+     *
+     * `tabId` narrows the read to one tab (#158). It is the same handle the write
+     * operations take, so "read this tab, then write to it" is one coordinate system
+     * rather than two that happen to agree on single-tab documents.
      */
     get: async (params, account): Promise<HandlerResponse> => {
       const documentId = requireString(params, 'documentId');
+      const wantTabId = optionalString(params, 'tabId');
 
       const doc = await call('docs', 'documents.get',
         { documentId, includeTabsContent: true }, { account }) as Record<string, unknown>;
 
       const title = typeof doc.title === 'string' ? doc.title : '(untitled)';
-      const tabs = flattenTabs(doc.tabs);
+      const allTabs = flattenTabs(doc.tabs);
+
+      // A tabId that matches nothing must fail loudly. Falling back to the whole document
+      // would hand back text the caller did not ask for and let them believe it was the
+      // one tab they named — a wrong-scope read that reports success, which is the shape
+      // of defect this file exists to stop.
+      if (wantTabId && !allTabs.some((t) => t.id === wantTabId)) {
+        const known = allTabs.map((t) => t.id).filter(Boolean);
+        throw new Error(
+          `No tab with id "${wantTabId}" in document ${documentId}. ` +
+          (known.length
+            ? `Available tab ids: ${known.join(', ')}.`
+            : 'This document reported no addressable tab ids; read it without `tabId`.'),
+        );
+      }
+
+      const tabs = wantTabId ? allTabs.filter((t) => t.id === wantTabId) : allTabs;
+      // Scaffolding marks a read that spans tabs. A single-tab read is scoped by
+      // construction, so it renders bare even when the document has forty tabs.
       const multiTab = tabs.length > 1;
 
       // One tab is the ordinary case and reads best with no tab scaffolding at all, so it
       // renders exactly as a single-body document does. `||` not `??`: a single tab that
       // reported NO content must still fall back to `body`, and '' is not nullish — with
       // `??` a populated `body` was discarded and the document reported as empty.
-      const singleText = tabs.length === 1
+      //
+      // A tabId-scoped read takes NO body fallback. `body` is the legacy first tab, so
+      // serving it for an empty tab three tabs along would answer a question about one tab
+      // with the text of another — and the caller, having named a tab, has no reason to
+      // suspect it.
+      const singleText = tabs.length === 1 && !wantTabId
         ? (tabs[0].text || tidy(extractText(doc.body)))
-        : tidy(extractText(doc.body));
+        : tabs.length === 1
+          ? (tabs[0].text ?? '')
+          : tidy(extractText(doc.body));
 
-      const body = multiTab
+      const fullBody = multiTab
         ? tabs.map(renderTab).join('\n').trimEnd()
         : singleText;
+
+      // Over the cap, a multi-tab read becomes an index of tabs to read individually.
+      // A single tab has nothing narrower to offer, so it comes back whole however large
+      // it is: capping there would remove text with no way to ask for it again.
+      const tokens = estimateTokens(fullBody);
+      const capped = multiTab && tokens > MAX_DOC_TOKENS;
+      const body = capped ? renderTabIndex(tabs, tokens) : fullBody;
 
       // Both numbers describe DOCUMENT TEXT, never the scaffolding rendered around it.
       // They used to disagree: characters summed the tabs while lines counted the
@@ -205,15 +287,29 @@ export const docsPatch: ServicePatch = {
         caveats.push(`${unread} tab(s) returned no content and could not be read.`);
       }
       if (multiTab) {
-        // The read spans tabs; the writes do not. See #157.
-        caveats.push('`insertText` indices are relative to the FIRST tab, and `write` appends to it — tab-targeted writes are not available yet (#157).');
+        // The read spans tabs and character indices do not. An index computed from this
+        // concatenation means nothing to `insertText` unless the same tab is named on
+        // both sides, so say which handle makes them agree (#157).
+        caveats.push('Indices in this response are per-tab. Pass the `tabId` of the tab you mean to `insertText`, `write` and `replaceText`, or they act on the FIRST tab.');
       }
+      if (!capped && !multiTab && tokens > MAX_DOC_TOKENS) {
+        // Whole, and large. Nothing here was withheld — the number is so the caller can
+        // decide what to do with the rest of its context, not a warning of missing text.
+        caveats.push(`This tab is ~${tokens.toLocaleString()} tokens and is shown in full — there is no narrower read available.`);
+      }
+
+      const scoped = wantTabId ? tabs[0] : undefined;
 
       return {
         text:
           `## ${title}\n\n` +
           `**Document ID:** ${documentId}\n` +
           `**Revision:** ${String(doc.revisionId ?? '—')}\n` +
+          // A scoped read says which tab it read AND how many it did not, so the number
+          // beside "Length" is never mistaken for the whole document.
+          (scoped
+            ? `**Tab:** ${scoped.title} (\`${scoped.id}\`) — 1 of ${allTabs.length}\n`
+            : '') +
           // The count includes nested tabs, which the Docs tab strip does not show — so
           // say which is which rather than hand back a number that contradicts the UI.
           (multiTab
@@ -229,10 +325,18 @@ export const docsPatch: ServicePatch = {
           characters,
           lines,
           tabs: tabs.length,
-          // Titles ride along even for a single tab, whose heading is suppressed: the
+          // The index rides along even for a single tab, whose heading is suppressed: its
           // title is usually Google's default "Tab 1", but when a user has renamed a
-          // one-tab document's tab, that name is content and withholding it is a choice.
-          tabTitles: tabs.map((t) => t.title),
+          // one-tab document's tab that name is content, and its id is the only way to
+          // address a write. Both belong in the response whether or not it renders them.
+          tabIndex: tabs.map((t) => ({
+            tabId: t.id,
+            title: t.title,
+            depth: t.depth,
+            characters: t.text?.length ?? null,
+          })),
+          ...(scoped ? { tabId: scoped.id, tabsInDocument: allTabs.length } : {}),
+          ...(capped ? { capped: true, tokens } : {}),
           ...(unread > 0 ? { unreadTabs: unread } : {}),
         },
       };
@@ -242,10 +346,16 @@ export const docsPatch: ServicePatch = {
      * Append text to the end of the body: one documents.batchUpdate carrying a
      * single insertText at `endOfSegmentLocation`. Append-only — no index
      * targeting, no formatting.
+     *
+     * `tabId` picks the tab; omitted, Google appends to the FIRST tab. That default is
+     * its documented behaviour for every Location and EndOfSegmentLocation, and it is
+     * why an unqualified append to a tabbed document lands somewhere the caller did not
+     * choose (#157). Read the document first — `get` returns each tab's id.
      */
     write: async (params, account): Promise<HandlerResponse> => {
       const documentId = requireString(params, 'documentId');
       const text = requireString(params, 'text');
+      const tabId = optionalString(params, 'tabId');
 
       await call('docs', 'documents.batchUpdate', {
         documentId,
@@ -254,20 +364,22 @@ export const docsPatch: ServicePatch = {
             text,
             // An empty segmentId means the document BODY (as opposed to a header
             // or footer), and endOfSegmentLocation means "append".
-            endOfSegmentLocation: { segmentId: '' },
+            endOfSegmentLocation: { segmentId: '', ...(tabId ? { tabId } : {}) },
           },
         }],
       }, { account });
 
       return {
-        text: `Appended ${text.length} character(s) to the document.\n\n**Document ID:** ${documentId}`,
-        refs: { documentId, appended: text.length },
+        text: `Appended ${text.length} character(s) to ${tabId ? `tab \`${tabId}\` of ` : ''}the document.\n\n**Document ID:** ${documentId}` +
+          (tabId ? '' : '\n\n> No `tabId` given — this appended to the FIRST tab. On a multi-tab document, pass the `tabId` from `get`.'),
+        refs: { documentId, appended: text.length, ...(tabId ? { tabId } : {}) },
       };
     },
 
     insertText: async (params, account): Promise<HandlerResponse> => {
       const documentId = requireString(params, 'documentId');
       const text = requireString(params, 'text');
+      const tabId = optionalString(params, 'tabId');
       const index = Number(params.index);
       if (!Number.isInteger(index) || index < 1) {
         throw new Error('index must be a positive integer (1 = start of document body)');
@@ -278,21 +390,33 @@ export const docsPatch: ServicePatch = {
         requests: [{
           insertText: {
             text,
-            location: { index },
+            // Character indices are per-tab. Without a tabId this index is read against
+            // the first tab, whatever tab the caller measured it in.
+            location: { index, ...(tabId ? { tabId } : {}) },
           },
         }],
       }, { account });
 
       return {
-        text: `Text inserted at index ${index}.\n\n**Document:** ${documentId}\n**Inserted:** ${text.length} characters`,
-        refs: { documentId, index, length: text.length },
+        text: `Text inserted at index ${index}${tabId ? ` of tab \`${tabId}\`` : ''}.\n\n**Document:** ${documentId}\n**Inserted:** ${text.length} characters` +
+          (tabId ? '' : '\n\n> No `tabId` given — index ' + index + ' was resolved against the FIRST tab. On a multi-tab document, pass the `tabId` the index came from.'),
+        refs: { documentId, index, length: text.length, ...(tabId ? { tabId } : {}) },
       };
     },
 
+    /**
+     * Find and replace across the document, or within one tab.
+     *
+     * This is the one write that was never confined to the first tab: Google applies
+     * ReplaceAllTextRequest to every tab when `tabsCriteria` is omitted. `tabId` narrows
+     * it, so the default stays "the whole document" and nothing changes for callers who
+     * do not pass one.
+     */
     replaceText: async (params, account): Promise<HandlerResponse> => {
       const documentId = requireString(params, 'documentId');
       const findText = requireString(params, 'findText');
       const replaceWith = requireString(params, 'replaceWith');
+      const tabId = optionalString(params, 'tabId');
       const matchCase = params.matchCase !== false;
 
       const data = await call('docs', 'documents.batchUpdate', {
@@ -304,6 +428,7 @@ export const docsPatch: ServicePatch = {
               matchCase,
             },
             replaceText: replaceWith,
+            ...(tabId ? { tabsCriteria: { tabIds: [tabId] } } : {}),
           },
         }],
       }, { account }) as Record<string, unknown>;
@@ -314,8 +439,8 @@ export const docsPatch: ServicePatch = {
       const occurrences = replaceReply?.occurrencesChanged || 0;
 
       return {
-        text: `Text replaced.\n\n**Document:** ${documentId}\n**Found:** "${findText}"\n**Replaced with:** "${replaceWith}"\n**Occurrences:** ${occurrences}`,
-        refs: { documentId, occurrences },
+        text: `Text replaced.\n\n**Document:** ${documentId}\n**Scope:** ${tabId ? `tab \`${tabId}\`` : 'all tabs'}\n**Found:** "${findText}"\n**Replaced with:** "${replaceWith}"\n**Occurrences:** ${occurrences}`,
+        refs: { documentId, occurrences, ...(tabId ? { tabId } : {}) },
       };
     },
   },

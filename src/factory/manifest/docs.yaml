@@ -4,6 +4,10 @@ requires_email: true
 google_service: docs
 operations:
 
+  # A document's text lives per-TAB, and `tabId` is the handle that addresses one — the
+  # same handle every write operation below takes. Reading without it spans the document;
+  # reading with it scopes both the text and the character indices to one tab, so an
+  # index measured here means the same thing to insertText (#157, #158).
   get:
     type: detail
     description: "get document content and metadata"
@@ -13,6 +17,9 @@ operations:
         type: string
         description: "Document ID"
         required: true
+      tabId:
+        type: string
+        description: "Read only this tab (from a previous get's tabIndex). Omit to read every tab."
 
   # `title` rides in the BODY — documents.create declares no parameters at all
   # (Discovery: `"parameters": {}`), so everything goes into the Document resource.
@@ -44,6 +51,9 @@ operations:
         type: string
         description: "Text to append (plain text)"
         required: true
+      tabId:
+        type: string
+        description: "Append to this tab. Omit and Google appends to the FIRST tab."
 
   insertText:
     type: action
@@ -60,8 +70,11 @@ operations:
         required: true
       index:
         type: number
-        description: "Character index to insert at (1 = start of document body)"
+        description: "Character index to insert at (1 = start of the tab's body)"
         required: true
+      tabId:
+        type: string
+        description: "Tab the index belongs to. Indices are PER-TAB; omit and the index resolves against the FIRST tab."
 
   replaceText:
     type: action
@@ -84,3 +97,6 @@ operations:
         type: boolean
         description: "Case-sensitive match (default: true)"
         default: true
+      tabId:
+        type: string
+        description: "Restrict the replacement to this tab. Omit to replace across every tab."
