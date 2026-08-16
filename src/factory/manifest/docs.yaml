@@ -19,7 +19,7 @@ operations:
         required: true
       tabId:
         type: string
-        description: "Read only this tab (from a previous get's tabIndex). Omit to read every tab."
+        description: "Tab to act on — a tabId from a previous get's tabIndex. Scopes the read on get; targets the edit on write/insertText/replaceText, which act on the FIRST tab when it is omitted (replaceText spans every tab). Character indices are per-tab."
 
   # `title` rides in the BODY — documents.create declares no parameters at all
   # (Discovery: `"parameters": {}`), so everything goes into the Document resource.
@@ -49,11 +49,11 @@ operations:
         required: true
       text:
         type: string
-        description: "Text to append (plain text)"
+        description: "Text to write (plain text) — appended to the end by write, inserted at `index` by insertText"
         required: true
       tabId:
         type: string
-        description: "Append to this tab. Omit and Google appends to the FIRST tab."
+        description: "Tab to act on — a tabId from a previous get's tabIndex. Scopes the read on get; targets the edit on write/insertText/replaceText, which act on the FIRST tab when it is omitted (replaceText spans every tab). Character indices are per-tab."
 
   insertText:
     type: action
@@ -66,7 +66,7 @@ operations:
         required: true
       text:
         type: string
-        description: "Text to insert"
+        description: "Text to write (plain text) — appended to the end by write, inserted at `index` by insertText"
         required: true
       index:
         type: number
@@ -74,7 +74,7 @@ operations:
         required: true
       tabId:
         type: string
-        description: "Tab the index belongs to. Indices are PER-TAB; omit and the index resolves against the FIRST tab."
+        description: "Tab to act on — a tabId from a previous get's tabIndex. Scopes the read on get; targets the edit on write/insertText/replaceText, which act on the FIRST tab when it is omitted (replaceText spans every tab). Character indices are per-tab."
 
   replaceText:
     type: action
@@ -99,4 +99,4 @@ operations:
         default: true
       tabId:
         type: string
-        description: "Restrict the replacement to this tab. Omit to replace across every tab."
+        description: "Tab to act on — a tabId from a previous get's tabIndex. Scopes the read on get; targets the edit on write/insertText/replaceText, which act on the FIRST tab when it is omitted (replaceText spans every tab). Character indices are per-tab."

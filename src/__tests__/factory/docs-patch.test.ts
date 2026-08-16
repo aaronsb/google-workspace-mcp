@@ -538,6 +538,9 @@ describe('docsPatch.get — the size cap announces itself (#158)', () => {
     expect(result.text).toContain('Showing the tab index instead of the text');
     expect(result.text).toContain('Re-read with `tabId`');
     expect(result.refs.capped).toBe(true);
+    // The per-tab index caveat is about text this response does not contain, and it
+    // would compete with the notice above for what the reader should do next.
+    expect(result.text).not.toContain('Indices in this response are per-tab');
   });
 
   it('lists every tab with the id that fetches it — nothing becomes unreachable', async () => {

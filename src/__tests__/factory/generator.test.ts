@@ -44,6 +44,69 @@ describe('loadManifest', () => {
   });
 });
 
+/**
+ * Params whose description ALREADY differs between operations, and whose losing text is
+ * therefore invisible to the model. Frozen so new ones fail; not endorsed.
+ *
+ * Some are harmless wording drift ("Event ID" vs "Event ID to update"). Others drop
+ * something the model needs: `calendar.attendees` loses update's warning that it REPLACES
+ * the whole attendee list, `calendar.calendarId` loses freebusy's "comma-separated" — a
+ * different TYPE of value under the same name. Tracked separately; see the issue linked
+ * from this suite's comment rather than widening this list.
+ */
+const KNOWN_DESCRIPTION_COLLISIONS = new Set([
+  'calendar.attendees', 'calendar.calendarId', 'calendar.description', 'calendar.end',
+  'calendar.eventId', 'calendar.location', 'calendar.meet', 'calendar.start',
+  'calendar.summary', 'calendar.timeMin',
+  'drive.commentId', 'drive.content', 'drive.fileId', 'drive.name', 'drive.outputPath',
+  'drive.parentFolderId',
+  'gmail.body', 'gmail.cc', 'gmail.filename', 'gmail.maxResults', 'gmail.messageId',
+  'gmail.query',
+  'meet.conferenceId', 'meet.filter', 'meet.maxResults', 'meet.transcriptName',
+  'sheets.index', 'sheets.jsonValues', 'sheets.range', 'sheets.sheetId',
+  'sheets.spreadsheetId', 'sheets.title',
+  'tasks.due', 'tasks.notes', 'tasks.taskId', 'tasks.taskListId', 'tasks.title',
+]);
+
+describe('generateSchema — one description per param name', () => {
+  it('never declares a param name twice with different wording', () => {
+    // generateSchema flattens every operation's params into ONE schema and keeps the
+    // FIRST declaration of each name — later ones are dropped with no warning. So a
+    // param used by several operations is described to the model exactly once, by
+    // whichever operation happens to appear first in the YAML.
+    //
+    // That is how `manage_docs.tabId` shipped telling the model "Read only this tab",
+    // its `get` wording, on the three WRITE operations where omitting it means the edit
+    // lands in the first tab (#157). The warning existed in the manifest and never
+    // reached the schema.
+    //
+    // Reordering operations must not change what the model is told, so the constraint
+    // is: same name, same description, everywhere in a service.
+    const manifest = loadManifest();
+    const conflicts: string[] = [];
+
+    for (const [serviceName, service] of Object.entries(manifest.services)) {
+      const seen = new Map<string, { op: string; description: string }>();
+      for (const [opName, op] of Object.entries(service.operations)) {
+        for (const [paramName, def] of Object.entries(op.params ?? {})) {
+          const prior = seen.get(paramName);
+          if (!prior) {
+            seen.set(paramName, { op: opName, description: def.description });
+          } else if (prior.description !== def.description
+                     && !KNOWN_DESCRIPTION_COLLISIONS.has(`${serviceName}.${paramName}`)) {
+            conflicts.push(
+              `${serviceName}.${paramName}: ${prior.op} says "${prior.description}" ` +
+              `but ${opName} says "${def.description}" — only ${prior.op}'s reaches the model.`,
+            );
+          }
+        }
+      }
+    }
+
+    expect(conflicts).toEqual([]);
+  });
+});
+
 describe('generateSchema', () => {
   const manifest = loadManifest();
 

@@ -286,10 +286,13 @@ export const docsPatch: ServicePatch = {
       if (unread > 0) {
         caveats.push(`${unread} tab(s) returned no content and could not be read.`);
       }
-      if (multiTab) {
+      if (multiTab && !capped) {
         // The read spans tabs and character indices do not. An index computed from this
         // concatenation means nothing to `insertText` unless the same tab is named on
         // both sides, so say which handle makes them agree (#157).
+        //
+        // A capped response carries no text to measure an index in, and its own notice
+        // already says what to do next — two instructions there would compete.
         caveats.push('Indices in this response are per-tab. Pass the `tabId` of the tab you mean to `insertText`, `write` and `replaceText`, or they act on the FIRST tab.');
       }
       if (!capped && !multiTab && tokens > MAX_DOC_TOKENS) {
