@@ -260,6 +260,153 @@ describe('translateMutation — summary', () => {
 });
 
 /**
+ * The buffer as it ACTUALLY arrives now: fetched with includeTabsContent, so there is no
+ * `body` at the root and content hangs off `tabs[].documentTab.body` (#155). The suites
+ * above keep exercising the tabless shape, which is still translated for the response
+ * that carries no tabs at all.
+ */
+describe('translateMutation — tabbed buffers (#155)', () => {
+  /** A two-tab document; the second tab nests one child. */
+  function tabbedDoc(element: Record<string, unknown>, revisionId = 'rev-1'): string {
+    return JSON.stringify({
+      documentId: 'doc-1',
+      revisionId,
+      tabs: [
+        {
+          tabProperties: { tabId: 't1', title: 'One' },
+          documentTab: { body: { content: [textRunElement('first tab\n', 1)] } },
+        },
+        {
+          tabProperties: { tabId: 't2', title: 'Two' },
+          documentTab: { body: { content: [element] } },
+          childTabs: [{
+            tabProperties: { tabId: 't2a', title: 'Nested' },
+            documentTab: { body: { content: [element] } },
+          }],
+        },
+      ],
+    });
+  }
+
+  const TAB_TEXT_PATH = '$.tabs[1].documentTab.body.content[0].paragraph.elements[0].textRun.content';
+  const TAB_STYLE_PATH = '$.tabs[1].documentTab.body.content[0].paragraph.paragraphStyle.namedStyleType';
+  const NESTED_TEXT_PATH = '$.tabs[1].childTabs[0].documentTab.body.content[0].paragraph.elements[0].textRun.content';
+
+  it('carries the tab id onto every request it emits', () => {
+    // The bug in one assertion. Docs resolves an omitted tabId to the FIRST tab, so
+    // startIndex 5 measured in tab two would land in tab one — silently, and on a
+    // document the agent believes it just read.
+    const beforeJson = tabbedDoc(textRunElement('second tab\n', 5));
+    const result = translateMutation(
+      { op: 'set', path: TAB_TEXT_PATH, value: 'rewritten', beforeJson },
+      'rev-1',
+    );
+    if (isRejection(result)) throw new Error(`unexpected rejection: ${result.reason}`);
+    expect(result.body.requests).toEqual([
+      { deleteContentRange: { range: { startIndex: 5, endIndex: 15, tabId: 't2' } } },
+      { insertText: { text: 'rewritten', location: { index: 5, tabId: 't2' } } },
+    ]);
+  });
+
+  it('resolves content against the addressed tab, not the first one', () => {
+    // Both tabs have a content[0]. Navigating the tabless way would read tab one's
+    // element and compute a range from text the caller never named.
+    const beforeJson = tabbedDoc(textRunElement('second tab\n', 5));
+    const result = translateMutation(
+      { op: 'set', path: TAB_TEXT_PATH, value: 'x', beforeJson },
+      'rev-1',
+    );
+    if (isRejection(result)) throw new Error(`unexpected rejection: ${result.reason}`);
+    // 'second tab\n'.length = 11, not 'first tab\n'.length = 10.
+    expect(result.summary).toMatch(/11 → 1/);
+  });
+
+  it('puts the tab id on a paragraphStyle range too', () => {
+    const beforeJson = tabbedDoc(textRunElement('second tab\n', 5));
+    const result = translateMutation(
+      { op: 'set', path: TAB_STYLE_PATH, value: 'HEADING_1', beforeJson },
+      'rev-1',
+    );
+    if (isRejection(result)) throw new Error(`unexpected rejection: ${result.reason}`);
+    const r = result.body.requests[0] as Record<string, Record<string, unknown>>;
+    expect(r.updateParagraphStyle.range).toEqual({ startIndex: 5, endIndex: 16, tabId: 't2' });
+  });
+
+  it('addresses a nested childTab by its own id', () => {
+    // Tabs are a tree. A prefix matcher fixed to `tabs[N].documentTab` would reject
+    // every nested tab, which is document content like any other.
+    const beforeJson = tabbedDoc(textRunElement('second tab\n', 5));
+    const result = translateMutation(
+      { op: 'set', path: NESTED_TEXT_PATH, value: 'x', beforeJson },
+      'rev-1',
+    );
+    if (isRejection(result)) throw new Error(`unexpected rejection: ${result.reason}`);
+    const insert = result.body.requests.at(-1) as Record<string, Record<string, unknown>>;
+    expect(insert.insertText.location).toEqual({ index: 5, tabId: 't2a' });
+  });
+
+  it('refuses to write when the tab has no id rather than defaulting to the first', () => {
+    // "No tabId" is not a missing option, it is a write to the wrong tab that reports
+    // success. Rejecting is the only honest answer.
+    const beforeJson = JSON.stringify({
+      documentId: 'doc-1',
+      revisionId: 'rev-1',
+      tabs: [{ tabProperties: { title: 'No id' }, documentTab: { body: { content: [textRunElement('x\n', 1)] } } }],
+    });
+    const result = translateMutation(
+      { op: 'set', path: '$.tabs[0].documentTab.body.content[0].paragraph.elements[0].textRun.content', value: 'y', beforeJson },
+      'rev-1',
+    );
+    expect(isRejection(result)).toBe(true);
+    if (isRejection(result)) expect(result.reason).toMatch(/no tabProperties\.tabId.*FIRST tab/s);
+  });
+
+  it('rejects a tab index that is not in the buffer', () => {
+    const beforeJson = tabbedDoc(textRunElement('x\n', 1));
+    const result = translateMutation(
+      { op: 'set', path: '$.tabs[9].documentTab.body.content[0].paragraph.elements[0].textRun.content', value: 'y', beforeJson },
+      'rev-1',
+    );
+    expect(isRejection(result)).toBe(true);
+    if (isRejection(result)) expect(result.reason).toMatch(/tab at tabs\.9 not found/);
+  });
+
+  it('names the tab in the summary, so a sync line says which one moved', () => {
+    const beforeJson = tabbedDoc(textRunElement('second tab\n', 5));
+    const result = translateMutation(
+      { op: 'set', path: TAB_STYLE_PATH, value: 'HEADING_1', beforeJson },
+      'rev-1',
+    );
+    if (isRejection(result)) throw new Error('unexpected rejection');
+    expect(result.summary).toMatch(/tab t2 content\[0\]/);
+  });
+
+  it('rejects a body that hangs off something other than a documentTab', () => {
+    // Guards the generic prefix match: any path containing `body.content` must still be
+    // rooted in a tab, or it addresses some other part of the response entirely.
+    const beforeJson = tabbedDoc(textRunElement('x\n', 1));
+    const result = translateMutation(
+      { op: 'set', path: '$.headers[0].body.content[0].paragraph.elements[0].textRun.content', value: 'y', beforeJson },
+      'rev-1',
+    );
+    expect(isRejection(result)).toBe(true);
+    if (isRejection(result)) expect(result.reason).toMatch(/not supported/);
+  });
+
+  it('names the tabbed shape in its guidance for an unsupported path', () => {
+    // The rejection is the only place an agent learns what IS addressable. Naming the
+    // shape the buffer no longer has would send it to a path that cannot resolve.
+    const beforeJson = tabbedDoc(textRunElement('x\n', 1));
+    const result = translateMutation(
+      { op: 'set', path: '$.tabs[1].documentTab.body.content[0].paragraph.elements[0].textStyle.bold', value: true, beforeJson },
+      'rev-1',
+    );
+    expect(isRejection(result)).toBe(true);
+    if (isRejection(result)) expect(result.reason).toMatch(/\$\.tabs\[T\]\.documentTab\.body/);
+  });
+});
+
+/**
  * Suggested next pass — handler-level integration tests that mock `execute`
  * to cover the API-error-preserves-buffer and success-reloads-buffer cases.
  * Co-located with this file would be reasonable; a separate file under the

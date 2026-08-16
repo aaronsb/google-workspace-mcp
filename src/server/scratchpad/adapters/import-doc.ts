@@ -90,23 +90,22 @@ async function importDocJson(
   documentId: string,
 ): Promise<HandlerResponse> {
   try {
-    // NO includeTabsContent here, deliberately — do not "fix" this to match
-    // docsPatch.get (#152) without reading #155 first.
+    // includeTabsContent, and it must stay in step with reloadDocsBuffer in
+    // server/scratchpad/handler.ts — the buffer this creates and the buffer that
+    // replaces it after every sync have to describe the document the same way, or a
+    // path that translated before the push stops resolving after it (#155).
     //
-    // The flag moves content to `tabs[].documentTab.body` and takes `body` away. This
-    // buffer is LIVE-BOUND (#79): docs-sync translates mutations against paths like
-    // `$.body.content[0].paragraph.elements[0].textRun.content`, so setting the flag
-    // trades a multi-tab import for a scratchpad that can no longer write anything back.
-    //
-    // The cost of leaving it: a multi-tab document imports as its first tab only. That is
-    // a real bug, tracked in #155, and it needs a decision about tab-aware sync paths
-    // rather than a one-line change here.
+    // The flag moves content to `tabs[].documentTab.body` and takes `body` away, so
+    // docs-sync addresses `$.tabs[T].documentTab.body.…` and carries each tab's id onto
+    // the requests it emits. Without the flag this imported THE FIRST TAB and called it
+    // the document — #152 on a second surface.
     const doc = await call('docs', 'documents.get',
-      { documentId }, { account: email }) as Record<string, unknown>;
+      { documentId, includeTabsContent: true }, { account: email }) as Record<string, unknown>;
 
     const revisionId = typeof doc.revisionId === 'string' ? doc.revisionId : undefined;
     const json = JSON.stringify(doc, null, 2);
     const lines = json.split('\n');
+    const tabCount = countTabs(doc.tabs);
 
     scratchpads.appendRawLines(scratchpadId, lines);
     scratchpads.setFormat(scratchpadId, 'json');
@@ -118,8 +117,10 @@ async function importDocJson(
     });
 
     return {
-      text: `Imported doc as JSON (${lines.length} lines) into scratchpad ${scratchpadId}.\nLive-bound to docs/${documentId} — json_set mutations push back via batchUpdate.`,
-      refs: { scratchpadId, documentId, format: 'json', linesImported: lines.length, bound: true, revisionId },
+      text: `Imported doc as JSON (${lines.length} lines, ${tabCount} tab(s)) into scratchpad ${scratchpadId}.\n` +
+        `Live-bound to docs/${documentId} — json_set mutations push back via batchUpdate.\n` +
+        `Content is under \`$.tabs[T].documentTab.body\` — one index space per tab.`,
+      refs: { scratchpadId, documentId, format: 'json', linesImported: lines.length, tabs: tabCount, bound: true, revisionId },
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -128,6 +129,18 @@ async function importDocJson(
       refs: { error: true, scratchpadId },
     };
   }
+}
+
+/**
+ * Count tabs including nested ones — `childTabs` hold document content too, and a
+ * count that skips them under-reports the same way the flagless read did.
+ */
+function countTabs(tabs: unknown): number {
+  if (!Array.isArray(tabs)) return 0;
+  return tabs.reduce<number>((total, tab) => {
+    if (!tab || typeof tab !== 'object') return total;
+    return total + 1 + countTabs((tab as Record<string, unknown>).childTabs);
+  }, 0);
 }
 
 /**
