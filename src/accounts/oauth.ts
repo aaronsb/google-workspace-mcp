@@ -25,6 +25,46 @@ export const SERVICE_SCOPE_MAP: Record<string, string[]> = {
   ],
 };
 
+/**
+ * Service name → READ-ONLY scope URL(s), for accounts authorized with `access: 'read'`.
+ *
+ * A service is missing from this map when Google offers no read-only scope for it. That
+ * is NOT treated as "use the read/write scope and say nothing": someone who asked for
+ * read access would get write access without being told. `scopesForServices` reports
+ * those services instead, so the person consenting can be told before the browser opens
+ * (ADR-202).
+ *
+ * Every service currently has an entry, so nothing is granted more than was asked for
+ * today. The reporting path still exists because the next service added may not have
+ * one, and finding that out from a silently broad token is the wrong way to find out.
+ *
+ * Measured against descriptor.json rather than assumed:
+ *
+ * - calendar, docs, gmail, tasks — the scope below covers every GET method exposed.
+ * - meet — `meetings.space.readonly` authorizes every READ manage_meet exposes: all the
+ *   conference-record operations, plus getSpace. The tool also creates, updates and ends
+ *   meeting spaces, and those three need `meetings.space.created` or `.settings`, so a
+ *   read-only meet account holds the readonly scope alone and Google refuses the writes.
+ *   That is the mapping working, not a gap in it. Meet was very nearly left out of this
+ *   map entirely by reading "has no read-only variant" off the scope list instead of off
+ *   what each operation needs.
+ * - drive, sheets — two GET methods and one respectively that no read-only scope covers,
+ *   so read access there allows less than full access but slightly more than reading.
+ */
+export const SERVICE_SCOPE_MAP_READONLY: Record<string, string[]> = {
+  gmail:    ['https://www.googleapis.com/auth/gmail.readonly'],
+  drive:    ['https://www.googleapis.com/auth/drive.readonly'],
+  calendar: ['https://www.googleapis.com/auth/calendar.readonly'],
+  sheets:   ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+  docs:     ['https://www.googleapis.com/auth/documents.readonly'],
+  tasks:    ['https://www.googleapis.com/auth/tasks.readonly'],
+  slides:   ['https://www.googleapis.com/auth/presentations.readonly'],
+  meet:     ['https://www.googleapis.com/auth/meetings.space.readonly'],
+};
+
+/** How much authority an account's token carries. */
+export type AccessLevel = 'read' | 'readwrite';
+
 const BASE_SCOPES = [
   'openid',
   'https://www.googleapis.com/auth/userinfo.email',
@@ -41,23 +81,51 @@ export interface OAuthResult {
   scopes: string[];
 }
 
+/** The scopes to request, plus any service that did not get the access level asked for. */
+export interface ResolvedScopes {
+  scopes: string[];
+  /**
+   * Services asked for as read-only that will still be able to write, because Google
+   * offers no read-only scope for them. Always empty when asking for read/write.
+   *
+   * The caller has to tell the user about these. It is the difference between "you asked
+   * for read access and got read access" and "you asked for read access and part of this
+   * can still change your data".
+   */
+  stillAllowWrites: string[];
+}
+
 /**
  * Convert comma-separated service names to deduplicated scope URLs.
  * Always includes base scopes (openid, userinfo.email).
+ *
+ * `access` defaults to 'readwrite', so every existing caller and every account
+ * authorized before ADR-202 resolves exactly as it did.
  */
-export function scopesForServices(services: string): string[] {
+export function scopesForServices(
+  services: string,
+  access: AccessLevel = 'readwrite',
+): ResolvedScopes {
   const names = services.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const scopes = new Set<string>(BASE_SCOPES);
+  const stillAllowWrites: string[] = [];
 
   for (const name of names) {
-    const mapped = SERVICE_SCOPE_MAP[name];
-    if (!mapped) {
+    const readwrite = SERVICE_SCOPE_MAP[name];
+    if (!readwrite) {
       throw new Error(`Unknown service: '${name}'. Known: ${Object.keys(SERVICE_SCOPE_MAP).join(', ')}`);
     }
-    for (const scope of mapped) scopes.add(scope);
+
+    // Read access uses the read-only scope where Google offers one. Where it does not,
+    // the service keeps its read/write scope AND is reported — see
+    // SERVICE_SCOPE_MAP_READONLY.
+    const readonly = access === 'read' ? SERVICE_SCOPE_MAP_READONLY[name] : undefined;
+    if (access === 'read' && !readonly) stillAllowWrites.push(name);
+
+    for (const scope of readonly ?? readwrite) scopes.add(scope);
   }
 
-  return [...scopes];
+  return { scopes: [...scopes], stillAllowWrites };
 }
 
 /**

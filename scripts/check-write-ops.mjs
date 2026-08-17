@@ -70,7 +70,15 @@ for (const file of readdirSync(MANIFEST_DIR).filter((f) => f.endsWith('.yaml')))
     if (op.defaults && Object.keys(op.defaults).length > 0) continue;
 
     // A custom handler for this operation constructs the body itself.
-    if (new RegExp(`\\b${opName}\\s*:\\s*async`).test(patchSource)) continue;
+    //
+    // Two spellings, because both are in use: an inline `opName: async (…)` inside the
+    // customHandlers object, and a standalone `async function opName(…)` referenced by
+    // shorthand. Matching only the first silently misses every handler written the
+    // second way, which is how this check nearly demanded a body for an operation that
+    // already had one built in code.
+    const hasHandler = new RegExp(`\\b${opName}\\s*:\\s*async`).test(patchSource)
+      || new RegExp(`async\\s+function\\s+${opName}\\s*\\(`).test(patchSource);
+    if (hasHandler) continue;
 
     // Everything Google declares as path or query. Anything else lands in the body.
     const declared = new Set([

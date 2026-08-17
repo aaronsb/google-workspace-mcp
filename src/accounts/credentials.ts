@@ -7,7 +7,27 @@ export interface AuthorizedUserCredential {
   client_id: string;
   client_secret: string;
   refresh_token: string;
+  /**
+   * The scopes Google actually GRANTED. Can be fewer than were requested: the consent
+   * screen lets the user untick individual permissions before approving.
+   */
   scopes?: string[];
+  /**
+   * What this account was authorized for (ADR-202).
+   *
+   * ABSENT means read/write. Every credential written before ADR-202 lacks the field and
+   * carries read/write scopes, so absence and 'readwrite' are the same claim — reading it
+   * as 'read' would lock existing accounts out of operations their tokens permit.
+   */
+  access?: 'read' | 'readwrite';
+  /**
+   * Services that were asked for as read-only and can still write, because Google offers
+   * no read-only scope for them and the caller confirmed anyway.
+   *
+   * Stored because `access` alone would misdescribe such an account: it says 'read' while
+   * the token can change these services.
+   */
+  stillAllowWrites?: string[];
 }
 
 export async function hasCredential(email: string): Promise<boolean> {

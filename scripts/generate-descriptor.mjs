@@ -120,6 +120,11 @@ function distillMethod(m) {
       location: p.location,
       ...(p.required ? { required: true } : {}),
       ...(p.repeated ? { repeated: true } : {}),
+      // Kept for the same reason as the schema enums below: a plausible-but-wrong value
+      // is rejected by Google and by nothing here. Calendar declares its enums this way
+      // (`sendUpdates`, `orderBy`) rather than in `schemas`, so dropping them left an
+      // entire service's worth unvalidatable.
+      ...(Array.isArray(p.enum) && p.enum.length ? { enum: p.enum } : {}),
     };
   }
 
@@ -150,6 +155,36 @@ function walkMethods(node, prefix, out) {
   return out;
 }
 
+/**
+ * Collect every enum-valued field Google declares, as `SchemaName.field -> [values]`.
+ *
+ * Request-BODY shapes are otherwise invisible here. The descriptor carries paths,
+ * parameters and scopes — everything about how to address a method, nothing about what
+ * may go inside it. So a handler that builds a body is unchecked by anything in this
+ * repo, and an invalid enum value is discoverable only by calling Google:
+ *
+ *   Invalid value at 'space.config.moderation'
+ *   (type.googleapis.com/google.apps.meet.v2.SpaceConfig.Moderation), "MODERATION_ON"
+ *
+ * That one cost a live round trip to find, having passed lint, type-check and the suite.
+ *
+ * Only enums are captured, not whole schemas. Google's schema section is far larger than
+ * the rest of this file put together, and enums are the part a handler can get wrong in a
+ * way no type system here would notice — a misspelled field name fails loudly, a
+ * plausible-but-wrong enum value fails at Google.
+ */
+function collectEnums(doc) {
+  const out = {};
+  for (const [schemaName, schema] of Object.entries(doc.schemas ?? {})) {
+    for (const [field, prop] of Object.entries(schema.properties ?? {})) {
+      if (Array.isArray(prop.enum) && prop.enum.length > 0) {
+        out[`${schemaName}.${field}`] = prop.enum;
+      }
+    }
+  }
+  return out;
+}
+
 async function generate() {
   const urls = await resolveDiscoveryUrls();
   const services = {};
@@ -176,6 +211,7 @@ async function generate() {
       discoveryUrl: urls[service],
       globalParameters,
       methods: walkMethods(doc, '', {}),
+      enums: collectEnums(doc),
     };
   }
 

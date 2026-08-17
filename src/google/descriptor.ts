@@ -8,8 +8,15 @@
  *
  * It records what Discovery says about how to CALL Google. It records nothing
  * about what a RESPONSE means — Discovery's `schemas` block (~90% of the raw
- * document) is deliberately DISCARDED. A descriptor that knows response shapes is
- * a descriptor that can start helpfully reshaping them.
+ * document) is discarded, with ONE exception. A descriptor that knows response
+ * shapes is a descriptor that can start helpfully reshaping them.
+ *
+ * The exception is enum VALUES, taken from schema properties and method parameters
+ * alike (`enums` below, and `ApiParam.enum`). They describe what may go into a
+ * request, not what comes back, so they do not open the reshaping door. Without
+ * them a handler that builds a request body is checked by nothing here: a handler
+ * sending `MODERATION_ON` where Google wanted `ON` passed lint, type-check and the
+ * whole suite, and was found only by calling Google.
  *
  * See ADR-103.
  */
@@ -21,6 +28,8 @@ export interface ApiParam {
   location: 'path' | 'query';
   required?: boolean;
   repeated?: boolean;
+  /** The values Google accepts, when it constrains them. Calendar declares its enums here. */
+  enum?: string[];
 }
 
 export interface ApiMediaUpload {
@@ -47,6 +56,12 @@ export interface ApiService {
   /** `fields`, `alt`, `quotaUser`… declared once at the document root, not per method. */
   globalParameters: Record<string, ApiParam>;
   methods: Record<string, ApiMethod>;
+  /**
+   * Enum values from Discovery's schema properties, keyed `SchemaName.field` —
+   * e.g. `SpaceConfig.moderation`. This is where REQUEST-BODY enums live, which method
+   * parameters cannot express.
+   */
+  enums: Record<string, string[]>;
 }
 
 export interface ApiDescriptor {

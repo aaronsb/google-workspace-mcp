@@ -157,3 +157,81 @@ operations:
         description: "Smart note resource name (from listSmartNotes)"
         required: true
         maps_to: name
+
+  # --- Meeting spaces ---
+  #
+  # A space is a standalone meeting link, not attached to a calendar event. For a link on
+  # an event, use `manage_calendar` with `meet: true` — that goes through Calendar and
+  # keeps the two together.
+  #
+  # `createSpace` is the first manage_meet operation that WRITES. Everything above reads
+  # conference records, which `meetings.space.readonly` covers on its own; creating a
+  # space needs `meetings.space.created`, which a read-only account does not hold
+  # (ADR-202). Both handlers are custom: spaces.create declares no parameters at all, so
+  # everything travels in the body, and the response nests the joinable URL.
+
+  createSpace:
+    type: action
+    description: "create a standalone Google Meet link (not attached to a calendar event)"
+    resource: spaces.create
+    params:
+      accessType:
+        type: string
+        enum: ["OPEN", "TRUSTED", "RESTRICTED"]
+        description: "Who can join without knocking. OPEN: anyone with the link. TRUSTED (default): people in your organization, plus invited guests. RESTRICTED: invited guests only."
+      moderation:
+        type: boolean
+        description: "Turn on host controls — the host admits guests and manages who can present or chat."
+
+  activeConferences:
+    type: list
+    description: "list conferences happening RIGHT NOW across your meetings"
+    resource: conferenceRecords.list
+    params:
+      maxResults:
+        type: number
+        description: "Max results per page, as default/ceiling. Differs by operation: `listConferences` 25/100, `listParticipants` 100/250, `listTranscriptEntries` 100/100. (Google's own default for transcript entries is 10; this tool raises it.)"
+        default: 25
+        max: 100
+
+  getSpace:
+    type: detail
+    description: "look up a meeting space by its meeting code or resource name"
+    resource: spaces.get
+    params:
+      space:
+        type: string
+        description: "Meeting code (the abc-mnop-xyz part of a Meet link) or a full spaces/... resource name"
+        required: true
+        maps_to: name
+
+  updateSpace:
+    type: action
+    description: "change who can join a meeting space, or turn host controls on or off"
+    resource: spaces.patch
+    params:
+      space:
+        type: string
+        description: "Meeting code (the abc-mnop-xyz part of a Meet link) or a full spaces/... resource name"
+        required: true
+        maps_to: name
+      accessType:
+        type: string
+        enum: ["OPEN", "TRUSTED", "RESTRICTED"]
+        description: "Who can join without knocking. OPEN: anyone with the link. TRUSTED (default): people in your organization, plus invited guests. RESTRICTED: invited guests only."
+      moderation:
+        type: boolean
+        description: "Turn on host controls — the host admits guests and manages who can present or chat."
+
+  # Ends the meeting for EVERYONE currently in it. There is no undo and no warning to
+  # participants; the call returns an empty body whether or not anyone was in the room.
+  endActiveConference:
+    type: action
+    description: "end the call happening in a space right now, disconnecting everyone in it"
+    resource: spaces.endActiveConference
+    params:
+      space:
+        type: string
+        description: "Meeting code (the abc-mnop-xyz part of a Meet link) or a full spaces/... resource name"
+        required: true
+        maps_to: name

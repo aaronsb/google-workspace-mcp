@@ -11,6 +11,7 @@ import { call } from '../../../google/client.js';
 const mockCall = call as MockedFunction<typeof call>;
 
 import { meetPatch } from '../../../services/meet/patch.js';
+import { loadDescriptor } from '../../../google/descriptor.js';
 import type { PatchContext } from '../../../factory/types.js';
 
 function ctx(operation: string, params: Record<string, unknown> = {}): PatchContext {
@@ -405,6 +406,260 @@ describe('Meet custom handlers', () => {
 
       // Not double-prefixed.
       expect(mockCall.mock.calls[0][2].parent).toBe('conferenceRecords/abc123');
+    });
+  });
+});
+
+/**
+ * Meeting spaces — the write half of manage_meet, and the first operations in this tool
+ * that need `meetings.space.created` rather than `meetings.space.readonly` (ADR-202).
+ *
+ * Each of these exists because Google asks for something the agent should not have to
+ * know: a resource-name format, an enum where a boolean reads better, a field mask, or
+ * an EBNF filter.
+ */
+describe('meetPatch — meeting spaces', () => {
+  const H = meetPatch.customHandlers!;
+  const ACCOUNT = 'user@test.com';
+
+  beforeEach(() => mockCall.mockReset());
+
+  const space = {
+    name: 'spaces/abc123',
+    meetingUri: 'https://meet.google.com/abc-mnop-xyz',
+    meetingCode: 'abc-mnop-xyz',
+    config: { accessType: 'TRUSTED', moderation: 'OFF' },
+  };
+
+  describe('createSpace', () => {
+    it('leads with the joinable link', async () => {
+      mockCall.mockResolvedValue(space);
+      const result = await H.createSpace({}, ACCOUNT);
+
+      expect(result.text).toContain('https://meet.google.com/abc-mnop-xyz');
+      expect(result.refs.meetingUri).toBe('https://meet.google.com/abc-mnop-xyz');
+      // The resource name is the handle every other operation takes, so it rides along.
+      expect(result.refs.space).toBe('spaces/abc123');
+    });
+
+    it('sends no config when the caller asked for nothing', async () => {
+      mockCall.mockResolvedValue(space);
+      await H.createSpace({}, ACCOUNT);
+      expect(mockCall.mock.calls[0][2]).toEqual({});
+    });
+
+    it('turns a moderation boolean into the enum Google wants — ON, not MODERATION_ON', async () => {
+      mockCall.mockResolvedValue(space);
+      await H.createSpace({ accessType: 'RESTRICTED', moderation: true }, ACCOUNT);
+
+      expect(mockCall.mock.calls[0][2]).toEqual({
+        config: { accessType: 'RESTRICTED', moderation: 'ON' },
+      });
+    });
+
+    it('sends OFF for false rather than dropping the field', async () => {
+      mockCall.mockResolvedValue(space);
+      await H.createSpace({ moderation: false }, ACCOUNT);
+      expect(mockCall.mock.calls[0][2]).toEqual({ config: { moderation: 'OFF' } });
+    });
+
+    it('sends only values Google declares for SpaceConfig', async () => {
+      // The check that would have caught the real bug. `moderation` is a boolean on this
+      // tool and an enum on the wire, so its values live in handler code where no schema
+      // sees them — MODERATION_ON passed lint, type-check and this whole suite, and was
+      // rejected by Google on the first live call.
+      //
+      // Read from the descriptor rather than restated, so a value Google retires fails
+      // here on the next regeneration instead of in production.
+      const svc = (await loadDescriptor()).services.meet;
+      const allowedModeration = svc.enums?.['SpaceConfig.moderation'] ?? [];
+      const allowedAccess = svc.enums?.['SpaceConfig.accessType'] ?? [];
+      expect(allowedModeration.length).toBeGreaterThan(0);
+
+      for (const moderation of [true, false]) {
+        mockCall.mockReset();
+        mockCall.mockResolvedValue(space);
+        await H.createSpace({ moderation, accessType: 'TRUSTED' }, ACCOUNT);
+
+        const config = (mockCall.mock.calls[0][2] as { config: Record<string, string> }).config;
+        expect(allowedModeration).toContain(config.moderation);
+        expect(allowedAccess).toContain(config.accessType);
+      }
+    });
+  });
+
+  describe('getSpace', () => {
+    it.each([
+      ['a bare meeting code', 'abc-mnop-xyz'],
+      ['a full resource name', 'spaces/abc-mnop-xyz'],
+      ['a pasted Meet link', 'https://meet.google.com/abc-mnop-xyz'],
+      ['a link with a trailing query', 'https://meet.google.com/abc-mnop-xyz?authuser=1'],
+      ['an uppercase prefix', 'Spaces/abc-mnop-xyz'],
+    ])('accepts %s', async (_label, input) => {
+      // Google takes only `spaces/{id}` and 404s the rest without saying which form it
+      // wanted. People copy whichever one is in front of them.
+      mockCall.mockResolvedValue(space);
+      await H.getSpace({ space: input }, ACCOUNT);
+      expect(mockCall.mock.calls[0][2]).toEqual({ name: 'spaces/abc-mnop-xyz' });
+    });
+
+    it('reads the moderation enum back correctly, both ways', async () => {
+      // The formatter had the SAME wrong enum as the request path, so a space created
+      // with host controls ON reported "off". Fixing the request and leaving the
+      // formatter is a defect the shared fixture could not show, because it only ever
+      // carried one value.
+      mockCall.mockResolvedValue({ ...space, config: { accessType: 'TRUSTED', moderation: 'ON' } });
+      const on = await H.getSpace({ space: 'abc-mnop-xyz' }, ACCOUNT);
+      expect(on.text).toContain('**Host controls:** on');
+
+      mockCall.mockResolvedValue({ ...space, config: { accessType: 'TRUSTED', moderation: 'OFF' } });
+      const off = await H.getSpace({ space: 'abc-mnop-xyz' }, ACCOUNT);
+      expect(off.text).toContain('**Host controls:** off');
+    });
+
+    it('does not turn a nickname URL into a confidently wrong space', async () => {
+      // https://meet.google.com/lookup/team-standup is a nickname link. Matching
+      // "letters and dashes" made it `spaces/lookup` — a real space id, belonging to
+      // nobody, which Google answers about instead of erroring on the input.
+      mockCall.mockResolvedValue(space);
+      await H.getSpace({ space: 'https://meet.google.com/lookup/team-standup' }, ACCOUNT);
+      expect(mockCall.mock.calls[0][2]).not.toEqual({ name: 'spaces/lookup' });
+    });
+
+    it('reports a call in progress when there is one', async () => {
+      mockCall.mockResolvedValue({ ...space, activeConference: { conferenceRecord: 'conferenceRecords/xyz' } });
+      const result = await H.getSpace({ space: 'abc-mnop-xyz' }, ACCOUNT);
+
+      expect(result.text).toContain('In progress now');
+      expect(result.refs.activeConference).toBe('conferenceRecords/xyz');
+    });
+
+    it('says plainly when nothing is running', async () => {
+      mockCall.mockResolvedValue(space);
+      const result = await H.getSpace({ space: 'abc-mnop-xyz' }, ACCOUNT);
+
+      expect(result.text).toContain('**In progress now:** no');
+      expect(result.refs.activeConference).toBeNull();
+    });
+  });
+
+  describe('updateSpace', () => {
+    it('builds the updateMask from what was actually passed', async () => {
+      // Omit updateMask and Google returns 200 having applied nothing — the silent
+      // success this codebase keeps running into.
+      // spaces.patch needs the canonical id; a meeting code answers 403 "Permission
+      // denied on resource Space", which reads like auth and is not. So: resolve, patch.
+      mockCall
+        .mockResolvedValueOnce({ ...space, name: 'spaces/CANON' })
+        .mockResolvedValueOnce(space);
+      await H.updateSpace({ space: 'abc-mnop-xyz', accessType: 'OPEN' }, ACCOUNT);
+
+      expect(mockCall.mock.calls[0][1]).toBe('spaces.get');
+      expect(mockCall.mock.calls[1][2]).toEqual({
+        name: 'spaces/CANON',
+        updateMask: 'config.accessType',
+        config: { accessType: 'OPEN' },
+      });
+    });
+
+    it('masks both fields when both change', async () => {
+      mockCall.mockResolvedValue(space);
+      await H.updateSpace({ space: 'abc-mnop-xyz', accessType: 'OPEN', moderation: true }, ACCOUNT);
+
+      expect((mockCall.mock.calls[1][2] as Record<string, unknown>).updateMask)
+        .toBe('config.accessType,config.moderation');
+    });
+
+    it('refuses an update with nothing to change, without paying for a lookup first', async () => {
+      await expect(H.updateSpace({ space: 'abc-mnop-xyz' }, ACCOUNT))
+        .rejects.toThrow(/at least one of/);
+      expect(mockCall).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('endActiveConference', () => {
+    it('resolves the canonical name first, then ends the call', async () => {
+      mockCall
+        .mockResolvedValueOnce({ ...space, name: 'spaces/CANON' })  // spaces.get
+        .mockResolvedValueOnce({});                                  // endActiveConference
+      const result = await H.endActiveConference({ space: 'abc-mnop-xyz' }, ACCOUNT);
+
+      expect(mockCall.mock.calls[0][1]).toBe('spaces.get');
+      expect(mockCall.mock.calls[1][1]).toBe('spaces.endActiveConference');
+      expect(mockCall.mock.calls[1][2]).toEqual({ name: 'spaces/CANON' });
+      expect(result.refs.wasActive).toBe(true);
+      expect(result.text).toContain('Everyone who was in it has been disconnected');
+    });
+
+    it('answers plainly when no call is running instead of surfacing a 400', async () => {
+      // Google refuses with FAILED_PRECONDITION when nothing is in progress. The state
+      // the caller asked for already holds, so a raw 400 would invite a retry loop
+      // against a condition that will never change.
+      const refusal = Object.assign(new Error('There is no active conference for the given space.'),
+        { reason: 'FAILED_PRECONDITION' });
+      mockCall
+        .mockResolvedValueOnce({ ...space, name: 'spaces/CANON' })
+        .mockRejectedValueOnce(refusal);
+
+      const result = await H.endActiveConference({ space: 'abc-mnop-xyz' }, ACCOUNT);
+
+      expect(result.refs.wasActive).toBe(false);
+      expect(result.refs.ended).toBe(false);
+      expect(result.text).toContain('nothing to end');
+    });
+
+    it('still throws on any other failure', async () => {
+      const denied = Object.assign(new Error('Permission denied'), { reason: 'PERMISSION_DENIED' });
+      mockCall
+        .mockResolvedValueOnce({ ...space, name: 'spaces/CANON' })
+        .mockRejectedValueOnce(denied);
+
+      await expect(H.endActiveConference({ space: 'abc-mnop-xyz' }, ACCOUNT))
+        .rejects.toThrow('Permission denied');
+    });
+  });
+
+  describe('activeConferences', () => {
+    it('asks for open-ended records rather than making the agent write EBNF', async () => {
+      mockCall.mockResolvedValue({ conferenceRecords: [] });
+      await H.activeConferences({}, ACCOUNT);
+
+      expect(mockCall.mock.calls[0][2]).toEqual({ filter: 'end_time IS NULL', pageSize: 25 });
+    });
+
+    it('honours the ceiling the manifest advertises', async () => {
+      // Custom handlers are dispatched before buildResourceParams, so the manifest's
+      // default/max never reach here on their own. Unclamped, maxResults: 5000 went to
+      // Google verbatim and -1 became a 400.
+      mockCall.mockResolvedValue({ conferenceRecords: [] });
+      await H.activeConferences({ maxResults: 5000 }, ACCOUNT);
+      expect((mockCall.mock.calls[0][2] as { pageSize: number }).pageSize).toBe(100);
+
+      mockCall.mockReset();
+      mockCall.mockResolvedValue({ conferenceRecords: [] });
+      await H.activeConferences({ maxResults: -1 }, ACCOUNT);
+      expect((mockCall.mock.calls[0][2] as { pageSize: number }).pageSize).toBe(25);
+    });
+
+    it('says nothing is running rather than returning an empty list', async () => {
+      mockCall.mockResolvedValue({ conferenceRecords: [] });
+      const result = await H.activeConferences({}, ACCOUNT);
+
+      expect(result.text).toContain('No conferences are in progress');
+      expect(result.refs.count).toBe(0);
+    });
+
+    it('lists what is live with its meeting code', async () => {
+      mockCall.mockResolvedValue({
+        conferenceRecords: [
+          { name: 'conferenceRecords/one', space: { name: 'spaces/abc-mnop-xyz' }, startTime: '2026-08-17T15:00:00Z' },
+        ],
+      });
+      const result = await H.activeConferences({}, ACCOUNT);
+
+      expect(result.text).toContain('In progress now (1)');
+      expect(result.text).toContain('conferenceRecords/one');
+      expect(result.refs.count).toBe(1);
     });
   });
 });

@@ -30,6 +30,15 @@ const handCodedSchemas: ToolSchema[] = [
         category: { type: 'string', enum: ['personal', 'work', 'other'], description: 'For authenticate (default: personal)' },
         description: { type: 'string', description: 'For authenticate — optional label' },
         services: { type: 'string', description: 'For scopes — comma-separated service names (e.g. gmail,drive,calendar,sheets)' },
+        access: {
+          type: 'string',
+          enum: ['read', 'readwrite'],
+          description: "How much this account may do. 'readwrite' (default) is full access. 'read' asks Google for read-only permissions instead, so the account can look things up but cannot send, edit or delete. Some services have no read-only option — you will be told which before the browser opens, and nothing is authorized until you confirm.",
+        },
+        confirmWriteAccess: {
+          type: 'boolean',
+          description: "Set true to go ahead when 'read' was asked for but some services can only be granted full access. Only needed after a first call has told you which ones.",
+        },
       },
       required: ['operation'],
       additionalProperties: false,
