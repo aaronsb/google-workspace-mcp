@@ -135,22 +135,27 @@ scopes, no manifest info, unknown method. A safety check that blocks on its own 
 an outage, and each of these reaches Google, which refuses it independently if it should
 be refused.
 
-**The policy covers factory-generated handlers only, and that is not everything.** Code
-review found `manage_scratchpad` writing to Google outside this layer entirely: its send
-and sync adapters call `tasks.insert`, `events.insert`, `documents.create`,
+**Generated handlers are not everything, and the gap was real.** Code review found
+`manage_scratchpad` writing to Google outside this layer entirely: its send and sync
+adapters call `tasks.insert`, `events.insert`, `documents.create`,
 `documents.batchUpdate`, `spreadsheets.values.update` and `sendMail` directly, because the
-tool is hand-registered rather than generated. So a read-only account is refused
-`manage_docs write` with the sentence above and then writes the same content to the same
-document through `manage_scratchpad send` — getting the raw 403 this ADR exists to
-replace. The token is genuinely narrow, so Google still refuses; what leaks is the
-explanation.
+tool is hand-registered rather than generated. A read-only account refused `manage_docs
+write` could write the same content to the same document through `manage_scratchpad send`.
+The token is genuinely narrow, so Google still refused; what leaked was the explanation.
 
-The sharper half of the same gap does not have Google as a backstop: under
-`GWS_SAFETY_POLICY=draft-only-email`, an ordinary read/write account can still send mail
-through `manage_scratchpad`, and Google accepts it, because the token is legitimately
-broad. That bypass predates this ADR and is not created by it — but this ADR is what makes
-the layer load-bearing by default, so it is recorded here rather than left implicit.
-Tracked as its own issue.
+The sharper half had no Google backstop: under `GWS_SAFETY_POLICY=draft-only-email` an
+ordinary read/write account could still send mail through `manage_scratchpad`, and Google
+accepted it, because the token is legitimately broad. That bypass predated this ADR — but
+this ADR is what made the layer load-bearing by default, which is what turned a latent
+gap into one worth closing.
+
+Closed in #171. The eight write paths now consult `evaluatePolicies` through one table
+mapping each send target and sync binding to the Google method it really calls, checked at
+the single dispatch point. Two consequences worth stating: **every hand-registered tool
+that writes to Google must do this explicitly**, since nothing in the layer can enforce it
+from the outside — that is precisely how scratchpad went uncovered; and the sync
+write-backs check *before* applying the local mutation, so a refusal cannot leave the
+buffer holding a change the document will never receive.
 
 **Access is per service, and services overlap.** Docs and Sheets write methods list
 `drive` among the scopes Google accepts — `documents.batchUpdate` takes
