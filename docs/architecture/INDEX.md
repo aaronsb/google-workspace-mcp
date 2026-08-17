@@ -25,6 +25,7 @@ _Architecture, tool design, executor patterns_
 | [ADR-102](./core/ADR-102-raise-the-node-floor-to-22-12-and-unpin-sanitize-html.md) | Raise the Node floor to 22.12 and unpin sanitize-html | Accepted |
 | [ADR-103](./core/ADR-103-generate-a-google-api-descriptor-retire-the-gws-facade.md) | Generate a Google API descriptor from Discovery; retire the gws facade | Accepted |
 | [ADR-104](./core/ADR-104-exit-when-the-mcp-client-goes-away.md) | Exit when the MCP client goes away | Draft |
+| [ADR-105](./core/ADR-105-publish-to-npm-from-ci-with-trusted-publishing-not-a-token-or-a-security-key.md) | Publish to npm from CI with trusted publishing, not a token or a security key | Accepted |
 
 ## Authentication
 _OAuth, credential management, multi-account_
