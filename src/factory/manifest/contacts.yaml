@@ -79,6 +79,38 @@ operations:
     defaults:
       personFields: names,nicknames,emailAddresses,phoneNumbers,addresses,organizations,birthdays,biographies,urls,relations,memberships,photos,metadata
 
+  # The Person body is built by the patch, not declared here. Every field the People API
+  # wants is a parallel array of objects — `names: [{givenName, familyName}]` — and any
+  # param this manifest declares that Google does not recognise as a query parameter goes
+  # into the request body VERBATIM. Declared flat, `name: "Ada Lovelace"` would be sent as
+  # a top-level `name` field, which Google ignores, producing a contact with no name and
+  # no error. So these are declared for the SCHEMA and converted before the call.
+  create:
+    type: action
+    description: "create a new contact"
+    resource: people.createContact
+    params:
+      name:
+        type: string
+        description: "Full name, e.g. `Ada Lovelace`. Split into given and family name on the way in; a single word becomes the given name."
+      contactEmail:
+        type: string
+        description: "The contact's email address. (`email` is the account making the call, not the person being saved.)"
+      phone:
+        type: string
+        description: "Phone number, in whatever form you have it — Google normalizes it"
+      company:
+        type: string
+        description: "Organization name"
+      jobTitle:
+        type: string
+        description: "Job title within the organization"
+      notes:
+        type: string
+        description: "Free-text note stored on the contact"
+    defaults:
+      personFields: names,emailAddresses,phoneNumbers,organizations,metadata
+
   # --- Other contacts: addresses seen in mail, never saved ---
 
   listOther:

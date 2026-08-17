@@ -59,23 +59,26 @@ give.
 
 ## Decision
 
-`manage_contacts` exposes **seven read operations and five parameters**. The masks, the
-source types, the sort constants and `people/me` do not appear in the schema at all.
+`manage_contacts` exposes **seven read operations and one write**, over flat parameters.
+The masks, the source types, the sort constants, `people/me` and the Person body shape do
+not appear in the schema at all.
 
 ```
 list             people.connections.list        your saved contacts
 search           people.searchContacts
 get              people.get                     one person in full
+create           people.createContact           save a new contact
 listOther        otherContacts.list             addresses seen in mail, never saved
 searchOther      otherContacts.search
 listDirectory    people.listDirectoryPeople     the organization directory
 searchDirectory  people.searchDirectoryPeople
 ```
 
-The agent supplies `operation`, `email`, and at most `query`, `contactId`, `maxResults`,
-`pageToken`, `sortOrder`. Everything else the API demands is supplied by the manifest's
-`defaults` — which `buildResourceParams` merges before the call and which never enter the
-generated schema.
+The agent supplies `operation`, `email`, and flat scalars: `query`, `contactId`,
+`maxResults`, `pageToken`, `sortOrder` for reads, and `name`, `contactEmail`, `phone`,
+`company`, `jobTitle`, `notes` for `create`. Everything else the API demands is supplied
+by the manifest's `defaults` or built in `beforeExecute`, and never enters the generated
+schema.
 
 This is the factory principle applied rather than bent: *simple for the agent, the tool
 absorbs the routing*. Four response envelopes (`connections`, `otherContacts`, `people`,
@@ -90,10 +93,17 @@ once per account per process, and a warmup that fails is swallowed rather than r
 if it failed for a reason that matters, the real search is about to fail the same way and
 say so properly.
 
-### Read-only, and scoped in three parts
+The write travels the same road in reverse. `create` advertises flat scalars and
+`beforeExecute` assembles the Person — because anything sent that Google does not
+recognise as a query parameter lands in the request body **verbatim**, so a flat `name`
+is accepted, ignored, and returns 200 with a nameless contact. That failure contains no
+error anywhere. The same hook refuses a `create` with every field empty, which Google
+would otherwise accept, storing a record whose only content is its id.
 
-The tool exposes no writes today. Its scopes are three, because Google gates each
-collection separately, and only the first has a write form:
+### Scoped in three parts
+
+Its scopes are three, because Google gates each collection separately, and only the first
+has a write form:
 
 | collection | read/write | read |
 |---|---|---|
@@ -101,9 +111,9 @@ collection separately, and only the first has a write form:
 | other contacts | `contacts.other.readonly` | same |
 | directory | `directory.readonly` | same |
 
-So a contacts account authorized `access: 'read'` under ADR-202 can reach every operation
-the tool has. That is the intended shape: the narrower token costs nothing today, and is
-already in place when writes arrive.
+So a contacts account authorized `access: 'read'` under ADR-202 reaches all seven reads
+and is refused `create` by Google. That is the mapping doing its job, and it is why this
+tool was sequenced behind ADR-202 rather than in front of it.
 
 ### The enum guard moves rather than lapses
 
@@ -141,9 +151,20 @@ declares. Both halves were verified by breaking them.
 
 ### Neutral
 
-- No write operations. `createContact`, `updateContact` and `deleteContact` are a separate
-  decision, and each needs the parallel-array body built correctly — a harder problem than
-  reading one, and one worth doing against a live account rather than from the reference.
+- **`update` and `delete` are deliberately absent**, and each is a separate decision with
+  its own hazard rather than a missing chore.
+
+  `people.updateContact` requires `updatePersonFields`, and that field list **replaces**
+  every entry in each field it names. A contact holding four email addresses, updated
+  with one, keeps one — the exact shape of #161, where `calendar.attendees` silently
+  replaced a whole list. It also requires the current `etag`, so it is a read-modify-write
+  and not a patch.
+
+  `deleteContact` is not covered by the `no-delete` safety policy, which is keyed by
+  service and does not list `people`. Whether contact deletion is permanent or lands in a
+  recoverable trash is not something to assert from the reference — and the answer decides
+  whether it belongs in that policy. Adding the operation without settling that would be
+  shipping a data-destruction path on an assumption.
 - `people.get` needs `profile`, not merely `userinfo.email` — measured, on an account that
   held the latter and was refused. Nothing in this tool depends on that, but it rules out
   probing the Person shape without full consent.

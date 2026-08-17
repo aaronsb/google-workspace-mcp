@@ -133,6 +133,84 @@ describe('request shaping', () => {
  * already shipped once.
  */
 /**
+ * The write half of the same shape problem the formatters solve for reads.
+ *
+ * Anything sent that Google does not recognise as a query parameter lands in the request
+ * BODY verbatim, so a flat `name` is accepted, ignored, and returns 200 with a nameless
+ * contact. There is no error anywhere in that failure — only a wrong contact.
+ */
+describe('create builds the Person body', () => {
+  it('sends names as a parallel array with the parts split out', async () => {
+    mockCall.mockResolvedValue({ resourceName: 'people/c1' });
+    await handler({ operation: 'create', email: 'u@t.com', name: 'Ada Lovelace' });
+
+    expect(sent().names).toEqual([{ givenName: 'Ada', familyName: 'Lovelace' }]);
+    expect(sent().name).toBeUndefined();   // the flat param must not survive
+  });
+
+  it('treats a single word as a given name rather than inventing a surname', async () => {
+    mockCall.mockResolvedValue({ resourceName: 'people/c1' });
+    await handler({ operation: 'create', email: 'u@t.com', name: 'Prince' });
+    expect(sent().names).toEqual([{ givenName: 'Prince' }]);
+  });
+
+  it('keeps a multi-part family name whole', async () => {
+    mockCall.mockResolvedValue({ resourceName: 'people/c1' });
+    await handler({ operation: 'create', email: 'u@t.com', name: 'Ada van der Meer' });
+    expect(sent().names).toEqual([{ givenName: 'Ada', familyName: 'van der Meer' }]);
+  });
+
+  it('does not confuse the contact`s address with the account making the call', async () => {
+    mockCall.mockResolvedValue({ resourceName: 'people/c1' });
+    await handler({ operation: 'create', email: 'caller@t.com', contactEmail: 'saved@example.com' });
+
+    expect(sent().emailAddresses).toEqual([{ value: 'saved@example.com' }]);
+    expect(JSON.stringify(sent())).not.toContain('caller@t.com');
+  });
+
+  it('folds company and title into one organization entry', async () => {
+    mockCall.mockResolvedValue({ resourceName: 'people/c1' });
+    await handler({ operation: 'create', email: 'u@t.com', company: 'Acme', jobTitle: 'Field Engineer' });
+    expect(sent().organizations).toEqual([{ name: 'Acme', title: 'Field Engineer' }]);
+  });
+
+  it('sends notes as a biography with its content type', async () => {
+    mockCall.mockResolvedValue({ resourceName: 'people/c1' });
+    await handler({ operation: 'create', email: 'u@t.com', notes: 'Met at the offsite.' });
+    expect(sent().biographies).toEqual([{ value: 'Met at the offsite.', contentType: 'TEXT_PLAIN' }]);
+  });
+
+  it('refuses to create a contact with nothing in it', async () => {
+    // Google accepts an empty Person and answers 200 with a record carrying nothing but
+    // an id. Refusing here is the only way the caller learns.
+    mockCall.mockResolvedValue({});
+    await expect(handler({ operation: 'create', email: 'u@t.com' }))
+      .rejects.toThrow('needs at least one of');
+    expect(mockCall).not.toHaveBeenCalled();
+  });
+
+  it('ignores whitespace-only values rather than storing them', async () => {
+    mockCall.mockResolvedValue({});
+    await expect(handler({ operation: 'create', email: 'u@t.com', name: '   ' }))
+      .rejects.toThrow('needs at least one of');
+  });
+
+  it('reports the new id, which is the only handle on what it just made', async () => {
+    mockCall.mockResolvedValue({
+      resourceName: 'people/c777',
+      names: [{ displayName: 'Ada Lovelace' }],
+      emailAddresses: [{ value: 'ada@example.com' }],
+    });
+    const out = await handler({ operation: 'create', email: 'u@t.com', name: 'Ada Lovelace' });
+
+    expect(out.text).toContain('Contact created');
+    expect(out.text).toContain('people/c777');
+    expect(out.text).toContain('ada@example.com');
+    expect(out.refs?.contactId).toBe('people/c777');
+  });
+});
+
+/**
  * Google states the requirement on both search methods in the Discovery document this
  * server generates from: "Before searching, clients should send a warmup request with an
  * empty query to update the cache." Skipping it returns an empty result set, which reads

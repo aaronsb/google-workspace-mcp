@@ -60,8 +60,9 @@ export const SERVICE_SCOPE_MAP: Record<string, string[]> = {
  *   so read access there allows less than full access but slightly more than reading.
  * - contacts — only the first of its three scopes has a write form. `contacts.readonly`
  *   replaces `contacts`; `contacts.other.readonly` and `directory.readonly` are already
- *   read-only and so are identical in both maps. manage_contacts exposes no writes today,
- *   so a read-only contacts account can reach every operation the tool has.
+ *   read-only and so are identical in both maps. A read-only contacts account reaches
+ *   every read manage_contacts has and is refused `create` by Google, which is the
+ *   mapping working.
  */
 export const SERVICE_SCOPE_MAP_READONLY: Record<string, string[]> = {
   gmail:    ['https://www.googleapis.com/auth/gmail.readonly'],

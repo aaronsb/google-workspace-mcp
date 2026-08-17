@@ -250,6 +250,49 @@ function mapSortOrder(params: Record<string, unknown>): Record<string, unknown> 
 }
 
 /**
+ * Turn the flat parameters the schema advertises into the Person body Google wants.
+ *
+ * This is the write half of the same shape problem the formatters solve for reads. A
+ * contact's name is `names: [{ givenName, familyName }]`, and anything this server sends
+ * that Google does not recognise as a query parameter lands in the request body verbatim
+ * — so a flat `name` is accepted, ignored, and returns 200 with a nameless contact. The
+ * failure has no error in it anywhere.
+ */
+function personBody(params: Record<string, unknown>): Record<string, unknown> {
+  const { name, contactEmail, phone, company, jobTitle, notes, ...rest } = params;
+  const person: Record<string, unknown> = {};
+
+  if (typeof name === 'string' && name.trim()) {
+    // Google derives displayName itself; it needs the parts. One word is a given name —
+    // guessing a family name from it would invent data.
+    const parts = name.trim().split(/\s+/);
+    person.names = [parts.length === 1
+      ? { givenName: parts[0] }
+      : { givenName: parts[0], familyName: parts.slice(1).join(' ') }];
+  }
+  if (typeof contactEmail === 'string' && contactEmail.trim()) person.emailAddresses = [{ value: contactEmail.trim() }];
+  if (typeof phone === 'string' && phone.trim()) person.phoneNumbers = [{ value: phone.trim() }];
+  if ((typeof company === 'string' && company.trim()) || (typeof jobTitle === 'string' && jobTitle.trim())) {
+    person.organizations = [{
+      ...(typeof company === 'string' && company.trim() ? { name: company.trim() } : {}),
+      ...(typeof jobTitle === 'string' && jobTitle.trim() ? { title: jobTitle.trim() } : {}),
+    }];
+  }
+  if (typeof notes === 'string' && notes.trim()) person.biographies = [{ value: notes.trim(), contentType: 'TEXT_PLAIN' }];
+
+  // An empty Person is a valid request and a useless contact: Google answers 200 with a
+  // record carrying nothing but an id. Refusing is the only way the caller finds out.
+  if (Object.keys(person).length === 0) {
+    throw new Error(
+      'create needs at least one of: name, contactEmail, phone, company, jobTitle, notes. ' +
+      'Google would accept an empty contact and return one with no name and no address.',
+    );
+  }
+
+  return { ...rest, ...person };
+}
+
+/**
  * Both search operations require a WARMUP call before they return anything.
  *
  * This is not folklore — Google says it in the Discovery document this server generates
@@ -285,13 +328,32 @@ export function resetWarmupCache(): void {
   warmed.clear();
 }
 
+/**
+ * Confirm a write by saying what was written and where it lives.
+ *
+ * The new id is the part that matters: it is the only handle on the contact just made,
+ * and `get`, and any future update, need it. Google returns it and the generic action
+ * formatter would drop it.
+ */
+function formatContactAction(data: unknown, ctx: PatchContext): HandlerResponse {
+  const person = asRec(data);
+  const id = personId(person);
+  const detail = formatPersonDetail(person);
+  return {
+    text: `Contact ${ctx.operation === 'create' ? 'created' : 'saved'}.\n\n${detail.text}`,
+    refs: { id, contactId: id },
+  };
+}
+
 export const contactsPatch: ServicePatch = {
   beforeExecute: {
     get: normalizeContactId,
     list: mapSortOrder,
+    create: personBody,
     search: warmupFirst('people.searchContacts'),
     searchOther: warmupFirst('otherContacts.search'),
   },
   formatList: formatPersonList,
   formatDetail: formatPersonDetail,
+  formatAction: formatContactAction,
 };
