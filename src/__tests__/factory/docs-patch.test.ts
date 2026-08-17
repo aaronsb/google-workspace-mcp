@@ -526,6 +526,38 @@ describe('docsPatch.get — scoping a read to one tab (#158)', () => {
       .rejects.toThrow(/No tab with id "nope".*t1, t2, t2a, t3/s);
   });
 
+  it('says a scoped tab was UNREAD rather than calling the document empty', async () => {
+    // The scoped path bypasses renderTab, so it lost the read/empty distinction the rest
+    // of the file exists to keep. "the document is empty" for a tab we could not read is
+    // the exact substitution this fix is a correction for.
+    mockCall.mockResolvedValue({
+      documentId: 'doc-12',
+      title: 'Unreadable tab',
+      tabs: [
+        { tabProperties: { tabId: 'a', title: 'Fine' }, documentTab: { body: { content: [para('text')] } } },
+        { tabProperties: { tabId: 'b', title: 'Unread' } },
+      ],
+    });
+
+    const result = await docsPatch.customHandlers!.get(
+      { documentId: 'doc-12', tabId: 'b' }, ACCOUNT);
+
+    expect(result.text).not.toContain('the document is empty');
+    expect(result.text).toContain('not the same as empty');
+    expect(result.text).toContain('1 tab(s) returned no content');
+  });
+
+  it('names the child tabs a scoped read of a parent leaves out', async () => {
+    // A child tab is its own addressable tab, so scoping to the parent omits it. The
+    // "1 of N" line exists to say what was left out; the child ids finish that thought.
+    mockCall.mockResolvedValue(tabbedDoc());
+
+    const result = await docsPatch.customHandlers!.get(
+      { documentId: 'doc-2', tabId: 't2' }, ACCOUNT);
+
+    expect(result.text).toContain('1 child tab(s), read separately: `t2a`');
+  });
+
   it('does not serve the legacy body for an empty scoped tab', async () => {
     // `body` is the FIRST tab. Serving it because the requested tab is empty answers a
     // question about tab two with the text of tab one.
@@ -622,6 +654,22 @@ describe('docsPatch.get — the size cap announces itself (#158)', () => {
     expect(result.text).toContain('Showing the tab index instead of the text');
     // And the whole response stays small enough to survive the trip.
     expect(result.text.length).toBeLessThan(4_000);
+  });
+
+  it('does not cap a document holding a tab it cannot address', async () => {
+    // Capping strands such a tab: the whole-document read is withdrawn and the per-tab
+    // read needs an id it does not have. That is a truncation wearing an index's
+    // clothes, which is what ADR-306 rejects the truncation alternative for.
+    const doc = bigDoc(2, 39_972) as { tabs: Array<{ tabProperties: Record<string, unknown> }> };
+    delete doc.tabs[1].tabProperties.tabId;
+    mockCall.mockResolvedValue(doc);
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-big' }, ACCOUNT);
+
+    expect(result.refs.capped).toBeUndefined();
+    expect(result.text).toContain('some tabs have no id');
+    // The text is still there — that is the whole reason for holding the cap back.
+    expect(result.text).toContain('x'.repeat(1_000));
   });
 
   it('leaves an ordinary multi-tab document whole', async () => {

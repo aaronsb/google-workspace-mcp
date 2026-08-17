@@ -263,15 +263,29 @@ export const docsPatch: ServicePatch = {
           ? (tabs[0].text ?? '')
           : tidy(extractText(doc.body));
 
+      // A scoped read of a tab Google did not return must say THAT, not "empty". Falling
+      // through to the empty-document string below would print "the document is empty"
+      // for a tab we simply could not read — the substitution this file exists to stop,
+      // reached by the one path that bypasses renderTab.
+      const unreadScope = tabs.length === 1 && tabs[0].text === null;
+
       const fullBody = multiTab
         ? tabs.map(renderTab).join('\n').trimEnd()
-        : singleText;
+        : unreadScope
+          ? '_(no content returned for this tab — it was not read, which is not the same as empty)_'
+          : singleText;
 
       // Over the cap, a multi-tab read becomes an index of tabs to read individually.
       // A single tab has nothing narrower to offer, so it comes back whole however large
       // it is: capping there would remove text with no way to ask for it again.
+      //
+      // A tab Google gave no id is reachable ONLY through the whole-document read, so
+      // capping a document that contains one would put its text beyond every call —
+      // truncation wearing an index's clothes. Leave those documents whole.
       const tokens = estimateTokens(fullBody);
-      const capped = multiTab && tokens > MAX_DOC_TOKENS;
+      const capped = multiTab
+        && tokens > MAX_DOC_TOKENS
+        && tabs.every((t) => t.id !== null);
       const body = capped ? renderTabIndex(tabs, tokens) : fullBody;
 
       // Both numbers describe DOCUMENT TEXT, never the scaffolding rendered around it.
@@ -315,8 +329,25 @@ export const docsPatch: ServicePatch = {
         // decide what to do with the rest of its context, not a warning of missing text.
         caveats.push(`This tab is ~${tokens.toLocaleString()} tokens and is shown in full — there is no narrower read available.`);
       }
+      if (!capped && multiTab && tokens > MAX_DOC_TOKENS) {
+        // Big enough to cap, held back because at least one tab has no id and a tab index
+        // would strand it. Say why, or the reader sees only an inconsistent threshold.
+        caveats.push(`This document is ~${tokens.toLocaleString()} tokens and is shown in full: some tabs have no id, so a tab index would leave their text unreachable.`);
+      }
 
       const scoped = wantTabId ? tabs[0] : undefined;
+
+      // A child tab is its own addressable tab, so scoping to a parent deliberately omits
+      // it. The `1 of N` line exists to say what was left out; without this the reader has
+      // no way to learn that the tab they asked for has text hanging beneath it.
+      if (scoped) {
+        const children = allTabs.filter((t) => t.depth === scoped.depth + 1
+          && allTabs.indexOf(t) > allTabs.indexOf(scoped)
+          && allTabs.slice(allTabs.indexOf(scoped) + 1, allTabs.indexOf(t)).every((b) => b.depth > scoped.depth));
+        if (children.length > 0) {
+          caveats.push(`This tab has ${children.length} child tab(s), read separately: ${children.map((c) => (c.id ? `\`${c.id}\`` : c.title)).join(', ')}.`);
+        }
+      }
 
       return {
         text:
@@ -456,8 +487,17 @@ export const docsPatch: ServicePatch = {
       const replaceReply = replies[0]?.replaceAllText as Record<string, unknown> | undefined;
       const occurrences = replaceReply?.occurrencesChanged || 0;
 
+      // "Text replaced … Occurrences: 0" reads as success for a replacement that changed
+      // nothing. A `tabId` gives that outcome a second cause — right string, wrong tab —
+      // and the two are indistinguishable unless the response leads with the miss.
+      const scope = tabId ? `tab \`${tabId}\`` : 'all tabs';
+      const headline = occurrences === 0
+        ? `Nothing matched "${findText}" in ${scope} — the document is unchanged.` +
+          (tabId ? '\n\n> Scoped to one tab. If the text lives in another, re-run with that `tabId` or omit it to span the document.' : '')
+        : 'Text replaced.';
+
       return {
-        text: `Text replaced.\n\n**Document:** ${documentId}\n**Scope:** ${tabId ? `tab \`${tabId}\`` : 'all tabs'}\n**Found:** "${findText}"\n**Replaced with:** "${replaceWith}"\n**Occurrences:** ${occurrences}`,
+        text: `${headline}\n\n**Document:** ${documentId}\n**Scope:** ${scope}\n**Found:** "${findText}"\n**Replaced with:** "${replaceWith}"\n**Occurrences:** ${occurrences}`,
         refs: { documentId, occurrences, ...(tabId ? { tabId } : {}) },
       };
     },

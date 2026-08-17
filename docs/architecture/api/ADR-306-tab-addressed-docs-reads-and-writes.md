@@ -33,7 +33,11 @@ This is the recurring defect shape ADR-103 predicted for a hand-built API surfac
 - `get` returns a `tabIndex` in `refs` — `{tabId, title, depth, characters}` per tab, nested tabs included. This replaces the flat `tabTitles` array, which carried half the information and none of the addressing.
 - `get` takes an optional `tabId` that scopes the read to one tab. A scoped read takes **no** fallback to the legacy `body`: serving the first tab because the requested tab is empty answers a question about one tab with the text of another.
 - An unmatched `tabId` throws and lists the real ones. Falling back to the whole document would return text the caller did not ask for while reporting success.
-- Over ~25,000 estimated tokens, a multi-tab read returns the **tab index** instead of the text, naming the id that fetches each tab. This is a cap with an escape hatch, not a truncation: no text becomes unreachable, it becomes reachable one tab at a time. A single tab is never capped — there is nothing narrower to offer, and removing text with no way to ask for it again is #152, not a fix for it.
+- Over 12,000 estimated tokens, a multi-tab read returns the **tab index** instead of the text, naming the id that fetches each tab. This is a cap with an escape hatch, not a truncation: no text becomes unreachable, it becomes reachable one tab at a time.
+
+  The threshold is set by the MCP client's tool-result ceiling, not by taste. Measured live: a real 2-tab archive of 79,944 characters — 19,986 tokens by our estimate — passed a 25,000 threshold untouched, and the client rejected the response and handed the agent a file path, so the tab index never rendered and the cap protected nothing. The same measurement shows `estimateTokens` runs optimistic on dense prose (~3.2 real chars per token against the assumed 4), so the threshold sits well under the ceiling rather than at it. 12,000 matches `MAX_BODY_TOKENS`.
+
+  Two cases are never capped, because in both the index would strand text rather than route to it: a **single tab**, which has nothing narrower to offer; and a document containing a tab with **no `tabId`**, which the per-tab read cannot reach. Removing text with no way to ask for it again is #152, not a fix for it.
 
 ### Write side
 

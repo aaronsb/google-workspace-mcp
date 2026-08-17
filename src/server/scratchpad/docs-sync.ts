@@ -122,6 +122,16 @@ function unsupportedPath(path: string): string {
  * and only differs in the prefix.
  */
 interface PathSplit {
+  /**
+   * TRUE only for the tabless `$.body.…` shape, where there is no tab to name and a
+   * request carrying no tabId is correct.
+   *
+   * Stated rather than inferred from `tabPath.length === 0`: `$.documentTab.body.…`
+   * also yields an empty tabPath, and reading that as "tabless" would emit an untagged
+   * write. It is unreachable today only because `navigate` fails a few lines later —
+   * an accident, not the guard. This flag makes the guard the one we wrote.
+   */
+  tabless: boolean;
   /** Path to the tab OBJECT (`tabs[T]`, `tabs[T].childTabs[C]`, …). Empty when the buffer carries no tabs. */
   tabPath: (string | number)[];
   /** Path to the `body` the content hangs from, `body` included — just `['body']` for a tabless buffer. */
@@ -137,7 +147,7 @@ function splitTabPrefix(segments: (string | number)[]): PathSplit | null {
   // No prefix: the tabless response shape. Everything below still works; the
   // requests simply carry no tabId, which is what Google's pre-tabs behaviour was.
   if (bodyIdx === 0) {
-    return { tabPath: [], bodyPrefix: ['body'], tail: segments };
+    return { tabless: true, tabPath: [], bodyPrefix: ['body'], tail: segments };
   }
 
   // With a prefix, `body` must hang off a `documentTab` — anything else is a path
@@ -145,6 +155,7 @@ function splitTabPrefix(segments: (string | number)[]): PathSplit | null {
   if (segments[bodyIdx - 1] !== 'documentTab') return null;
 
   return {
+    tabless: false,
     tabPath: segments.slice(0, bodyIdx - 1),
     bodyPrefix: segments.slice(0, bodyIdx + 1),
     tail: segments.slice(bodyIdx),
@@ -311,7 +322,7 @@ function resolveTabId(
   split: PathSplit,
 ): { on: { tabId?: string }; label: string } | DocsSyncRejection {
   // A tabless buffer addresses the only body there is; no tabId to carry.
-  if (split.tabPath.length === 0) return { on: {}, label: '' };
+  if (split.tabless) return { on: {}, label: '' };
 
   const tab = navigate(doc, split.tabPath);
   if (!tab || typeof tab !== 'object') {

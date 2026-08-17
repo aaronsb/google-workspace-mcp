@@ -393,6 +393,21 @@ describe('translateMutation — tabbed buffers (#155)', () => {
     if (isRejection(result)) expect(result.reason).toMatch(/not supported/);
   });
 
+  it('refuses a legacy $.body path against a TABBED buffer', () => {
+    // The bare shape is still translated for a tabless response. Against a tabbed buffer
+    // it must fail rather than emit a request with no tabId — Docs applies an untagged
+    // request to the FIRST tab, so translating it would be a wrong-tab write reporting
+    // success. It holds today because `includeTabsContent` removes root `body`; if Google
+    // ever populated both, this is the assertion that would catch it.
+    const beforeJson = tabbedDoc(textRunElement('x\n', 1));
+    const result = translateMutation(
+      { op: 'set', path: '$.body.content[0].paragraph.elements[0].textRun.content', value: 'y', beforeJson },
+      'rev-1',
+    );
+    expect(isRejection(result)).toBe(true);
+    if (isRejection(result)) expect(result.reason).toMatch(/not found in buffer/);
+  });
+
   it('names the tabbed shape in its guidance for an unsupported path', () => {
     // The rejection is the only place an agent learns what IS addressable. Naming the
     // shape the buffer no longer has would send it to a path that cannot resolve.
