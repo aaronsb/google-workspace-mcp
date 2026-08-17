@@ -1,6 +1,7 @@
 import { readCredential, saveCredential, hasCredential } from './credentials.js';
 import { credentialPath } from '../executor/paths.js';
 import { runOAuthFlow, scopesForServices, ALL_SERVICES } from './oauth.js';
+import type { AccessLevel } from './oauth.js';
 import { getAccessToken, invalidateToken } from './token-service.js';
 
 export interface AuthResult {
@@ -9,6 +10,14 @@ export interface AuthResult {
   credentialPath?: string;
   error?: string;
   errorType?: string;
+  /** What the account was authorized for. */
+  access?: AccessLevel;
+  /**
+   * Services asked for read-only that carry a read/write scope anyway, because Google
+   * sells no read-only equivalent. Non-empty means the grant is broader than the word
+   * the caller chose, and the response has to say so (ADR-202).
+   */
+  couldNotNarrow?: string[];
 }
 
 export interface AccountStatus {
@@ -17,18 +26,25 @@ export interface AccountStatus {
   scopes: string[];
   scopeCount: number;
   hasRefreshToken: boolean;
+  /** Absent on credentials written before ADR-202, which are all read/write. */
+  access: AccessLevel;
 }
 
 /**
  * Authenticate a new account via our own OAuth2 flow.
  * Requests all service scopes by default.
+ *
+ * `access` defaults to 'readwrite', so an account authorized without naming it is
+ * granted exactly what it would have been before ADR-202.
  */
 export async function authenticateAccount(
   clientId: string,
   clientSecret: string,
+  access: AccessLevel = 'readwrite',
 ): Promise<AuthResult> {
-  const scopes = scopesForServices(ALL_SERVICES);
-  return runOAuth(clientId, clientSecret, scopes);
+  const { scopes, couldNotNarrow } = scopesForServices(ALL_SERVICES, access);
+  const result = await runOAuth(clientId, clientSecret, scopes, access);
+  return { ...result, access, couldNotNarrow };
 }
 
 /**
@@ -39,9 +55,11 @@ export async function reauthWithServices(
   clientId: string,
   clientSecret: string,
   services: string,
+  access: AccessLevel = 'readwrite',
 ): Promise<AuthResult> {
-  const scopes = scopesForServices(services);
-  return runOAuth(clientId, clientSecret, scopes);
+  const { scopes, couldNotNarrow } = scopesForServices(services, access);
+  const result = await runOAuth(clientId, clientSecret, scopes, access);
+  return { ...result, access, couldNotNarrow };
 }
 
 /**
@@ -58,6 +76,7 @@ export async function checkAccountStatus(email: string): Promise<AccountStatus> 
       scopes: [],
       scopeCount: 0,
       hasRefreshToken: false,
+      access: 'readwrite',
     };
   }
 
@@ -79,6 +98,8 @@ export async function checkAccountStatus(email: string): Promise<AccountStatus> 
     scopes,
     scopeCount: scopes.length,
     hasRefreshToken,
+    // Absent means read/write — see AuthorizedUserCredential.access.
+    access: cred.access ?? 'readwrite',
   };
 }
 
@@ -88,16 +109,25 @@ async function runOAuth(
   clientId: string,
   clientSecret: string,
   scopes: string[],
+  access: AccessLevel = 'readwrite',
 ): Promise<AuthResult> {
   try {
     const result = await runOAuthFlow(clientId, clientSecret, scopes);
 
+    // `result.scopes` is what Google GRANTED, which is not always what we asked for —
+    // a user can decline individual scopes on the consent screen. Storing the granted
+    // set rather than the requested one means the call-time check in factory/safety.ts
+    // tests against the authority the token actually carries (ADR-202).
+    //
+    // `access` rides along because `refresh` would otherwise re-mint the default and
+    // silently restore read/write to an account deliberately narrowed to read.
     await saveCredential(result.email, {
       type: 'authorized_user',
       client_id: clientId,
       client_secret: clientSecret,
       refresh_token: result.refreshToken,
       scopes: result.scopes,
+      access,
     });
 
     invalidateToken(result.email);

@@ -70,6 +70,7 @@ describe('handleAccounts', () => {
         scopes: ['https://www.googleapis.com/auth/gmail.modify', 'https://www.googleapis.com/auth/drive'],
         scopeCount: 2,
         hasRefreshToken: true,
+      access: 'readwrite' as const,
       });
 
       const result = await handleAccounts({ operation: 'status', email: 'a@test.com' });
@@ -90,6 +91,7 @@ describe('handleAccounts', () => {
         scopes: [],
         scopeCount: 0,
         hasRefreshToken: false,
+      access: 'readwrite' as const,
       });
 
       const result = await handleAccounts({ operation: 'status', email: 'a@test.com' });

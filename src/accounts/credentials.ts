@@ -7,7 +7,16 @@ export interface AuthorizedUserCredential {
   client_id: string;
   client_secret: string;
   refresh_token: string;
+  /** The scopes Google GRANTED, which a user can narrow on the consent screen. */
   scopes?: string[];
+  /**
+   * What this account was authorized for (ADR-202).
+   *
+   * ABSENT means read/write. Every credential written before ADR-202 lacks the field and
+   * carries read/write scopes, so absence and 'readwrite' are the same claim — reading it
+   * as 'read' would lock existing accounts out of operations their tokens permit.
+   */
+  access?: 'read' | 'readwrite';
 }
 
 export async function hasCredential(email: string): Promise<boolean> {

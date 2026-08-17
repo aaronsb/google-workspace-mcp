@@ -27,35 +27,85 @@ describe('oauth', () => {
 
   describe('scopesForServices', () => {
     it('returns base scopes plus service scopes', () => {
-      const scopes = scopesForServices('gmail');
+      const { scopes } = scopesForServices('gmail');
       expect(scopes).toContain('openid');
       expect(scopes).toContain('https://www.googleapis.com/auth/userinfo.email');
       expect(scopes).toContain('https://www.googleapis.com/auth/gmail.modify');
     });
 
     it('handles comma-separated services', () => {
-      const scopes = scopesForServices('gmail,drive,calendar');
+      const { scopes } = scopesForServices('gmail,drive,calendar');
       expect(scopes).toContain('https://www.googleapis.com/auth/gmail.modify');
       expect(scopes).toContain('https://www.googleapis.com/auth/drive');
       expect(scopes).toContain('https://www.googleapis.com/auth/calendar');
     });
 
     it('deduplicates scopes', () => {
-      const scopes = scopesForServices('gmail,gmail');
+      const { scopes } = scopesForServices('gmail,gmail');
       const gmailCount = scopes.filter(s => s.includes('gmail')).length;
       expect(gmailCount).toBe(1);
     });
 
     it('handles whitespace in service names', () => {
-      const scopes = scopesForServices(' gmail , drive ');
+      const { scopes } = scopesForServices(' gmail , drive ');
       expect(scopes).toContain('https://www.googleapis.com/auth/gmail.modify');
       expect(scopes).toContain('https://www.googleapis.com/auth/drive');
     });
 
     it('is case-insensitive', () => {
-      const scopes = scopesForServices('Gmail,DRIVE');
+      const { scopes } = scopesForServices('Gmail,DRIVE');
       expect(scopes).toContain('https://www.googleapis.com/auth/gmail.modify');
       expect(scopes).toContain('https://www.googleapis.com/auth/drive');
+    });
+
+    it('defaults to read/write, so nothing authorized before ADR-202 changes', () => {
+      // The invariant that keeps this opt-in. Every existing caller omits `access`.
+      const implicit = scopesForServices('gmail,drive,calendar');
+      const explicit = scopesForServices('gmail,drive,calendar', 'readwrite');
+      expect(implicit.scopes).toEqual(explicit.scopes);
+      expect(implicit.scopes).toContain('https://www.googleapis.com/auth/gmail.modify');
+      expect(implicit.couldNotNarrow).toEqual([]);
+    });
+
+    it('requests the read-only scope when access is read', () => {
+      const { scopes } = scopesForServices('gmail,drive,calendar,sheets,docs,tasks', 'read');
+      expect(scopes).toContain('https://www.googleapis.com/auth/gmail.readonly');
+      expect(scopes).toContain('https://www.googleapis.com/auth/drive.readonly');
+      expect(scopes).toContain('https://www.googleapis.com/auth/calendar.readonly');
+      // …and none of the read/write ones.
+      expect(scopes).not.toContain('https://www.googleapis.com/auth/gmail.modify');
+      expect(scopes).not.toContain('https://www.googleapis.com/auth/drive');
+      expect(scopes).not.toContain('https://www.googleapis.com/auth/calendar');
+    });
+
+    it('REPORTS a service it could not narrow instead of widening in silence', () => {
+      // The one place this departs from the sketch in #130. `meet` has no read-only
+      // form, so a read request still carries meetings.space.created. Granting that
+      // quietly would make "read" mean something broader than the word chosen — a
+      // silent over-grant, and authority is the last thing that should widen quietly.
+      const { scopes, couldNotNarrow } = scopesForServices('gmail,meet', 'read');
+
+      expect(couldNotNarrow).toEqual(['meet']);
+      expect(scopes).toContain('https://www.googleapis.com/auth/gmail.readonly');
+      // Still granted — the point is that it is DECLARED, not withheld.
+      expect(scopes).toContain('https://www.googleapis.com/auth/meetings.space.created');
+    });
+
+    it('reports nothing to narrow when every service has a read-only scope', () => {
+      const { couldNotNarrow } = scopesForServices('gmail,drive,docs', 'read');
+      expect(couldNotNarrow).toEqual([]);
+    });
+
+    it('never reports couldNotNarrow for a read/write request', () => {
+      // Nothing was asked to narrow, so nothing failed to.
+      const { couldNotNarrow } = scopesForServices(ALL_SERVICES, 'readwrite');
+      expect(couldNotNarrow).toEqual([]);
+    });
+
+    it('keeps the base scopes under read access', () => {
+      const { scopes } = scopesForServices('gmail', 'read');
+      expect(scopes).toContain('openid');
+      expect(scopes).toContain('https://www.googleapis.com/auth/userinfo.email');
     });
 
     it('throws on unknown service', () => {
@@ -64,20 +114,20 @@ describe('oauth', () => {
     });
 
     it('includes all meet scopes when meet is requested', () => {
-      const scopes = scopesForServices('meet');
+      const { scopes } = scopesForServices('meet');
       expect(scopes).toContain('https://www.googleapis.com/auth/meetings.space.created');
       expect(scopes).toContain('https://www.googleapis.com/auth/meetings.space.readonly');
       expect(scopes).toContain('https://www.googleapis.com/auth/meetings.space.settings');
     });
 
     it('handles all services at once', () => {
-      const scopes = scopesForServices(ALL_SERVICES);
+      const { scopes } = scopesForServices(ALL_SERVICES);
       // base (2) + gmail(1) + drive(1) + calendar(1) + sheets(1) + docs(1) + tasks(1) + slides(1) + meet(3) = 12
       expect(scopes.length).toBe(12);
     });
 
     it('ignores empty segments', () => {
-      const scopes = scopesForServices('gmail,,drive,');
+      const { scopes } = scopesForServices('gmail,,drive,');
       expect(scopes).toContain('https://www.googleapis.com/auth/gmail.modify');
       expect(scopes).toContain('https://www.googleapis.com/auth/drive');
     });
