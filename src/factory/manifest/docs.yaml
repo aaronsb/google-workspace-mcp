@@ -4,6 +4,10 @@ requires_email: true
 google_service: docs
 operations:
 
+  # A document's text lives per-TAB, and `tabId` is the handle that addresses one — the
+  # same handle every write operation below takes. Reading without it spans the document;
+  # reading with it scopes both the text and the character indices to one tab, so an
+  # index measured here means the same thing to insertText (#157, #158).
   get:
     type: detail
     description: "get document content and metadata"
@@ -13,6 +17,9 @@ operations:
         type: string
         description: "Document ID"
         required: true
+      tabId:
+        type: string
+        description: "Tab to act on — a tabId from a previous get's tabIndex. Scopes the read on get; targets the edit on write/insertText/replaceText, which act on the FIRST tab when it is omitted (replaceText spans every tab). Character indices are per-tab."
 
   # `title` rides in the BODY — documents.create declares no parameters at all
   # (Discovery: `"parameters": {}`), so everything goes into the Document resource.
@@ -42,8 +49,11 @@ operations:
         required: true
       text:
         type: string
-        description: "Text to append (plain text)"
+        description: "Text to write (plain text) — appended to the end by write, inserted at `index` by insertText"
         required: true
+      tabId:
+        type: string
+        description: "Tab to act on — a tabId from a previous get's tabIndex. Scopes the read on get; targets the edit on write/insertText/replaceText, which act on the FIRST tab when it is omitted (replaceText spans every tab). Character indices are per-tab."
 
   insertText:
     type: action
@@ -56,12 +66,15 @@ operations:
         required: true
       text:
         type: string
-        description: "Text to insert"
+        description: "Text to write (plain text) — appended to the end by write, inserted at `index` by insertText"
         required: true
       index:
         type: number
-        description: "Character index to insert at (1 = start of document body)"
+        description: "Character index to insert at (1 = start of the tab's body)"
         required: true
+      tabId:
+        type: string
+        description: "Tab to act on — a tabId from a previous get's tabIndex. Scopes the read on get; targets the edit on write/insertText/replaceText, which act on the FIRST tab when it is omitted (replaceText spans every tab). Character indices are per-tab."
 
   replaceText:
     type: action
@@ -84,3 +97,6 @@ operations:
         type: boolean
         description: "Case-sensitive match (default: true)"
         default: true
+      tabId:
+        type: string
+        description: "Tab to act on — a tabId from a previous get's tabIndex. Scopes the read on get; targets the edit on write/insertText/replaceText, which act on the FIRST tab when it is omitted (replaceText spans every tab). Character indices are per-tab."

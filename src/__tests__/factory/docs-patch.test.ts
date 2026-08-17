@@ -359,15 +359,17 @@ describe('docsPatch.get — multi-tab documents (#152)', () => {
     expect(result.text).toContain('**Tabs:** 4 (3 top-level, 1 nested)');
   });
 
-  it('warns that writes cannot address a tab', async () => {
-    // get now spans tabs; insertText indices do not. Saying nothing invites an agent to
-    // compute an index from this output and write to the wrong place (#157).
+  it('says how to make read and write agree on a tab', async () => {
+    // get spans tabs and character indices do not. An agent that computes an index from
+    // this output and omits tabId writes to the first tab (#157) — so the response has to
+    // name the handle that makes the two coordinate systems one.
     mockCall.mockResolvedValue(tabbedDoc());
 
     const result = await docsPatch.customHandlers!.get({ documentId: 'doc-2' }, ACCOUNT);
 
-    expect(result.text).toContain('#157');
-    expect(result.text).toContain('relative to the FIRST tab');
+    expect(result.text).toContain('Indices in this response are per-tab');
+    expect(result.text).toContain('`tabId`');
+    expect(result.text).toContain('FIRST tab');
   });
 
   it('flags a response that carries no tab data at all', async () => {
@@ -386,14 +388,14 @@ describe('docsPatch.get — multi-tab documents (#152)', () => {
     expect(result.text).toContain('may be the first tab only');
   });
 
-  it('exposes tab titles in refs even when the heading is suppressed', async () => {
+  it('exposes the tab index in refs even when the heading is suppressed', async () => {
     // A one-tab document whose tab the user RENAMED: the title is real content, and the
     // rendered output deliberately omits it.
     mockCall.mockResolvedValue({
       documentId: 'doc-9',
       title: 'Untitled document',
       tabs: [{
-        tabProperties: { title: 'Q3 Financial Model' },
+        tabProperties: { tabId: 't9', title: 'Q3 Financial Model' },
         documentTab: { body: { content: [para('numbers')] } },
       }],
     });
@@ -401,7 +403,50 @@ describe('docsPatch.get — multi-tab documents (#152)', () => {
     const result = await docsPatch.customHandlers!.get({ documentId: 'doc-9' }, ACCOUNT);
 
     expect(result.text).not.toContain('Q3 Financial Model');
-    expect(result.refs.tabTitles).toEqual(['Q3 Financial Model']);
+    expect(result.refs.tabIndex).toEqual([
+      { tabId: 't9', title: 'Q3 Financial Model', depth: 0, characters: 'numbers'.length },
+    ]);
+  });
+
+  it('carries every tab id — the only handle a scoped read or a write can use', async () => {
+    mockCall.mockResolvedValue(tabbedDoc());
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-2' }, ACCOUNT);
+
+    // Nested tabs included: a child tab is addressable exactly like a top-level one.
+    expect((result.refs.tabIndex as Array<{ tabId: string }>).map((t) => t.tabId))
+      .toEqual(['t1', 't2', 't2a', 't3']);
+  });
+
+  it('prints the tab ids in the TEXT, which is all the model receives', async () => {
+    // server.ts returns result.text and nothing else — refs is internal, read by
+    // queue_operations for chaining. A tabId that lives only in refs cannot be used by
+    // the agent reading this response, so telling it to "pass the tabId" while keeping
+    // every id out of the text is #158's complaint with a new hiding place.
+    mockCall.mockResolvedValue(tabbedDoc());
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-2' }, ACCOUNT);
+
+    expect(result.text).toContain('### Monday — `t1`');
+    expect(result.text).toContain('#### Action items — `t2a`');
+    // …and the caveat points at them rather than at a field the reader cannot see.
+    expect(result.text).toContain('beside each heading below');
+  });
+
+  it('marks a tab Google gave no id as unaddressable rather than printing nothing', async () => {
+    mockCall.mockResolvedValue({
+      documentId: 'doc-11',
+      title: 'Odd',
+      tabs: [
+        { tabProperties: { title: 'No id' }, documentTab: { body: { content: [para('a')] } } },
+        { tabProperties: { tabId: 'x', title: 'Has id' }, documentTab: { body: { content: [para('b')] } } },
+      ],
+    });
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-11' }, ACCOUNT);
+
+    expect(result.text).toContain('### No id — _(no tab id; not individually addressable)_');
+    expect(result.text).toContain('### Has id — `x`');
   });
 
   it('survives a tab with no title and no documentTab', async () => {
@@ -421,5 +466,303 @@ describe('docsPatch.get — multi-tab documents (#152)', () => {
     expect(result.text).toContain('(untitled tab)');
     expect(result.text).toContain('Content here.');
     expect(result.refs.tabs).toBe(2);
+  });
+});
+
+describe('docsPatch.get — scoping a read to one tab (#158)', () => {
+  it('returns only the named tab', async () => {
+    mockCall.mockResolvedValue(tabbedDoc());
+
+    const result = await docsPatch.customHandlers!.get(
+      { documentId: 'doc-2', tabId: 't2' }, ACCOUNT);
+
+    expect(result.text).toContain('Standup on Tuesday.');
+    expect(result.text).not.toContain('Standup on Monday.');
+    expect(result.text).not.toContain('Standup on Wednesday.');
+    // A child tab is its own tab, not part of its parent's read.
+    expect(result.text).not.toContain('Ship the fix.');
+  });
+
+  it('addresses a nested tab as readily as a top-level one', async () => {
+    mockCall.mockResolvedValue(tabbedDoc());
+
+    const result = await docsPatch.customHandlers!.get(
+      { documentId: 'doc-2', tabId: 't2a' }, ACCOUNT);
+
+    expect(result.text).toContain('Ship the fix.');
+    expect(result.refs.characters).toBe('Ship the fix.'.length);
+  });
+
+  it('says the read was scoped, and how much of the document it left out', async () => {
+    // `Length` for a scoped read describes ONE tab. Beside a document the caller knows
+    // has four, an unqualified number is exactly the under-report of #152.
+    mockCall.mockResolvedValue(tabbedDoc());
+
+    const result = await docsPatch.customHandlers!.get(
+      { documentId: 'doc-2', tabId: 't1' }, ACCOUNT);
+
+    expect(result.text).toContain('**Tab:** Monday (`t1`) — 1 of 4');
+    expect(result.refs.tabId).toBe('t1');
+    expect(result.refs.tabsInDocument).toBe(4);
+  });
+
+  it('renders one tab bare — no scaffolding, no cross-tab caveat', async () => {
+    mockCall.mockResolvedValue(tabbedDoc());
+
+    const result = await docsPatch.customHandlers!.get(
+      { documentId: 'doc-2', tabId: 't1' }, ACCOUNT);
+
+    expect(result.text).not.toContain('### Monday');
+    expect(result.text).not.toContain('Indices in this response are per-tab');
+  });
+
+  it('fails loudly on a tabId that matches nothing, and lists the real ones', async () => {
+    // Falling back to the whole document would answer with text the caller did not ask
+    // for while reporting success — a wrong-scope read they have no way to detect.
+    mockCall.mockResolvedValue(tabbedDoc());
+
+    await expect(docsPatch.customHandlers!.get(
+      { documentId: 'doc-2', tabId: 'nope' }, ACCOUNT))
+      .rejects.toThrow(/No tab with id "nope".*t1, t2, t2a, t3/s);
+  });
+
+  it('says a scoped tab was UNREAD rather than calling the document empty', async () => {
+    // The scoped path bypasses renderTab, so it lost the read/empty distinction the rest
+    // of the file exists to keep. "the document is empty" for a tab we could not read is
+    // the exact substitution this fix is a correction for.
+    mockCall.mockResolvedValue({
+      documentId: 'doc-12',
+      title: 'Unreadable tab',
+      tabs: [
+        { tabProperties: { tabId: 'a', title: 'Fine' }, documentTab: { body: { content: [para('text')] } } },
+        { tabProperties: { tabId: 'b', title: 'Unread' } },
+      ],
+    });
+
+    const result = await docsPatch.customHandlers!.get(
+      { documentId: 'doc-12', tabId: 'b' }, ACCOUNT);
+
+    expect(result.text).not.toContain('the document is empty');
+    expect(result.text).toContain('not the same as empty');
+    expect(result.text).toContain('1 tab(s) returned no content');
+  });
+
+  it('names the child tabs a scoped read of a parent leaves out', async () => {
+    // A child tab is its own addressable tab, so scoping to the parent omits it. The
+    // "1 of N" line exists to say what was left out; the child ids finish that thought.
+    mockCall.mockResolvedValue(tabbedDoc());
+
+    const result = await docsPatch.customHandlers!.get(
+      { documentId: 'doc-2', tabId: 't2' }, ACCOUNT);
+
+    expect(result.text).toContain('1 child tab(s), read separately: `t2a`');
+  });
+
+  it('does not serve the legacy body for an empty scoped tab', async () => {
+    // `body` is the FIRST tab. Serving it because the requested tab is empty answers a
+    // question about tab two with the text of tab one.
+    mockCall.mockResolvedValue({
+      documentId: 'doc-10',
+      title: 'Two tabs',
+      tabs: [
+        { tabProperties: { tabId: 'a', title: 'Full' }, documentTab: { body: { content: [para('first tab text')] } } },
+        { tabProperties: { tabId: 'b', title: 'Empty' }, documentTab: { body: { content: [] } } },
+      ],
+      body: { content: [para('first tab text')] },
+    });
+
+    const result = await docsPatch.customHandlers!.get(
+      { documentId: 'doc-10', tabId: 'b' }, ACCOUNT);
+
+    expect(result.text).not.toContain('first tab text');
+    expect(result.text).toContain('the document is empty');
+    expect(result.refs.characters).toBe(0);
+  });
+});
+
+describe('docsPatch.get — the size cap announces itself (#158)', () => {
+  /** A document of `count` tabs, each holding `chars` characters. */
+  function bigDoc(count: number, chars: number): Record<string, unknown> {
+    return {
+      documentId: 'doc-big',
+      title: 'Transcript archive',
+      tabs: Array.from({ length: count }, (_, i) => ({
+        tabProperties: { tabId: `t${i}`, title: `Day ${i}` },
+        documentTab: { body: { content: [para('x'.repeat(chars))] } },
+      })),
+    };
+  }
+
+  it('hands back a tab index instead of a 200 KB wall of text', async () => {
+    mockCall.mockResolvedValue(bigDoc(40, 5_000));
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-big' }, ACCOUNT);
+
+    expect(result.text).toContain('Showing the tab index instead of the text');
+    expect(result.text).toContain('Re-read with `tabId`');
+    expect(result.refs.capped).toBe(true);
+    // The per-tab index caveat is about text this response does not contain, and it
+    // would compete with the notice above for what the reader should do next.
+    expect(result.text).not.toContain('Indices in this response are per-tab');
+  });
+
+  it('lists every tab with the id that fetches it — nothing becomes unreachable', async () => {
+    // The difference between a cap and a truncation. #152 was text with no way to ask
+    // for it again; this is text one call away, and the call is spelled out.
+    mockCall.mockResolvedValue(bigDoc(40, 5_000));
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-big' }, ACCOUNT);
+
+    for (let i = 0; i < 40; i++) {
+      expect(result.text).toContain(`\`t${i}\` — Day ${i}`);
+    }
+  });
+
+  it('a scoped read of a capped document returns that tab whole', async () => {
+    mockCall.mockResolvedValue(bigDoc(40, 5_000));
+
+    const result = await docsPatch.customHandlers!.get(
+      { documentId: 'doc-big', tabId: 't7' }, ACCOUNT);
+
+    expect(result.refs.capped).toBeUndefined();
+    expect(result.refs.characters).toBe(5_000);
+    expect(result.text).toContain('x'.repeat(5_000));
+  });
+
+  it('never caps a single tab — there is nothing narrower to offer', async () => {
+    // Capping here would remove text with no escape hatch, which is the defect, not the
+    // fix. Report the size and hand over the whole thing.
+    mockCall.mockResolvedValue(bigDoc(1, 200_000));
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-big' }, ACCOUNT);
+
+    expect(result.refs.capped).toBeUndefined();
+    expect(result.refs.characters).toBe(200_000);
+    expect(result.text).toContain('there is no narrower read available');
+  });
+
+  it('caps the real document that slipped through — the client rejects before we do', async () => {
+    // Measured live: a 2-tab meeting archive of 79,944 characters. At a 25,000-token
+    // threshold this stayed whole, and the MCP client rejected the oversized result and
+    // handed the agent a file path — the tab index never rendered, so the cap protected
+    // nothing. The threshold is set by the client's ceiling, not by taste.
+    mockCall.mockResolvedValue(bigDoc(2, 39_972));
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-big' }, ACCOUNT);
+
+    expect(result.refs.capped).toBe(true);
+    expect(result.text).toContain('Showing the tab index instead of the text');
+    // And the whole response stays small enough to survive the trip.
+    expect(result.text.length).toBeLessThan(4_000);
+  });
+
+  it('does not cap a document holding a tab it cannot address', async () => {
+    // Capping strands such a tab: the whole-document read is withdrawn and the per-tab
+    // read needs an id it does not have. That is a truncation wearing an index's
+    // clothes, which is what ADR-306 rejects the truncation alternative for.
+    const doc = bigDoc(2, 39_972) as { tabs: Array<{ tabProperties: Record<string, unknown> }> };
+    delete doc.tabs[1].tabProperties.tabId;
+    mockCall.mockResolvedValue(doc);
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-big' }, ACCOUNT);
+
+    expect(result.refs.capped).toBeUndefined();
+    expect(result.text).toContain('some tabs have no id');
+    // The text is still there — that is the whole reason for holding the cap back.
+    expect(result.text).toContain('x'.repeat(1_000));
+  });
+
+  it('leaves an ordinary multi-tab document whole', async () => {
+    // The measured document from #152 is ~15,000 characters. It must not trip the cap.
+    mockCall.mockResolvedValue(tabbedDoc());
+
+    const result = await docsPatch.customHandlers!.get({ documentId: 'doc-2' }, ACCOUNT);
+
+    expect(result.refs.capped).toBeUndefined();
+    expect(result.text).toContain('Standup on Monday.');
+  });
+});
+
+describe('docsPatch writes — targeting a tab (#157)', () => {
+  beforeEach(() => {
+    mockCall.mockResolvedValue({ replies: [] });
+  });
+
+  /** The single batchUpdate request object the handler sent. */
+  function sentRequest(): Record<string, unknown> {
+    const [, , params] = mockCall.mock.calls[0];
+    return (params as { requests: Array<Record<string, unknown>> }).requests[0];
+  }
+
+  it('write appends to the named tab', async () => {
+    await docsPatch.customHandlers!.write(
+      { documentId: 'doc-2', text: 'more', tabId: 't3' }, ACCOUNT);
+
+    expect(sentRequest()).toEqual({
+      insertText: { text: 'more', endOfSegmentLocation: { segmentId: '', tabId: 't3' } },
+    });
+  });
+
+  it('insertText resolves the index against the named tab', async () => {
+    // The whole of #157: an index measured in tab three, applied to tab three.
+    await docsPatch.customHandlers!.insertText(
+      { documentId: 'doc-2', text: 'more', index: 12, tabId: 't3' }, ACCOUNT);
+
+    expect(sentRequest()).toEqual({
+      insertText: { text: 'more', location: { index: 12, tabId: 't3' } },
+    });
+  });
+
+  it('replaceText narrows to the named tab via tabsCriteria', async () => {
+    await docsPatch.customHandlers!.replaceText(
+      { documentId: 'doc-2', findText: 'a', replaceWith: 'b', tabId: 't3' }, ACCOUNT);
+
+    expect(sentRequest()).toEqual({
+      replaceAllText: {
+        containsText: { text: 'a', matchCase: true },
+        replaceText: 'b',
+        tabsCriteria: { tabIds: ['t3'] },
+      },
+    });
+  });
+
+  it('sends no tabId when none was given — the request is byte-for-byte what it was', async () => {
+    // Omitting the field is not the same as sending it empty: Docs treats an empty tabId
+    // as an error, and tabsCriteria with no ids would narrow replaceText to nothing.
+    await docsPatch.customHandlers!.insertText(
+      { documentId: 'doc-2', text: 'more', index: 12 }, ACCOUNT);
+    await docsPatch.customHandlers!.replaceText(
+      { documentId: 'doc-2', findText: 'a', replaceWith: 'b' }, ACCOUNT);
+
+    const [, , insert] = mockCall.mock.calls[0];
+    const [, , replace] = mockCall.mock.calls[1];
+    expect((insert as { requests: Array<Record<string, unknown>> }).requests[0]).toEqual({
+      insertText: { text: 'more', location: { index: 12 } },
+    });
+    expect((replace as { requests: Array<Record<string, unknown>> }).requests[0]).toEqual({
+      replaceAllText: { containsText: { text: 'a', matchCase: true }, replaceText: 'b' },
+    });
+  });
+
+  it('says which tab it wrote to, or warns that it wrote to the first', async () => {
+    // An untargeted write on a tabbed document succeeds and lands somewhere the caller
+    // did not choose. Silence there is what made #157 invisible.
+    const targeted = await docsPatch.customHandlers!.write(
+      { documentId: 'doc-2', text: 'more', tabId: 't3' }, ACCOUNT);
+    const untargeted = await docsPatch.customHandlers!.write(
+      { documentId: 'doc-2', text: 'more' }, ACCOUNT);
+
+    expect(targeted.text).toContain('tab `t3`');
+    expect(targeted.text).not.toContain('FIRST tab');
+    expect(untargeted.text).toContain('FIRST tab');
+  });
+
+  it('reports replaceText scope, which defaults to every tab', async () => {
+    // replaceText is the one write that always spanned the document — tabsCriteria
+    // omitted means all tabs. That default must not change under a tabId param.
+    const all = await docsPatch.customHandlers!.replaceText(
+      { documentId: 'doc-2', findText: 'a', replaceWith: 'b' }, ACCOUNT);
+
+    expect(all.text).toContain('**Scope:** all tabs');
   });
 });

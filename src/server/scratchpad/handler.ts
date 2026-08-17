@@ -373,12 +373,13 @@ function applyMutation(
 
 /** Re-fetch the doc, replace the buffer, and update the binding's revisionId. */
 async function reloadDocsBuffer(id: string, binding: LiveBinding): Promise<void> {
-  // NO includeTabsContent — this must stay in step with the import that created the
-  // buffer (see importDocJson, and #155). The flag removes `body`, which is what
-  // docs-sync addresses. Change one of these two call sites and a scratchpad's buffer
-  // and its reload disagree about the shape of the document.
+  // includeTabsContent, in step with the import that created the buffer (see
+  // importDocJson, and #155). Change one of these two call sites and a scratchpad's
+  // buffer and its reload disagree about the shape of the document: the paths that
+  // translated before a push stop resolving after it.
   const doc = await call('docs', 'documents.get', {
     documentId: binding.resourceId,
+    includeTabsContent: true,
   }, { account: binding.account }) as Record<string, unknown>;
   const freshJson = JSON.stringify(doc, null, 2);
   const sp = scratchpads.get(id);

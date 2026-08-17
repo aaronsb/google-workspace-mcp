@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockedFunction, type Mock } from 'vitest';
 import * as fs from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { loadManifest, generateTools, generateSchema, generateHandler } from '../../factory/generator.js';
@@ -41,6 +43,67 @@ describe('loadManifest', () => {
     expect(manifest.services.gmail.tool_name).toBe('manage_email');
     expect(manifest.services.calendar.tool_name).toBe('manage_calendar');
     expect(manifest.services.drive.tool_name).toBe('manage_drive');
+  });
+});
+
+/**
+ * Collisions that ALREADY exist, frozen by fingerprint so new ones fail. Not endorsed —
+ * see the issue named in known-param-collisions.txt.
+ */
+const KNOWN_COLLISIONS = new Set(readFileSync(
+  new URL('./known-param-collisions.txt', import.meta.url), 'utf-8',
+).split('\n').map((l) => l.split('#')[0].trim()).filter(Boolean));
+
+/** Stable fingerprint of one specific collision — the losing text included. */
+function fingerprint(message: string): string {
+  return createHash('sha1').update(message).digest('hex').slice(0, 12);
+}
+
+describe('generateSchema — one declaration per param name', () => {
+  it('never declares a param name twice with different wording, type, or enum', () => {
+    // generateSchema flattens every operation's params into ONE schema and keeps the
+    // FIRST declaration of each name — later ones are dropped with no warning. So a
+    // param used by several operations is described to the model exactly once, by
+    // whichever operation happens to appear first in the YAML.
+    //
+    // That is how `manage_docs.tabId` shipped telling the model "Read only this tab",
+    // its `get` wording, on the three WRITE operations where omitting it means the edit
+    // lands in the first tab (#157). The warning existed in the manifest and never
+    // reached the schema. `type` and `enum` are dropped by the same line, so they are
+    // checked here too.
+    //
+    // The allowlist freezes each collision by FINGERPRINT of its losing text, not by
+    // param name: a name-keyed entry would permit a future third, materially different
+    // description for that same param forever. Change either side of a frozen pair and
+    // this fails, which is the point.
+    const manifest = loadManifest();
+    const conflicts: string[] = [];
+
+    for (const [serviceName, service] of Object.entries(manifest.services)) {
+      const seen = new Map<string, { op: string; def: Record<string, unknown> }>();
+      for (const [opName, op] of Object.entries(service.operations)) {
+        for (const [paramName, def] of Object.entries(op.params ?? {})) {
+          const prior = seen.get(paramName);
+          if (!prior) {
+            seen.set(paramName, { op: opName, def: def as unknown as Record<string, unknown> });
+            continue;
+          }
+          for (const field of ['description', 'type', 'enum'] as const) {
+            const a = JSON.stringify(prior.def[field] ?? null);
+            const b = JSON.stringify((def as unknown as Record<string, unknown>)[field] ?? null);
+            if (a === b) continue;
+            const message =
+              `${serviceName}.${paramName}.${field}: ${prior.op} says ${a} ` +
+              `but ${opName} says ${b} — only ${prior.op}'s reaches the model.`;
+            if (!KNOWN_COLLISIONS.has(fingerprint(message))) {
+              conflicts.push(`${fingerprint(message)}  ${message}`);
+            }
+          }
+        }
+      }
+    }
+
+    expect(conflicts).toEqual([]);
   });
 });
 

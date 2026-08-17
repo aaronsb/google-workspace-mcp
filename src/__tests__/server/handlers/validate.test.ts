@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { requireEmail, requireString, clamp } from '../../../server/handlers/validate.js';
+import { requireEmail, requireString, optionalString, clamp } from '../../../server/handlers/validate.js';
 
 describe('requireEmail', () => {
   it('returns valid email', () => {
@@ -106,5 +106,35 @@ describe('clamp', () => {
   it('coerces string numbers', () => {
     expect(clamp('25', 10, 50)).toBe(25);
     expect(clamp('100', 10, 50)).toBe(50);
+  });
+});
+
+describe('optionalString', () => {
+  it('returns the value when present', () => {
+    expect(optionalString({ tabId: 't.abc' }, 'tabId')).toBe('t.abc');
+  });
+
+  it('treats absent, empty, and whitespace-only alike as "not narrowing"', () => {
+    // Callers spread the result onto a request body (`...(tabId ? { tabId } : {})`).
+    // Returning '' for a blank field would send an empty tabId, which Google rejects
+    // as an invalid tab rather than reading as "no tab given".
+    expect(optionalString({}, 'tabId')).toBeUndefined();
+    expect(optionalString({ tabId: '' }, 'tabId')).toBeUndefined();
+    expect(optionalString({ tabId: '   ' }, 'tabId')).toBeUndefined();
+  });
+
+  it('ignores non-string values rather than coercing them', () => {
+    expect(optionalString({ tabId: 42 }, 'tabId')).toBeUndefined();
+    expect(optionalString({ tabId: null }, 'tabId')).toBeUndefined();
+    expect(optionalString({ tabId: ['a'] }, 'tabId')).toBeUndefined();
+  });
+
+  it('TRIMS, where its sibling requireString deliberately does not', () => {
+    // Two validators in one module with opposite whitespace contracts. requireString
+    // preserves surrounding space because a subject or body may legitimately carry it;
+    // optionalString exists for identifiers, where a stray space is a typo that would
+    // otherwise become an invalid-id error from Google.
+    expect(optionalString({ tabId: '  t.abc  ' }, 'tabId')).toBe('t.abc');
+    expect(requireString({ subject: '  hello  ' }, 'subject')).toBe('  hello  ');
   });
 });

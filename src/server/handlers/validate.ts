@@ -16,6 +16,17 @@ export function requireString(params: Record<string, unknown>, field: string): s
   return value;
 }
 
+/**
+ * A string the caller may omit. An absent field and an empty one are the same
+ * request — "I am not narrowing this" — so both come back undefined rather than
+ * as `''`, which callers would otherwise have to special-case at every use.
+ */
+export function optionalString(params: Record<string, unknown>, field: string): string | undefined {
+  const value = params[field];
+  if (typeof value !== 'string' || value.trim() === '') return undefined;
+  return value.trim();
+}
+
 export function clamp(value: unknown, defaultVal: number, max: number): number {
   const n = Number(value);
   if (Number.isNaN(n) || n <= 0) return Math.min(defaultVal, max);
