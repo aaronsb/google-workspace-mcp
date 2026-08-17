@@ -49,4 +49,4 @@ _MCP tools, schemas, progressive disclosure_
 | [ADR-305](./api/ADR-305-shared-html-sanitization-for-agent-facing-authoring.md) | Shared HTML sanitization for agent-facing authoring | Accepted |
 | [ADR-306](./api/ADR-306-tab-addressed-docs-reads-and-writes.md) | Tab-addressed Docs reads and writes | Accepted |
 | [ADR-307](./api/ADR-307-contacts-as-a-flat-surface-over-the-people-api.md) | Contacts as a flat surface over the People API | Accepted |
-| [ADR-308](./api/ADR-308-rename-queue-operations-to-bulk-operations-with-queue-and-batch-modes.md) | Rename queue_operations to bulk_operations, with queue and batch modes | Proposed |
+| [ADR-308](./api/ADR-308-rename-queue-operations-to-bulk-operations-with-queue-and-batch-modes.md) | Rename queue_operations to bulk_operations, with queue and batch modes | Accepted |
