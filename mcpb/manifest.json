@@ -73,6 +73,10 @@
       "description": "Browse past Google Meet conferences, participants, transcripts, recordings, and Gemini smart notes"
     },
     {
+      "name": "manage_contacts",
+      "description": "Search, read, create, update and delete Google Contacts: your saved contacts, the addresses you have corresponded with but never saved, and your organization's directory."
+    },
+    {
       "name": "manage_scratchpad",
       "description": "Compose, edit, and deliver multi-line content: edit by line or JSON path, attach files, then send to email, Docs, Sheets, Tasks, or Calendar"
     },

@@ -1,5 +1,5 @@
 tool_name: manage_contacts
-description: "Look people up in Google Contacts: your saved contacts, the addresses you have corresponded with but never saved, and your organization's directory."
+description: "Search, read, create, update and delete Google Contacts: your saved contacts, the addresses you have corresponded with but never saved, and your organization's directory."
 requires_email: true
 google_service: people
 
