@@ -7,7 +7,10 @@ export interface AuthorizedUserCredential {
   client_id: string;
   client_secret: string;
   refresh_token: string;
-  /** The scopes Google GRANTED, which a user can cut down on the consent screen. */
+  /**
+   * The scopes Google actually GRANTED. Can be fewer than were requested: the consent
+   * screen lets the user untick individual permissions before approving.
+   */
   scopes?: string[];
   /**
    * What this account was authorized for (ADR-202).

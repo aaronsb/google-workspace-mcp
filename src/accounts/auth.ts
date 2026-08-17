@@ -114,10 +114,10 @@ async function runOAuth(
   try {
     const result = await runOAuthFlow(clientId, clientSecret, scopes);
 
-    // `result.scopes` is what Google GRANTED, which is not always what we asked for —
-    // a user can decline individual scopes on the consent screen. Storing the granted
-    // set rather than the requested one means the call-time check in factory/safety.ts
-    // tests against the authority the token actually carries (ADR-202).
+    // `result.scopes` is what Google GRANTED, which is not always what was asked for:
+    // the consent screen lets the user untick individual permissions before approving.
+    // Storing what was granted rather than what was requested means the call-time check
+    // in factory/safety.ts tests what the token can actually do (ADR-202).
     //
     // `access` rides along because `refresh` would otherwise re-mint the default and
     // silently restore read/write to an account deliberately set to read-only.
