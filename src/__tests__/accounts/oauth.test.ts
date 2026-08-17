@@ -64,7 +64,7 @@ describe('oauth', () => {
       const explicit = scopesForServices('gmail,drive,calendar', 'readwrite');
       expect(implicit.scopes).toEqual(explicit.scopes);
       expect(implicit.scopes).toContain('https://www.googleapis.com/auth/gmail.modify');
-      expect(implicit.couldNotNarrow).toEqual([]);
+      expect(implicit.stillAllowWrites).toEqual([]);
     });
 
     it('requests the read-only scope when access is read', () => {
@@ -78,28 +78,28 @@ describe('oauth', () => {
       expect(scopes).not.toContain('https://www.googleapis.com/auth/calendar');
     });
 
-    it('REPORTS a service it could not narrow instead of widening in silence', () => {
+    it('REPORTS a service that can still write, instead of quietly allowing it', () => {
       // The one place this departs from the sketch in #130. `meet` has no read-only
-      // form, so a read request still carries meetings.space.created. Granting that
-      // quietly would make "read" mean something broader than the word chosen — a
-      // silent over-grant, and authority is the last thing that should widen quietly.
-      const { scopes, couldNotNarrow } = scopesForServices('gmail,meet', 'read');
+      // form, so asking for read access still grants meetings.space.created. Handing
+      // that over without saying so would mean "read access" quietly included the
+      // ability to change things.
+      const { scopes, stillAllowWrites } = scopesForServices('gmail,meet', 'read');
 
-      expect(couldNotNarrow).toEqual(['meet']);
+      expect(stillAllowWrites).toEqual(['meet']);
       expect(scopes).toContain('https://www.googleapis.com/auth/gmail.readonly');
-      // Still granted — the point is that it is DECLARED, not withheld.
+      // Still granted — the point is that the user is TOLD, not that it is withheld.
       expect(scopes).toContain('https://www.googleapis.com/auth/meetings.space.created');
     });
 
-    it('reports nothing to narrow when every service has a read-only scope', () => {
-      const { couldNotNarrow } = scopesForServices('gmail,drive,docs', 'read');
-      expect(couldNotNarrow).toEqual([]);
+    it('reports nothing when every service has a read-only scope', () => {
+      const { stillAllowWrites } = scopesForServices('gmail,drive,docs', 'read');
+      expect(stillAllowWrites).toEqual([]);
     });
 
-    it('never reports couldNotNarrow for a read/write request', () => {
-      // Nothing was asked to narrow, so nothing failed to.
-      const { couldNotNarrow } = scopesForServices(ALL_SERVICES, 'readwrite');
-      expect(couldNotNarrow).toEqual([]);
+    it('never reports stillAllowWrites for a read/write request', () => {
+      // Nothing was asked to restrict, so nothing failed to be restricted.
+      const { stillAllowWrites } = scopesForServices(ALL_SERVICES, 'readwrite');
+      expect(stillAllowWrites).toEqual([]);
     });
 
     it('keeps the base scopes under read access', () => {

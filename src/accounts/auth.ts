@@ -13,11 +13,11 @@ export interface AuthResult {
   /** What the account was authorized for. */
   access?: AccessLevel;
   /**
-   * Services asked for read-only that carry a read/write scope anyway, because Google
-   * sells no read-only equivalent. Non-empty means the grant is broader than the word
-   * the caller chose, and the response has to say so (ADR-202).
+   * Services asked for as read-only that can still write, because Google offers no
+   * read-only scope for them. Non-empty means this account got more access than was
+   * asked for, and the response has to say so (ADR-202).
    */
-  couldNotNarrow?: string[];
+  stillAllowWrites?: string[];
 }
 
 export interface AccountStatus {
@@ -42,9 +42,9 @@ export async function authenticateAccount(
   clientSecret: string,
   access: AccessLevel = 'readwrite',
 ): Promise<AuthResult> {
-  const { scopes, couldNotNarrow } = scopesForServices(ALL_SERVICES, access);
+  const { scopes, stillAllowWrites } = scopesForServices(ALL_SERVICES, access);
   const result = await runOAuth(clientId, clientSecret, scopes, access);
-  return { ...result, access, couldNotNarrow };
+  return { ...result, access, stillAllowWrites };
 }
 
 /**
@@ -57,9 +57,9 @@ export async function reauthWithServices(
   services: string,
   access: AccessLevel = 'readwrite',
 ): Promise<AuthResult> {
-  const { scopes, couldNotNarrow } = scopesForServices(services, access);
+  const { scopes, stillAllowWrites } = scopesForServices(services, access);
   const result = await runOAuth(clientId, clientSecret, scopes, access);
-  return { ...result, access, couldNotNarrow };
+  return { ...result, access, stillAllowWrites };
 }
 
 /**
@@ -120,7 +120,7 @@ async function runOAuth(
     // tests against the authority the token actually carries (ADR-202).
     //
     // `access` rides along because `refresh` would otherwise re-mint the default and
-    // silently restore read/write to an account deliberately narrowed to read.
+    // silently restore read/write to an account deliberately set to read-only.
     await saveCredential(result.email, {
       type: 'authorized_user',
       client_id: clientId,

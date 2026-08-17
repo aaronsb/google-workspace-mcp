@@ -28,20 +28,20 @@ export const SERVICE_SCOPE_MAP: Record<string, string[]> = {
 /**
  * Service name → READ-ONLY scope URL(s), for accounts authorized with `access: 'read'`.
  *
- * A service is absent here when Google sells no read-only equivalent. Absence is
- * meaningful and is NEVER treated as "fall back to the read/write scope": granting write
- * to someone who asked for read is a silent over-grant, and authority is the last thing
- * that should widen quietly. `scopesForServices` reports the gap instead, so consent can
- * name it before the browser opens (ADR-202).
+ * A service is missing from this map when Google offers no read-only scope for it. That
+ * is NOT treated as "use the read/write scope and say nothing": someone who asked for
+ * read access would get write access without being told. `scopesForServices` reports
+ * those services instead, so the person consenting can be told before the browser opens
+ * (ADR-202).
  *
- * `meet` is the live case. Its three scopes include `meetings.space.readonly`, but
- * `meetings.space.created` and `.settings` have no read-only form, so the service cannot
- * be narrowed as a whole.
+ * `meet` is the live case. One of its three scopes is read-only, but
+ * `meetings.space.created` and `.settings` have no read-only form, so the service as a
+ * whole still allows writes.
  *
  * Measured against descriptor.json: for calendar, docs, gmail and tasks the scope below
- * authorizes every GET method the service exposes. drive has two GET methods and sheets
- * one that no read-only scope covers, so a read grant there is narrower than the service
- * without being literally reads-only.
+ * covers every GET method the service exposes. drive has two GET methods and sheets one
+ * that no read-only scope covers, so read access to those two allows less than full
+ * access but still slightly more than reading.
  */
 export const SERVICE_SCOPE_MAP_READONLY: Record<string, string[]> = {
   gmail:    ['https://www.googleapis.com/auth/gmail.readonly'],
@@ -72,16 +72,18 @@ export interface OAuthResult {
   scopes: string[];
 }
 
-/** What a scope resolution produced, including what it could NOT narrow. */
+/** The scopes to request, plus any service that did not get the access level asked for. */
 export interface ResolvedScopes {
   scopes: string[];
   /**
-   * Services that were asked for read-only and have no read-only scope, so they carry
-   * their full read/write scope. Empty for `readwrite`. The caller must surface this —
-   * it is the difference between "you asked for read and got read" and "you asked for
-   * read and part of this grant can write".
+   * Services asked for as read-only that will still be able to write, because Google
+   * offers no read-only scope for them. Always empty when asking for read/write.
+   *
+   * The caller has to tell the user about these. It is the difference between "you asked
+   * for read access and got read access" and "you asked for read access and part of this
+   * can still change your data".
    */
-  couldNotNarrow: string[];
+  stillAllowWrites: string[];
 }
 
 /**
@@ -97,7 +99,7 @@ export function scopesForServices(
 ): ResolvedScopes {
   const names = services.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const scopes = new Set<string>(BASE_SCOPES);
-  const couldNotNarrow: string[] = [];
+  const stillAllowWrites: string[] = [];
 
   for (const name of names) {
     const readwrite = SERVICE_SCOPE_MAP[name];
@@ -105,15 +107,16 @@ export function scopesForServices(
       throw new Error(`Unknown service: '${name}'. Known: ${Object.keys(SERVICE_SCOPE_MAP).join(', ')}`);
     }
 
-    // Read access uses the read-only scope where one exists. Where none does, the
-    // service keeps its read/write scope AND says so — see SERVICE_SCOPE_MAP_READONLY.
+    // Read access uses the read-only scope where Google offers one. Where it does not,
+    // the service keeps its read/write scope AND is reported — see
+    // SERVICE_SCOPE_MAP_READONLY.
     const readonly = access === 'read' ? SERVICE_SCOPE_MAP_READONLY[name] : undefined;
-    if (access === 'read' && !readonly) couldNotNarrow.push(name);
+    if (access === 'read' && !readonly) stillAllowWrites.push(name);
 
     for (const scope of readonly ?? readwrite) scopes.add(scope);
   }
 
-  return { scopes: [...scopes], couldNotNarrow };
+  return { scopes: [...scopes], stillAllowWrites };
 }
 
 /**
