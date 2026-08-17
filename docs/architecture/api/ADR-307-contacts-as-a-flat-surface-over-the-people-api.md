@@ -9,7 +9,7 @@ related:
   - ADR-300
 ---
 
-# ADR-307: Contacts as a read surface over the People API
+# ADR-307: Contacts as a flat surface over the People API
 
 ## Context
 
@@ -59,15 +59,17 @@ give.
 
 ## Decision
 
-`manage_contacts` exposes **seven read operations and one write**, over flat parameters.
-The masks, the source types, the sort constants, `people/me` and the Person body shape do
-not appear in the schema at all.
+`manage_contacts` exposes **ten operations over flat scalar parameters**. The masks, the
+source types, the sort constants, `people/me`, the etag, `updatePersonFields` and the
+Person body shape do not appear in the schema at all.
 
 ```
 list             people.connections.list        your saved contacts
 search           people.searchContacts
 get              people.get                     one person in full
 create           people.createContact           save a new contact
+update           people.updateContact           change one
+delete           people.deleteContact
 listOther        otherContacts.list             addresses seen in mail, never saved
 searchOther      otherContacts.search
 listDirectory    people.listDirectoryPeople     the organization directory
@@ -76,8 +78,8 @@ searchDirectory  people.searchDirectoryPeople
 
 The agent supplies `operation`, `email`, and flat scalars: `query`, `contactId`,
 `maxResults`, `pageToken`, `sortOrder` for reads, and `name`, `contactEmail`, `phone`,
-`company`, `jobTitle`, `notes` for `create`. Everything else the API demands is supplied
-by the manifest's `defaults` or built in `beforeExecute`, and never enters the generated
+`company`, `jobTitle`, `notes` for writes. Everything else the API demands is supplied by
+the manifest's `defaults` or built in `beforeExecute`, and never enters the generated
 schema.
 
 This is the factory principle applied rather than bent: *simple for the agent, the tool
@@ -93,12 +95,46 @@ once per account per process, and a warmup that fails is swallowed rather than r
 if it failed for a reason that matters, the real search is about to fail the same way and
 say so properly.
 
-The write travels the same road in reverse. `create` advertises flat scalars and
+The writes travel the same road in reverse. `create` advertises flat scalars and
 `beforeExecute` assembles the Person — because anything sent that Google does not
 recognise as a query parameter lands in the request body **verbatim**, so a flat `name`
 is accepted, ignored, and returns 200 with a nameless contact. That failure contains no
 error anywhere. The same hook refuses a `create` with every field empty, which Google
 would otherwise accept, storing a record whose only content is its id.
+
+### `update` derives what it is allowed to touch
+
+`updatePersonFields` **replaces** every entry in each field it names, and naming a field
+with nothing in the body **clears** it. That is #161's shape — `calendar.attendees`
+silently replacing a whole list — with a sharper edge: the field list is not something
+the caller passes, it is something this code derives. Derive it wrong and the operation
+destroys data the caller never mentioned.
+
+So it is built from exactly which parameters arrived. Declared statically, this operation
+would wipe a contact's phone number every time someone corrected a job title.
+
+Google also requires the current `etag` and rejects the call without it, which makes
+`update` a read-modify-write rather than a patch. The contract the schema states, rather
+than leaving to be discovered:
+
+| the caller | the field |
+|---|---|
+| omits it | untouched, and not named in `updatePersonFields` |
+| passes a value | replaced entirely |
+| passes an empty string | named, left out of the body, and so cleared |
+
+`company` and `jobTitle` write to the **same** Person field, so setting only the title
+would replace the whole organization entry and drop the employer — a loss inside a single
+field, from a parameter that never mentioned the employer. The read half of the
+read-modify-write is already in hand, so the untouched half is carried over. Fields that
+map one-to-one replace; the one field two parameters share merges.
+
+### `delete` is resolved by how the policy is switched on
+
+`no-delete` is **opt-in**, via `GWS_SAFETY_POLICY`. Registering `people: ['delete']` in it
+means an operator who asked for no permanent deletion gets contacts covered, and one who
+did not keeps the operation. Whether Google's own trash would have caught the contact is
+not the question that operator asked, so it does not have to be answered here.
 
 ### Scoped in three parts
 
@@ -151,29 +187,28 @@ declares. Both halves were verified by breaking them.
 
 ### Neutral
 
-- **`update` and `delete` are deliberately absent**, and each is a separate decision with
-  its own hazard rather than a missing chore.
-
-  `people.updateContact` requires `updatePersonFields`, and that field list **replaces**
-  every entry in each field it names. A contact holding four email addresses, updated
-  with one, keeps one — the exact shape of #161, where `calendar.attendees` silently
-  replaced a whole list. It also requires the current `etag`, so it is a read-modify-write
-  and not a patch.
-
-  `deleteContact` is not covered by the `no-delete` safety policy, which is keyed by
-  service and does not list `people`. Whether contact deletion is permanent or lands in a
-  recoverable trash is not something to assert from the reference — and the answer decides
-  whether it belongs in that policy. Adding the operation without settling that would be
-  shipping a data-destruction path on an assumption.
+- `update` costs an extra round trip on every call, for the etag. There is no way to skip
+  it: Google rejects an update without one.
+- One field of a contact is still unreachable per call by design. `contactEmail` and
+  `phone` are single scalars, so a contact with four addresses cannot be edited down to
+  three — only replaced with one, or cleared. Editing a multi-valued field entry by entry
+  would need the array back in the schema, which is the shape this ADR exists to keep out.
+- Photos, addresses, birthdays, relations and URLs are readable and not writable. `get`
+  returns them; no parameter sets them.
 - `people.get` needs `profile`, not merely `userinfo.email` — measured, on an account that
   held the latter and was refused. Nothing in this tool depends on that, but it rules out
   probing the Person shape without full consent.
-- **All seven operations exercised against live Google**, on a personal account and a
-  Workspace one. Confirmed: every field mask is accepted as written; the `sources` pair
-  returns the domain directory; the `maxResults` clamps (30 search, 100 list) are within
-  Google's ceilings — a request for 500 clamped to 100 and returned 91 rather than
-  erroring; `people/me` resolves; bare ids normalize; and prefix matching behaves as the
-  parameter description claims (`ockelie` finds nobody, `Bockelie` finds ten).
+- **All ten operations exercised against live Google**, on a personal account and two
+  Workspace ones, including a full write lifecycle: create → add a phone → clear the phone
+  → delete → 404, with the search index agreeing at each step.
+
+  Confirmed: every field mask is accepted as written; the `sources` pair returns the
+  domain directory; the `maxResults` clamps (30 search, 100 list) are within Google's
+  ceilings — a request for 500 clamped to 100 and returned 91 rather than erroring;
+  `people/me` resolves; bare ids normalize; prefix matching behaves as the parameter
+  description claims (`ockelie` finds nobody, `Bockelie` finds ten); an empty string
+  really does clear a field; and both updates left every field the caller did not mention
+  untouched, which is the derived `updatePersonFields` doing its job.
 - Whether the **warmup is strictly required** remains unmeasured. It is documented by
   Google on both search methods, it is always sent, and no account here has ever searched
   without it — so nothing observed distinguishes "the warmup worked" from "the warmup was

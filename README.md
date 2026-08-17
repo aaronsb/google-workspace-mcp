@@ -128,7 +128,7 @@ flowchart LR
 | `manage_docs` | Docs — get, create, append, insert text, find-and-replace |
 | `manage_tasks` | Tasks — list / create / update / complete tasks and task lists |
 | `manage_meet` | Meet — create and configure meeting spaces, see who is in a call now, browse past conferences, participants, transcripts, recordings, smart notes |
-| `manage_contacts` | Contacts — look people up in your saved contacts, the addresses you have only corresponded with, and your organization's directory; create a contact |
+| `manage_contacts` | Contacts — look people up in your saved contacts, the addresses you have only corresponded with, and your organization's directory; create, update and delete contacts |
 | `manage_accounts` | Multi-account lifecycle — add accounts, manage credentials and scopes |
 | `manage_scratchpad` | Compose / edit multi-line content (line- or JSON-path-addressed), attach files, send to any target; JSON mode live-syncs to Docs / Sheets |
 | `manage_workspace` | File operations in the workspace sandbox (exchange point for attachments, downloads, exports) |
