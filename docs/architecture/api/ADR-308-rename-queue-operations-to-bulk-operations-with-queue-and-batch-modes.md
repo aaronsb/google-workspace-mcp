@@ -26,15 +26,25 @@ to do it in one.
 Measured across all eight services in `descriptor.json`. Every method with `batch` in its
 name falls into one of two groups, and only the second is a bulk *mode*:
 
-**Many edits to ONE resource** — already how these operations work, not a bulk mode:
+**Many edits to ONE resource** — a second axis, and not the one this ADR builds:
 
 | Service | Method |
 |---|---|
 | docs | `documents.batchUpdate` |
 | sheets | `spreadsheets.batchUpdate`, `values.batchUpdate`, `values.batchClear`, `values.batchGet` (+ `ByDataFilter` variants) |
 
-`manage_docs write` and every `manage_sheets` write already call these. A caller asking for
-"batch" here would be asking for what they already have.
+An earlier draft of this ADR said these operations "already work this way". **They do not.**
+`manage_docs` and `manage_sheets` do call `batchUpdate`, but each tool call sends
+`requests: [ …exactly one request… ]` (`src/services/docs/patch.ts`,
+`src/services/sheets/patch.ts`). Google's `batchUpdate` accepts an array, so five edits to
+one document currently cost five HTTP calls carrying one request each, where they could
+cost one carrying five.
+
+That is a real, unused capability on a different axis, and the call shape designed below
+would serve it unchanged — the shared `documentId` at the top level, the individual edits
+as `items`. It is not built here, and the refusal message deliberately does not claim
+"Google publishes no batch method", because for docs and sheets that would be false.
+Tracked separately.
 
 **One operation across MANY resources** — the real bulk surface:
 

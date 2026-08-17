@@ -243,8 +243,12 @@ export async function handleBatch(params: Record<string, unknown>): Promise<Hand
   const batchable = batchableOperations();
   const spec = batchable.get(`${tool}.${operation}`);
   if (!spec) {
+    // Deliberately does not claim "Google publishes no batch method". For docs and
+    // sheets that is false — they publish `batchUpdate`, which batches many edits to ONE
+    // document rather than one edit across many. Saying otherwise would teach the caller
+    // something untrue about Google's API.
     return err(
-      `${tool} '${operation}' cannot be batched — Google publishes no batch method for it. ` +
+      `${tool} '${operation}' cannot be batched. ` +
       `Operations that can: ${batchableList()}. ` +
       `Use mode:'queue' instead, which works for every operation.`,
     );

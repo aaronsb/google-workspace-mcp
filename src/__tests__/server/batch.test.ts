@@ -39,6 +39,10 @@ describe('refusing what cannot batch', () => {
     });
 
     expect(result.text).toContain('cannot be batched');
+    // Must not claim Google publishes no batch method: docs and sheets publish
+    // batchUpdate, which batches many edits to ONE document. A refusal should not teach
+    // the caller something false about the API.
+    expect(result.text).not.toContain('publishes no batch method');
     expect(result.text).toContain('manage_contacts delete');
     expect(result.text).toContain("mode:'queue'");
     expect(mockCall).not.toHaveBeenCalled();
