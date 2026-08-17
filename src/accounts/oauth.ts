@@ -34,14 +34,20 @@ export const SERVICE_SCOPE_MAP: Record<string, string[]> = {
  * those services instead, so the person consenting can be told before the browser opens
  * (ADR-202).
  *
- * `meet` is the live case. One of its three scopes is read-only, but
- * `meetings.space.created` and `.settings` have no read-only form, so the service as a
- * whole still allows writes.
+ * Every service currently has an entry, so nothing is granted more than was asked for
+ * today. The reporting path still exists because the next service added may not have
+ * one, and finding that out from a silently broad token is the wrong way to find out.
  *
- * Measured against descriptor.json: for calendar, docs, gmail and tasks the scope below
- * covers every GET method the service exposes. drive has two GET methods and sheets one
- * that no read-only scope covers, so read access to those two allows less than full
- * access but still slightly more than reading.
+ * Measured against descriptor.json rather than assumed:
+ *
+ * - calendar, docs, gmail, tasks — the scope below covers every GET method exposed.
+ * - meet — `meetings.space.readonly` alone authorizes all eleven operations
+ *   manage_meet exposes, every one a GET. The read/write entry also carries
+ *   `meetings.space.created` and `.settings`, which exist for CREATING and configuring
+ *   meeting spaces; this tool never does either. Reading "no read-only variant" off that
+ *   scope list, rather than off what the operations need, is what nearly left meet out.
+ * - drive, sheets — two GET methods and one respectively that no read-only scope covers,
+ *   so read access there allows less than full access but slightly more than reading.
  */
 export const SERVICE_SCOPE_MAP_READONLY: Record<string, string[]> = {
   gmail:    ['https://www.googleapis.com/auth/gmail.readonly'],
@@ -51,6 +57,7 @@ export const SERVICE_SCOPE_MAP_READONLY: Record<string, string[]> = {
   docs:     ['https://www.googleapis.com/auth/documents.readonly'],
   tasks:    ['https://www.googleapis.com/auth/tasks.readonly'],
   slides:   ['https://www.googleapis.com/auth/presentations.readonly'],
+  meet:     ['https://www.googleapis.com/auth/meetings.space.readonly'],
 };
 
 /** How much authority an account's token carries. */

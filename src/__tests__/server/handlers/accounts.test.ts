@@ -6,10 +6,18 @@ import { handleAccounts } from '../../../server/handlers/accounts.js';
 vi.mock('../../../accounts/registry.js');
 vi.mock('../../../accounts/auth.js');
 vi.mock('../../../accounts/token-service.js');
+// Mocked so the confirmation gate can be exercised in BOTH directions. Every real
+// service has a read-only scope today, so nothing produces stillAllowWrites on its own —
+// the gate exists for the service that does not, and that is what is simulated here.
+vi.mock('../../../accounts/oauth.js', () => ({
+  ALL_SERVICES: 'gmail,drive,calendar,sheets,docs,tasks,slides,meet',
+  scopesForServices: vi.fn(() => ({ scopes: [], stillAllowWrites: [] })),
+}));
 
 import { listAccounts, removeAccount, authenticateAndAddAccount } from '../../../accounts/registry.js';
 import { checkAccountStatus, reauthWithServices } from '../../../accounts/auth.js';
 import { getAccessToken, invalidateToken } from '../../../accounts/token-service.js';
+import { scopesForServices } from '../../../accounts/oauth.js';
 
 const mockListAccounts = listAccounts as MockedFunction<typeof listAccounts>;
 const mockRemoveAccount = removeAccount as MockedFunction<typeof removeAccount>;
@@ -17,9 +25,19 @@ const mockCheckStatus = checkAccountStatus as MockedFunction<typeof checkAccount
 const mockReauth = reauthWithServices as MockedFunction<typeof reauthWithServices>;
 const mockGetAccessToken = getAccessToken as MockedFunction<typeof getAccessToken>;
 const mockInvalidateToken = invalidateToken as MockedFunction<typeof invalidateToken>;
+const mockScopes = scopesForServices as MockedFunction<typeof scopesForServices>;
+
+/** Pretend the named services have no read-only option. */
+function noReadOnlyFor(...services: string[]) {
+  mockScopes.mockReturnValue({ scopes: [], stillAllowWrites: services });
+}
 
 describe('handleAccounts', () => {
-  beforeEach(() => vi.resetAllMocks());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    // Default: everything can be read-only, so the gate stays out of the way.
+    mockScopes.mockReturnValue({ scopes: [], stillAllowWrites: [] });
+  });
 
   describe('list', () => {
     it('returns markdown account list', async () => {
@@ -158,8 +176,9 @@ describe('handleAccounts', () => {
     });
 
     it('stops before the browser when a service has no read-only option', async () => {
-      // `meet` cannot be read-only. Authorizing first and reporting after would leave a
-      // token that can create meetings, revocable only through Google's own settings.
+      // Authorizing first and reporting after would leave a token that can write,
+      // revocable only through Google's own settings page.
+      noReadOnlyFor('meet');
       const result = await handleAccounts({
         operation: 'scopes', email: 'a@test.com', services: 'gmail,meet', access: 'read',
       });
@@ -176,6 +195,7 @@ describe('handleAccounts', () => {
     });
 
     it('proceeds once the caller confirms', async () => {
+      noReadOnlyFor('meet');
       mockReauth.mockResolvedValue({
         status: 'success', account: 'a@test.com', access: 'read', stillAllowWrites: ['meet'],
       });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scopesForServices, SERVICE_SCOPE_MAP, ALL_SERVICES } from '../../accounts/oauth.js';
+import { scopesForServices, SERVICE_SCOPE_MAP, SERVICE_SCOPE_MAP_READONLY, ALL_SERVICES } from '../../accounts/oauth.js';
 
 describe('oauth', () => {
   describe('SERVICE_SCOPE_MAP', () => {
@@ -78,17 +78,30 @@ describe('oauth', () => {
       expect(scopes).not.toContain('https://www.googleapis.com/auth/calendar');
     });
 
-    it('REPORTS a service that can still write, instead of quietly allowing it', () => {
-      // The one place this departs from the sketch in #130. `meet` has no read-only
-      // form, so asking for read access still grants meetings.space.created. Handing
-      // that over without saying so would mean "read access" quietly included the
-      // ability to change things.
-      const { scopes, stillAllowWrites } = scopesForServices('gmail,meet', 'read');
+    it('has a read-only option for EVERY service, so nothing over-grants today', () => {
+      // The invariant that keeps `access: 'read'` honest. A service added to
+      // SERVICE_SCOPE_MAP without a read-only counterpart would silently hand out its
+      // read/write scope to anyone asking for read access, which is how permission
+      // creeps. Fail here instead.
+      const missing = Object.keys(SERVICE_SCOPE_MAP)
+        .filter(name => !SERVICE_SCOPE_MAP_READONLY[name]);
+      expect(missing).toEqual([]);
 
-      expect(stillAllowWrites).toEqual(['meet']);
-      expect(scopes).toContain('https://www.googleapis.com/auth/gmail.readonly');
-      // Still granted — the point is that the user is TOLD, not that it is withheld.
-      expect(scopes).toContain('https://www.googleapis.com/auth/meetings.space.created');
+      const { stillAllowWrites } = scopesForServices(ALL_SERVICES, 'read');
+      expect(stillAllowWrites).toEqual([]);
+    });
+
+    it('reads meet through meetings.space.readonly alone', () => {
+      // Measured: every operation manage_meet exposes is a GET that this scope
+      // authorizes. The read/write entry also carries meetings.space.created and
+      // .settings, which exist for CREATING and configuring spaces — this tool does
+      // neither. Reading "no read-only variant" off the scope list rather than off what
+      // the operations need is what nearly left meet out of the map entirely.
+      const { scopes, stillAllowWrites } = scopesForServices('meet', 'read');
+      expect(scopes).toContain('https://www.googleapis.com/auth/meetings.space.readonly');
+      expect(scopes).not.toContain('https://www.googleapis.com/auth/meetings.space.created');
+      expect(scopes).not.toContain('https://www.googleapis.com/auth/meetings.space.settings');
+      expect(stillAllowWrites).toEqual([]);
     });
 
     it('reports nothing when every service has a read-only scope', () => {
