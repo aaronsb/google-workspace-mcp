@@ -3,6 +3,7 @@
   "services": {
     "calendar": {
       "discoveryUrl": "https://calendar-json.googleapis.com/$discovery/rest?version=v3",
+      "enums": {},
       "globalParameters": {
         "alt": {
           "location": "query"
@@ -230,6 +231,13 @@
               "location": "query"
             },
             "minAccessRole": {
+              "enum": [
+                "freeBusyReader",
+                "owner",
+                "reader",
+                "writer",
+                "writerWithoutPrivateAccess"
+              ],
               "location": "query"
             },
             "pageToken": {
@@ -239,6 +247,9 @@
               "location": "query"
             },
             "showHidden": {
+              "location": "query"
+            },
+            "showOwnOrganizationOnly": {
               "location": "query"
             },
             "syncToken": {
@@ -296,6 +307,13 @@
               "location": "query"
             },
             "minAccessRole": {
+              "enum": [
+                "freeBusyReader",
+                "owner",
+                "reader",
+                "writer",
+                "writerWithoutPrivateAccess"
+              ],
               "location": "query"
             },
             "pageToken": {
@@ -305,6 +323,9 @@
               "location": "query"
             },
             "showHidden": {
+              "location": "query"
+            },
+            "showOwnOrganizationOnly": {
               "location": "query"
             },
             "syncToken": {
@@ -479,6 +500,11 @@
               "location": "query"
             },
             "sendUpdates": {
+              "enum": [
+                "all",
+                "externalOnly",
+                "none"
+              ],
               "location": "query"
             }
           },
@@ -569,6 +595,11 @@
               "location": "query"
             },
             "sendUpdates": {
+              "enum": [
+                "all",
+                "externalOnly",
+                "none"
+              ],
               "location": "query"
             },
             "supportsAttachments": {
@@ -646,6 +677,14 @@
               "required": true
             },
             "eventTypes": {
+              "enum": [
+                "birthday",
+                "default",
+                "focusTime",
+                "fromGmail",
+                "outOfOffice",
+                "workingLocation"
+              ],
               "location": "query",
               "repeated": true
             },
@@ -659,6 +698,10 @@
               "location": "query"
             },
             "orderBy": {
+              "enum": [
+                "startTime",
+                "updated"
+              ],
               "location": "query"
             },
             "pageToken": {
@@ -732,6 +775,11 @@
               "location": "query"
             },
             "sendUpdates": {
+              "enum": [
+                "all",
+                "externalOnly",
+                "none"
+              ],
               "location": "query"
             }
           },
@@ -769,6 +817,11 @@
               "location": "query"
             },
             "sendUpdates": {
+              "enum": [
+                "all",
+                "externalOnly",
+                "none"
+              ],
               "location": "query"
             },
             "supportsAttachments": {
@@ -794,6 +847,11 @@
               "location": "query"
             },
             "sendUpdates": {
+              "enum": [
+                "all",
+                "externalOnly",
+                "none"
+              ],
               "location": "query"
             },
             "text": {
@@ -836,6 +894,11 @@
               "location": "query"
             },
             "sendUpdates": {
+              "enum": [
+                "all",
+                "externalOnly",
+                "none"
+              ],
               "location": "query"
             },
             "supportsAttachments": {
@@ -861,6 +924,14 @@
               "required": true
             },
             "eventTypes": {
+              "enum": [
+                "birthday",
+                "default",
+                "focusTime",
+                "fromGmail",
+                "outOfOffice",
+                "workingLocation"
+              ],
               "location": "query",
               "repeated": true
             },
@@ -874,6 +945,10 @@
               "location": "query"
             },
             "orderBy": {
+              "enum": [
+                "startTime",
+                "updated"
+              ],
               "location": "query"
             },
             "pageToken": {
@@ -1001,6 +1076,216 @@
     },
     "docs": {
       "discoveryUrl": "https://docs.googleapis.com/$discovery/rest?version=v1",
+      "enums": {
+        "AutoText.type": [
+          "TYPE_UNSPECIFIED",
+          "PAGE_NUMBER",
+          "PAGE_COUNT"
+        ],
+        "CreateFooterRequest.type": [
+          "HEADER_FOOTER_TYPE_UNSPECIFIED",
+          "DEFAULT"
+        ],
+        "CreateHeaderRequest.type": [
+          "HEADER_FOOTER_TYPE_UNSPECIFIED",
+          "DEFAULT"
+        ],
+        "CreateParagraphBulletsRequest.bulletPreset": [
+          "BULLET_GLYPH_PRESET_UNSPECIFIED",
+          "BULLET_DISC_CIRCLE_SQUARE",
+          "BULLET_DIAMONDX_ARROW3D_SQUARE",
+          "BULLET_CHECKBOX",
+          "BULLET_ARROW_DIAMOND_DISC",
+          "BULLET_STAR_CIRCLE_SQUARE",
+          "BULLET_ARROW3D_CIRCLE_SQUARE",
+          "BULLET_LEFTTRIANGLE_DIAMOND_DISC",
+          "BULLET_DIAMONDX_HOLLOWDIAMOND_SQUARE",
+          "BULLET_DIAMOND_CIRCLE_SQUARE",
+          "NUMBERED_DECIMAL_ALPHA_ROMAN",
+          "NUMBERED_DECIMAL_ALPHA_ROMAN_PARENS",
+          "NUMBERED_DECIMAL_NESTED",
+          "NUMBERED_UPPERALPHA_ALPHA_ROMAN",
+          "NUMBERED_UPPERROMAN_UPPERALPHA_DECIMAL",
+          "NUMBERED_ZERODECIMAL_ALPHA_ROMAN"
+        ],
+        "DateElementProperties.dateFormat": [
+          "DATE_FORMAT_UNSPECIFIED",
+          "DATE_FORMAT_CUSTOM",
+          "DATE_FORMAT_MONTH_DAY_ABBREVIATED",
+          "DATE_FORMAT_MONTH_DAY_FULL",
+          "DATE_FORMAT_MONTH_DAY_YEAR_ABBREVIATED",
+          "DATE_FORMAT_ISO8601"
+        ],
+        "DateElementProperties.timeFormat": [
+          "TIME_FORMAT_UNSPECIFIED",
+          "TIME_FORMAT_DISABLED",
+          "TIME_FORMAT_HOUR_MINUTE",
+          "TIME_FORMAT_HOUR_MINUTE_TIMEZONE"
+        ],
+        "Dimension.unit": [
+          "UNIT_UNSPECIFIED",
+          "PT"
+        ],
+        "Document.suggestionsViewMode": [
+          "DEFAULT_FOR_CURRENT_ACCESS",
+          "SUGGESTIONS_INLINE",
+          "PREVIEW_SUGGESTIONS_ACCEPTED",
+          "PREVIEW_WITHOUT_SUGGESTIONS"
+        ],
+        "DocumentFormat.documentMode": [
+          "DOCUMENT_MODE_UNSPECIFIED",
+          "PAGES",
+          "PAGELESS"
+        ],
+        "EmbeddedObjectBorder.dashStyle": [
+          "DASH_STYLE_UNSPECIFIED",
+          "SOLID",
+          "DOT",
+          "DASH"
+        ],
+        "EmbeddedObjectBorder.propertyState": [
+          "RENDERED",
+          "NOT_RENDERED"
+        ],
+        "InsertSectionBreakRequest.sectionType": [
+          "SECTION_TYPE_UNSPECIFIED",
+          "CONTINUOUS",
+          "NEXT_PAGE"
+        ],
+        "NamedStyle.namedStyleType": [
+          "NAMED_STYLE_TYPE_UNSPECIFIED",
+          "NORMAL_TEXT",
+          "TITLE",
+          "SUBTITLE",
+          "HEADING_1",
+          "HEADING_2",
+          "HEADING_3",
+          "HEADING_4",
+          "HEADING_5",
+          "HEADING_6"
+        ],
+        "NamedStyleSuggestionState.namedStyleType": [
+          "NAMED_STYLE_TYPE_UNSPECIFIED",
+          "NORMAL_TEXT",
+          "TITLE",
+          "SUBTITLE",
+          "HEADING_1",
+          "HEADING_2",
+          "HEADING_3",
+          "HEADING_4",
+          "HEADING_5",
+          "HEADING_6"
+        ],
+        "NestingLevel.bulletAlignment": [
+          "BULLET_ALIGNMENT_UNSPECIFIED",
+          "START",
+          "CENTER",
+          "END"
+        ],
+        "NestingLevel.glyphType": [
+          "GLYPH_TYPE_UNSPECIFIED",
+          "NONE",
+          "DECIMAL",
+          "ZERO_DECIMAL",
+          "UPPER_ALPHA",
+          "ALPHA",
+          "UPPER_ROMAN",
+          "ROMAN"
+        ],
+        "ParagraphBorder.dashStyle": [
+          "DASH_STYLE_UNSPECIFIED",
+          "SOLID",
+          "DOT",
+          "DASH"
+        ],
+        "ParagraphStyle.alignment": [
+          "ALIGNMENT_UNSPECIFIED",
+          "START",
+          "CENTER",
+          "END",
+          "JUSTIFIED"
+        ],
+        "ParagraphStyle.direction": [
+          "CONTENT_DIRECTION_UNSPECIFIED",
+          "LEFT_TO_RIGHT",
+          "RIGHT_TO_LEFT"
+        ],
+        "ParagraphStyle.namedStyleType": [
+          "NAMED_STYLE_TYPE_UNSPECIFIED",
+          "NORMAL_TEXT",
+          "TITLE",
+          "SUBTITLE",
+          "HEADING_1",
+          "HEADING_2",
+          "HEADING_3",
+          "HEADING_4",
+          "HEADING_5",
+          "HEADING_6"
+        ],
+        "ParagraphStyle.spacingMode": [
+          "SPACING_MODE_UNSPECIFIED",
+          "NEVER_COLLAPSE",
+          "COLLAPSE_LISTS"
+        ],
+        "PositionedObjectPositioning.layout": [
+          "POSITIONED_OBJECT_LAYOUT_UNSPECIFIED",
+          "WRAP_TEXT",
+          "BREAK_LEFT",
+          "BREAK_RIGHT",
+          "BREAK_LEFT_RIGHT",
+          "IN_FRONT_OF_TEXT",
+          "BEHIND_TEXT"
+        ],
+        "ReplaceImageRequest.imageReplaceMethod": [
+          "IMAGE_REPLACE_METHOD_UNSPECIFIED",
+          "CENTER_CROP"
+        ],
+        "SectionStyle.columnSeparatorStyle": [
+          "COLUMN_SEPARATOR_STYLE_UNSPECIFIED",
+          "NONE",
+          "BETWEEN_EACH_COLUMN"
+        ],
+        "SectionStyle.contentDirection": [
+          "CONTENT_DIRECTION_UNSPECIFIED",
+          "LEFT_TO_RIGHT",
+          "RIGHT_TO_LEFT"
+        ],
+        "SectionStyle.sectionType": [
+          "SECTION_TYPE_UNSPECIFIED",
+          "CONTINUOUS",
+          "NEXT_PAGE"
+        ],
+        "TabStop.alignment": [
+          "TAB_STOP_ALIGNMENT_UNSPECIFIED",
+          "START",
+          "CENTER",
+          "END"
+        ],
+        "TableCellBorder.dashStyle": [
+          "DASH_STYLE_UNSPECIFIED",
+          "SOLID",
+          "DOT",
+          "DASH"
+        ],
+        "TableCellStyle.contentAlignment": [
+          "CONTENT_ALIGNMENT_UNSPECIFIED",
+          "CONTENT_ALIGNMENT_UNSUPPORTED",
+          "TOP",
+          "MIDDLE",
+          "BOTTOM"
+        ],
+        "TableColumnProperties.widthType": [
+          "WIDTH_TYPE_UNSPECIFIED",
+          "EVENLY_DISTRIBUTED",
+          "FIXED_WIDTH"
+        ],
+        "TextStyle.baselineOffset": [
+          "BASELINE_OFFSET_UNSPECIFIED",
+          "NONE",
+          "SUPERSCRIPT",
+          "SUBSCRIPT"
+        ]
+      },
       "globalParameters": {
         "$.xgafv": {
           "location": "query"
@@ -1073,6 +1358,12 @@
               "location": "query"
             },
             "suggestionsViewMode": {
+              "enum": [
+                "DEFAULT_FOR_CURRENT_ACCESS",
+                "SUGGESTIONS_INLINE",
+                "PREVIEW_SUGGESTIONS_ACCEPTED",
+                "PREVIEW_WITHOUT_SUGGESTIONS"
+              ],
               "location": "query"
             }
           },
@@ -1092,6 +1383,36 @@
     },
     "drive": {
       "discoveryUrl": "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest",
+      "enums": {
+        "Approval.fileContentChangeBehavior": [
+          "FILE_CONTENT_CHANGE_BEHAVIOR_UNSPECIFIED",
+          "RESET_APPROVAL",
+          "NO_APPROVAL_ACTION"
+        ],
+        "Approval.status": [
+          "STATUS_UNSPECIFIED",
+          "IN_PROGRESS",
+          "APPROVED",
+          "CANCELLED",
+          "DECLINED"
+        ],
+        "ResolveAccessProposalRequest.action": [
+          "ACTION_UNSPECIFIED",
+          "ACCEPT",
+          "DENY"
+        ],
+        "ReviewerResponse.response": [
+          "RESPONSE_UNSPECIFIED",
+          "NO_RESPONSE",
+          "APPROVED",
+          "DECLINED"
+        ],
+        "StartApprovalRequest.fileContentChangeBehavior": [
+          "FILE_CONTENT_CHANGE_BEHAVIOR_UNSPECIFIED",
+          "RESET_APPROVAL",
+          "NO_APPROVAL_ACTION"
+        ]
+      },
       "globalParameters": {
         "$.xgafv": {
           "location": "query"
@@ -2017,6 +2338,10 @@
               "location": "query"
             },
             "corpus": {
+              "enum": [
+                "domain",
+                "user"
+              ],
               "location": "query"
             },
             "driveId": {
@@ -2690,6 +3015,88 @@
     },
     "gmail": {
       "discoveryUrl": "https://gmail.googleapis.com/$discovery/rest?version=v1",
+      "enums": {
+        "AutoForwarding.disposition": [
+          "dispositionUnspecified",
+          "leaveInInbox",
+          "archive",
+          "trash",
+          "markRead"
+        ],
+        "CseKeyPair.enablementState": [
+          "stateUnspecified",
+          "enabled",
+          "disabled"
+        ],
+        "Delegate.verificationStatus": [
+          "verificationStatusUnspecified",
+          "accepted",
+          "pending",
+          "rejected",
+          "expired"
+        ],
+        "FilterCriteria.sizeComparison": [
+          "unspecified",
+          "smaller",
+          "larger"
+        ],
+        "ForwardingAddress.verificationStatus": [
+          "verificationStatusUnspecified",
+          "accepted",
+          "pending"
+        ],
+        "ImapSettings.expungeBehavior": [
+          "expungeBehaviorUnspecified",
+          "archive",
+          "trash",
+          "deleteForever"
+        ],
+        "Label.labelListVisibility": [
+          "labelShow",
+          "labelShowIfUnread",
+          "labelHide"
+        ],
+        "Label.messageListVisibility": [
+          "show",
+          "hide"
+        ],
+        "Label.type": [
+          "system",
+          "user"
+        ],
+        "PopSettings.accessWindow": [
+          "accessWindowUnspecified",
+          "disabled",
+          "fromNowOn",
+          "allMail"
+        ],
+        "PopSettings.disposition": [
+          "dispositionUnspecified",
+          "leaveInInbox",
+          "archive",
+          "trash",
+          "markRead"
+        ],
+        "SendAs.verificationStatus": [
+          "verificationStatusUnspecified",
+          "accepted",
+          "pending"
+        ],
+        "SmtpMsa.securityMode": [
+          "securityModeUnspecified",
+          "none",
+          "ssl",
+          "starttls"
+        ],
+        "WatchRequest.labelFilterAction": [
+          "include",
+          "exclude"
+        ],
+        "WatchRequest.labelFilterBehavior": [
+          "include",
+          "exclude"
+        ]
+      },
       "globalParameters": {
         "$.xgafv": {
           "location": "query"
@@ -2774,6 +3181,12 @@
           "httpMethod": "GET",
           "parameters": {
             "format": {
+              "enum": [
+                "minimal",
+                "full",
+                "raw",
+                "metadata"
+              ],
               "location": "query"
             },
             "id": {
@@ -2894,6 +3307,12 @@
           "httpMethod": "GET",
           "parameters": {
             "historyTypes": {
+              "enum": [
+                "messageAdded",
+                "messageDeleted",
+                "labelAdded",
+                "labelRemoved"
+              ],
               "location": "query",
               "repeated": true
             },
@@ -3105,6 +3524,12 @@
           "httpMethod": "GET",
           "parameters": {
             "format": {
+              "enum": [
+                "minimal",
+                "full",
+                "raw",
+                "metadata"
+              ],
               "location": "query"
             },
             "id": {
@@ -3146,6 +3571,10 @@
               "location": "query"
             },
             "internalDateSource": {
+              "enum": [
+                "receivedTime",
+                "dateHeader"
+              ],
               "location": "query"
             },
             "neverMarkSpam": {
@@ -3181,6 +3610,10 @@
               "location": "query"
             },
             "internalDateSource": {
+              "enum": [
+                "receivedTime",
+                "dateHeader"
+              ],
               "location": "query"
             },
             "userId": {
@@ -3403,6 +3836,13 @@
         "users.settings.cse.keypairs.create": {
           "httpMethod": "POST",
           "parameters": {
+            "chainValidation": {
+              "enum": [
+                "all",
+                "none"
+              ],
+              "location": "query"
+            },
             "userId": {
               "location": "path",
               "required": true
@@ -4119,6 +4559,11 @@
           "httpMethod": "GET",
           "parameters": {
             "format": {
+              "enum": [
+                "full",
+                "metadata",
+                "minimal"
+              ],
               "location": "query"
             },
             "id": {
@@ -4254,6 +4699,82 @@
     },
     "meet": {
       "discoveryUrl": "https://meet.googleapis.com/$discovery/rest?version=v2",
+      "enums": {
+        "ModerationRestrictions.chatRestriction": [
+          "RESTRICTION_TYPE_UNSPECIFIED",
+          "HOSTS_ONLY",
+          "NO_RESTRICTION"
+        ],
+        "ModerationRestrictions.defaultJoinAsViewerType": [
+          "DEFAULT_JOIN_AS_VIEWER_TYPE_UNSPECIFIED",
+          "ON",
+          "OFF"
+        ],
+        "ModerationRestrictions.presentRestriction": [
+          "RESTRICTION_TYPE_UNSPECIFIED",
+          "HOSTS_ONLY",
+          "NO_RESTRICTION"
+        ],
+        "ModerationRestrictions.reactionRestriction": [
+          "RESTRICTION_TYPE_UNSPECIFIED",
+          "HOSTS_ONLY",
+          "NO_RESTRICTION"
+        ],
+        "Recording.state": [
+          "STATE_UNSPECIFIED",
+          "STARTED",
+          "ENDED",
+          "FILE_GENERATED"
+        ],
+        "RecordingConfig.autoRecordingGeneration": [
+          "AUTO_GENERATION_TYPE_UNSPECIFIED",
+          "ON",
+          "OFF"
+        ],
+        "SmartNote.state": [
+          "STATE_UNSPECIFIED",
+          "STARTED",
+          "ENDED",
+          "FILE_GENERATED"
+        ],
+        "SmartNotesConfig.autoSmartNotesGeneration": [
+          "AUTO_GENERATION_TYPE_UNSPECIFIED",
+          "ON",
+          "OFF"
+        ],
+        "SpaceConfig.accessType": [
+          "ACCESS_TYPE_UNSPECIFIED",
+          "OPEN",
+          "TRUSTED",
+          "RESTRICTED"
+        ],
+        "SpaceConfig.attendanceReportGenerationType": [
+          "ATTENDANCE_REPORT_GENERATION_TYPE_UNSPECIFIED",
+          "GENERATE_REPORT",
+          "DO_NOT_GENERATE"
+        ],
+        "SpaceConfig.entryPointAccess": [
+          "ENTRY_POINT_ACCESS_UNSPECIFIED",
+          "ALL",
+          "CREATOR_APP_ONLY"
+        ],
+        "SpaceConfig.moderation": [
+          "MODERATION_UNSPECIFIED",
+          "OFF",
+          "ON"
+        ],
+        "Transcript.state": [
+          "STATE_UNSPECIFIED",
+          "STARTED",
+          "ENDED",
+          "FILE_GENERATED"
+        ],
+        "TranscriptionConfig.autoTranscriptionGeneration": [
+          "AUTO_GENERATION_TYPE_UNSPECIFIED",
+          "ON",
+          "OFF"
+        ]
+      },
       "globalParameters": {
         "$.xgafv": {
           "location": "query"
@@ -4593,6 +5114,639 @@
     },
     "sheets": {
       "discoveryUrl": "https://sheets.googleapis.com/$discovery/rest?version=v4",
+      "enums": {
+        "AppendDimensionRequest.dimension": [
+          "DIMENSION_UNSPECIFIED",
+          "ROWS",
+          "COLUMNS"
+        ],
+        "BaselineValueFormat.comparisonType": [
+          "COMPARISON_TYPE_UNDEFINED",
+          "ABSOLUTE_DIFFERENCE",
+          "PERCENTAGE_DIFFERENCE"
+        ],
+        "BasicChartAxis.position": [
+          "BASIC_CHART_AXIS_POSITION_UNSPECIFIED",
+          "BOTTOM_AXIS",
+          "LEFT_AXIS",
+          "RIGHT_AXIS"
+        ],
+        "BasicChartSeries.targetAxis": [
+          "BASIC_CHART_AXIS_POSITION_UNSPECIFIED",
+          "BOTTOM_AXIS",
+          "LEFT_AXIS",
+          "RIGHT_AXIS"
+        ],
+        "BasicChartSeries.type": [
+          "BASIC_CHART_TYPE_UNSPECIFIED",
+          "BAR",
+          "LINE",
+          "AREA",
+          "COLUMN",
+          "SCATTER",
+          "COMBO",
+          "STEPPED_AREA"
+        ],
+        "BasicChartSpec.chartType": [
+          "BASIC_CHART_TYPE_UNSPECIFIED",
+          "BAR",
+          "LINE",
+          "AREA",
+          "COLUMN",
+          "SCATTER",
+          "COMBO",
+          "STEPPED_AREA"
+        ],
+        "BasicChartSpec.compareMode": [
+          "BASIC_CHART_COMPARE_MODE_UNSPECIFIED",
+          "DATUM",
+          "CATEGORY"
+        ],
+        "BasicChartSpec.legendPosition": [
+          "BASIC_CHART_LEGEND_POSITION_UNSPECIFIED",
+          "BOTTOM_LEGEND",
+          "LEFT_LEGEND",
+          "RIGHT_LEGEND",
+          "TOP_LEGEND",
+          "NO_LEGEND"
+        ],
+        "BasicChartSpec.stackedType": [
+          "BASIC_CHART_STACKED_TYPE_UNSPECIFIED",
+          "NOT_STACKED",
+          "STACKED",
+          "PERCENT_STACKED"
+        ],
+        "BatchGetValuesByDataFilterRequest.dateTimeRenderOption": [
+          "SERIAL_NUMBER",
+          "FORMATTED_STRING"
+        ],
+        "BatchGetValuesByDataFilterRequest.majorDimension": [
+          "DIMENSION_UNSPECIFIED",
+          "ROWS",
+          "COLUMNS"
+        ],
+        "BatchGetValuesByDataFilterRequest.valueRenderOption": [
+          "FORMATTED_VALUE",
+          "UNFORMATTED_VALUE",
+          "FORMULA"
+        ],
+        "BatchUpdateValuesByDataFilterRequest.responseDateTimeRenderOption": [
+          "SERIAL_NUMBER",
+          "FORMATTED_STRING"
+        ],
+        "BatchUpdateValuesByDataFilterRequest.responseValueRenderOption": [
+          "FORMATTED_VALUE",
+          "UNFORMATTED_VALUE",
+          "FORMULA"
+        ],
+        "BatchUpdateValuesByDataFilterRequest.valueInputOption": [
+          "INPUT_VALUE_OPTION_UNSPECIFIED",
+          "RAW",
+          "USER_ENTERED"
+        ],
+        "BatchUpdateValuesRequest.responseDateTimeRenderOption": [
+          "SERIAL_NUMBER",
+          "FORMATTED_STRING"
+        ],
+        "BatchUpdateValuesRequest.responseValueRenderOption": [
+          "FORMATTED_VALUE",
+          "UNFORMATTED_VALUE",
+          "FORMULA"
+        ],
+        "BatchUpdateValuesRequest.valueInputOption": [
+          "INPUT_VALUE_OPTION_UNSPECIFIED",
+          "RAW",
+          "USER_ENTERED"
+        ],
+        "BooleanCondition.type": [
+          "CONDITION_TYPE_UNSPECIFIED",
+          "NUMBER_GREATER",
+          "NUMBER_GREATER_THAN_EQ",
+          "NUMBER_LESS",
+          "NUMBER_LESS_THAN_EQ",
+          "NUMBER_EQ",
+          "NUMBER_NOT_EQ",
+          "NUMBER_BETWEEN",
+          "NUMBER_NOT_BETWEEN",
+          "TEXT_CONTAINS",
+          "TEXT_NOT_CONTAINS",
+          "TEXT_STARTS_WITH",
+          "TEXT_ENDS_WITH",
+          "TEXT_EQ",
+          "TEXT_IS_EMAIL",
+          "TEXT_IS_URL",
+          "DATE_EQ",
+          "DATE_BEFORE",
+          "DATE_AFTER",
+          "DATE_ON_OR_BEFORE",
+          "DATE_ON_OR_AFTER",
+          "DATE_BETWEEN",
+          "DATE_NOT_BETWEEN",
+          "DATE_IS_VALID",
+          "ONE_OF_RANGE",
+          "ONE_OF_LIST",
+          "BLANK",
+          "NOT_BLANK",
+          "CUSTOM_FORMULA",
+          "BOOLEAN",
+          "TEXT_NOT_EQ",
+          "DATE_NOT_EQ",
+          "FILTER_EXPRESSION"
+        ],
+        "Border.style": [
+          "STYLE_UNSPECIFIED",
+          "DOTTED",
+          "DASHED",
+          "SOLID",
+          "SOLID_MEDIUM",
+          "SOLID_THICK",
+          "NONE",
+          "DOUBLE"
+        ],
+        "BubbleChartSpec.legendPosition": [
+          "BUBBLE_CHART_LEGEND_POSITION_UNSPECIFIED",
+          "BOTTOM_LEGEND",
+          "LEFT_LEGEND",
+          "RIGHT_LEGEND",
+          "TOP_LEGEND",
+          "NO_LEGEND",
+          "INSIDE_LEGEND"
+        ],
+        "CellFormat.horizontalAlignment": [
+          "HORIZONTAL_ALIGN_UNSPECIFIED",
+          "LEFT",
+          "CENTER",
+          "RIGHT"
+        ],
+        "CellFormat.hyperlinkDisplayType": [
+          "HYPERLINK_DISPLAY_TYPE_UNSPECIFIED",
+          "LINKED",
+          "PLAIN_TEXT"
+        ],
+        "CellFormat.textDirection": [
+          "TEXT_DIRECTION_UNSPECIFIED",
+          "LEFT_TO_RIGHT",
+          "RIGHT_TO_LEFT"
+        ],
+        "CellFormat.verticalAlignment": [
+          "VERTICAL_ALIGN_UNSPECIFIED",
+          "TOP",
+          "MIDDLE",
+          "BOTTOM"
+        ],
+        "CellFormat.wrapStrategy": [
+          "WRAP_STRATEGY_UNSPECIFIED",
+          "OVERFLOW_CELL",
+          "LEGACY_WRAP",
+          "CLIP",
+          "WRAP"
+        ],
+        "ChartAxisViewWindowOptions.viewWindowMode": [
+          "DEFAULT_VIEW_WINDOW_MODE",
+          "VIEW_WINDOW_MODE_UNSUPPORTED",
+          "EXPLICIT",
+          "PRETTY"
+        ],
+        "ChartData.aggregateType": [
+          "CHART_AGGREGATE_TYPE_UNSPECIFIED",
+          "AVERAGE",
+          "COUNT",
+          "MAX",
+          "MEDIAN",
+          "MIN",
+          "SUM"
+        ],
+        "ChartDateTimeRule.type": [
+          "CHART_DATE_TIME_RULE_TYPE_UNSPECIFIED",
+          "SECOND",
+          "MINUTE",
+          "HOUR",
+          "HOUR_MINUTE",
+          "HOUR_MINUTE_AMPM",
+          "DAY_OF_WEEK",
+          "DAY_OF_YEAR",
+          "DAY_OF_MONTH",
+          "DAY_MONTH",
+          "MONTH",
+          "QUARTER",
+          "YEAR",
+          "YEAR_MONTH",
+          "YEAR_QUARTER",
+          "YEAR_MONTH_DAY"
+        ],
+        "ChartSpec.hiddenDimensionStrategy": [
+          "CHART_HIDDEN_DIMENSION_STRATEGY_UNSPECIFIED",
+          "SKIP_HIDDEN_ROWS_AND_COLUMNS",
+          "SKIP_HIDDEN_ROWS",
+          "SKIP_HIDDEN_COLUMNS",
+          "SHOW_ALL"
+        ],
+        "ColorStyle.themeColor": [
+          "THEME_COLOR_TYPE_UNSPECIFIED",
+          "TEXT",
+          "BACKGROUND",
+          "ACCENT1",
+          "ACCENT2",
+          "ACCENT3",
+          "ACCENT4",
+          "ACCENT5",
+          "ACCENT6",
+          "LINK"
+        ],
+        "ConditionValue.relativeDate": [
+          "RELATIVE_DATE_UNSPECIFIED",
+          "PAST_YEAR",
+          "PAST_MONTH",
+          "PAST_WEEK",
+          "YESTERDAY",
+          "TODAY",
+          "TOMORROW"
+        ],
+        "CopyPasteRequest.pasteOrientation": [
+          "NORMAL",
+          "TRANSPOSE"
+        ],
+        "CopyPasteRequest.pasteType": [
+          "PASTE_NORMAL",
+          "PASTE_VALUES",
+          "PASTE_FORMAT",
+          "PASTE_NO_BORDERS",
+          "PASTE_FORMULA",
+          "PASTE_DATA_VALIDATION",
+          "PASTE_CONDITIONAL_FORMATTING"
+        ],
+        "CutPasteRequest.pasteType": [
+          "PASTE_NORMAL",
+          "PASTE_VALUES",
+          "PASTE_FORMAT",
+          "PASTE_NO_BORDERS",
+          "PASTE_FORMULA",
+          "PASTE_DATA_VALIDATION",
+          "PASTE_CONDITIONAL_FORMATTING"
+        ],
+        "DataExecutionStatus.errorCode": [
+          "DATA_EXECUTION_ERROR_CODE_UNSPECIFIED",
+          "TIMED_OUT",
+          "TOO_MANY_ROWS",
+          "TOO_MANY_COLUMNS",
+          "TOO_MANY_CELLS",
+          "ENGINE",
+          "PARAMETER_INVALID",
+          "UNSUPPORTED_DATA_TYPE",
+          "DUPLICATE_COLUMN_NAMES",
+          "INTERRUPTED",
+          "CONCURRENT_QUERY",
+          "OTHER",
+          "TOO_MANY_CHARS_PER_CELL",
+          "DATA_NOT_FOUND",
+          "PERMISSION_DENIED",
+          "MISSING_COLUMN_ALIAS",
+          "OBJECT_NOT_FOUND",
+          "OBJECT_IN_ERROR_STATE",
+          "OBJECT_SPEC_INVALID",
+          "DATA_EXECUTION_CANCELLED"
+        ],
+        "DataExecutionStatus.state": [
+          "DATA_EXECUTION_STATE_UNSPECIFIED",
+          "NOT_STARTED",
+          "RUNNING",
+          "CANCELLING",
+          "SUCCEEDED",
+          "FAILED"
+        ],
+        "DataFilterValueRange.majorDimension": [
+          "DIMENSION_UNSPECIFIED",
+          "ROWS",
+          "COLUMNS"
+        ],
+        "DataLabel.placement": [
+          "DATA_LABEL_PLACEMENT_UNSPECIFIED",
+          "CENTER",
+          "LEFT",
+          "RIGHT",
+          "ABOVE",
+          "BELOW",
+          "INSIDE_END",
+          "INSIDE_BASE",
+          "OUTSIDE_END"
+        ],
+        "DataLabel.type": [
+          "DATA_LABEL_TYPE_UNSPECIFIED",
+          "NONE",
+          "DATA",
+          "CUSTOM"
+        ],
+        "DataSourceRefreshSchedule.refreshScope": [
+          "DATA_SOURCE_REFRESH_SCOPE_UNSPECIFIED",
+          "ALL_DATA_SOURCES"
+        ],
+        "DataSourceTable.columnSelectionType": [
+          "DATA_SOURCE_TABLE_COLUMN_SELECTION_TYPE_UNSPECIFIED",
+          "SELECTED",
+          "SYNC_ALL"
+        ],
+        "DateTimeRule.type": [
+          "DATE_TIME_RULE_TYPE_UNSPECIFIED",
+          "SECOND",
+          "MINUTE",
+          "HOUR",
+          "HOUR_MINUTE",
+          "HOUR_MINUTE_AMPM",
+          "DAY_OF_WEEK",
+          "DAY_OF_YEAR",
+          "DAY_OF_MONTH",
+          "DAY_MONTH",
+          "MONTH",
+          "QUARTER",
+          "YEAR",
+          "YEAR_MONTH",
+          "YEAR_QUARTER",
+          "YEAR_MONTH_DAY"
+        ],
+        "DeleteRangeRequest.shiftDimension": [
+          "DIMENSION_UNSPECIFIED",
+          "ROWS",
+          "COLUMNS"
+        ],
+        "DeveloperMetadata.visibility": [
+          "DEVELOPER_METADATA_VISIBILITY_UNSPECIFIED",
+          "DOCUMENT",
+          "PROJECT"
+        ],
+        "DeveloperMetadataLocation.locationType": [
+          "DEVELOPER_METADATA_LOCATION_TYPE_UNSPECIFIED",
+          "ROW",
+          "COLUMN",
+          "SHEET",
+          "SPREADSHEET"
+        ],
+        "DeveloperMetadataLookup.locationMatchingStrategy": [
+          "DEVELOPER_METADATA_LOCATION_MATCHING_STRATEGY_UNSPECIFIED",
+          "EXACT_LOCATION",
+          "INTERSECTING_LOCATION"
+        ],
+        "DeveloperMetadataLookup.locationType": [
+          "DEVELOPER_METADATA_LOCATION_TYPE_UNSPECIFIED",
+          "ROW",
+          "COLUMN",
+          "SHEET",
+          "SPREADSHEET"
+        ],
+        "DeveloperMetadataLookup.visibility": [
+          "DEVELOPER_METADATA_VISIBILITY_UNSPECIFIED",
+          "DOCUMENT",
+          "PROJECT"
+        ],
+        "DimensionRange.dimension": [
+          "DIMENSION_UNSPECIFIED",
+          "ROWS",
+          "COLUMNS"
+        ],
+        "ErrorValue.type": [
+          "ERROR_TYPE_UNSPECIFIED",
+          "ERROR",
+          "NULL_VALUE",
+          "DIVIDE_BY_ZERO",
+          "VALUE",
+          "REF",
+          "NAME",
+          "NUM",
+          "N_A",
+          "LOADING"
+        ],
+        "HistogramChartSpec.legendPosition": [
+          "HISTOGRAM_CHART_LEGEND_POSITION_UNSPECIFIED",
+          "BOTTOM_LEGEND",
+          "LEFT_LEGEND",
+          "RIGHT_LEGEND",
+          "TOP_LEGEND",
+          "NO_LEGEND",
+          "INSIDE_LEGEND"
+        ],
+        "InsertRangeRequest.shiftDimension": [
+          "DIMENSION_UNSPECIFIED",
+          "ROWS",
+          "COLUMNS"
+        ],
+        "InterpolationPoint.type": [
+          "INTERPOLATION_POINT_TYPE_UNSPECIFIED",
+          "MIN",
+          "MAX",
+          "NUMBER",
+          "PERCENT",
+          "PERCENTILE"
+        ],
+        "LineStyle.type": [
+          "LINE_DASH_TYPE_UNSPECIFIED",
+          "INVISIBLE",
+          "CUSTOM",
+          "SOLID",
+          "DOTTED",
+          "MEDIUM_DASHED",
+          "MEDIUM_DASHED_DOTTED",
+          "LONG_DASHED",
+          "LONG_DASHED_DOTTED"
+        ],
+        "MergeCellsRequest.mergeType": [
+          "MERGE_ALL",
+          "MERGE_COLUMNS",
+          "MERGE_ROWS"
+        ],
+        "NumberFormat.type": [
+          "NUMBER_FORMAT_TYPE_UNSPECIFIED",
+          "TEXT",
+          "NUMBER",
+          "PERCENT",
+          "CURRENCY",
+          "DATE",
+          "TIME",
+          "DATE_TIME",
+          "SCIENTIFIC"
+        ],
+        "OrgChartSpec.nodeSize": [
+          "ORG_CHART_LABEL_SIZE_UNSPECIFIED",
+          "SMALL",
+          "MEDIUM",
+          "LARGE"
+        ],
+        "PasteDataRequest.type": [
+          "PASTE_NORMAL",
+          "PASTE_VALUES",
+          "PASTE_FORMAT",
+          "PASTE_NO_BORDERS",
+          "PASTE_FORMULA",
+          "PASTE_DATA_VALIDATION",
+          "PASTE_CONDITIONAL_FORMATTING"
+        ],
+        "PersonProperties.displayFormat": [
+          "DISPLAY_FORMAT_UNSPECIFIED",
+          "DEFAULT",
+          "LAST_NAME_COMMA_FIRST_NAME",
+          "EMAIL"
+        ],
+        "PieChartSpec.legendPosition": [
+          "PIE_CHART_LEGEND_POSITION_UNSPECIFIED",
+          "BOTTOM_LEGEND",
+          "LEFT_LEGEND",
+          "RIGHT_LEGEND",
+          "TOP_LEGEND",
+          "NO_LEGEND",
+          "LABELED_LEGEND"
+        ],
+        "PivotGroup.sortOrder": [
+          "SORT_ORDER_UNSPECIFIED",
+          "ASCENDING",
+          "DESCENDING"
+        ],
+        "PivotTable.valueLayout": [
+          "HORIZONTAL",
+          "VERTICAL"
+        ],
+        "PivotValue.calculatedDisplayType": [
+          "PIVOT_VALUE_CALCULATED_DISPLAY_TYPE_UNSPECIFIED",
+          "PERCENT_OF_ROW_TOTAL",
+          "PERCENT_OF_COLUMN_TOTAL",
+          "PERCENT_OF_GRAND_TOTAL"
+        ],
+        "PivotValue.summarizeFunction": [
+          "PIVOT_STANDARD_VALUE_FUNCTION_UNSPECIFIED",
+          "SUM",
+          "COUNTA",
+          "COUNT",
+          "COUNTUNIQUE",
+          "AVERAGE",
+          "MAX",
+          "MIN",
+          "MEDIAN",
+          "PRODUCT",
+          "STDEV",
+          "STDEVP",
+          "VAR",
+          "VARP",
+          "CUSTOM",
+          "NONE"
+        ],
+        "PointStyle.shape": [
+          "POINT_SHAPE_UNSPECIFIED",
+          "CIRCLE",
+          "DIAMOND",
+          "HEXAGON",
+          "PENTAGON",
+          "SQUARE",
+          "STAR",
+          "TRIANGLE",
+          "X_MARK"
+        ],
+        "RefreshCancellationStatus.errorCode": [
+          "REFRESH_CANCELLATION_ERROR_CODE_UNSPECIFIED",
+          "EXECUTION_NOT_FOUND",
+          "CANCEL_PERMISSION_DENIED",
+          "QUERY_EXECUTION_COMPLETED",
+          "CONCURRENT_CANCELLATION",
+          "CANCEL_OTHER_ERROR"
+        ],
+        "RefreshCancellationStatus.state": [
+          "REFRESH_CANCELLATION_STATE_UNSPECIFIED",
+          "CANCEL_SUCCEEDED",
+          "CANCEL_FAILED"
+        ],
+        "ScorecardChartSpec.aggregateType": [
+          "CHART_AGGREGATE_TYPE_UNSPECIFIED",
+          "AVERAGE",
+          "COUNT",
+          "MAX",
+          "MEDIAN",
+          "MIN",
+          "SUM"
+        ],
+        "ScorecardChartSpec.numberFormatSource": [
+          "CHART_NUMBER_FORMAT_SOURCE_UNDEFINED",
+          "FROM_DATA",
+          "CUSTOM"
+        ],
+        "SheetProperties.sheetType": [
+          "SHEET_TYPE_UNSPECIFIED",
+          "GRID",
+          "OBJECT",
+          "DATA_SOURCE"
+        ],
+        "SlicerSpec.horizontalAlignment": [
+          "HORIZONTAL_ALIGN_UNSPECIFIED",
+          "LEFT",
+          "CENTER",
+          "RIGHT"
+        ],
+        "SortSpec.sortOrder": [
+          "SORT_ORDER_UNSPECIFIED",
+          "ASCENDING",
+          "DESCENDING"
+        ],
+        "SourceAndDestination.dimension": [
+          "DIMENSION_UNSPECIFIED",
+          "ROWS",
+          "COLUMNS"
+        ],
+        "SpreadsheetProperties.autoRecalc": [
+          "RECALCULATION_INTERVAL_UNSPECIFIED",
+          "ON_CHANGE",
+          "MINUTE",
+          "HOUR"
+        ],
+        "TableColumnProperties.columnType": [
+          "COLUMN_TYPE_UNSPECIFIED",
+          "DOUBLE",
+          "CURRENCY",
+          "PERCENT",
+          "DATE",
+          "TIME",
+          "DATE_TIME",
+          "TEXT",
+          "BOOLEAN",
+          "DROPDOWN",
+          "FILES_CHIP",
+          "PEOPLE_CHIP",
+          "FINANCE_CHIP",
+          "PLACE_CHIP",
+          "RATINGS_CHIP"
+        ],
+        "TextPosition.horizontalAlignment": [
+          "HORIZONTAL_ALIGN_UNSPECIFIED",
+          "LEFT",
+          "CENTER",
+          "RIGHT"
+        ],
+        "TextToColumnsRequest.delimiterType": [
+          "DELIMITER_TYPE_UNSPECIFIED",
+          "COMMA",
+          "SEMICOLON",
+          "PERIOD",
+          "SPACE",
+          "CUSTOM",
+          "AUTODETECT"
+        ],
+        "ThemeColorPair.colorType": [
+          "THEME_COLOR_TYPE_UNSPECIFIED",
+          "TEXT",
+          "BACKGROUND",
+          "ACCENT1",
+          "ACCENT2",
+          "ACCENT3",
+          "ACCENT4",
+          "ACCENT5",
+          "ACCENT6",
+          "LINK"
+        ],
+        "ValueRange.majorDimension": [
+          "DIMENSION_UNSPECIFIED",
+          "ROWS",
+          "COLUMNS"
+        ],
+        "WaterfallChartSpec.stackedType": [
+          "WATERFALL_STACKED_TYPE_UNSPECIFIED",
+          "STACKED",
+          "SEQUENTIAL"
+        ]
+      },
       "globalParameters": {
         "$.xgafv": {
           "location": "query"
@@ -4756,6 +5910,10 @@
               "location": "query"
             },
             "insertDataOption": {
+              "enum": [
+                "OVERWRITE",
+                "INSERT_ROWS"
+              ],
               "location": "query"
             },
             "range": {
@@ -4763,9 +5921,18 @@
               "required": true
             },
             "responseDateTimeRenderOption": {
+              "enum": [
+                "SERIAL_NUMBER",
+                "FORMATTED_STRING"
+              ],
               "location": "query"
             },
             "responseValueRenderOption": {
+              "enum": [
+                "FORMATTED_VALUE",
+                "UNFORMATTED_VALUE",
+                "FORMULA"
+              ],
               "location": "query"
             },
             "spreadsheetId": {
@@ -4773,6 +5940,11 @@
               "required": true
             },
             "valueInputOption": {
+              "enum": [
+                "INPUT_VALUE_OPTION_UNSPECIFIED",
+                "RAW",
+                "USER_ENTERED"
+              ],
               "location": "query"
             }
           },
@@ -4817,9 +5989,18 @@
           "httpMethod": "GET",
           "parameters": {
             "dateTimeRenderOption": {
+              "enum": [
+                "SERIAL_NUMBER",
+                "FORMATTED_STRING"
+              ],
               "location": "query"
             },
             "majorDimension": {
+              "enum": [
+                "DIMENSION_UNSPECIFIED",
+                "ROWS",
+                "COLUMNS"
+              ],
               "location": "query"
             },
             "ranges": {
@@ -4831,6 +6012,11 @@
               "required": true
             },
             "valueRenderOption": {
+              "enum": [
+                "FORMATTED_VALUE",
+                "UNFORMATTED_VALUE",
+                "FORMULA"
+              ],
               "location": "query"
             }
           },
@@ -4911,9 +6097,18 @@
           "httpMethod": "GET",
           "parameters": {
             "dateTimeRenderOption": {
+              "enum": [
+                "SERIAL_NUMBER",
+                "FORMATTED_STRING"
+              ],
               "location": "query"
             },
             "majorDimension": {
+              "enum": [
+                "DIMENSION_UNSPECIFIED",
+                "ROWS",
+                "COLUMNS"
+              ],
               "location": "query"
             },
             "range": {
@@ -4925,6 +6120,11 @@
               "required": true
             },
             "valueRenderOption": {
+              "enum": [
+                "FORMATTED_VALUE",
+                "UNFORMATTED_VALUE",
+                "FORMULA"
+              ],
               "location": "query"
             }
           },
@@ -4948,9 +6148,18 @@
               "required": true
             },
             "responseDateTimeRenderOption": {
+              "enum": [
+                "SERIAL_NUMBER",
+                "FORMATTED_STRING"
+              ],
               "location": "query"
             },
             "responseValueRenderOption": {
+              "enum": [
+                "FORMATTED_VALUE",
+                "UNFORMATTED_VALUE",
+                "FORMULA"
+              ],
               "location": "query"
             },
             "spreadsheetId": {
@@ -4958,6 +6167,11 @@
               "required": true
             },
             "valueInputOption": {
+              "enum": [
+                "INPUT_VALUE_OPTION_UNSPECIFIED",
+                "RAW",
+                "USER_ENTERED"
+              ],
               "location": "query"
             }
           },
@@ -4975,6 +6189,14 @@
     },
     "tasks": {
       "discoveryUrl": "https://tasks.googleapis.com/$discovery/rest?version=v1",
+      "enums": {
+        "AssignmentInfo.surfaceType": [
+          "CONTEXT_TYPE_UNSPECIFIED",
+          "GMAIL",
+          "DOCUMENT",
+          "SPACE"
+        ]
+      },
       "globalParameters": {
         "$.xgafv": {
           "location": "query"

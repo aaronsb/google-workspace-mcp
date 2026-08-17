@@ -2,6 +2,19 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockedF
 import * as fs from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { loadDescriptor } from '../../google/descriptor.js';
+import { readFileSync as readDescriptor } from 'node:fs';
+
+/** The parts of the descriptor these assertions read. */
+interface DescriptorShape {
+  services: Record<string, {
+    methods?: Record<string, { httpMethod?: string; parameters?: Record<string, { enum?: string[] }> }>;
+    enums?: Record<string, string[]>;
+  }>;
+}
+const descriptorJson = JSON.parse(
+  readDescriptor(new URL('../../google/descriptor.json', import.meta.url), 'utf-8'),
+) as DescriptorShape;
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { loadManifest, generateTools, generateSchema, generateHandler } from '../../factory/generator.js';
@@ -59,6 +72,120 @@ const KNOWN_COLLISIONS = new Set(readFileSync(
 function fingerprint(message: string): string {
   return createHash('sha1').update(message).digest('hex').slice(0, 12);
 }
+
+/**
+ * Operations whose manifest `type` disagrees with the HTTP verb Google uses, deliberately.
+ * Each needs a reason, because the pair is what tells read from write.
+ */
+const TYPE_EXCEPTIONS: Record<string, string> = {
+  'calendar.freebusy': 'a read shaped as POST — freebusy.query sends its time range in a body',
+  'drive.export': 'declared an action because it writes a local file, but the API call is a GET',
+};
+
+describe('manifest type vs the HTTP verb Google uses', () => {
+  it('declares list/detail for reads and action for writes', async () => {
+    // `type` is the declared intent; httpMethod is what Google actually does. ADR-202
+    // enforces access from the descriptor, so an operation whose `type` misdescribes it
+    // is an operation the access policy will get wrong — a write let through as a read,
+    // or a read refused to an account entitled to it.
+    //
+    // Catching that here means it fails the suite instead of at somebody's call site.
+    const manifest = loadManifest();
+    const descriptor = await loadDescriptor();
+    const disagreements: string[] = [];
+
+    for (const [serviceName, service] of Object.entries(manifest.services)) {
+      for (const [opName, op] of Object.entries(service.operations)) {
+        const method = descriptor.services[serviceName]?.methods?.[op.resource ?? ''];
+        if (!method) continue;   // custom handler with no single resource behind it
+
+        const key = `${serviceName}.${opName}`;
+        if (key in TYPE_EXCEPTIONS) continue;
+
+        const declaredRead = op.type === 'list' || op.type === 'detail';
+        const actuallyRead = method.httpMethod === 'GET';
+        if (declaredRead !== actuallyRead) {
+          disagreements.push(
+            `${key}: type='${op.type}' says ${declaredRead ? 'read' : 'write'}, ` +
+            `but ${method.httpMethod} ${op.resource} is a ${actuallyRead ? 'read' : 'write'}. ` +
+            `Fix the type, or add it to TYPE_EXCEPTIONS with a reason.`,
+          );
+        }
+      }
+    }
+
+    expect(disagreements).toEqual([]);
+  });
+
+  it('keeps every exception real', async () => {
+    // An exception left behind after its operation changed would quietly excuse a genuine
+    // disagreement. Each one has to still be a disagreement.
+    const manifest = loadManifest();
+    const descriptor = await loadDescriptor();
+    const stale: string[] = [];
+
+    for (const key of Object.keys(TYPE_EXCEPTIONS)) {
+      const [serviceName, opName] = key.split('.');
+      const op = manifest.services[serviceName]?.operations?.[opName];
+      if (!op) { stale.push(`${key}: no such operation`); continue; }
+      const method = descriptor.services[serviceName]?.methods?.[op.resource ?? ''];
+      if (!method) { stale.push(`${key}: no descriptor method`); continue; }
+
+      const declaredRead = op.type === 'list' || op.type === 'detail';
+      if (declaredRead === (method.httpMethod === 'GET')) {
+        stale.push(`${key}: now agrees — remove it from TYPE_EXCEPTIONS`);
+      }
+    }
+
+    expect(stale).toEqual([]);
+  });
+});
+
+describe('manifest enums against the values Google declares', () => {
+  it('never offers the model a value Google would reject', () => {
+    // The descriptor now carries enum values — from method parameters and from schema
+    // properties — because request BODIES were otherwise unchecked by anything here. A
+    // handler that sent `MODERATION_ON` where Google wanted `ON` passed lint,
+    // type-check and the whole suite, and was found only by calling Google.
+    //
+    // Where Google declares an enum for a field of the same name, ours must be a subset
+    // of it. Where Google declares none, there is nothing to check and this stays quiet
+    // rather than inventing a rule.
+    const manifest = loadManifest();
+    const wrong: string[] = [];
+
+    for (const [serviceName, service] of Object.entries(manifest.services)) {
+      const svc = (descriptorJson as DescriptorShape).services[serviceName];
+      if (!svc) continue;
+
+      for (const [opName, op] of Object.entries(service.operations)) {
+        for (const [paramName, def] of Object.entries(op.params ?? {})) {
+          const ours = (def as { enum?: string[] }).enum;
+          if (!ours?.length) continue;
+
+          const target = (def as { maps_to?: string }).maps_to ?? paramName;
+          const fromParam = svc.methods?.[op.resource ?? '']?.parameters?.[target]?.enum;
+          const fromSchema = Object.entries(svc.enums ?? {})
+            .filter(([key]) => key.split('.').pop() === target)
+            .map(([, values]) => values);
+
+          const allowed = fromParam ?? fromSchema[0];
+          if (!allowed) continue;   // Google declares nothing for this name
+
+          const rejected = ours.filter(v => !allowed.includes(v));
+          if (rejected.length) {
+            wrong.push(
+              `${serviceName}.${opName}.${paramName}: offers ${JSON.stringify(rejected)}, ` +
+              `Google accepts ${JSON.stringify(allowed)}`,
+            );
+          }
+        }
+      }
+    }
+
+    expect(wrong).toEqual([]);
+  });
+});
 
 describe('generateSchema — one declaration per param name', () => {
   it('never declares a param name twice with different wording, type, or enum', () => {

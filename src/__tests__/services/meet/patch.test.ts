@@ -11,6 +11,14 @@ import { call } from '../../../google/client.js';
 const mockCall = call as MockedFunction<typeof call>;
 
 import { meetPatch } from '../../../services/meet/patch.js';
+import { readFileSync } from 'node:fs';
+
+interface DescriptorShape {
+  services: Record<string, { enums?: Record<string, string[]> }>;
+}
+const descriptorJson = JSON.parse(
+  readFileSync(new URL('../../../google/descriptor.json', import.meta.url), 'utf-8'),
+) as DescriptorShape;
 import type { PatchContext } from '../../../factory/types.js';
 
 function ctx(operation: string, params: Record<string, unknown> = {}): PatchContext {
@@ -460,6 +468,30 @@ describe('meetPatch — meeting spaces', () => {
       mockCall.mockResolvedValue(space);
       await H.createSpace({ moderation: false }, ACCOUNT);
       expect(mockCall.mock.calls[0][2]).toEqual({ config: { moderation: 'OFF' } });
+    });
+
+    it('sends only values Google declares for SpaceConfig', async () => {
+      // The check that would have caught the real bug. `moderation` is a boolean on this
+      // tool and an enum on the wire, so its values live in handler code where no schema
+      // sees them — MODERATION_ON passed lint, type-check and this whole suite, and was
+      // rejected by Google on the first live call.
+      //
+      // Read from the descriptor rather than restated, so a value Google retires fails
+      // here on the next regeneration instead of in production.
+      const svc = (descriptorJson as DescriptorShape).services.meet;
+      const allowedModeration = svc.enums?.['SpaceConfig.moderation'] ?? [];
+      const allowedAccess = svc.enums?.['SpaceConfig.accessType'] ?? [];
+      expect(allowedModeration.length).toBeGreaterThan(0);
+
+      for (const moderation of [true, false]) {
+        mockCall.mockReset();
+        mockCall.mockResolvedValue(space);
+        await H.createSpace({ moderation, accessType: 'TRUSTED' }, ACCOUNT);
+
+        const config = (mockCall.mock.calls[0][2] as { config: Record<string, string> }).config;
+        expect(allowedModeration).toContain(config.moderation);
+        expect(allowedAccess).toContain(config.accessType);
+      }
     });
   });
 
