@@ -328,7 +328,13 @@ function withoutMetadata(entry: Rec): Rec {
  * the employer — a data loss with no error, inside a single field, from a parameter that
  * never mentioned the employer.
  */
-function buildPerson(
+/**
+ * Exported for batch mode (ADR-308): a batch item carries the same flat fields as a
+ * single create or update, and gets converted the same way. Without this, batch would
+ * demand the raw People API shape — parallel arrays of objects — which is precisely what
+ * manage_contacts exists to hide, and Google rejects the flat form with a 400.
+ */
+export function buildPerson(
   params: Record<string, unknown>,
   existingOrgs: Rec[] = [],
 ): { person: Record<string, unknown>; touched: Set<string> } {

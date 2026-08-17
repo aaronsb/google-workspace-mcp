@@ -137,8 +137,8 @@ const handCodedSchemas: ToolSchema[] = [
         },
         items: {
           type: 'array',
-          items: { type: 'object' },
-          description: "batch only — one entry per resource, carrying just what DIFFERS between them (e.g. {contactId}). Anything shared by the whole batch goes at the top level of this call, not in here.",
+          items: { type: ['string', 'object'] },
+          description: "batch only — one entry per resource. A bare id string is enough when that is all that differs, e.g. ['people/c1', 'people/c2']; use objects when items carry more, e.g. [{name: 'Ada Lovelace', contactEmail: 'ada@example.com'}]. Anything shared by the WHOLE batch — labels to add, a field mask — goes at the top level of this call, not in here.",
         },
         operations: {
           type: 'array',

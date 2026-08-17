@@ -869,3 +869,34 @@ describe('batch declarations', () => {
     }
   });
 });
+
+describe('batch declarations supply what Google requires', () => {
+  // Found live: users.messages.batchModify takes a `userId` PATH parameter, and batch
+  // mode reads only the batch block's defaults — not the operation's. The call failed
+  // with "missing required path param 'userId'" after passing every offline test.
+  //
+  // Derived from the descriptor rather than listed, so a new batch method with a required
+  // path parameter is caught before it reaches Google.
+  it('every required path param of a batch method has a default', async () => {
+    const manifest = loadManifest();
+    const descriptor = await loadDescriptor();
+    const missing: string[] = [];
+
+    for (const [serviceName, service] of Object.entries(manifest.services)) {
+      for (const [opName, op] of Object.entries(service.operations)) {
+        if (!op.batch) continue;
+        const method = descriptor.services[service.google_service]?.methods?.[op.batch.resource];
+        if (!method) continue;   // covered by the resource-resolves test
+
+        for (const [param, def] of Object.entries(method.parameters ?? {})) {
+          if (def.location !== 'path' || !def.required) continue;
+          if (op.batch.defaults?.[param] === undefined) {
+            missing.push(`${serviceName}.${opName}: ${op.batch.resource} needs path param '${param}'`);
+          }
+        }
+      }
+    }
+
+    expect(missing).toEqual([]);
+  });
+});

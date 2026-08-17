@@ -168,6 +168,10 @@ operations:
     batch:
       resource: users.messages.batchModify
       defaults:
+        # Required PATH parameter. The single operations each carry their own `userId`,
+        # and batch reads only this block — so omitting it here failed live with
+        # "missing required path param 'userId'".
+        userId: me
         addLabelIds: ['TRASH']
     params:
       messageId:
@@ -229,6 +233,8 @@ operations:
     resource: users.messages.modify
     batch:
       resource: users.messages.batchModify
+      defaults:
+        userId: me
     params:
       messageId:
         type: string

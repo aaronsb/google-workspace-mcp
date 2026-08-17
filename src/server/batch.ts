@@ -14,6 +14,7 @@
 import { loadManifest } from '../factory/generator.js';
 import { evaluatePolicies } from '../factory/safety.js';
 import { call } from '../google/client.js';
+import { buildPerson } from '../services/contacts/patch.js';
 import type { GoogleService, ServiceMethods } from '../google/methods.js';
 import type { HandlerResponse } from './formatting/markdown.js';
 
@@ -66,6 +67,40 @@ function batchableList(): string {
  */
 type BodyBuilder = (shared: Record<string, unknown>, items: Record<string, unknown>[]) => Record<string, unknown>;
 
+/**
+ * The one field an item is mostly likely to be, per method — so a caller with a list of
+ * ids can pass a list of ids.
+ *
+ * `items: ['people/c1', 'people/c2']` says everything `items: [{contactId:'people/c1'},
+ * {contactId:'people/c2'}]` says, with less to get wrong. The object form still works for
+ * the operations that carry more than an id.
+ */
+const ITEM_ID_FIELD: Record<string, string> = {
+  'users.messages.batchModify': 'messageId',
+  'people.batchDeleteContacts': 'contactId',
+  'people.getBatchGet': 'contactId',
+  'people.batchUpdateContacts': 'contactId',
+};
+
+/**
+ * Accept a bare id where an object is expected, and a bare contact id where Google wants
+ * the `people/` prefix — the same courtesy the single-contact operations extend.
+ */
+function normalizeItems(items: unknown[], resource: string): Record<string, unknown>[] {
+  const field = ITEM_ID_FIELD[resource];
+  return items.map((item) => {
+    const obj = (typeof item === 'string' && field)
+      ? { [field]: item }
+      : (item as Record<string, unknown>);
+
+    const id = obj?.contactId ?? obj?.resourceName;
+    if (typeof id === 'string' && id && !id.startsWith('people/')) {
+      return { ...obj, contactId: `people/${id}` };
+    }
+    return obj;
+  });
+}
+
 const BODY_BUILDERS: Record<string, BodyBuilder> = {
   // ids + the label changes, which are shared by definition: one call sets one label set.
   'users.messages.batchModify': (shared, items) => ({
@@ -74,9 +109,12 @@ const BODY_BUILDERS: Record<string, BodyBuilder> = {
     ...(shared.removeLabelIds ? { removeLabelIds: list(shared.removeLabelIds) } : {}),
   }),
 
-  // Each contact is different, so the whole payload comes from items.
+  // Each contact is different, so the whole payload comes from items. `buildPerson` is
+  // the same converter single `create` uses, so a batch item takes the same flat fields —
+  // name, contactEmail, phone. Passing them raw is a 400 from Google, measured; the raw
+  // People shape is still accepted via `person` for anything the flat fields cannot say.
   'people.batchCreateContacts': (shared, items) => ({
-    contacts: items.map((i) => ({ contactPerson: i.person ?? i })),
+    contacts: items.map((i) => ({ contactPerson: i.person ?? buildPerson(i).person })),
     readMask: shared.readMask ?? 'names,emailAddresses,phoneNumbers,organizations,metadata',
   }),
 
@@ -84,14 +122,26 @@ const BODY_BUILDERS: Record<string, BodyBuilder> = {
     resourceNames: items.map((i) => str(i.contactId ?? i.resourceName)),
   }),
 
-  // A map keyed by resource name rather than an array — Google's shape, not ours.
-  'people.batchUpdateContacts': (shared, items) => ({
-    contacts: Object.fromEntries(
-      items.map((i) => [str(i.contactId ?? i.resourceName), i.person ?? i]),
-    ),
-    updateMask: shared.updateMask,
-    readMask: shared.readMask ?? 'names,emailAddresses,phoneNumbers,organizations,metadata',
-  }),
+  // A map keyed by resource name rather than an array — Google's shape, not ours. Each
+  // person must carry its current etag, which `prepare` below fetches; without it Google
+  // answers FAILED_PRECONDITION (measured).
+  'people.batchUpdateContacts': (shared, items) => {
+    const touched = new Set<string>();
+    const contacts: Record<string, unknown> = {};
+    for (const i of items) {
+      const built = i.person ? { person: i.person as Record<string, unknown>, touched: new Set<string>() } : buildPerson(i);
+      for (const f of built.touched) touched.add(f);
+      contacts[str(i.contactId ?? i.resourceName)] = { ...built.person, etag: i.etag };
+    }
+    return {
+      contacts,
+      // Derived from the fields the caller actually supplied, exactly as single `update`
+      // does. A fixed mask would name fields nobody touched, and naming a field with no
+      // value in the body CLEARS it.
+      updateMask: shared.updateMask ?? [...touched].join(','),
+      readMask: shared.readMask ?? 'names,emailAddresses,phoneNumbers,organizations,metadata',
+    };
+  },
 
   // A GET: resourceNames is a repeated QUERY parameter, not a body.
   'people.getBatchGet': (shared, items) => ({
@@ -111,6 +161,68 @@ function list(v: unknown): string[] {
 }
 
 /**
+ * Work some methods need before the batch call itself.
+ *
+ * `batchUpdateContacts` requires each person's current etag — Google answers
+ * FAILED_PRECONDITION without one (measured). Fetching them is one `getBatchGet`, so a
+ * batch update costs two calls for N contacts rather than the 2N a queue would.
+ */
+const PREPARE: Record<string, (items: Record<string, unknown>[], account: string) => Promise<Record<string, unknown>[]>> = {
+  'people.batchUpdateContacts': async (items, account) => {
+    const names = items.map((i) => str(i.contactId ?? i.resourceName));
+    const got = await call('people', 'people.getBatchGet', {
+      resourceNames: names,
+      personFields: 'names,emailAddresses,phoneNumbers,organizations,biographies,metadata',
+    }, { account }) as Record<string, unknown>;
+
+    const etags = new Map<string, unknown>();
+    for (const r of (got.responses as Record<string, unknown>[] | undefined) ?? []) {
+      const person = r.person as Record<string, unknown> | undefined;
+      if (person?.resourceName) etags.set(str(person.resourceName), person.etag);
+    }
+
+    return items.map((i) => {
+      const name = str(i.contactId ?? i.resourceName);
+      const etag = etags.get(name);
+      if (etag === undefined) throw new Error(`No contact found for ${name} — cannot update what does not exist.`);
+      return { ...i, contactId: name, etag };
+    });
+  },
+};
+
+/** A person as one line, matching how the single-contact operations print. */
+function personLine(person: Record<string, unknown>): string {
+  const names = (person.names as Record<string, unknown>[] | undefined) ?? [];
+  const display = names[0]?.displayName ?? [names[0]?.givenName, names[0]?.familyName].filter(Boolean).join(' ');
+  const emails = (person.emailAddresses as Record<string, unknown>[] | undefined) ?? [];
+  const parts = [str(person.resourceName), str(display || '(no name)')];
+  if (emails[0]?.value) parts.push(str(emails[0].value));
+  return parts.join(' | ');
+}
+
+/**
+ * Render what came back, so a batch READ is worth making.
+ *
+ * `refs` never reaches the model — the server returns `result.text` only — so anything
+ * the agent must act on has to be in the text. Live, `get` answered "2 results returned"
+ * and threw the two people away.
+ */
+function renderPeople(data: Record<string, unknown>): string | null {
+  const rows: string[] = [];
+  for (const r of (data.responses as Record<string, unknown>[] | undefined) ?? []) {
+    if (r.person) rows.push(personLine(r.person as Record<string, unknown>));
+  }
+  for (const r of (data.createdPeople as Record<string, unknown>[] | undefined) ?? []) {
+    if (r.person) rows.push(personLine(r.person as Record<string, unknown>));
+  }
+  const updated = data.updateResult as Record<string, Record<string, unknown>> | undefined;
+  for (const r of Object.values(updated ?? {})) {
+    if (r.person) rows.push(personLine(r.person as Record<string, unknown>));
+  }
+  return rows.length ? rows.join('\n') : null;
+}
+
+/**
  * Run one batch call.
  *
  * Refusing is as important as running: an operation with no `batch:` block cannot be
@@ -119,12 +231,12 @@ function list(v: unknown): string[] {
 export async function handleBatch(params: Record<string, unknown>): Promise<HandlerResponse> {
   const tool = params.tool as string | undefined;
   const operation = params.operation as string | undefined;
-  const items = params.items as Record<string, unknown>[] | undefined;
+  const rawItems = params.items as unknown[] | undefined;
 
   if (!tool || !operation) {
     return err(`mode:'batch' needs \`tool\` and \`operation\`. Operations that batch: ${batchableList()}.`);
   }
-  if (!Array.isArray(items) || items.length === 0) {
+  if (!Array.isArray(rawItems) || rawItems.length === 0) {
     return err(`mode:'batch' needs a non-empty \`items\` array — one entry per resource to act on.`);
   }
 
@@ -137,6 +249,8 @@ export async function handleBatch(params: Record<string, unknown>): Promise<Hand
       `Use mode:'queue' instead, which works for every operation.`,
     );
   }
+
+  const items = normalizeItems(rawItems, spec.resource);
 
   const build = BODY_BUILDERS[spec.resource];
   if (!build) {
@@ -167,7 +281,18 @@ export async function handleBatch(params: Record<string, unknown>): Promise<Hand
 
   // Shared arguments are everything the caller passed that is not batch plumbing.
   const { mode: _m, tool: _t, operation: _o, items: _i, email: _e, detail: _d, ...shared } = params;
-  const body = { ...spec.defaults, ...build({ ...spec.defaults, ...shared }, items) };
+
+  let prepared = items;
+  const prepare = PREPARE[spec.resource];
+  if (prepare) {
+    try {
+      prepared = await prepare(items, account);
+    } catch (e) {
+      return err(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  const body = { ...spec.defaults, ...build({ ...spec.defaults, ...shared }, prepared) };
 
   const data = await call(
     spec.googleService as GoogleService,
@@ -176,11 +301,12 @@ export async function handleBatch(params: Record<string, unknown>): Promise<Hand
     { account },
   );
 
+  const rendered = renderPeople((data ?? {}) as Record<string, unknown>);
   return {
     text:
       `## Batch: ${tool} ${operation}\n\n` +
       `${items.length} item${items.length === 1 ? '' : 's'} in one request ` +
-      `(\`${spec.resource}\`).\n\n${summarize(data)}`,
+      `(\`${spec.resource}\`).\n\n${rendered ?? summarize(data)}`,
     refs: { batch: true, tool, operation, resource: spec.resource, count: items.length, data },
   };
 }
