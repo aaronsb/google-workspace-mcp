@@ -1,0 +1,104 @@
+# Publish to npm with trusted publishing (OIDC). See ADR-105.
+#
+# THE FILENAME IS LOAD-BEARING. npmjs.com registers a trusted publisher against a
+# repository AND a workflow filename; this file is registered as `npm-publish.yml`.
+# Rename or move it and npm stops recognising the identity, with nothing in this repo
+# to explain why.
+#
+# There is deliberately no NPM_TOKEN, no NODE_AUTH_TOKEN, and no `registry-url:` on
+# setup-node — that input exists to write a token into .npmrc, which is what this
+# replaces. An earlier version of this workflow published from a long-lived token; it
+# expired in June 2026 and failed three consecutive releases (v3.0.0, v4.0.0, v4.0.1)
+# before being deleted in 2c5669c. OIDC has no secret to expire.
+name: Publish to npm
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # mints the OIDC token npm verifies. Without it, publish is unauthenticated.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # Node 22 ships npm 10.x, which predates trusted publishing entirely — it would
+      # look for a token, find none, and fail with a 401 that says nothing about OIDC.
+      - name: Upgrade npm past the trusted-publishing floor
+        run: |
+          npm install -g npm@latest
+          V=$(npm --version)
+          echo "npm $V"
+          node -e '
+            const v = process.argv[1];
+            const [maj, min, pat] = v.split(".").map(Number);
+            const ok = maj > 11 || (maj === 11 && (min > 5 || (min === 5 && pat >= 1)));
+            if (!ok) {
+              console.error(`npm ${v} is below the 11.5.1 trusted-publishing floor — publish would fall back to token auth and 401.`);
+              process.exit(1);
+            }
+          ' "$V"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The tag is not evidence that anything was checked. Run the gates against the
+      # commit actually being published, in a clean checkout.
+      - name: Test
+        run: npm test
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Build
+        run: npm run build
+
+      # A PRE-RELEASE must not become `latest`. `npm publish` with no --tag publishes as
+      # `latest`, which every `npm install` and every `^x.y.z` range picks up — so an alpha
+      # published bare is not "available to those who want it", it is shipped to everyone.
+      # This mirrors the same derivation in `make publish-all`; both read the marker out of
+      # the version string.
+      - name: Determine npm dist-tag
+        id: npm-tag
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if echo "$VERSION" | grep -qE '(alpha|beta|rc)'; then
+            echo "tag=$(echo "$VERSION" | grep -oE '(alpha|beta|rc)')" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # The tag names one version; package.json names another. Publishing on a mismatch
+      # ships whatever package.json says under a tag that claims something else.
+      - name: Check the tag matches package.json
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="${{ steps.npm-tag.outputs.version }}"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "tag $GITHUB_REF_NAME says $TAG_VERSION, package.json says $PKG_VERSION."
+            exit 1
+          fi
+          echo "tag $GITHUB_REF_NAME matches package.json $PKG_VERSION"
+
+      # An npm version is permanent, so a re-run of this job on an already-published
+      # version must be a no-op rather than a red X on a release that actually succeeded.
+      - name: Publish to npm
+        run: |
+          PKG=$(node -p "require('./package.json').name")
+          VERSION="${{ steps.npm-tag.outputs.version }}"
+          if npm view "$PKG@$VERSION" version >/dev/null 2>&1; then
+            echo "$PKG@$VERSION is already on the registry — nothing to publish."
+            exit 0
+          fi
+          npm publish --provenance --access public --tag "${{ steps.npm-tag.outputs.tag }}"

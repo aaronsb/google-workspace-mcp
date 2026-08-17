@@ -220,27 +220,42 @@ check-release-tag: ## Refuse to publish unless v$(VERSION) is tagged AT the comm
 	fi; \
 	echo "check-release-tag: $$tag -> $$(git log --oneline -1 $$tagged)"
 
-publish-all: check-release-tag mcpb ## Publish to npm, MCP Registry, GitHub Release
+# `read` is the ONLY thing here that needs a terminal. The hardware-key steps do not:
+# npm's 2FA and `mcp-publisher login github` print a URL and wait on the browser, which
+# works fine with no tty. So without YES=1 this target is unrunnable from anywhere that
+# lacks one — Claude Code's `!` prefix, a pipeline, CI — because `read` gets EOF, which
+# reads as "no" and aborts a publish that was never actually declined.
+#
+# YES=1 does not remove the confirmation, it moves it to the command line: typing it is
+# the affirmative act. Publishing is still a one-way door and nothing here defaults to it.
+publish-all: check-release-tag mcpb ## Publish to npm, MCP Registry, GitHub Release (YES=1 to skip prompts)
 	@echo ""
 	@echo "Publishing v$(VERSION) to all channels."
 	@echo "  1. npm (2FA in the browser — passkey/security key)"
 	@echo "  2. MCP Registry (requires GitHub auth)"
 	@echo "  3. GitHub Release (reconciles the one CI made on tag push)"
 	@echo ""
-	@read -p "Continue? [y/N] " confirm && [ "$$confirm" = "y" ] || (echo "Aborted." && exit 1)
+	@if [ -n "$(YES)" ]; then echo "YES=1 — confirmed on the command line, not prompting."; \
+	else read -p "Continue? [y/N] " confirm && [ "$$confirm" = "y" ] || { echo "Aborted."; exit 1; }; fi
 	@echo ""
 	@echo "── npm ──"
-	@who=$$(npm whoami 2>/dev/null) && echo "npm: logged in as $$who" || { \
-	  echo "npm: not logged in — starting 'npm login' (browser + security key)"; npm login; }
-	@# A PRE-RELEASE must not become `latest`.
-	@#
-	@# `npm publish` with no --tag publishes as `latest`, which every `npm install` and
-	@# every `^x.y.z` range picks up. So an alpha published bare is not "available to
-	@# people who want it" — it is shipped to everyone. This detection used to live in
-	@# the CI workflow; the workflow is gone, so it lives here, where the publish is.
-	@tag=$$(echo "$(VERSION)" | grep -oE 'alpha|beta|rc' || echo latest); \
+	@# .github/workflows/npm-publish.yml publishes on tag push via OIDC (ADR-105), so by
+	@# the time anyone runs this the version is usually already up. Skipping is the
+	@# correct outcome, not a failure: an npm version is permanent, and `npm publish`
+	@# over an existing one exits 403 — which would abort this target before the MCP
+	@# Registry step below, the half CI does NOT do.
+	@pkg=$$(node -p "require('./package.json').name"); \
+	if npm view "$$pkg@$(VERSION)" version >/dev/null 2>&1; then \
+	  echo "npm: $$pkg@$(VERSION) is already published — skipping (CI publishes on tag push)"; \
+	else \
+	  who=$$(npm whoami 2>/dev/null) && echo "npm: logged in as $$who" || { \
+	    echo "npm: not logged in — starting 'npm login' (browser + security key)"; npm login; }; \
+	  : "A PRE-RELEASE must not become 'latest' — bare `npm publish` ships an alpha to"; \
+	  : "everyone on ^x.y.z. Same derivation as npm-publish.yml, which explains it in full."; \
+	  tag=$$(echo "$(VERSION)" | grep -oE 'alpha|beta|rc' || echo latest); \
 	  echo "npm: publishing $(VERSION) under dist-tag '$$tag'"; \
-	  npm publish --access public --tag "$$tag"
+	  npm publish --access public --tag "$$tag"; \
+	fi
 	@echo ""
 	@echo "── MCP Registry ──"
 	mcp-publisher login github
@@ -267,7 +282,8 @@ publish-all: check-release-tag mcpb ## Publish to npm, MCP Registry, GitHub Rele
 	  echo "$$bundle holds v$$packed, but this is the v$(VERSION) publish."; \
 	  echo "  Attaching it would ship the wrong code under this tag. Rebuild: make mcpb"; exit 1; \
 	fi; \
-	read -p "Release notes (one line, or empty to keep the notes CI generated): " notes; \
+	if [ -n "$(YES)$(NOTES)" ]; then notes="$(NOTES)"; \
+	else read -p "Release notes (one line, or empty to keep the notes CI generated): " notes; fi; \
 	if gh release view "v$(VERSION)" >/dev/null 2>&1; then \
 	  echo "gh: v$(VERSION) already exists (CI creates it on tag push) — updating in place"; \
 	  if [ -n "$$notes" ]; then gh release edit "v$(VERSION)" --notes "$$notes"; fi; \
