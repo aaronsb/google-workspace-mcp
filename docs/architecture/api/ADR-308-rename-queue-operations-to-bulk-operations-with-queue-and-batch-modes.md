@@ -26,15 +26,25 @@ to do it in one.
 Measured across all eight services in `descriptor.json`. Every method with `batch` in its
 name falls into one of two groups, and only the second is a bulk *mode*:
 
-**Many edits to ONE resource** — already how these operations work, not a bulk mode:
+**Many edits to ONE resource** — a second axis, and not the one this ADR builds:
 
 | Service | Method |
 |---|---|
 | docs | `documents.batchUpdate` |
 | sheets | `spreadsheets.batchUpdate`, `values.batchUpdate`, `values.batchClear`, `values.batchGet` (+ `ByDataFilter` variants) |
 
-`manage_docs write` and every `manage_sheets` write already call these. A caller asking for
-"batch" here would be asking for what they already have.
+An earlier draft of this ADR said these operations "already work this way". **They do not.**
+`manage_docs` and `manage_sheets` do call `batchUpdate`, but each tool call sends
+`requests: [ …exactly one request… ]` (`src/services/docs/patch.ts`,
+`src/services/sheets/patch.ts`). Google's `batchUpdate` accepts an array, so five edits to
+one document currently cost five HTTP calls carrying one request each, where they could
+cost one carrying five.
+
+That is a real, unused capability on a different axis, and the call shape designed below
+would serve it unchanged — the shared `documentId` at the top level, the individual edits
+as `items`. It is not built here, and the refusal message deliberately does not claim
+"Google publishes no batch method", because for docs and sheets that would be false.
+Tracked separately.
 
 **One operation across MANY resources** — the real bulk surface:
 
@@ -50,6 +60,34 @@ name falls into one of two groups, and only the second is a bulk *mode*:
 Six methods, two services. **All six are coverage gaps** — none appears in any manifest.
 `calendar`, `docs`, `drive`, `meet` and `tasks` publish no such method at all, so for those
 services a queue is not a fallback, it is the only thing there is.
+
+**Five of the six are batchable here. `users.messages.batchDelete` is not**, and the reason
+is a scope rather than an omission:
+
+```
+users.messages.trash        ["https://mail.google.com/", ".../gmail.modify"]
+users.messages.batchDelete  ["https://mail.google.com/"]
+users.messages.delete       ["https://mail.google.com/"]
+```
+
+Gmail's delete is immediate and permanent — it does not route through the trash, which is
+why `trash` accepts `gmail.modify` and delete accepts only `https://mail.google.com/`, the
+broadest scope Gmail publishes. This server requests `gmail.modify` and nothing wider, and
+`manage_email` deliberately exposes no permanent delete at all (`safety.ts` records
+`gmail: []` in `permanentDeletes` with the note that trash is reversible).
+
+Batching it would therefore mean widening every Gmail account to full mailbox authority
+and re-consenting all of them, to gain an operation whose only advantage over `trash` is
+irreversibility. The capability is not really lost: `batchModify` with
+`addLabelIds: ['TRASH']` trashes many messages in one request, reversibly, on the scope
+already held.
+
+Noted while measuring this, and worth fixing on its own: the call-time access policy models
+two cases — narrowed to read-only, and never authorized — but not a third, *this operation
+requires a scope the server never requests*. An operation like `users.messages.delete`
+would be refused with "was authorized read-only for gmail" to an account holding full
+`gmail.modify`, which is simply false. No operation in any manifest currently requires an
+unrequested scope, so the case is unreachable today; a guard belongs with the policy.
 
 An earlier count of this surface said five methods and missed `people.getBatchGet`, which
 is a batch *read*. It also included `sheets.values.batchGet`, which belongs to the first
@@ -106,11 +144,31 @@ An operation opts in by naming the Google method that batches it:
 delete:
   type: action
   resource: people.deleteContact
-  batch_resource: people.batchDeleteContacts
+  batch:
+    resource: people.batchDeleteContacts
 ```
 
-A test asserts every `batch_resource` resolves in `descriptor.json`, the same way `resource`
-is checked. The list of batchable operations is then *derived* from the manifest at
+The batch method is not always the same method pluralised. Gmail has no bulk trash; the
+way to trash many messages is `batchModify` adding the `TRASH` label. The agent should not
+have to know that, so the manifest carries the translation and `defaults` supplies the
+fixed part of the body — the same mechanism that keeps field masks and source constants
+out of the schema (ADR-300):
+
+```yaml
+trash:
+  type: action
+  resource: users.messages.trash
+  batch:
+    resource: users.messages.batchModify
+    defaults:
+      addLabelIds: ['TRASH']
+```
+
+`bulk_operations {mode:'batch', tool:'manage_email', operation:'trash', items:[…]}` then
+trashes many messages in one request, reversibly, and the caller never sees a label.
+
+A test asserts every batch `resource` resolves in `descriptor.json`, the same way
+`resource` is checked. The list of batchable operations is *derived* from the manifest at
 startup, never hand-written.
 
 This matters because this repository has now produced the same defect three times: a

@@ -42,6 +42,22 @@ export interface OperationDef {
   description: string;
   /** Google resource path (e.g. "users.messages.list"). */
   resource?: string;
+  /**
+   * How this operation is done for many resources in ONE request. ADR-308.
+   *
+   * Present only where Google publishes such a method — six operations across two
+   * services. Its absence is what makes an operation unbatchable, so the batchable set is
+   * derived from the manifest and never listed anywhere else.
+   *
+   * `resource` here is not always the singular method pluralised: Gmail has no bulk
+   * trash, so `trash` batches through `users.messages.batchModify` with `defaults`
+   * supplying the TRASH label. `defaults` is merged into the request body and never
+   * enters the generated schema, exactly as the operation-level `defaults` does.
+   */
+  batch?: {
+    resource: string;
+    defaults?: Record<string, unknown>;
+  };
   /** Named parameters the caller can provide. */
   params?: Record<string, ParamDef>;
   /** Default values merged into the params sent to Google. */

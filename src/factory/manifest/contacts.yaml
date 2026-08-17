@@ -70,6 +70,8 @@ operations:
     type: detail
     description: "get one person in full — addresses, birthday, notes, relations"
     resource: people.get
+    batch:
+      resource: people.getBatchGet
     params:
       contactId:
         type: string
@@ -89,6 +91,8 @@ operations:
     type: action
     description: "create a new contact"
     resource: people.createContact
+    batch:
+      resource: people.batchCreateContacts
     params:
       name:
         type: string
@@ -124,6 +128,8 @@ operations:
     type: action
     description: "change an existing contact (only the fields you pass; pass an empty string to clear one)"
     resource: people.updateContact
+    batch:
+      resource: people.batchUpdateContacts
     params:
       contactId:
         type: string
@@ -155,6 +161,8 @@ operations:
     type: action
     description: "delete a contact"
     resource: people.deleteContact
+    batch:
+      resource: people.batchDeleteContacts
     params:
       contactId:
         type: string

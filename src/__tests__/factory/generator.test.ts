@@ -838,3 +838,65 @@ describe('generateHandler — custom-handler next-steps wrapping', () => {
     expect(matches.length).toBe(1);
   });
 });
+
+describe('batch declarations', () => {
+  // Same discipline as `resource`: a batch resource that does not exist in the descriptor
+  // is a method we would call and Google would reject, discoverable only live. ADR-308.
+  it('every batch resource is a method Google declares', async () => {
+    const manifest = loadManifest();
+    const descriptor = await loadDescriptor();
+    const bad: string[] = [];
+
+    for (const [serviceName, service] of Object.entries(manifest.services)) {
+      for (const [opName, op] of Object.entries(service.operations)) {
+        if (!op.batch) continue;
+        const method = descriptor.services[service.google_service]?.methods?.[op.batch.resource];
+        if (!method) bad.push(`${serviceName}.${opName}: no such method ${op.batch.resource}`);
+      }
+    }
+
+    expect(bad).toEqual([]);
+  });
+
+  it('only declares batch where the operation itself exists', () => {
+    // A batch block on an operation with no `resource` would be a bulk form of something
+    // that has no singular form — nothing for a caller to graduate from.
+    const manifest = loadManifest();
+    for (const service of Object.values(manifest.services)) {
+      for (const [opName, op] of Object.entries(service.operations)) {
+        if (op.batch) expect(op.resource, `${opName} declares batch but no resource`).toBeTruthy();
+      }
+    }
+  });
+});
+
+describe('batch declarations supply what Google requires', () => {
+  // Found live: users.messages.batchModify takes a `userId` PATH parameter, and batch
+  // mode reads only the batch block's defaults — not the operation's. The call failed
+  // with "missing required path param 'userId'" after passing every offline test.
+  //
+  // Derived from the descriptor rather than listed, so a new batch method with a required
+  // path parameter is caught before it reaches Google.
+  it('every required path param of a batch method has a default', async () => {
+    const manifest = loadManifest();
+    const descriptor = await loadDescriptor();
+    const missing: string[] = [];
+
+    for (const [serviceName, service] of Object.entries(manifest.services)) {
+      for (const [opName, op] of Object.entries(service.operations)) {
+        if (!op.batch) continue;
+        const method = descriptor.services[service.google_service]?.methods?.[op.batch.resource];
+        if (!method) continue;   // covered by the resource-resolves test
+
+        for (const [param, def] of Object.entries(method.parameters ?? {})) {
+          if (def.location !== 'path' || !def.required) continue;
+          if (op.batch.defaults?.[param] === undefined) {
+            missing.push(`${serviceName}.${opName}: ${op.batch.resource} needs path param '${param}'`);
+          }
+        }
+      }
+    }
+
+    expect(missing).toEqual([]);
+  });
+});

@@ -114,10 +114,32 @@ const handCodedSchemas: ToolSchema[] = [
   },
   {
     name: 'bulk_operations',
-    description: 'Execute multiple operations in sequence. Operations run in order with result references ($0.field) to chain outputs. Use for multi-step workflows.',
+    description: "Do many things in one call, two ways. mode:'queue' (default) runs different operations in sequence, chaining results with $N.field — works for every tool. mode:'batch' does ONE operation across many resources in a single Google request — far fewer round trips, but only where Google publishes a batch method.",
     inputSchema: {
       type: 'object',
       properties: {
+        mode: {
+          type: 'string',
+          enum: ['queue', 'batch'],
+          description: "queue (default): N operations, N API calls, in order, with $N.field references between them. batch: ONE operation across many resources in a single API call — no $N references, because there is no 'between'.",
+        },
+        tool: {
+          type: 'string',
+          description: "batch only — the tool to call, e.g. 'manage_contacts'.",
+        },
+        operation: {
+          type: 'string',
+          description: "batch only — the operation to apply to every item, e.g. 'delete'. Ask for one that cannot batch and the error names the ones that can.",
+        },
+        email: {
+          type: 'string',
+          description: 'batch only — the account to act as.',
+        },
+        items: {
+          type: 'array',
+          items: { type: ['string', 'object'] },
+          description: "batch only — one entry per resource. A bare id string is enough when that is all that differs, e.g. ['people/c1', 'people/c2']; use objects when items carry more, e.g. [{name: 'Ada Lovelace', contactEmail: 'ada@example.com'}]. Anything shared by the WHOLE batch — labels to add, a field mask — goes at the top level of this call, not in here.",
+        },
         operations: {
           type: 'array',
           items: {
@@ -153,7 +175,8 @@ const handCodedSchemas: ToolSchema[] = [
           description: 'summary: one-line status per operation (default) | full: include complete output from each operation',
         },
       },
-      required: ['operations'],
+      // `operations` is required for queue and absent for batch, so neither can be
+      // required here. The handler validates per mode and names what is missing.
       additionalProperties: false,
     },
   },

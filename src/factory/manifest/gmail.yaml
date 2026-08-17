@@ -162,6 +162,17 @@ operations:
     type: action
     description: "move a message to trash"
     resource: users.messages.trash
+    # Gmail publishes no bulk trash. Trashing many messages is batchModify adding the
+    # TRASH label — reversible, and on the gmail.modify scope we already hold. The caller
+    # asks to trash; the label is ours to know. (ADR-308)
+    batch:
+      resource: users.messages.batchModify
+      defaults:
+        # Required PATH parameter. The single operations each carry their own `userId`,
+        # and batch reads only this block — so omitting it here failed live with
+        # "missing required path param 'userId'".
+        userId: me
+        addLabelIds: ['TRASH']
     params:
       messageId:
         type: string
@@ -220,6 +231,10 @@ operations:
     type: action
     description: "add or remove labels on a message (e.g. archive, mark read/unread)"
     resource: users.messages.modify
+    batch:
+      resource: users.messages.batchModify
+      defaults:
+        userId: me
     params:
       messageId:
         type: string

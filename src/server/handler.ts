@@ -2,6 +2,7 @@ import { handleAccounts } from './handlers/accounts.js';
 import { handleWorkspace } from './handlers/workspace.js';
 import { handleScratchpad } from './scratchpad/handler.js';
 import { handleQueue } from './queue.js';
+import { handleBatch } from './batch.js';
 import { generatedTools } from '../factory/registry.js';
 import { getSessionTracker, sessionContext } from './session/index.js';
 
@@ -74,6 +75,7 @@ export async function handleToolCall(
 
   // Bulk wraps the domain handlers (each queued op also advances the epoch)
   if (BULK_TOOL_NAMES.includes(toolName)) {
+    if (params.mode === 'batch') return await handleBatch(params);
     const result = await handleQueue(params, queueableHandlers(1), 1);
     const queueEmail = extractEmailFromQueue(params);
     if (queueEmail) {
