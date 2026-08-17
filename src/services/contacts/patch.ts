@@ -197,8 +197,9 @@ function formatPersonDetail(data: unknown): HandlerResponse {
     const text = typeof birthday.text === 'string' ? birthday.text : '';
     // A birthday with no year is normal — Google stores the day alone when that is all
     // it was given, so a year-less date is data, not a partial record to discard.
+    const pad = (n: unknown): string => String(n).padStart(2, '0');
     const composed = date.month && date.day
-      ? [date.year, date.month, date.day].filter(Boolean).join('-')
+      ? [date.year, pad(date.month), pad(date.day)].filter(Boolean).join('-')
       : text;
     field('Birthday', String(composed ?? ''));
   }

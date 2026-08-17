@@ -147,12 +147,22 @@ declares. Both halves were verified by breaking them.
 - `people.get` needs `profile`, not merely `userinfo.email` — measured, on an account that
   held the latter and was refused. Nothing in this tool depends on that, but it rules out
   probing the Person shape without full consent.
-- **Not yet exercised against live Google.** Every operation here is built from the
-  Discovery document and pinned by tests against a mocked seam, which proves what the
-  server SENDS and nothing about what Google returns. The masks, the `sources` values,
-  the per-operation `maxResults` ceilings, and whether the warmup is needed in practice
-  are all unconfirmed until an account is re-consented and each operation is called. This
-  session's own history says that is where the defects are.
+- **All seven operations exercised against live Google**, on a personal account and a
+  Workspace one. Confirmed: every field mask is accepted as written; the `sources` pair
+  returns the domain directory; the `maxResults` clamps (30 search, 100 list) are within
+  Google's ceilings — a request for 500 clamped to 100 and returned 91 rather than
+  erroring; `people/me` resolves; bare ids normalize; and prefix matching behaves as the
+  parameter description claims (`ockelie` finds nobody, `Bockelie` finds ten).
+- Whether the **warmup is strictly required** remains unmeasured. It is documented by
+  Google on both search methods, it is always sent, and no account here has ever searched
+  without it — so nothing observed distinguishes "the warmup worked" from "the warmup was
+  unnecessary". It costs one cached round trip per account.
+- `listDirectory` on a personal account answers `400 FAILED_PRECONDITION — Must be a
+  G Suite domain user`. Legible enough to leave alone, and the operation descriptions say
+  "Workspace accounts only".
+- Directory people carry a different id space from contacts: `people/107200152696692539125`
+  rather than `people/c36`. Both are opaque to the caller and both round-trip through
+  `get`.
 
 ## Alternatives Considered
 

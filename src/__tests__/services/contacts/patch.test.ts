@@ -262,7 +262,18 @@ describe('parallel-array fields', () => {
       names: [{ displayName: 'Dana' }],
       birthdays: [{ date: { month: 3, day: 4 } }],
     }, ctx('get'));
-    expect(out.text).toContain('**Birthday:** 3-4');
+    expect(out.text).toContain('**Birthday:** 03-04');
+  });
+
+  it('zero-pads a dated birthday so it reads as a date', () => {
+    // Live, an unpadded birthday came back as `1980-9-22` — readable to a human and
+    // not a date to anything that parses it.
+    const out = contactsPatch.formatDetail!({
+      resourceName: 'people/c36',
+      names: [{ displayName: 'Amanda' }],
+      birthdays: [{ date: { year: 1980, month: 9, day: 22 } }],
+    }, ctx('get'));
+    expect(out.text).toContain('**Birthday:** 1980-09-22');
   });
 });
 
