@@ -123,11 +123,22 @@ than leaving to be discovered:
 | passes a value | replaced entirely |
 | passes an empty string | named, left out of the body, and so cleared |
 
-`company` and `jobTitle` write to the **same** Person field, so setting only the title
-would replace the whole organization entry and drop the employer — a loss inside a single
-field, from a parameter that never mentioned the employer. The read half of the
-read-modify-write is already in hand, so the untouched half is carried over. Fields that
-map one-to-one replace; the one field two parameters share merges.
+`company` and `jobTitle` write to the **same** Person field, so writing either rewrites
+the whole `organizations` array. The read half of the read-modify-write already holds the
+current value, so the existing entries are carried through and only the two named keys
+are overwritten — including the subfields this tool never exposes (`department`, `type`,
+`startDate`) and any organization after the first.
+
+Rebuilding that array from the two parameters instead is a loss that looks like a
+success: correcting a job title erases an employment record, and the confirmation renders
+only name and title, so it reads exactly right.
+
+A parameter that arrives as something other than a string is **refused**, not dropped.
+The two halves of a write are derived from different facts — `updatePersonFields` from
+whether the parameter arrived, the body from whether it holds a usable string — and
+anything present-but-unusable splits them, naming a field with nothing behind it, which
+is how Google is told to delete it. Dropping a number silently would answer a request to
+set a phone number by deleting the one already there, and report success.
 
 ### `delete` is resolved by how the policy is switched on
 

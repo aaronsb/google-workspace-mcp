@@ -274,6 +274,12 @@ function trimmed(value: unknown): string | undefined {
   return typeof value === 'string' ? value.trim() : undefined;
 }
 
+/** A copy of a Person field entry without the metadata Google owns and writes itself. */
+function withoutMetadata(entry: Rec): Rec {
+  const { metadata: _ignored, ...rest } = entry;
+  return { ...rest };
+}
+
 /**
  * Build the Person fields from the flat parameters, and report which Person fields the
  * caller touched.
@@ -290,13 +296,31 @@ function trimmed(value: unknown): string | undefined {
  */
 function buildPerson(
   params: Record<string, unknown>,
-  existingOrg: Rec = {},
+  existingOrgs: Rec[] = [],
 ): { person: Record<string, unknown>; touched: Set<string> } {
   const person: Record<string, unknown> = {};
   const touched = new Set<string>();
 
   for (const key of WRITABLE) {
-    if (params[key] === undefined) continue;
+    const value = params[key];
+    if (value === undefined) continue;
+
+    // A non-string here is the worst input this operation can take, because the two
+    // halves of an update are derived from different facts: `touched` from whether the
+    // parameter ARRIVED, the body from whether it is a usable string. A number reaching
+    // `phone` would name phoneNumbers in updatePersonFields and put nothing in the body
+    // — which is precisely how Google is told to DELETE the number. The caller asked to
+    // set a phone number, the contact loses the one it had, and the response says
+    // "Contact updated."
+    //
+    // The MCP handler does not validate against inputSchema, so nothing upstream stops
+    // this. Refusing matches mapSortOrder, which refuses for the same reason.
+    if (typeof value !== 'string') {
+      throw new Error(
+        `${key} must be a string, got ${Array.isArray(value) ? 'an array' : typeof value}. ` +
+        `An empty string clears the field; anything else is stored as written.`,
+      );
+    }
     touched.add(PERSON_FIELD[key]);
   }
 
@@ -316,13 +340,31 @@ function buildPerson(
   const phone = trimmed(params.phone);
   if (phone) person.phoneNumbers = [{ value: phone }];
 
-  const company = params.company === undefined ? trimmed(existingOrg.name) : trimmed(params.company);
-  const jobTitle = params.jobTitle === undefined ? trimmed(existingOrg.title) : trimmed(params.jobTitle);
-  if (company || jobTitle) {
-    person.organizations = [{
-      ...(company ? { name: company } : {}),
-      ...(jobTitle ? { title: jobTitle } : {}),
-    }];
+  // `company` and `jobTitle` are two parameters over ONE Person field, so writing either
+  // rewrites the whole `organizations` array. An earlier version rebuilt that array as
+  // `{name, title}` and nothing else, which silently discarded `department`, `type` and
+  // `startDate` — fields the read half already had in hand — and dropped every entry
+  // after the first. Correcting a job title erased an employment record, and the
+  // confirmation looked right because it only ever renders name and title.
+  //
+  // So the existing entries are carried through and only the two named keys are
+  // overwritten. `metadata` is dropped because Google populates it and rejects nothing
+  // for its absence.
+  if (params.company !== undefined || params.jobTitle !== undefined) {
+    const [primary = {}, ...others] = existingOrgs;
+    const merged = withoutMetadata(primary);
+
+    if (params.company !== undefined) {
+      const company = trimmed(params.company);
+      if (company) merged.name = company; else delete merged.name;
+    }
+    if (params.jobTitle !== undefined) {
+      const jobTitle = trimmed(params.jobTitle);
+      if (jobTitle) merged.title = jobTitle; else delete merged.title;
+    }
+
+    const all = [merged, ...others.map(withoutMetadata)].filter(o => Object.keys(o).length > 0);
+    if (all.length > 0) person.organizations = all;
   }
 
   const notes = trimmed(params.notes);
@@ -372,7 +414,7 @@ async function updateContact(
     personFields: 'names,emailAddresses,phoneNumbers,organizations,biographies,metadata',
   }, { account: ctx.account }));
 
-  const { person, touched } = buildPerson(params, entries(current, 'organizations')[0] ?? {});
+  const { person, touched } = buildPerson(params, entries(current, 'organizations'));
 
   if (touched.size === 0) {
     throw new Error(
@@ -405,27 +447,39 @@ async function updateContact(
  * Google's, and paying for a second round trip on every search would be worse than the
  * problem.
  */
-const warmed = new Set<string>();
+const warming = new Map<string, Promise<void>>();
 
 function warmupFirst(resource: 'people.searchContacts' | 'otherContacts.search') {
   return async (params: Record<string, unknown>, ctx: PatchContext): Promise<Record<string, unknown>> => {
     const key = `${ctx.account}:${resource}`;
-    if (warmed.has(key)) return params;
-    warmed.add(key);
-    try {
-      await call('people', resource, { query: '', readMask: params.readMask }, { account: ctx.account });
-    } catch {
-      // The warmup is a cache hint, not a precondition. If it failed for a reason that
-      // matters — no scope, no network — the real search is about to fail the same way
-      // and say so properly. Failing here would replace that with a confusing one.
+
+    // The in-flight promise is cached, not a "we tried" flag. Recording the attempt up
+    // front made a single transient 429 permanent: warmup was skipped for the rest of
+    // the process, every later search ran cold, and a cold search returns EMPTY — which
+    // renders as "no match", the convincing wrong answer this whole mechanism exists to
+    // prevent. It also let a second concurrent search past a warmup still in flight.
+    let inFlight = warming.get(key);
+    if (!inFlight) {
+      inFlight = call('people', resource, { query: '', readMask: params.readMask }, { account: ctx.account })
+        .then(
+          () => {},
+          () => {
+            // A cache hint, not a precondition: forget the failure so the next search
+            // retries. If it failed for a reason that matters — no scope, no network —
+            // the real search is about to fail the same way and say so properly.
+            warming.delete(key);
+          },
+        );
+      warming.set(key, inFlight);
     }
+    await inFlight;
     return params;
   };
 }
 
 /** Test seam: the warmup is per-process state, and a test must be able to reset it. */
 export function resetWarmupCache(): void {
-  warmed.clear();
+  warming.clear();
 }
 
 /**
@@ -439,7 +493,10 @@ function formatContactAction(data: unknown, ctx: PatchContext): HandlerResponse 
   // deleteContact returns an empty body: there is no person left to render, and the id
   // the caller passed is the only thing left to name.
   if (ctx.operation === 'delete') {
-    const id = String(ctx.params.contactId ?? '');
+    // ctx.params holds what the CALLER passed, before normalization — so a caller who
+    // wrote `c36` would read "Contact deleted: c36" while `people/c36` was deleted. The
+    // receipt has to name the thing that was actually removed.
+    const id = String(normalizeContactId({ resourceName: ctx.params.contactId }).resourceName ?? '');
     return { text: `Contact deleted: ${id}`, refs: { contactId: id, deleted: true } };
   }
 

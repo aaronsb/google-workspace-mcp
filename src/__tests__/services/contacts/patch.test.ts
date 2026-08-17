@@ -292,6 +292,58 @@ describe('update', () => {
     expect(patched().organizations).toEqual([{ name: 'Acme', title: 'Agent' }]);
   });
 
+  it('keeps the organization fields this tool does not expose', async () => {
+    // Writing either half rewrites the whole organizations array, and an earlier version
+    // rebuilt it as {name, title} — discarding department, type and startDate, which the
+    // read half already had in hand. Correcting a job title erased an employment record,
+    // and the confirmation looked right because it only renders name and title.
+    mockCall.mockReset();
+    mockCall.mockResolvedValueOnce({
+      resourceName: 'people/c1',
+      etag: 'e',
+      organizations: [{
+        name: 'Acme', title: 'Engineer', department: 'R&D',
+        type: 'work', startDate: { year: 2019 }, metadata: { primary: true },
+      }],
+    }).mockResolvedValue({ resourceName: 'people/c1' });
+
+    await handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', jobTitle: 'Principal' });
+
+    expect(patched().organizations).toEqual([{
+      name: 'Acme', title: 'Principal', department: 'R&D',
+      type: 'work', startDate: { year: 2019 },
+    }]);
+  });
+
+  it('keeps a second organization the caller never mentioned', async () => {
+    mockCall.mockReset();
+    mockCall.mockResolvedValueOnce({
+      resourceName: 'people/c1',
+      etag: 'e',
+      organizations: [
+        { name: 'Acme', title: 'Engineer', metadata: { primary: true } },
+        { name: 'Side Consultancy', title: 'Partner' },
+      ],
+    }).mockResolvedValue({ resourceName: 'people/c1' });
+
+    await handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', jobTitle: 'Principal' });
+
+    expect(patched().organizations).toEqual([
+      { name: 'Acme', title: 'Principal' },
+      { name: 'Side Consultancy', title: 'Partner' },
+    ]);
+  });
+
+  it('does not send back the metadata Google owns', async () => {
+    await handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', jobTitle: 'Principal' });
+    expect(JSON.stringify(patched().organizations)).not.toContain('metadata');
+  });
+
+  it('clears the employer on an empty string without disturbing the title', async () => {
+    await handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', company: '' });
+    expect(patched().organizations).toEqual([{ title: 'Agent' }]);
+  });
+
   it('refuses an update that changes nothing', async () => {
     await expect(handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1' }))
       .rejects.toThrow('needs at least one of');
@@ -308,6 +360,49 @@ describe('update', () => {
   });
 });
 
+/**
+ * The two halves of a write are derived from different facts: `updatePersonFields` from
+ * whether a parameter ARRIVED, the body from whether it is a usable string. Anything that
+ * is present but not a string splits them — the field gets named with nothing behind it,
+ * which is exactly how Google is told to DELETE it.
+ *
+ * The MCP handler does not validate against inputSchema, and buildResourceParams filters
+ * only undefined and null, so a number or an array reaches the hook untouched.
+ */
+describe('non-string values are refused, not silently dropped', () => {
+  it.each([
+    ['a number', 5550100],
+    ['an array', ['a@x.com', 'b@x.com']],
+    ['an object', { value: 'x' }],
+    ['a boolean', true],
+  ])('update refuses %s rather than clearing the field', async (_label, value) => {
+    mockCall.mockReset();
+    mockCall.mockResolvedValue({ resourceName: 'people/c1', etag: 'e' });
+
+    await expect(handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', phone: value }))
+      .rejects.toThrow('phone must be a string');
+
+    // Nothing may reach Google — not even the read half — once the input is unusable.
+    const patchCalls = mockCall.mock.calls.filter(c => c[1] === 'people.updateContact');
+    expect(patchCalls).toHaveLength(0);
+  });
+
+  it('create refuses a non-string instead of reporting the field missing', async () => {
+    // Dropping it silently made the error name the very parameter the caller supplied.
+    mockCall.mockResolvedValue({});
+    await expect(handler({ operation: 'create', email: 'u@t.com', phone: 5550100 }))
+      .rejects.toThrow('phone must be a string');
+  });
+
+  it('still accepts an empty string as a deliberate clear', async () => {
+    mockCall.mockReset();
+    mockCall.mockResolvedValueOnce({ resourceName: 'people/c1', etag: 'e', phoneNumbers: [{ value: '1' }] })
+      .mockResolvedValue({ resourceName: 'people/c1' });
+    await expect(handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', phone: '' }))
+      .resolves.toBeDefined();
+  });
+});
+
 describe('delete', () => {
   it('names what it deleted, since Google returns an empty body', async () => {
     mockCall.mockResolvedValue({});
@@ -316,6 +411,14 @@ describe('delete', () => {
     expect(sent().resourceName).toBe('people/c1');
     expect(out.text).toContain('Contact deleted');
     expect(out.text).toContain('people/c1');
+  });
+
+  it('names what was actually removed, not what the caller typed', async () => {
+    // ctx.params holds the pre-normalization value, so a caller who passed `c1` read
+    // "Contact deleted: c1" while `people/c1` was deleted.
+    mockCall.mockResolvedValue({});
+    const out = await handler({ operation: 'delete', email: 'u@t.com', contactId: 'c1' });
+    expect(out.text).toContain('Contact deleted: people/c1');
   });
 });
 
@@ -353,6 +456,42 @@ describe('search warmup', () => {
     await handler({ operation: 'search', email: 'one@t.com', query: 'a' });
     await handler({ operation: 'search', email: 'two@t.com', query: 'a' });
     expect(mockCall).toHaveBeenCalledTimes(4);
+  });
+
+  it('retries the warmup after a failure instead of giving up for the process', async () => {
+    // The cache recorded "attempted", not "warmed", so one transient 429 disabled warmup
+    // for the life of the process. Every later search then ran cold, and a cold search
+    // returns empty — the convincing wrong answer this mechanism exists to prevent.
+    mockCall.mockReset();
+    mockCall.mockRejectedValueOnce(new Error('429'));   // warmup 1 fails
+    mockCall.mockResolvedValue({ results: [] });
+
+    await handler({ operation: 'search', email: 'u@t.com', query: 'a' });
+    await handler({ operation: 'search', email: 'u@t.com', query: 'b' });
+
+    const warmups = mockCall.mock.calls.filter(c => c[2].query === '');
+    expect(warmups).toHaveLength(2);
+  });
+
+  it('makes a concurrent search wait for the warmup already in flight', async () => {
+    // Marking the key before awaiting let a second search past a warmup that had not
+    // finished, so it was cold by construction.
+    mockCall.mockReset();
+    let releaseWarmup: (v: unknown) => void = () => {};
+    mockCall.mockImplementationOnce(() => new Promise(res => { releaseWarmup = res; }));
+    mockCall.mockResolvedValue({ results: [] });
+
+    const both = Promise.all([
+      handler({ operation: 'search', email: 'u@t.com', query: 'a' }),
+      handler({ operation: 'search', email: 'u@t.com', query: 'b' }),
+    ]);
+
+    await new Promise(r => setImmediate(r));
+    expect(mockCall).toHaveBeenCalledTimes(1);   // neither search has run yet
+
+    releaseWarmup({});
+    await both;
+    expect(mockCall).toHaveBeenCalledTimes(3);   // one warmup, two searches
   });
 
   it('searches anyway when the warmup fails', async () => {

@@ -29,7 +29,7 @@ operations:
     params:
       maxResults:
         type: number
-        description: "Max people to return (default 25; the `search` operations cap at 30, the `list` operations at 100)"
+        description: "Max people to return (default 25). Capped per operation: 30 for `search` and `searchOther`, 100 for everything else."
         default: 25
         max: 100
         maps_to: pageSize
@@ -59,7 +59,7 @@ operations:
         required: true
       maxResults:
         type: number
-        description: "Max people to return (default 25; the `search` operations cap at 30, the `list` operations at 100)"
+        description: "Max people to return (default 25). Capped per operation: 30 for `search` and `searchOther`, 100 for everything else."
         default: 25
         max: 30
         maps_to: pageSize
@@ -171,7 +171,7 @@ operations:
     params:
       maxResults:
         type: number
-        description: "Max people to return (default 25; the `search` operations cap at 30, the `list` operations at 100)"
+        description: "Max people to return (default 25). Capped per operation: 30 for `search` and `searchOther`, 100 for everything else."
         default: 25
         max: 100
         maps_to: pageSize
@@ -194,7 +194,7 @@ operations:
         required: true
       maxResults:
         type: number
-        description: "Max people to return (default 25; the `search` operations cap at 30, the `list` operations at 100)"
+        description: "Max people to return (default 25). Capped per operation: 30 for `search` and `searchOther`, 100 for everything else."
         default: 25
         max: 30
         maps_to: pageSize
@@ -210,7 +210,7 @@ operations:
     params:
       maxResults:
         type: number
-        description: "Max people to return (default 25; the `search` operations cap at 30, the `list` operations at 100)"
+        description: "Max people to return (default 25). Capped per operation: 30 for `search` and `searchOther`, 100 for everything else."
         default: 25
         max: 100
         maps_to: pageSize
@@ -235,7 +235,7 @@ operations:
         required: true
       maxResults:
         type: number
-        description: "Max people to return (default 25; the `search` operations cap at 30, the `list` operations at 100)"
+        description: "Max people to return (default 25). Capped per operation: 30 for `search` and `searchOther`, 100 for everything else."
         default: 25
         max: 100
         maps_to: pageSize
