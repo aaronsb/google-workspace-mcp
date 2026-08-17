@@ -221,6 +221,105 @@ describe('create builds the Person body', () => {
 });
 
 /**
+ * `updatePersonFields` REPLACES every entry in each field it names, and naming a field
+ * with nothing in the body CLEARS it. That is the #161 shape — `calendar.attendees`
+ * silently replacing a whole list — with an extra edge: the list is not something the
+ * caller passes, it is something this code derives. Derive it wrong and the operation
+ * destroys data the caller never mentioned.
+ */
+describe('update', () => {
+  const existing = {
+    resourceName: 'people/c1',
+    etag: '%EgUBAj0KPg==',
+    names: [{ displayName: 'Claude Bockelie' }],
+    emailAddresses: [{ value: 'claude@bockelie.com' }],
+    organizations: [{ name: 'Anthropic', title: 'Agent' }],
+  };
+
+  /** update reads before it writes: call 0 is the GET, call 1 is the PATCH. */
+  function patched(): Record<string, unknown> {
+    return mockCall.mock.calls[1][2];
+  }
+
+  beforeEach(() => {
+    mockCall.mockReset();
+    mockCall.mockResolvedValueOnce(existing).mockResolvedValue({ ...existing });
+  });
+
+  it('names ONLY the fields the caller passed', async () => {
+    await handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', phone: '555-0100' });
+
+    expect(patched().updatePersonFields).toBe('phoneNumbers');
+    expect(patched().phoneNumbers).toEqual([{ value: '555-0100' }]);
+  });
+
+  it('does not name a field the caller left alone', async () => {
+    // Naming emailAddresses here with no address in the body would delete the contact's
+    // email as a side effect of setting a phone number.
+    await handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', phone: '555-0100' });
+
+    expect(String(patched().updatePersonFields)).not.toContain('emailAddresses');
+    expect(patched().emailAddresses).toBeUndefined();
+  });
+
+  it('clears a field when passed an empty string', async () => {
+    // Named in updatePersonFields, absent from the body — which is how Google is told
+    // to empty a field.
+    await handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', phone: '' });
+
+    expect(patched().updatePersonFields).toBe('phoneNumbers');
+    expect(patched().phoneNumbers).toBeUndefined();
+  });
+
+  it('sends the etag Google requires, read from the current record', async () => {
+    await handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', phone: '555-0100' });
+
+    expect(mockCall.mock.calls[0][1]).toBe('people.get');
+    expect(patched().etag).toBe('%EgUBAj0KPg==');
+  });
+
+  it('keeps the employer when only the job title changes', async () => {
+    // company and jobTitle write to the SAME Person field. Replacing organizations with
+    // a title alone would drop the employer — a loss inside one field, from a parameter
+    // that never mentioned the employer.
+    await handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', jobTitle: 'Principal Agent' });
+
+    expect(patched().organizations).toEqual([{ name: 'Anthropic', title: 'Principal Agent' }]);
+  });
+
+  it('keeps the job title when only the employer changes', async () => {
+    await handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', company: 'Acme' });
+    expect(patched().organizations).toEqual([{ name: 'Acme', title: 'Agent' }]);
+  });
+
+  it('refuses an update that changes nothing', async () => {
+    await expect(handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1' }))
+      .rejects.toThrow('needs at least one of');
+  });
+
+  it('accepts a bare id', async () => {
+    await handler({ operation: 'update', email: 'u@t.com', contactId: 'c1', phone: '555-0100' });
+    expect(patched().resourceName).toBe('people/c1');
+  });
+
+  it('says it updated, not created', async () => {
+    const out = await handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', phone: '555-0100' });
+    expect(out.text).toContain('Contact updated');
+  });
+});
+
+describe('delete', () => {
+  it('names what it deleted, since Google returns an empty body', async () => {
+    mockCall.mockResolvedValue({});
+    const out = await handler({ operation: 'delete', email: 'u@t.com', contactId: 'people/c1' });
+
+    expect(sent().resourceName).toBe('people/c1');
+    expect(out.text).toContain('Contact deleted');
+    expect(out.text).toContain('people/c1');
+  });
+});
+
+/**
  * Google states the requirement on both search methods in the Discovery document this
  * server generates from: "Before searching, clients should send a warmup request with an
  * empty query to update the cache." Skipping it returns an empty result set, which reads

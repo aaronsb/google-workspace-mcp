@@ -258,27 +258,84 @@ function mapSortOrder(params: Record<string, unknown>): Record<string, unknown> 
  * — so a flat `name` is accepted, ignored, and returns 200 with a nameless contact. The
  * failure has no error in it anywhere.
  */
-function personBody(params: Record<string, unknown>): Record<string, unknown> {
-  const { name, contactEmail, phone, company, jobTitle, notes, ...rest } = params;
-  const person: Record<string, unknown> = {};
+const WRITABLE = ['name', 'contactEmail', 'phone', 'company', 'jobTitle', 'notes'] as const;
 
-  if (typeof name === 'string' && name.trim()) {
+/** Which Person field each flat parameter writes to. company and jobTitle share one. */
+const PERSON_FIELD: Record<string, string> = {
+  name: 'names',
+  contactEmail: 'emailAddresses',
+  phone: 'phoneNumbers',
+  company: 'organizations',
+  jobTitle: 'organizations',
+  notes: 'biographies',
+};
+
+function trimmed(value: unknown): string | undefined {
+  return typeof value === 'string' ? value.trim() : undefined;
+}
+
+/**
+ * Build the Person fields from the flat parameters, and report which Person fields the
+ * caller touched.
+ *
+ * A parameter that is PRESENT but empty is a deliberate clear: the field is reported as
+ * touched and gets no entry, which on `update` is how Google is told to empty it. A
+ * parameter that is absent is not reported, so `update` never names it and never
+ * disturbs it.
+ *
+ * `existingOrg` matters because `company` and `jobTitle` write to the SAME Person field.
+ * Setting only the title would otherwise replace the whole organization entry and drop
+ * the employer — a data loss with no error, inside a single field, from a parameter that
+ * never mentioned the employer.
+ */
+function buildPerson(
+  params: Record<string, unknown>,
+  existingOrg: Rec = {},
+): { person: Record<string, unknown>; touched: Set<string> } {
+  const person: Record<string, unknown> = {};
+  const touched = new Set<string>();
+
+  for (const key of WRITABLE) {
+    if (params[key] === undefined) continue;
+    touched.add(PERSON_FIELD[key]);
+  }
+
+  const name = trimmed(params.name);
+  if (name) {
     // Google derives displayName itself; it needs the parts. One word is a given name —
     // guessing a family name from it would invent data.
-    const parts = name.trim().split(/\s+/);
+    const parts = name.split(/\s+/);
     person.names = [parts.length === 1
       ? { givenName: parts[0] }
       : { givenName: parts[0], familyName: parts.slice(1).join(' ') }];
   }
-  if (typeof contactEmail === 'string' && contactEmail.trim()) person.emailAddresses = [{ value: contactEmail.trim() }];
-  if (typeof phone === 'string' && phone.trim()) person.phoneNumbers = [{ value: phone.trim() }];
-  if ((typeof company === 'string' && company.trim()) || (typeof jobTitle === 'string' && jobTitle.trim())) {
+
+  const contactEmail = trimmed(params.contactEmail);
+  if (contactEmail) person.emailAddresses = [{ value: contactEmail }];
+
+  const phone = trimmed(params.phone);
+  if (phone) person.phoneNumbers = [{ value: phone }];
+
+  const company = params.company === undefined ? trimmed(existingOrg.name) : trimmed(params.company);
+  const jobTitle = params.jobTitle === undefined ? trimmed(existingOrg.title) : trimmed(params.jobTitle);
+  if (company || jobTitle) {
     person.organizations = [{
-      ...(typeof company === 'string' && company.trim() ? { name: company.trim() } : {}),
-      ...(typeof jobTitle === 'string' && jobTitle.trim() ? { title: jobTitle.trim() } : {}),
+      ...(company ? { name: company } : {}),
+      ...(jobTitle ? { title: jobTitle } : {}),
     }];
   }
-  if (typeof notes === 'string' && notes.trim()) person.biographies = [{ value: notes.trim(), contentType: 'TEXT_PLAIN' }];
+
+  const notes = trimmed(params.notes);
+  if (notes) person.biographies = [{ value: notes, contentType: 'TEXT_PLAIN' }];
+
+  return { person, touched };
+}
+
+function personBody(params: Record<string, unknown>): Record<string, unknown> {
+  const rest = { ...params };
+  for (const key of WRITABLE) delete rest[key];
+
+  const { person } = buildPerson(params);
 
   // An empty Person is a valid request and a useless contact: Google answers 200 with a
   // record carrying nothing but an id. Refusing is the only way the caller finds out.
@@ -290,6 +347,49 @@ function personBody(params: Record<string, unknown>): Record<string, unknown> {
   }
 
   return { ...rest, ...person };
+}
+
+/**
+ * `update` is a read-modify-write, for two reasons that are not optional.
+ *
+ * Google requires the contact's current `etag` in the body and rejects the call without
+ * it — that is the API refusing to let one caller silently overwrite another's edit.
+ *
+ * And `updatePersonFields` REPLACES every entry in each field it names. Naming a field
+ * with nothing in the body clears it. So the list is derived from what the caller
+ * actually passed, never declared: a static list would wipe a phone number every time
+ * someone corrected a job title.
+ */
+async function updateContact(
+  params: Record<string, unknown>,
+  ctx: PatchContext,
+): Promise<Record<string, unknown>> {
+  const withId = normalizeContactId(params);
+  const resourceName = String(withId.resourceName);
+
+  const current = asRec(await call('people', 'people.get', {
+    resourceName,
+    personFields: 'names,emailAddresses,phoneNumbers,organizations,biographies,metadata',
+  }, { account: ctx.account }));
+
+  const { person, touched } = buildPerson(params, entries(current, 'organizations')[0] ?? {});
+
+  if (touched.size === 0) {
+    throw new Error(
+      'update needs at least one of: name, contactEmail, phone, company, jobTitle, notes. ' +
+      'Pass an empty string to clear a field.',
+    );
+  }
+
+  const rest = { ...withId };
+  for (const key of WRITABLE) delete rest[key];
+
+  return {
+    ...rest,
+    ...person,
+    etag: current.etag,
+    updatePersonFields: [...touched].join(','),
+  };
 }
 
 /**
@@ -336,11 +436,18 @@ export function resetWarmupCache(): void {
  * formatter would drop it.
  */
 function formatContactAction(data: unknown, ctx: PatchContext): HandlerResponse {
+  // deleteContact returns an empty body: there is no person left to render, and the id
+  // the caller passed is the only thing left to name.
+  if (ctx.operation === 'delete') {
+    const id = String(ctx.params.contactId ?? '');
+    return { text: `Contact deleted: ${id}`, refs: { contactId: id, deleted: true } };
+  }
+
   const person = asRec(data);
   const id = personId(person);
   const detail = formatPersonDetail(person);
   return {
-    text: `Contact ${ctx.operation === 'create' ? 'created' : 'saved'}.\n\n${detail.text}`,
+    text: `Contact ${ctx.operation === 'create' ? 'created' : 'updated'}.\n\n${detail.text}`,
     refs: { id, contactId: id },
   };
 }
@@ -350,6 +457,8 @@ export const contactsPatch: ServicePatch = {
     get: normalizeContactId,
     list: mapSortOrder,
     create: personBody,
+    update: updateContact,
+    delete: normalizeContactId,
     search: warmupFirst('people.searchContacts'),
     searchOther: warmupFirst('otherContacts.search'),
   },

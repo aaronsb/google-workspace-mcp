@@ -95,10 +95,10 @@ operations:
         description: "Full name, e.g. `Ada Lovelace`. Split into given and family name on the way in; a single word becomes the given name."
       contactEmail:
         type: string
-        description: "The contact's email address. (`email` is the account making the call, not the person being saved.)"
+        description: "The contact's email address. (`email` is the account making the call, not the person being saved.) On `update` this REPLACES every address the contact has — pass an empty string to clear them."
       phone:
         type: string
-        description: "Phone number, in whatever form you have it — Google normalizes it"
+        description: "Phone number, in whatever form you have it — Google normalizes it. On `update` this REPLACES every number the contact has — pass an empty string to clear them."
       company:
         type: string
         description: "Organization name"
@@ -114,6 +114,53 @@ operations:
       # drops a field the caller supplied is indistinguishable from one that dropped it
       # on the way in.
       personFields: names,emailAddresses,phoneNumbers,organizations,biographies,metadata
+
+  # updatePersonFields is not sent from here — the patch derives it from which fields the
+  # caller actually supplied. A fixed list would name fields nobody touched, and naming a
+  # field in updatePersonFields with no value in the body CLEARS it. Declared statically,
+  # this operation would wipe a contact's phone number every time someone corrected a
+  # job title.
+  update:
+    type: action
+    description: "change an existing contact (only the fields you pass; pass an empty string to clear one)"
+    resource: people.updateContact
+    params:
+      contactId:
+        type: string
+        description: "Person id as `list` or `search` printed it (e.g. `people/c1234567890`). A bare id without the `people/` prefix is accepted."
+        required: true
+        maps_to: resourceName
+      name:
+        type: string
+        description: "Full name, e.g. `Ada Lovelace`. Split into given and family name on the way in; a single word becomes the given name."
+      contactEmail:
+        type: string
+        description: "The contact's email address. (`email` is the account making the call, not the person being saved.) On `update` this REPLACES every address the contact has — pass an empty string to clear them."
+      phone:
+        type: string
+        description: "Phone number, in whatever form you have it — Google normalizes it. On `update` this REPLACES every number the contact has — pass an empty string to clear them."
+      company:
+        type: string
+        description: "Organization name"
+      jobTitle:
+        type: string
+        description: "Job title within the organization"
+      notes:
+        type: string
+        description: "Free-text note stored on the contact"
+    defaults:
+      personFields: names,emailAddresses,phoneNumbers,organizations,biographies,metadata
+
+  delete:
+    type: action
+    description: "delete a contact"
+    resource: people.deleteContact
+    params:
+      contactId:
+        type: string
+        description: "Person id as `list` or `search` printed it (e.g. `people/c1234567890`). A bare id without the `people/` prefix is accepted."
+        required: true
+        maps_to: resourceName
 
   # --- Other contacts: addresses seen in mail, never saved ---
 

@@ -84,6 +84,10 @@ export const noDelete: SafetyPolicy = {
       tasks: ['delete', 'deleteTaskList'],
       docs: [],
       sheets: [],
+      // Keyed by google_service, so contacts is `people`. An operator who turned this
+      // policy on asked for no permanent deletion; whether Google's own trash would have
+      // caught the contact is not the question they asked.
+      people: ['delete'],
     };
 
     const blocked = permanentDeletes[service] ?? [];
