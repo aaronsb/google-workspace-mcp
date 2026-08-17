@@ -838,3 +838,34 @@ describe('generateHandler — custom-handler next-steps wrapping', () => {
     expect(matches.length).toBe(1);
   });
 });
+
+describe('batch declarations', () => {
+  // Same discipline as `resource`: a batch resource that does not exist in the descriptor
+  // is a method we would call and Google would reject, discoverable only live. ADR-308.
+  it('every batch resource is a method Google declares', async () => {
+    const manifest = loadManifest();
+    const descriptor = await loadDescriptor();
+    const bad: string[] = [];
+
+    for (const [serviceName, service] of Object.entries(manifest.services)) {
+      for (const [opName, op] of Object.entries(service.operations)) {
+        if (!op.batch) continue;
+        const method = descriptor.services[service.google_service]?.methods?.[op.batch.resource];
+        if (!method) bad.push(`${serviceName}.${opName}: no such method ${op.batch.resource}`);
+      }
+    }
+
+    expect(bad).toEqual([]);
+  });
+
+  it('only declares batch where the operation itself exists', () => {
+    // A batch block on an operation with no `resource` would be a bulk form of something
+    // that has no singular form — nothing for a caller to graduate from.
+    const manifest = loadManifest();
+    for (const service of Object.values(manifest.services)) {
+      for (const [opName, op] of Object.entries(service.operations)) {
+        if (op.batch) expect(op.resource, `${opName} declares batch but no resource`).toBeTruthy();
+      }
+    }
+  });
+});

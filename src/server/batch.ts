@@ -1,0 +1,211 @@
+/**
+ * Batch mode for `bulk_operations` — one Google request across many resources. ADR-308.
+ *
+ * The rule that makes one shape serve five different Google methods: **top-level
+ * arguments are shared across the batch, `items` carry what differs**. A batch is one
+ * call with one set of parameters applied to many resources, so a parameter that varies
+ * per item is not a batch — it is a queue.
+ *
+ * Which operations can batch is DERIVED from the manifest's `batch:` blocks. Nothing here
+ * lists them. This repository has produced the hand-maintained-list-beside-a-generated-one
+ * defect three times (the hardcoded queue tool enum, the stale coverage baseline, #161),
+ * and a list of batchable operations would be the fourth.
+ */
+import { loadManifest } from '../factory/generator.js';
+import { evaluatePolicies } from '../factory/safety.js';
+import { call } from '../google/client.js';
+import type { GoogleService, ServiceMethods } from '../google/methods.js';
+import type { HandlerResponse } from './formatting/markdown.js';
+
+/** One batchable operation, as the manifest declares it. */
+export interface BatchableOp {
+  tool: string;
+  operation: string;
+  service: string;
+  googleService: string;
+  resource: string;
+  defaults: Record<string, unknown>;
+  type: 'list' | 'detail' | 'action';
+}
+
+/** Every operation the manifest says can batch, keyed `tool.operation`. */
+export function batchableOperations(): Map<string, BatchableOp> {
+  const out = new Map<string, BatchableOp>();
+  for (const [service, def] of Object.entries(loadManifest().services)) {
+    for (const [operation, op] of Object.entries(def.operations)) {
+      if (!op.batch) continue;
+      out.set(`${def.tool_name}.${operation}`, {
+        tool: def.tool_name,
+        operation,
+        service,
+        googleService: def.google_service,
+        resource: op.batch.resource,
+        defaults: op.batch.defaults ?? {},
+        type: op.type,
+      });
+    }
+  }
+  return out;
+}
+
+/** `manage_email modify, manage_contacts create, …` — for telling a caller what does batch. */
+function batchableList(): string {
+  return [...batchableOperations().values()]
+    .map((b) => `${b.tool} ${b.operation}`)
+    .join(', ');
+}
+
+/**
+ * Turn the shared arguments and the per-item arguments into the body Google wants.
+ *
+ * Keyed by the Google method rather than by our operation name, because the body shape is
+ * Google's, and two of our operations (`modify` and `trash`) share one method.
+ *
+ * Every builder here was written against Google's declared request shape. None of them is
+ * verified live yet — see the note on limits at the end of ADR-308.
+ */
+type BodyBuilder = (shared: Record<string, unknown>, items: Record<string, unknown>[]) => Record<string, unknown>;
+
+const BODY_BUILDERS: Record<string, BodyBuilder> = {
+  // ids + the label changes, which are shared by definition: one call sets one label set.
+  'users.messages.batchModify': (shared, items) => ({
+    ids: items.map((i) => str(i.messageId)),
+    ...(shared.addLabelIds ? { addLabelIds: list(shared.addLabelIds) } : {}),
+    ...(shared.removeLabelIds ? { removeLabelIds: list(shared.removeLabelIds) } : {}),
+  }),
+
+  // Each contact is different, so the whole payload comes from items.
+  'people.batchCreateContacts': (shared, items) => ({
+    contacts: items.map((i) => ({ contactPerson: i.person ?? i })),
+    readMask: shared.readMask ?? 'names,emailAddresses,phoneNumbers,organizations,metadata',
+  }),
+
+  'people.batchDeleteContacts': (_shared, items) => ({
+    resourceNames: items.map((i) => str(i.contactId ?? i.resourceName)),
+  }),
+
+  // A map keyed by resource name rather than an array — Google's shape, not ours.
+  'people.batchUpdateContacts': (shared, items) => ({
+    contacts: Object.fromEntries(
+      items.map((i) => [str(i.contactId ?? i.resourceName), i.person ?? i]),
+    ),
+    updateMask: shared.updateMask,
+    readMask: shared.readMask ?? 'names,emailAddresses,phoneNumbers,organizations,metadata',
+  }),
+
+  // A GET: resourceNames is a repeated QUERY parameter, not a body.
+  'people.getBatchGet': (shared, items) => ({
+    resourceNames: items.map((i) => str(i.contactId ?? i.resourceName)),
+    personFields: shared.personFields ?? 'names,emailAddresses,phoneNumbers,organizations,metadata',
+  }),
+};
+
+function str(v: unknown): string {
+  return typeof v === 'string' ? v : String(v ?? '');
+}
+
+/** Accept `'A,B'` or `['A','B']` — Google always wants the array. */
+function list(v: unknown): string[] {
+  if (Array.isArray(v)) return v.map(str);
+  return str(v).split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+/**
+ * Run one batch call.
+ *
+ * Refusing is as important as running: an operation with no `batch:` block cannot be
+ * batched, and saying so with the list of what can turns a dead end into the answer.
+ */
+export async function handleBatch(params: Record<string, unknown>): Promise<HandlerResponse> {
+  const tool = params.tool as string | undefined;
+  const operation = params.operation as string | undefined;
+  const items = params.items as Record<string, unknown>[] | undefined;
+
+  if (!tool || !operation) {
+    return err(`mode:'batch' needs \`tool\` and \`operation\`. Operations that batch: ${batchableList()}.`);
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return err(`mode:'batch' needs a non-empty \`items\` array — one entry per resource to act on.`);
+  }
+
+  const batchable = batchableOperations();
+  const spec = batchable.get(`${tool}.${operation}`);
+  if (!spec) {
+    return err(
+      `${tool} '${operation}' cannot be batched — Google publishes no batch method for it. ` +
+      `Operations that can: ${batchableList()}. ` +
+      `Use mode:'queue' instead, which works for every operation.`,
+    );
+  }
+
+  const build = BODY_BUILDERS[spec.resource];
+  if (!build) {
+    // A manifest declared a batch resource this file cannot build a body for. That is a
+    // bug in this repo, not in the caller's request, so it says so plainly.
+    return err(`${tool} '${operation}' declares batch resource ${spec.resource}, which has no body builder.`);
+  }
+
+  const account = params.email as string | undefined;
+  if (!account) return err(`mode:'batch' needs \`email\` — the account to act as.`);
+
+  // Batch reaches Google without passing through generateHandler, so it gets no policy
+  // check for free — the same way manage_scratchpad did not (#171). Doing many writes at
+  // once is the last place to skip this: a read-only account would otherwise be refused
+  // one contact deletion and permitted two hundred.
+  const decision = await evaluatePolicies([], { operation: spec.operation, params, account }, spec.googleService, {
+    service: spec.service,
+    googleService: spec.googleService,
+    resource: spec.resource,
+    type: spec.type,
+  });
+  if (decision.action === 'block') {
+    return {
+      text: `**Blocked by safety policy:** ${decision.reason}`,
+      refs: { blocked: true, error: true, policy: decision.reason },
+    };
+  }
+
+  // Shared arguments are everything the caller passed that is not batch plumbing.
+  const { mode: _m, tool: _t, operation: _o, items: _i, email: _e, detail: _d, ...shared } = params;
+  const body = { ...spec.defaults, ...build({ ...spec.defaults, ...shared }, items) };
+
+  const data = await call(
+    spec.googleService as GoogleService,
+    spec.resource as ServiceMethods[GoogleService],
+    body,
+    { account },
+  );
+
+  return {
+    text:
+      `## Batch: ${tool} ${operation}\n\n` +
+      `${items.length} item${items.length === 1 ? '' : 's'} in one request ` +
+      `(\`${spec.resource}\`).\n\n${summarize(data)}`,
+    refs: { batch: true, tool, operation, resource: spec.resource, count: items.length, data },
+  };
+}
+
+/**
+ * Say what Google said, without inventing per-item detail it did not send.
+ *
+ * The methods differ here and the difference is not ours to paper over: batchModify and
+ * batchDelete answer 204 with no body, so a partial failure is not distinguishable per
+ * item; batchCreateContacts answers with a result per contact. Presenting one uniform
+ * shape would mean fabricating the missing half.
+ */
+function summarize(data: unknown): string {
+  if (data === undefined || data === null || (typeof data === 'object' && Object.keys(data).length === 0)) {
+    return 'Google accepted the request and returned no body, which is how it reports success for this method. It does not report per-item status.';
+  }
+  const rec = data as Record<string, unknown>;
+  for (const key of ['createContacts', 'updateResult', 'responses']) {
+    const arr = rec[key];
+    if (Array.isArray(arr)) return `${arr.length} result${arr.length === 1 ? '' : 's'} returned.`;
+  }
+  if (rec.responses || rec.createContacts || rec.updateResult) return 'Completed.';
+  return 'Completed.';
+}
+
+function err(text: string): HandlerResponse {
+  return { text, refs: { error: true } };
+}
