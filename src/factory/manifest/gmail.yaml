@@ -60,14 +60,14 @@ operations:
         required: true
       body:
         type: string
-        description: "Email body text"
+        description: "Email body text. On `forward`, an optional note prepended ABOVE the forwarded message."
         required: true
       from:
         type: string
         description: "Sender email or RFC 2822 mailbox for a verified Gmail Send As alias"
       cc:
         type: string
-        description: "CC email(s), comma-separated"
+        description: "CC email(s), comma-separated. On `replyAll` these are ADDITIONAL — they do not replace the recipients already on the thread."
       bcc:
         type: string
         description: "BCC email(s), comma-separated"
@@ -87,11 +87,11 @@ operations:
     params:
       messageId:
         type: string
-        description: "Message ID to reply to"
+        description: "Email message ID"
         required: true
       body:
         type: string
-        description: "Reply body text"
+        description: "Email body text. On `forward`, an optional note prepended ABOVE the forwarded message."
         required: true
       attachments:
         type: string
@@ -109,15 +109,15 @@ operations:
     params:
       messageId:
         type: string
-        description: "Message ID to reply to"
+        description: "Email message ID"
         required: true
       body:
         type: string
-        description: "Reply body text"
+        description: "Email body text. On `forward`, an optional note prepended ABOVE the forwarded message."
         required: true
       cc:
         type: string
-        description: "Additional CC email(s), comma-separated"
+        description: "CC email(s), comma-separated. On `replyAll` these are ADDITIONAL — they do not replace the recipients already on the thread."
       attachments:
         type: string
         description: "Workspace filenames to attach, comma-separated (files must exist in workspace via manage_workspace). Creates draft when present."
@@ -134,7 +134,7 @@ operations:
     params:
       messageId:
         type: string
-        description: "Message ID to forward"
+        description: "Email message ID"
         required: true
       to:
         type: string
@@ -142,7 +142,7 @@ operations:
         required: true
       body:
         type: string
-        description: "Optional note to prepend above forwarded message"
+        description: "Email body text. On `forward`, an optional note prepended ABOVE the forwarded message."
 
   # --- Inbox management ---
 
@@ -165,7 +165,7 @@ operations:
     params:
       messageId:
         type: string
-        description: "Message ID to trash"
+        description: "Email message ID"
         required: true
         maps_to: id
     defaults:
@@ -178,7 +178,7 @@ operations:
     params:
       messageId:
         type: string
-        description: "Message ID to restore"
+        description: "Email message ID"
         required: true
         maps_to: id
     defaults:
@@ -191,11 +191,11 @@ operations:
     params:
       messageId:
         type: string
-        description: "Message ID containing the attachment"
+        description: "Email message ID"
         required: true
       filename:
         type: string
-        description: "Filename to save as (from the read response, e.g. 'invoice_template.md')"
+        description: "Attachment filename, exactly as it appears in the `read` response (e.g. 'invoice_template.md')"
         required: true
     defaults:
       userId: me
@@ -207,11 +207,11 @@ operations:
     params:
       messageId:
         type: string
-        description: "Message ID containing the attachment"
+        description: "Email message ID"
         required: true
       filename:
         type: string
-        description: "Image filename from the read response"
+        description: "Attachment filename, exactly as it appears in the `read` response (e.g. 'invoice_template.md')"
         required: true
     defaults:
       userId: me
@@ -223,7 +223,7 @@ operations:
     params:
       messageId:
         type: string
-        description: "Message ID to modify"
+        description: "Email message ID"
         required: true
         maps_to: id
       addLabelIds:
@@ -253,11 +253,11 @@ operations:
     params:
       query:
         type: string
-        description: "Gmail search query to filter threads"
+        description: "Gmail search query (e.g. \"from:alice subject:meeting has:attachment\")"
         maps_to: q
       maxResults:
         type: number
-        description: "Max threads to return (default: 10, max: 50)"
+        description: "Max results (default: 10, max: 50)"
         default: 10
         max: 50
     defaults:

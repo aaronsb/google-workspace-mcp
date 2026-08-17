@@ -18,7 +18,7 @@ operations:
     params:
       taskListId:
         type: string
-        description: "Task list ID"
+        description: "Task list ID (use `listTaskLists` to find)"
         required: true
         maps_to: tasklist
 
@@ -32,7 +32,7 @@ operations:
     params:
       title:
         type: string
-        description: "Task list name"
+        description: "On `createTaskList`, the task list name. On `create` and `update`, the task title."
         required: true
 
   deleteTaskList:
@@ -42,7 +42,7 @@ operations:
     params:
       taskListId:
         type: string
-        description: "Task list ID to delete"
+        description: "Task list ID (use `listTaskLists` to find)"
         required: true
         maps_to: tasklist
 
@@ -55,7 +55,7 @@ operations:
     params:
       taskListId:
         type: string
-        description: "Task list ID (use listTaskLists to find)"
+        description: "Task list ID (use `listTaskLists` to find)"
         required: true
         maps_to: tasklist
       showCompleted:
@@ -74,7 +74,7 @@ operations:
     params:
       taskListId:
         type: string
-        description: "Task list ID"
+        description: "Task list ID (use `listTaskLists` to find)"
         required: true
         maps_to: tasklist
       taskId:
@@ -94,12 +94,12 @@ operations:
     params:
       taskListId:
         type: string
-        description: "Task list ID"
+        description: "Task list ID (use `listTaskLists` to find)"
         required: true
         maps_to: tasklist
       title:
         type: string
-        description: "Task title"
+        description: "On `createTaskList`, the task list name. On `create` and `update`, the task title."
         required: true
       notes:
         type: string
@@ -118,7 +118,7 @@ operations:
     params:
       taskListId:
         type: string
-        description: "Task list ID"
+        description: "Task list ID (use `listTaskLists` to find)"
         required: true
         maps_to: tasklist
       taskId:
@@ -128,13 +128,13 @@ operations:
         maps_to: task
       title:
         type: string
-        description: "New task title"
+        description: "On `createTaskList`, the task list name. On `create` and `update`, the task title."
       notes:
         type: string
-        description: "New task notes / details"
+        description: "Task notes / details"
       due:
         type: string
-        description: "New due date (RFC 3339)"
+        description: "Due date (RFC 3339, e.g. 2026-07-20T00:00:00.000Z — Google stores the date, not the time)"
       status:
         type: string
         description: "Task status"
@@ -147,7 +147,7 @@ operations:
     params:
       taskListId:
         type: string
-        description: "Task list ID"
+        description: "Task list ID (use `listTaskLists` to find)"
         required: true
         maps_to: tasklist
       taskId:
@@ -165,11 +165,11 @@ operations:
     params:
       taskListId:
         type: string
-        description: "Task list ID"
+        description: "Task list ID (use `listTaskLists` to find)"
         required: true
         maps_to: tasklist
       taskId:
         type: string
-        description: "Task ID to delete"
+        description: "Task ID"
         required: true
         maps_to: task
