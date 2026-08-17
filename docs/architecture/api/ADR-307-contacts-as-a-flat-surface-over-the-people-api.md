@@ -133,6 +133,17 @@ Rebuilding that array from the two parameters instead is a loss that looks like 
 success: correcting a job title erases an employment record, and the confirmation renders
 only name and title, so it reads exactly right.
 
+One case stops before the write rather than choosing between two losses. Google **returns**
+`organizations[].startDate` and `endDate` and then **rejects** them, answering
+`500 Internal error encountered` on create and update alike — measured, with every other
+subfield probed (`department`, `type`, `jobDescription`, `symbol`, `domain`, `location`,
+`phoneticName`, `costCenter`, `current`) round-tripping fine. Carrying such a field
+through fails with a 500 that says nothing about why; dropping it loses employment history
+nobody asked to change. So an organization edit on such a contact is refused with a
+sentence naming the field, the cause, and what to do — and only that edit: every other
+field on the same contact still updates, because `organizations` is rebuilt only when
+`company` or `jobTitle` is passed.
+
 A parameter that arrives as something other than a string is **refused**, not dropped.
 The two halves of a write are derived from different facts — `updatePersonFields` from
 whether the parameter arrived, the body from whether it holds a usable string — and

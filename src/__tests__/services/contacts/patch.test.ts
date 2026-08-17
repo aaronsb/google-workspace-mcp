@@ -301,17 +301,21 @@ describe('update', () => {
     mockCall.mockResolvedValueOnce({
       resourceName: 'people/c1',
       etag: 'e',
+      // Every subfield here was measured as one Google actually round-trips. An earlier
+      // version of this fixture used startDate, which Google returns and then rejects
+      // with a 500 — the test asserted a survival that could never have happened.
       organizations: [{
-        name: 'Acme', title: 'Engineer', department: 'R&D',
-        type: 'work', startDate: { year: 2019 }, metadata: { primary: true },
+        name: 'Acme', title: 'Engineer', department: 'R&D', type: 'work',
+        jobDescription: 'builds things', location: 'Seattle',
+        metadata: { primary: true },
       }],
     }).mockResolvedValue({ resourceName: 'people/c1' });
 
     await handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', jobTitle: 'Principal' });
 
     expect(patched().organizations).toEqual([{
-      name: 'Acme', title: 'Principal', department: 'R&D',
-      type: 'work', startDate: { year: 2019 },
+      name: 'Acme', title: 'Principal', department: 'R&D', type: 'work',
+      jobDescription: 'builds things', location: 'Seattle',
     }]);
   });
 
@@ -332,6 +336,51 @@ describe('update', () => {
       { name: 'Acme', title: 'Principal' },
       { name: 'Side Consultancy', title: 'Partner' },
     ]);
+  });
+
+  it('refuses an organization edit Google would answer with a bare 500', async () => {
+    // Measured on live Google: an organizations entry carrying startDate or endDate is
+    // answered `500 Internal error encountered`, on create and update alike. Carrying it
+    // through would fail with nothing the caller can act on; dropping it would lose
+    // employment history nobody asked to change.
+    mockCall.mockReset();
+    mockCall.mockResolvedValueOnce({
+      resourceName: 'people/c1',
+      etag: 'e',
+      organizations: [{ name: 'Acme', title: 'Engineer', startDate: { year: 2019 } }],
+    }).mockResolvedValue({ resourceName: 'people/c1' });
+
+    await expect(handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', jobTitle: 'Principal' }))
+      .rejects.toThrow(/startDate.*rejects on write/s);
+
+    expect(mockCall.mock.calls.filter(c => c[1] === 'people.updateContact')).toHaveLength(0);
+  });
+
+  it('names both offending fields when both are present', async () => {
+    mockCall.mockReset();
+    mockCall.mockResolvedValueOnce({
+      resourceName: 'people/c1',
+      etag: 'e',
+      organizations: [{ name: 'Acme', startDate: { year: 2019 }, endDate: { year: 2021 } }],
+    }).mockResolvedValue({});
+
+    await expect(handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', company: 'Beta' }))
+      .rejects.toThrow(/startDate and endDate/);
+  });
+
+  it('leaves other fields updatable on a contact with employment dates', async () => {
+    // The refusal is scoped to the organizations rebuild. A phone change never touches
+    // that field, so it must still go through.
+    mockCall.mockReset();
+    mockCall.mockResolvedValueOnce({
+      resourceName: 'people/c1',
+      etag: 'e',
+      organizations: [{ name: 'Acme', startDate: { year: 2019 } }],
+    }).mockResolvedValue({ resourceName: 'people/c1' });
+
+    await expect(handler({ operation: 'update', email: 'u@t.com', contactId: 'people/c1', phone: '555-0100' }))
+      .resolves.toBeDefined();
+    expect(patched().updatePersonFields).toBe('phoneNumbers');
   });
 
   it('does not send back the metadata Google owns', async () => {

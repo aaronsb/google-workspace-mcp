@@ -274,6 +274,40 @@ function trimmed(value: unknown): string | undefined {
   return typeof value === 'string' ? value.trim() : undefined;
 }
 
+/**
+ * Organization subfields Google will RETURN but not ACCEPT.
+ *
+ * Measured, on both createContact and updateContact: an `organizations` entry carrying
+ * `startDate` or `endDate` is answered with `500 Internal error encountered`. Every other
+ * subfield probed — department, type, jobDescription, symbol, domain, location,
+ * phoneticName, costCenter, current — round-trips fine.
+ *
+ * This is Google's bug, and it puts an edit that carries one of these fields between two
+ * bad outcomes: send it and the write fails with a 500 that says nothing about why, or
+ * drop it and the contact quietly loses an employment date nobody asked to change.
+ */
+const UNWRITABLE_ORG_FIELDS = ['startDate', 'endDate'] as const;
+
+/**
+ * Stop before the write rather than after, and say what to do about it.
+ *
+ * The alternative is a bare `500 Internal error encountered` arriving from an operation
+ * that only changed a job title, which is not something a caller can act on.
+ */
+function refuseUnwritableOrgFields(orgs: Rec[]): void {
+  const found = [...new Set(orgs.flatMap(o => UNWRITABLE_ORG_FIELDS.filter(f => o[f] !== undefined)))];
+  if (found.length === 0) return;
+
+  throw new Error(
+    `This contact's organization record has ${found.join(' and ')}, which Google's People API ` +
+    `returns on read and rejects on write with a 500. Changing 'company' or 'jobTitle' would have to ` +
+    `send ${found.length > 1 ? 'those fields' : 'that field'} back and fail, or drop ${found.length > 1 ? 'them' : 'it'} ` +
+    `and lose employment history nobody asked to change — so this stops instead. ` +
+    `Every other field on this contact updates normally. To change the job title, edit it in Google ` +
+    `Contacts directly, or clear the employment dates there first.`,
+  );
+}
+
 /** A copy of a Person field entry without the metadata Google owns and writes itself. */
 function withoutMetadata(entry: Rec): Rec {
   const { metadata: _ignored, ...rest } = entry;
@@ -351,6 +385,7 @@ function buildPerson(
   // overwritten. `metadata` is dropped because Google populates it and rejects nothing
   // for its absence.
   if (params.company !== undefined || params.jobTitle !== undefined) {
+    refuseUnwritableOrgFields(existingOrgs);
     const [primary = {}, ...others] = existingOrgs;
     const merged = withoutMetadata(primary);
 
