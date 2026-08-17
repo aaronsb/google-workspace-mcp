@@ -28,6 +28,8 @@ export interface AccountStatus {
   hasRefreshToken: boolean;
   /** Absent on credentials written before ADR-202, which are all read/write. */
   access: AccessLevel;
+  /** Services that can still write despite `access: 'read'`. Empty for full access. */
+  stillAllowWrites: string[];
 }
 
 /**
@@ -43,7 +45,7 @@ export async function authenticateAccount(
   access: AccessLevel = 'readwrite',
 ): Promise<AuthResult> {
   const { scopes, stillAllowWrites } = scopesForServices(ALL_SERVICES, access);
-  const result = await runOAuth(clientId, clientSecret, scopes, access);
+  const result = await runOAuth(clientId, clientSecret, scopes, access, stillAllowWrites);
   return { ...result, access, stillAllowWrites };
 }
 
@@ -58,7 +60,7 @@ export async function reauthWithServices(
   access: AccessLevel = 'readwrite',
 ): Promise<AuthResult> {
   const { scopes, stillAllowWrites } = scopesForServices(services, access);
-  const result = await runOAuth(clientId, clientSecret, scopes, access);
+  const result = await runOAuth(clientId, clientSecret, scopes, access, stillAllowWrites);
   return { ...result, access, stillAllowWrites };
 }
 
@@ -77,6 +79,7 @@ export async function checkAccountStatus(email: string): Promise<AccountStatus> 
       scopeCount: 0,
       hasRefreshToken: false,
       access: 'readwrite',
+      stillAllowWrites: [],
     };
   }
 
@@ -100,6 +103,7 @@ export async function checkAccountStatus(email: string): Promise<AccountStatus> 
     hasRefreshToken,
     // Absent means read/write — see AuthorizedUserCredential.access.
     access: cred.access ?? 'readwrite',
+    stillAllowWrites: cred.stillAllowWrites ?? [],
   };
 }
 
@@ -110,6 +114,7 @@ async function runOAuth(
   clientSecret: string,
   scopes: string[],
   access: AccessLevel = 'readwrite',
+  stillAllowWrites: string[] = [],
 ): Promise<AuthResult> {
   try {
     const result = await runOAuthFlow(clientId, clientSecret, scopes);
@@ -119,8 +124,13 @@ async function runOAuth(
     // Storing what was granted rather than what was requested means the call-time check
     // in factory/safety.ts tests what the token can actually do (ADR-202).
     //
-    // `access` rides along because `refresh` would otherwise re-mint the default and
-    // silently restore read/write to an account deliberately set to read-only.
+    // `access` is stored because nothing else records what this account was authorized
+    // FOR. The granted scopes say what the token can do; they do not say whether a human
+    // chose to hold it back. `status` reads it, and the call-time policy in ADR-202 will.
+    //
+    // It is NOT needed to protect `refresh`: refreshAccessToken posts grant_type=
+    // refresh_token with no scope parameter and never writes a credential, so a refresh
+    // cannot widen anything. An earlier version of this comment claimed otherwise.
     await saveCredential(result.email, {
       type: 'authorized_user',
       client_id: clientId,
@@ -128,6 +138,7 @@ async function runOAuth(
       refresh_token: result.refreshToken,
       scopes: result.scopes,
       access,
+      ...(stillAllowWrites.length ? { stillAllowWrites } : {}),
     });
 
     invalidateToken(result.email);

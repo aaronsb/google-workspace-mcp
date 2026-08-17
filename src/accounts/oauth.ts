@@ -41,11 +41,13 @@ export const SERVICE_SCOPE_MAP: Record<string, string[]> = {
  * Measured against descriptor.json rather than assumed:
  *
  * - calendar, docs, gmail, tasks — the scope below covers every GET method exposed.
- * - meet — `meetings.space.readonly` alone authorizes all eleven operations
- *   manage_meet exposes, every one a GET. The read/write entry also carries
- *   `meetings.space.created` and `.settings`, which exist for CREATING and configuring
- *   meeting spaces; this tool never does either. Reading "no read-only variant" off that
- *   scope list, rather than off what the operations need, is what nearly left meet out.
+ * - meet — `meetings.space.readonly` authorizes every READ manage_meet exposes: all the
+ *   conference-record operations, plus getSpace. The tool also creates, updates and ends
+ *   meeting spaces, and those three need `meetings.space.created` or `.settings`, so a
+ *   read-only meet account holds the readonly scope alone and Google refuses the writes.
+ *   That is the mapping working, not a gap in it. Meet was very nearly left out of this
+ *   map entirely by reading "has no read-only variant" off the scope list instead of off
+ *   what each operation needs.
  * - drive, sheets — two GET methods and one respectively that no read-only scope covers,
  *   so read access there allows less than full access but slightly more than reading.
  */

@@ -26,6 +26,7 @@ const mockReauth = reauthWithServices as MockedFunction<typeof reauthWithService
 const mockGetAccessToken = getAccessToken as MockedFunction<typeof getAccessToken>;
 const mockInvalidateToken = invalidateToken as MockedFunction<typeof invalidateToken>;
 const mockScopes = scopesForServices as MockedFunction<typeof scopesForServices>;
+const mockAuthAdd = authenticateAndAddAccount as MockedFunction<typeof authenticateAndAddAccount>;
 
 /** Pretend the named services have no read-only option. */
 function noReadOnlyFor(...services: string[]) {
@@ -89,6 +90,7 @@ describe('handleAccounts', () => {
         scopeCount: 2,
         hasRefreshToken: true,
       access: 'readwrite' as const,
+      stillAllowWrites: [],
       });
 
       const result = await handleAccounts({ operation: 'status', email: 'a@test.com' });
@@ -102,6 +104,33 @@ describe('handleAccounts', () => {
       expect(result.refs.scopeCount).toBe(2);
     });
 
+    it('names the services a confirmed read-only account can still change', async () => {
+      // `access` is the level ASKED FOR. Confirming through confirmWriteAccess stores
+      // 'read' while the token can write those services, so the declared level alone
+      // would assert something false about what this account can do.
+      mockCheckStatus.mockResolvedValue({
+        email: 'a@test.com', tokenValid: true,
+        scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+        scopeCount: 1, hasRefreshToken: true,
+        access: 'read' as const, stillAllowWrites: ['meet'],
+      });
+
+      const result = await handleAccounts({ operation: 'status', email: 'a@test.com' });
+
+      expect(result.text).toContain('Read-only, except: **meet**');
+      expect(result.text).toContain('can still be changed');
+    });
+
+    it('says plainly read-only when nothing was confirmed', async () => {
+      mockCheckStatus.mockResolvedValue({
+        email: 'a@test.com', tokenValid: true, scopes: [], scopeCount: 0,
+        hasRefreshToken: true, access: 'read' as const, stillAllowWrites: [],
+      });
+
+      const result = await handleAccounts({ operation: 'status', email: 'a@test.com' });
+      expect(result.text).toContain('[x] Read-only — this account cannot send, edit or delete');
+    });
+
     it('shows invalid token status', async () => {
       mockCheckStatus.mockResolvedValue({
         email: 'a@test.com',
@@ -110,6 +139,7 @@ describe('handleAccounts', () => {
         scopeCount: 0,
         hasRefreshToken: false,
       access: 'readwrite' as const,
+      stillAllowWrites: [],
       });
 
       const result = await handleAccounts({ operation: 'status', email: 'a@test.com' });
@@ -138,6 +168,56 @@ describe('handleAccounts', () => {
 
     it('requires email', async () => {
       await expect(handleAccounts({ operation: 'refresh' })).rejects.toThrow('email is required');
+    });
+  });
+
+  describe('authenticate', () => {
+    const originalEnv = process.env;
+    beforeEach(() => {
+      process.env = { ...originalEnv, GOOGLE_CLIENT_ID: 'test-id', GOOGLE_CLIENT_SECRET: 'test-secret' };
+      mockAuthAdd.mockResolvedValue({ status: 'success', account: 'a@test.com' });
+    });
+    afterEach(() => { process.env = originalEnv; });
+
+    it('defaults to full access, so an existing caller is unaffected', async () => {
+      await handleAccounts({ operation: 'authenticate' });
+      expect(mockAuthAdd).toHaveBeenCalledWith('test-id', 'test-secret', 'personal', undefined, 'readwrite');
+    });
+
+    it('passes read through when asked', async () => {
+      const result = await handleAccounts({ operation: 'authenticate', access: 'read' });
+      expect(mockAuthAdd).toHaveBeenCalledWith('test-id', 'test-secret', 'personal', undefined, 'read');
+      expect(result.text).toContain('read-only');
+    });
+
+    it('stops before the browser when a service cannot be read-only', async () => {
+      noReadOnlyFor('meet');
+      const result = await handleAccounts({ operation: 'authenticate', access: 'read' });
+
+      expect(mockAuthAdd).not.toHaveBeenCalled();
+      expect(result.refs.status).toBe('needs-confirmation');
+      // authenticate has NO `services` param, so telling its caller to drop one would be
+      // advice they cannot take. It points at `scopes`, which does take a list.
+      expect(result.text).not.toContain('Leave meet out of `services`');
+      expect(result.text).toContain("operation: 'scopes'");
+    });
+
+    it('REJECTS an access value that is neither read nor readwrite', async () => {
+      // The server registers tools on the low-level request-handler path, which does not
+      // validate arguments against inputSchema — the enum there is advertisement. A cast
+      // let 'read-only' through as full access: scopes widened, gate skipped, credential
+      // written claiming read. Asking for read and silently getting write is the one
+      // thing this feature exists to prevent.
+      await expect(handleAccounts({ operation: 'authenticate', access: 'read-only' }))
+        .rejects.toThrow(/access must be 'read' or 'readwrite'/);
+      expect(mockAuthAdd).not.toHaveBeenCalled();
+    });
+
+    it('rejects a bad access value on scopes too', async () => {
+      await expect(handleAccounts({
+        operation: 'scopes', email: 'a@test.com', services: 'gmail', access: 'READ',
+      })).rejects.toThrow(/access must be/);
+      expect(mockReauth).not.toHaveBeenCalled();
     });
   });
 

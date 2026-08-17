@@ -10,7 +10,7 @@
  */
 
 import { call } from '../../google/client.js';
-import { requireString } from '../../server/handlers/validate.js';
+import { clamp, requireString } from '../../server/handlers/validate.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
@@ -469,10 +469,15 @@ const prefixConferenceName = async (params: Record<string, unknown>) =>
  */
 function spaceName(value: string): string {
   const raw = value.trim();
-  if (raw.startsWith('spaces/')) return raw;
-  // A full URL: https://meet.google.com/abc-mnop-xyz
-  const fromUrl = raw.match(/meet\.google\.com\/([a-z-]+)/i);
-  if (fromUrl) return `spaces/${fromUrl[1]}`;
+  if (/^spaces\//i.test(raw)) return raw.replace(/^spaces\//i, 'spaces/');
+
+  // A meeting code is exactly three-four-three letters. Matching that shape rather than
+  // "letters and dashes" matters: https://meet.google.com/lookup/team-standup is a
+  // nickname URL, and a loose match turns it into `spaces/lookup` — a confidently wrong
+  // target instead of an error Google can explain.
+  const code = raw.match(/\b([a-z]{3}-[a-z]{4}-[a-z]{3})\b/i);
+  if (code) return `spaces/${code[1]}`;
+
   return `spaces/${raw}`;
 }
 
@@ -643,7 +648,10 @@ async function endActiveConference(params: Record<string, unknown>, account: str
  * asks for "what is live now" instead of composing filter syntax.
  */
 async function activeConferences(params: Record<string, unknown>, account: string): Promise<HandlerResponse> {
-  const pageSize = Number(params.maxResults) || 25;
+  // Custom handlers are dispatched BEFORE buildResourceParams, so the manifest's
+  // default/max never reach here on their own — clamp explicitly or `maxResults: 5000`
+  // goes straight to Google as pageSize, and -1 becomes a 400.
+  const pageSize = clamp(params.maxResults, 25, 100);
   const data = await call('meet', 'conferenceRecords.list',
     { filter: 'end_time IS NULL', pageSize }, { account }) as Record<string, unknown>;
 

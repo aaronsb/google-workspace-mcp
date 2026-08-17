@@ -11,14 +11,7 @@ import { call } from '../../../google/client.js';
 const mockCall = call as MockedFunction<typeof call>;
 
 import { meetPatch } from '../../../services/meet/patch.js';
-import { readFileSync } from 'node:fs';
-
-interface DescriptorShape {
-  services: Record<string, { enums?: Record<string, string[]> }>;
-}
-const descriptorJson = JSON.parse(
-  readFileSync(new URL('../../../google/descriptor.json', import.meta.url), 'utf-8'),
-) as DescriptorShape;
+import { loadDescriptor } from '../../../google/descriptor.js';
 import type { PatchContext } from '../../../factory/types.js';
 
 function ctx(operation: string, params: Record<string, unknown> = {}): PatchContext {
@@ -478,7 +471,7 @@ describe('meetPatch — meeting spaces', () => {
       //
       // Read from the descriptor rather than restated, so a value Google retires fails
       // here on the next regeneration instead of in production.
-      const svc = (descriptorJson as DescriptorShape).services.meet;
+      const svc = (await loadDescriptor()).services.meet;
       const allowedModeration = svc.enums?.['SpaceConfig.moderation'] ?? [];
       const allowedAccess = svc.enums?.['SpaceConfig.accessType'] ?? [];
       expect(allowedModeration.length).toBeGreaterThan(0);
@@ -500,12 +493,37 @@ describe('meetPatch — meeting spaces', () => {
       ['a bare meeting code', 'abc-mnop-xyz'],
       ['a full resource name', 'spaces/abc-mnop-xyz'],
       ['a pasted Meet link', 'https://meet.google.com/abc-mnop-xyz'],
+      ['a link with a trailing query', 'https://meet.google.com/abc-mnop-xyz?authuser=1'],
+      ['an uppercase prefix', 'Spaces/abc-mnop-xyz'],
     ])('accepts %s', async (_label, input) => {
       // Google takes only `spaces/{id}` and 404s the rest without saying which form it
       // wanted. People copy whichever one is in front of them.
       mockCall.mockResolvedValue(space);
       await H.getSpace({ space: input }, ACCOUNT);
       expect(mockCall.mock.calls[0][2]).toEqual({ name: 'spaces/abc-mnop-xyz' });
+    });
+
+    it('reads the moderation enum back correctly, both ways', async () => {
+      // The formatter had the SAME wrong enum as the request path, so a space created
+      // with host controls ON reported "off". Fixing the request and leaving the
+      // formatter is a defect the shared fixture could not show, because it only ever
+      // carried one value.
+      mockCall.mockResolvedValue({ ...space, config: { accessType: 'TRUSTED', moderation: 'ON' } });
+      const on = await H.getSpace({ space: 'abc-mnop-xyz' }, ACCOUNT);
+      expect(on.text).toContain('**Host controls:** on');
+
+      mockCall.mockResolvedValue({ ...space, config: { accessType: 'TRUSTED', moderation: 'OFF' } });
+      const off = await H.getSpace({ space: 'abc-mnop-xyz' }, ACCOUNT);
+      expect(off.text).toContain('**Host controls:** off');
+    });
+
+    it('does not turn a nickname URL into a confidently wrong space', async () => {
+      // https://meet.google.com/lookup/team-standup is a nickname link. Matching
+      // "letters and dashes" made it `spaces/lookup` — a real space id, belonging to
+      // nobody, which Google answers about instead of erroring on the input.
+      mockCall.mockResolvedValue(space);
+      await H.getSpace({ space: 'https://meet.google.com/lookup/team-standup' }, ACCOUNT);
+      expect(mockCall.mock.calls[0][2]).not.toEqual({ name: 'spaces/lookup' });
     });
 
     it('reports a call in progress when there is one', async () => {
@@ -607,6 +625,20 @@ describe('meetPatch — meeting spaces', () => {
       await H.activeConferences({}, ACCOUNT);
 
       expect(mockCall.mock.calls[0][2]).toEqual({ filter: 'end_time IS NULL', pageSize: 25 });
+    });
+
+    it('honours the ceiling the manifest advertises', async () => {
+      // Custom handlers are dispatched before buildResourceParams, so the manifest's
+      // default/max never reach here on their own. Unclamped, maxResults: 5000 went to
+      // Google verbatim and -1 became a 400.
+      mockCall.mockResolvedValue({ conferenceRecords: [] });
+      await H.activeConferences({ maxResults: 5000 }, ACCOUNT);
+      expect((mockCall.mock.calls[0][2] as { pageSize: number }).pageSize).toBe(100);
+
+      mockCall.mockReset();
+      mockCall.mockResolvedValue({ conferenceRecords: [] });
+      await H.activeConferences({ maxResults: -1 }, ACCOUNT);
+      expect((mockCall.mock.calls[0][2] as { pageSize: number }).pageSize).toBe(25);
     });
 
     it('says nothing is running rather than returning an empty list', async () => {

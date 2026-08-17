@@ -38,7 +38,9 @@ Access level is **per account, per service**, chosen at consent time, and enforc
 
 Where a service has **no** read-only scope, the request does not quietly ask for more. #130's sketch proposed falling back to the read/write scope; that means someone who asked for read access gets write access without being told, which is consent in name only. Instead the person is told which services will still be able to write, and what they will actually be granting, before the browser opens.
 
-The chosen access level is **stored with the account**, or `refresh` silently re-grants the old scopes.
+The chosen access level is **stored with the account**, because nothing else records what an account was authorized *for*. Its granted scopes say what the token can do; they do not say whether a human chose to hold it back. `status` reads it, and the call-time policy below needs it.
+
+Stored alongside it: the services that will still be able to write. An account confirmed through `confirmWriteAccess` holds `access: 'read'` and write scopes for those services, so the level alone would misdescribe it.
 
 ### Call time — a scope-aware safety policy
 

@@ -20,6 +20,14 @@ export interface AuthorizedUserCredential {
    * as 'read' would lock existing accounts out of operations their tokens permit.
    */
   access?: 'read' | 'readwrite';
+  /**
+   * Services that were asked for as read-only and can still write, because Google offers
+   * no read-only scope for them and the caller confirmed anyway.
+   *
+   * Stored because `access` alone would misdescribe such an account: it says 'read' while
+   * the token can change these services.
+   */
+  stillAllowWrites?: string[];
 }
 
 export async function hasCredential(email: string): Promise<boolean> {

@@ -3,18 +3,6 @@ import * as fs from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { loadDescriptor } from '../../google/descriptor.js';
-import { readFileSync as readDescriptor } from 'node:fs';
-
-/** The parts of the descriptor these assertions read. */
-interface DescriptorShape {
-  services: Record<string, {
-    methods?: Record<string, { httpMethod?: string; parameters?: Record<string, { enum?: string[] }> }>;
-    enums?: Record<string, string[]>;
-  }>;
-}
-const descriptorJson = JSON.parse(
-  readDescriptor(new URL('../../google/descriptor.json', import.meta.url), 'utf-8'),
-) as DescriptorShape;
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { loadManifest, generateTools, generateSchema, generateHandler } from '../../factory/generator.js';
@@ -96,7 +84,7 @@ describe('manifest type vs the HTTP verb Google uses', () => {
 
     for (const [serviceName, service] of Object.entries(manifest.services)) {
       for (const [opName, op] of Object.entries(service.operations)) {
-        const method = descriptor.services[serviceName]?.methods?.[op.resource ?? ''];
+        const method = descriptor.services[service.google_service ?? serviceName]?.methods?.[op.resource ?? ''];
         if (!method) continue;   // custom handler with no single resource behind it
 
         const key = `${serviceName}.${opName}`;
@@ -142,7 +130,7 @@ describe('manifest type vs the HTTP verb Google uses', () => {
 });
 
 describe('manifest enums against the values Google declares', () => {
-  it('never offers the model a value Google would reject', () => {
+  it('never offers the model a value Google would reject', async () => {
     // The descriptor now carries enum values — from method parameters and from schema
     // properties — because request BODIES were otherwise unchecked by anything here. A
     // handler that sent `MODERATION_ON` where Google wanted `ON` passed lint,
@@ -152,10 +140,14 @@ describe('manifest enums against the values Google declares', () => {
     // of it. Where Google declares none, there is nothing to check and this stays quiet
     // rather than inventing a rule.
     const manifest = loadManifest();
+    const descriptor = await loadDescriptor();
     const wrong: string[] = [];
 
     for (const [serviceName, service] of Object.entries(manifest.services)) {
-      const svc = (descriptorJson as DescriptorShape).services[serviceName];
+      // Keyed by the manifest's own google_service, not the record key: they coincide
+      // today, and a guard that silently skips a whole service when they diverge is a
+      // guard whose failure mode is silence.
+      const svc = descriptor.services[service.google_service ?? serviceName];
       if (!svc) continue;
 
       for (const [opName, op] of Object.entries(service.operations)) {
@@ -164,19 +156,23 @@ describe('manifest enums against the values Google declares', () => {
           if (!ours?.length) continue;
 
           const target = (def as { maps_to?: string }).maps_to ?? paramName;
-          const fromParam = svc.methods?.[op.resource ?? '']?.parameters?.[target]?.enum;
-          const fromSchema = Object.entries(svc.enums ?? {})
+          const fromParam = svc?.methods?.[op.resource ?? '']?.parameters?.[target]?.enum;
+          const fromSchema = Object.entries(svc?.enums ?? {})
             .filter(([key]) => key.split('.').pop() === target)
             .map(([, values]) => values);
 
-          const allowed = fromParam ?? fromSchema[0];
-          if (!allowed) continue;   // Google declares nothing for this name
+          const candidates = fromParam ? [fromParam] : fromSchema;
+          if (candidates.length === 0) continue;   // Google declares nothing for this name
 
-          const rejected = ours.filter(v => !allowed.includes(v));
-          if (rejected.length) {
+          // Several schemas can declare a field of the same name with different values
+          // (sheets has ten distinct `type` enums). Accept a match against ANY of them
+          // rather than picking the first and reporting a false failure.
+          const satisfied = candidates.some(allowed => ours.every(v => allowed.includes(v)));
+          if (!satisfied) {
             wrong.push(
-              `${serviceName}.${opName}.${paramName}: offers ${JSON.stringify(rejected)}, ` +
-              `Google accepts ${JSON.stringify(allowed)}`,
+              `${serviceName}.${opName}.${paramName}: offers ${JSON.stringify(ours)}, ` +
+              `no declaration Google makes for '${target}' contains all of them ` +
+              `(${candidates.length} candidate(s), e.g. ${JSON.stringify(candidates[0])})`,
             );
           }
         }

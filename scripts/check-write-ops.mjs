@@ -39,7 +39,6 @@ const BODILESS = new Set([
   'gmail:users.messages.untrash',
   'sheets:spreadsheets.values.clear', // clears the addressed range; body is {}
   'calendar:events.quickAdd',         // its `text` is a QUERY param, not a body field
-  'meet:spaces.endActiveConference',  // the space in the path IS the request; body is {}
 ]);
 
 const WRITE_VERBS = new Set(['POST', 'PUT', 'PATCH']);
