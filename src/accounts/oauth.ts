@@ -114,6 +114,32 @@ export interface ResolvedScopes {
 }
 
 /**
+ * The scopes that grant WRITE access to a service: its read/write set minus anything
+ * that also appears in its read-only set.
+ *
+ * The subtraction is the whole point. Two services list read-only scopes inside their
+ * read/write set, because the service genuinely needs them either way — `contacts`
+ * carries `contacts.other.readonly` and `directory.readonly`, and `meet` carries
+ * `meetings.space.readonly`. Treating the read/write set as "the write scopes" would
+ * therefore find `directory.readonly` on a read-only contacts account, call that an
+ * intersection, and permit a write it should have refused.
+ *
+ * Returns an empty array for a service with no read/write scopes declared at all.
+ */
+export function writeScopesFor(service: string): string[] {
+  const readonly = new Set(SERVICE_SCOPE_MAP_READONLY[service] ?? []);
+  return (SERVICE_SCOPE_MAP[service] ?? []).filter((scope) => !readonly.has(scope));
+}
+
+/** Every scope that grants a service at any access level, read-only and read/write alike. */
+export function anyScopesFor(service: string): string[] {
+  return [...new Set([
+    ...(SERVICE_SCOPE_MAP[service] ?? []),
+    ...(SERVICE_SCOPE_MAP_READONLY[service] ?? []),
+  ])];
+}
+
+/**
  * Convert comma-separated service names to deduplicated scope URLs.
  * Always includes base scopes (openid, userinfo.email).
  *

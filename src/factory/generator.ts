@@ -108,7 +108,7 @@ export function generateTools(
   for (const [serviceName, serviceDef] of Object.entries(manifest.services)) {
     const patch = patches?.[serviceName];
     const schema = generateSchema(serviceDef);
-    const handler = generateHandler(serviceDef, patch);
+    const handler = generateHandler(serviceDef, patch, serviceName);
     tools.push({ schema, handler });
   }
 
@@ -171,6 +171,13 @@ export function generateSchema(service: ServiceDef): GeneratedToolSchema {
 export function generateHandler(
   service: ServiceDef,
   patch?: ServicePatch,
+  /**
+   * The manifest key for this service — `contacts`, not `people`. Scope maps are keyed by
+   * it, so the access policy cannot resolve a service without it. Optional because tests
+   * construct ServiceDefs directly; when absent the policy has nothing to look up and
+   * allows, which is the same fail-open stance it takes everywhere else.
+   */
+  serviceName?: string,
 ): GeneratedHandler {
   // Map tool_name to the next-steps domain key
   const domainMap: Record<string, string> = {
@@ -192,7 +199,12 @@ export function generateHandler(
 
     // Safety policies — run before anything else, including custom handlers.
     // A blocked operation never reaches the handler or Google.
-    const policyResult = evaluatePolicies([], ctx, service.google_service);
+    const policyResult = await evaluatePolicies([], ctx, service.google_service, serviceName ? {
+      service: serviceName,
+      googleService: service.google_service,
+      resource: opDef.resource,
+      type: opDef.type,
+    } : undefined);
     if (policyResult.action === 'block') {
       return {
         text: `**Blocked by safety policy:** ${policyResult.reason}`,

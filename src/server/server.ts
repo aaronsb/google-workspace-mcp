@@ -17,6 +17,7 @@ import { VERSION } from '../version.js';
 import {
   configurePolicies,
   getActivePolicies,
+  accountAccess,
   draftOnlyEmail,
   noDelete,
   readOnly,
@@ -28,10 +29,22 @@ function log(msg: string): void {
   process.stderr.write(`[google-workspace-mcp] ${msg}\n`);
 }
 
-/** Configure safety policies from the GWS_SAFETY_POLICY env var. */
+/**
+ * Configure safety policies.
+ *
+ * `account-access` is always active and is not in the map below — it is not a deployment
+ * choice. It enforces the access level the USER chose when they authorized the account
+ * (ADR-202), so gating it behind an operator opt-in would make that choice decorative.
+ * It is a no-op for read/write accounts, which is every account by default.
+ *
+ * Everything else is opt-in through GWS_SAFETY_POLICY.
+ */
 function initSafetyPolicies(): void {
   const policyEnv = process.env.GWS_SAFETY_POLICY || '';
-  if (!policyEnv) return;
+  if (!policyEnv) {
+    configurePolicies([accountAccess]);
+    return;
+  }
 
   const policyMap: Record<string, SafetyPolicy> = {
     'draft-only-email': draftOnlyEmail,
@@ -50,8 +63,7 @@ function initSafetyPolicies(): void {
     );
   }
 
-  const policies = names.map(name => policyMap[name]);
-  configurePolicies(policies);
+  configurePolicies([accountAccess, ...names.map(name => policyMap[name])]);
 }
 
 export function createServer(): Server {

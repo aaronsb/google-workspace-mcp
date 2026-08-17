@@ -99,6 +99,17 @@ export async function handleQueue(
       advanceEpoch(); // Each queued operation is a logical tool call
       const response = await handler(resolvedArgs);
       const text = stripNextSteps(response.text);
+
+      // A safety policy declines by RETURNING, not by throwing, so the catch below never
+      // sees it. Counting that as a success made a queue report "2/2 succeeded" having
+      // written nothing, and left `onError: 'bail'` running the rest of a queue whose
+      // first step was refused.
+      if (response.refs?.blocked) {
+        results.push({ index: i, tool: op.tool, status: 'error', error: text });
+        if (errorStrategy === 'bail') bailedAt = i;
+        continue;
+      }
+
       results.push({ index: i, tool: op.tool, status: 'success', text, refs: response.refs });
       lastSuccessText = response.text; // keep next-steps from last success
     } catch (err) {
