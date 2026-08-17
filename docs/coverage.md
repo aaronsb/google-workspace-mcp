@@ -8,7 +8,7 @@ That page is generated from Google's [Discovery documents](https://developers.go
 
 ## Why a subset, and not everything?
 
-Because an agent has to *choose* among these, and every method it must consider is a method it can pick wrongly. A tool exposing all 233 methods is not more capable than one exposing 80 — it is harder to use correctly, and the descriptions alone would burn more context than most conversations can spare.
+Because an agent has to *choose* among these, and every method it must consider is a method it can pick wrongly. A tool exposing all 257 methods is not more capable than one exposing 95 — it is harder to use correctly, and the descriptions alone would burn more context than most conversations can spare.
 
 Most of what's uncovered is genuinely not agent work: domain administration, delegation and forwarding settings, per-label colour management, push-notification watch channels, batch-import endpoints. The covered slice is the "do useful work in a conversation" set.
 
@@ -18,17 +18,16 @@ But that judgement was made without you, and it may be wrong for what you're doi
 
 ## Whole APIs we don't touch yet
 
-Beyond the seven APIs above, Google publishes others this server does not target at all — **Chat, Contacts (People), Slides and Forms**, listed under [Not targeted yet](api-surface.md#not-targeted-yet) with the same per-method Request links.
+Beyond the eight APIs above, Google publishes others this server does not target at all — **Chat, Slides and Forms**, listed under [Not targeted yet](api-surface.md#not-targeted-yet) with the same per-method Request links.
 
 They are listed rather than quietly omitted because *not targeted* is a decision, and it was made without you. They are not equally easy, and the difference is worth knowing before you ask:
 
 | API | | |
 |---|---|---|
-| **Contacts** (People) | ordinary OAuth scopes, works on a personal account | straightforward |
-| **Slides**, **Forms** | small, self-contained surfaces (5 and 10 methods) | straightforward |
+| **Slides**, **Forms** | small, self-contained surfaces | straightforward |
 | **Chat** | much of the API is built for Chat *apps* (bots) rather than for acting as yourself; user-credential access is narrower and in places Workspace-only | uncertain — a personal `@gmail.com` account may not be able to call it at all |
 
-A request that names a concrete task is what turns one of these into work. It also tells us *which* methods matter — "find this person's phone number" needs two People methods, not all twenty-four.
+A request that names a concrete task is what turns one of these into work. It also tells us *which* methods matter — a request that names a task usually needs two or three methods, not a whole API. Contacts is the worked example: it was on this list until someone asked, and it shipped in v4.3.0 as ten operations over the People API rather than all twenty-four methods.
 
 ## Asking for a method
 

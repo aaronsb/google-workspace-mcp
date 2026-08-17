@@ -30,13 +30,20 @@ for (const file of readdirSync('src/factory/manifest').filter((f) => f.endsWith(
   const m = parse(readFileSync(join('src/factory/manifest', file), 'utf-8'));
   toolFor.set(m.google_service, m.tool_name);
   for (const [opName, op] of Object.entries(m.operations)) {
-    if (!op.resource) continue;
-    const key = `${m.google_service}:${op.resource}`;
-    // Several operations can reach the same method (complete and update are both
-    // tasks.patch). List them all rather than letting the last one win.
-    const existing = exposed.get(key);
-    const label = `${m.tool_name} ${opName}`;
-    exposed.set(key, existing ? `${existing}, ${opName}` : label);
+    // An operation reaches its own method AND, where it declares one, the batch method
+    // that does it for many resources at once (ADR-308). Counting only `resource` said 74
+    // exposed while the server genuinely calls 79 — the five batch methods were reported
+    // as gaps on a page whose whole purpose is to say what is and is not reachable.
+    for (const resource of [op.resource, op.batch?.resource]) {
+      if (!resource) continue;
+      const key = `${m.google_service}:${resource}`;
+      // Several operations can reach the same method (complete and update are both
+      // tasks.patch; modify and trash are both users.messages.batchModify). List them all
+      // rather than letting the last one win.
+      const existing = exposed.get(key);
+      const label = `${m.tool_name} ${opName}`;
+      exposed.set(key, existing ? `${existing}, ${opName}` : label);
+    }
   }
 }
 
