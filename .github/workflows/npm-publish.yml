@@ -1,6 +1,7 @@
-# Publish to npm with trusted publishing (OIDC). See ADR-105.
+# Publish to npm and the MCP Registry, both by OIDC. See ADR-105.
 #
-# THE FILENAME IS LOAD-BEARING. npmjs.com registers a trusted publisher against a
+# THE FILENAME IS LOAD-BEARING, and is why a file that now publishes two channels is
+# still called npm-publish.yml. npmjs.com registers a trusted publisher against a
 # repository AND a workflow filename; this file is registered as `npm-publish.yml`.
 # Rename or move it and npm stops recognising the identity, with nothing in this repo
 # to explain why.
@@ -10,7 +11,13 @@
 # replaces. An earlier version of this workflow published from a long-lived token; it
 # expired in June 2026 and failed three consecutive releases (v3.0.0, v4.0.0, v4.0.1)
 # before being deleted in 2c5669c. OIDC has no secret to expire.
-name: Publish to npm
+#
+# The two channels differ in how the identity is granted. npm matches a publisher the
+# package owner registered on npmjs.com. The MCP Registry reads the `repository_owner`
+# claim out of the OIDC token and grants `io.github.<owner>/*` from that alone — so it
+# needs no registry-side configuration, and equally offers no registry-side protection
+# if this repository's owner ever changes.
+name: Publish to npm and the MCP Registry
 
 on:
   push:
@@ -24,16 +31,19 @@ jobs:
       contents: read
       id-token: write   # mints the OIDC token npm verifies. Without it, publish is unauthenticated.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
 
-      # Node 22 ships npm 10.x, which predates trusted publishing entirely — it would
-      # look for a token, find none, and fail with a 401 that says nothing about OIDC.
+      # Node 24 ships an npm 11.x that is usually new enough, and Node 22 shipped npm 10.x
+      # which is not. Neither is a promise: the bundled npm moves with the Node patch the
+      # runner happens to have. An npm below the floor does not report a missing feature —
+      # it looks for a token, finds none, and fails with a 401 that says nothing about OIDC.
+      # So upgrade, then assert, rather than trusting what the image came with.
       - name: Upgrade npm past the trusted-publishing floor
         run: |
           npm install -g npm@latest
@@ -102,3 +112,69 @@ jobs:
             exit 0
           fi
           npm publish --provenance --access public --tag "${{ steps.npm-tag.outputs.tag }}"
+
+  mcp-registry:
+    name: Publish to the MCP Registry
+    runs-on: ubuntu-latest
+    # server.json advertises the npm package AT THIS VERSION, so publishing the registry
+    # entry first would point people at a tarball that does not exist yet. `needs` is the
+    # ordering; it is not decoration.
+    needs: publish
+    permissions:
+      contents: read
+      id-token: write   # same OIDC token as the npm job; mcp-publisher reads it from the runner
+    steps:
+      - uses: actions/checkout@v7
+
+      # Pinned deliberately. This runs on tag push, where a surprise upstream change
+      # breaks a release at the worst possible moment and there is no green build to
+      # compare against. Bump it on purpose, not by drifting onto `latest`.
+      - name: Install mcp-publisher
+        env:
+          MCP_PUBLISHER_VERSION: '1.8.1'
+        run: |
+          curl -fsSL -o mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/v${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          tar -xzf mcp-publisher.tar.gz mcp-publisher
+          ./mcp-publisher --version
+
+      # server.json carries the version TWICE — once for the server entry and once for the
+      # npm package it points at — and `make version-sync` writes only what it knows about.
+      # A mismatch here publishes a registry entry naming the wrong tarball, which no
+      # amount of npm-side checking would catch.
+      - name: Check server.json agrees with the tag
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          SERVER_VERSION=$(node -p "require('./server.json').version")
+          PKG_VERSION=$(node -p "require('./server.json').packages[0].version")
+          fail=0
+          [ "$SERVER_VERSION" = "$TAG_VERSION" ] || { echo "server.json version is $SERVER_VERSION, tag says $TAG_VERSION"; fail=1; }
+          [ "$PKG_VERSION" = "$TAG_VERSION" ] || { echo "server.json packages[0].version is $PKG_VERSION, tag says $TAG_VERSION"; fail=1; }
+          [ "$fail" = 0 ] || { echo "Run 'make version-sync' and commit the result."; exit 1; }
+          echo "server.json and its npm package both say $TAG_VERSION"
+
+      - name: Authenticate by GitHub OIDC
+        # No secret. The registry validates the token's issuer and audience, then grants
+        # io.github.<repository_owner>/* from the `repository_owner` claim.
+        run: ./mcp-publisher login github-oidc
+
+      # Same reasoning as the npm step: a re-run on an already-published version must be a
+      # no-op rather than a red X on a release that already succeeded.
+      - name: Publish to the MCP Registry
+        run: |
+          NAME=$(node -p "require('./server.json').name")
+          VERSION="${GITHUB_REF_NAME#v}"
+          published=$(curl -fsSL "https://registry.modelcontextprotocol.io/v0/servers?search=${NAME}&limit=100" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+                const j=JSON.parse(s);
+                const vs=(j.servers||[]).map(x=>x.version||(x.server&&x.server.version)).filter(Boolean);
+                console.log(vs.join(" "));
+              })')
+          echo "already on the registry: ${published:-<none>}"
+          for v in $published; do
+            if [ "$v" = "$VERSION" ]; then
+              echo "$NAME $VERSION is already published — nothing to do."
+              exit 0
+            fi
+          done
+          ./mcp-publisher publish server.json

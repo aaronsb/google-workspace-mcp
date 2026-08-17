@@ -258,8 +258,18 @@ publish-all: check-release-tag mcpb ## Publish to npm, MCP Registry, GitHub Rele
 	fi
 	@echo ""
 	@echo "── MCP Registry ──"
-	mcp-publisher login github
-	mcp-publisher publish server.json
+	@# npm-publish.yml publishes this on tag push too (ADR-105), so skip a version already
+	@# there — same reasoning as the npm step above. `mcp-publisher login github` is a
+	@# device flow needing a tty, so the skip also keeps this target runnable without one
+	@# when the registry is already current.
+	@name=$$(node -p "require('./server.json').name"); \
+	published=$$(curl -fsSL "https://registry.modelcontextprotocol.io/v0/servers?search=$$name&limit=100" 2>/dev/null \
+	  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log((j.servers||[]).map(x=>x.version||(x.server&&x.server.version)).filter(Boolean).join(" "))}catch(e){console.log("")}})'); \
+	if echo " $$published " | grep -q " $(VERSION) "; then \
+	  echo "mcp: $$name $(VERSION) is already on the registry — skipping"; \
+	else \
+	  mcp-publisher login github && mcp-publisher publish server.json; \
+	fi
 	@echo ""
 	@echo "── GitHub Release ──"
 	@# RECONCILE, not create. The tag push already triggered release-mcpb.yml, which
