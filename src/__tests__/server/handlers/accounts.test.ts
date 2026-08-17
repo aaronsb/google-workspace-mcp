@@ -141,7 +141,53 @@ describe('handleAccounts', () => {
 
       expect(result.text).toContain('Scopes updated');
       expect(result.text).toContain('gmail,drive');
-      expect(mockReauth).toHaveBeenCalledWith('test-id', 'test-secret', 'gmail,drive');
+      // Defaults to full access when `access` is not given, so an existing caller
+      // authorizes exactly what it always did.
+      expect(mockReauth).toHaveBeenCalledWith('test-id', 'test-secret', 'gmail,drive', 'readwrite');
+    });
+
+    it('asks for read-only scopes when access is read', async () => {
+      mockReauth.mockResolvedValue({ status: 'success', account: 'a@test.com', access: 'read', stillAllowWrites: [] });
+
+      const result = await handleAccounts({
+        operation: 'scopes', email: 'a@test.com', services: 'gmail,drive', access: 'read',
+      });
+
+      expect(mockReauth).toHaveBeenCalledWith('test-id', 'test-secret', 'gmail,drive', 'read');
+      expect(result.text).toContain('read-only');
+    });
+
+    it('stops before the browser when a service has no read-only option', async () => {
+      // `meet` cannot be read-only. Authorizing first and reporting after would leave a
+      // token that can create meetings, revocable only through Google's own settings.
+      const result = await handleAccounts({
+        operation: 'scopes', email: 'a@test.com', services: 'gmail,meet', access: 'read',
+      });
+
+      expect(mockReauth).not.toHaveBeenCalled();
+      expect(result.refs.status).toBe('needs-confirmation');
+      expect(result.refs.stillAllowWrites).toEqual(['meet']);
+      expect(result.text).toContain('no read-only permission for');
+      expect(result.text).toContain('meet');
+      expect(result.text).toContain('Nothing has been authorized yet');
+      // Both ways out are spelled for the caller.
+      expect(result.text).toContain('confirmWriteAccess');
+      expect(result.text).toContain('Leave meet out of');
+    });
+
+    it('proceeds once the caller confirms', async () => {
+      mockReauth.mockResolvedValue({
+        status: 'success', account: 'a@test.com', access: 'read', stillAllowWrites: ['meet'],
+      });
+
+      const result = await handleAccounts({
+        operation: 'scopes', email: 'a@test.com', services: 'gmail,meet',
+        access: 'read', confirmWriteAccess: true,
+      });
+
+      expect(mockReauth).toHaveBeenCalledWith('test-id', 'test-secret', 'gmail,meet', 'read');
+      // …and the response still says what was actually granted.
+      expect(result.text).toContain('meet had no read-only option');
     });
 
     it('requires email', async () => {

@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises';
 import { accountsFilePath, configDir } from '../executor/paths.js';
 import { hasCredential, removeCredential } from './credentials.js';
+import type { AccessLevel } from './oauth.js';
 import { authenticateAccount, type AuthResult } from './auth.js';
 
 export interface Account {
@@ -80,8 +81,9 @@ export async function authenticateAndAddAccount(
   clientSecret: string,
   category: Account['category'] = 'personal',
   description?: string,
+  access: AccessLevel = 'readwrite',
 ): Promise<AuthResult> {
-  const result = await authenticateAccount(clientId, clientSecret);
+  const result = await authenticateAccount(clientId, clientSecret, access);
 
   if (result.status === 'success' && result.account) {
     const existing = await getAccount(result.account);
