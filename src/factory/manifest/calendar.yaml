@@ -13,7 +13,7 @@ operations:
     params:
       calendarId:
         type: string
-        description: "Calendar ID (default: 'primary'). Use the `calendars` operation to list available IDs; required for events on shared calendars. On `freebusy`, a comma-separated list of calendar IDs to check IN ADDITION to your own. On `agenda`, a calendar name or ID to filter to."
+        description: "Calendar ID. Use the `calendars` operation to list available IDs; required for events on shared calendars. Defaults to 'primary' on the event operations (`list`, `get`, `create`, `quickAdd`, `update`, `delete`). On `agenda`, a calendar name or ID to filter to — OMIT it to span all calendars, and do not pass 'primary', which is an API alias rather than an id agenda matches on. On `freebusy`, a comma-separated list of calendar IDs to check IN ADDITION to your own."
       timeMin:
         type: string
         description: "Start of range (ISO 8601). On `list`, defaults to today."
@@ -40,7 +40,7 @@ operations:
     params:
       calendarId:
         type: string
-        description: "Calendar ID (default: 'primary'). Use the `calendars` operation to list available IDs; required for events on shared calendars. On `freebusy`, a comma-separated list of calendar IDs to check IN ADDITION to your own. On `agenda`, a calendar name or ID to filter to."
+        description: "Calendar ID. Use the `calendars` operation to list available IDs; required for events on shared calendars. Defaults to 'primary' on the event operations (`list`, `get`, `create`, `quickAdd`, `update`, `delete`). On `agenda`, a calendar name or ID to filter to — OMIT it to span all calendars, and do not pass 'primary', which is an API alias rather than an id agenda matches on. On `freebusy`, a comma-separated list of calendar IDs to check IN ADDITION to your own."
       days:
         type: number
         description: "Number of days ahead to show (default: today only)"
@@ -58,7 +58,7 @@ operations:
     params:
       calendarId:
         type: string
-        description: "Calendar ID (default: 'primary'). Use the `calendars` operation to list available IDs; required for events on shared calendars. On `freebusy`, a comma-separated list of calendar IDs to check IN ADDITION to your own. On `agenda`, a calendar name or ID to filter to."
+        description: "Calendar ID. Use the `calendars` operation to list available IDs; required for events on shared calendars. Defaults to 'primary' on the event operations (`list`, `get`, `create`, `quickAdd`, `update`, `delete`). On `agenda`, a calendar name or ID to filter to — OMIT it to span all calendars, and do not pass 'primary', which is an API alias rather than an id agenda matches on. On `freebusy`, a comma-separated list of calendar IDs to check IN ADDITION to your own."
       eventId:
         type: string
         description: "Event ID"
@@ -74,7 +74,7 @@ operations:
     params:
       calendarId:
         type: string
-        description: "Calendar ID (default: 'primary'). Use the `calendars` operation to list available IDs; required for events on shared calendars. On `freebusy`, a comma-separated list of calendar IDs to check IN ADDITION to your own. On `agenda`, a calendar name or ID to filter to."
+        description: "Calendar ID. Use the `calendars` operation to list available IDs; required for events on shared calendars. Defaults to 'primary' on the event operations (`list`, `get`, `create`, `quickAdd`, `update`, `delete`). On `agenda`, a calendar name or ID to filter to — OMIT it to span all calendars, and do not pass 'primary', which is an API alias rather than an id agenda matches on. On `freebusy`, a comma-separated list of calendar IDs to check IN ADDITION to your own."
       summary:
         type: string
         description: "Event title"
@@ -95,10 +95,10 @@ operations:
         description: "Event location"
       attendees:
         type: string
-        description: "Comma-separated email addresses. On `update` this REPLACES the entire attendee list (Google's events.patch overwrites arrays) — pass an empty string to clear all attendees. On `freebusy`, the addresses whose availability to check."
+        description: "Comma-separated email addresses. On `update`, whatever you pass REPLACES the existing list — addresses you leave out are removed, and an empty string clears everyone. OMIT the parameter to leave the attendee list untouched while changing other fields. On `freebusy`, the addresses whose availability to check."
       meet:
         type: boolean
-        description: "Add a Google Meet video conference link to the event. Google does NOT allow removing an existing link via `update` — omit it or set false to leave the link untouched."
+        description: "Add a Google Meet video conference link. On `update`, true adds a link and false REMOVES an existing one; omit it to leave the link as it is."
 
   quickAdd:
     type: action
@@ -107,7 +107,7 @@ operations:
     params:
       calendarId:
         type: string
-        description: "Calendar ID (default: 'primary'). Use the `calendars` operation to list available IDs; required for events on shared calendars. On `freebusy`, a comma-separated list of calendar IDs to check IN ADDITION to your own. On `agenda`, a calendar name or ID to filter to."
+        description: "Calendar ID. Use the `calendars` operation to list available IDs; required for events on shared calendars. Defaults to 'primary' on the event operations (`list`, `get`, `create`, `quickAdd`, `update`, `delete`). On `agenda`, a calendar name or ID to filter to — OMIT it to span all calendars, and do not pass 'primary', which is an API alias rather than an id agenda matches on. On `freebusy`, a comma-separated list of calendar IDs to check IN ADDITION to your own."
       text:
         type: string
         description: "Natural language event description"
@@ -122,7 +122,7 @@ operations:
     params:
       calendarId:
         type: string
-        description: "Calendar ID (default: 'primary'). Use the `calendars` operation to list available IDs; required for events on shared calendars. On `freebusy`, a comma-separated list of calendar IDs to check IN ADDITION to your own. On `agenda`, a calendar name or ID to filter to."
+        description: "Calendar ID. Use the `calendars` operation to list available IDs; required for events on shared calendars. Defaults to 'primary' on the event operations (`list`, `get`, `create`, `quickAdd`, `update`, `delete`). On `agenda`, a calendar name or ID to filter to — OMIT it to span all calendars, and do not pass 'primary', which is an API alias rather than an id agenda matches on. On `freebusy`, a comma-separated list of calendar IDs to check IN ADDITION to your own."
       eventId:
         type: string
         description: "Event ID"
@@ -144,10 +144,10 @@ operations:
         description: "Event location"
       attendees:
         type: string
-        description: "Comma-separated email addresses. On `update` this REPLACES the entire attendee list (Google's events.patch overwrites arrays) — pass an empty string to clear all attendees. On `freebusy`, the addresses whose availability to check."
+        description: "Comma-separated email addresses. On `update`, whatever you pass REPLACES the existing list — addresses you leave out are removed, and an empty string clears everyone. OMIT the parameter to leave the attendee list untouched while changing other fields. On `freebusy`, the addresses whose availability to check."
       meet:
         type: boolean
-        description: "Add a Google Meet video conference link to the event. Google does NOT allow removing an existing link via `update` — omit it or set false to leave the link untouched."
+        description: "Add a Google Meet video conference link. On `update`, true adds a link and false REMOVES an existing one; omit it to leave the link as it is."
     defaults:
       calendarId: primary
 
@@ -158,7 +158,7 @@ operations:
     params:
       calendarId:
         type: string
-        description: "Calendar ID (default: 'primary'). Use the `calendars` operation to list available IDs; required for events on shared calendars. On `freebusy`, a comma-separated list of calendar IDs to check IN ADDITION to your own. On `agenda`, a calendar name or ID to filter to."
+        description: "Calendar ID. Use the `calendars` operation to list available IDs; required for events on shared calendars. Defaults to 'primary' on the event operations (`list`, `get`, `create`, `quickAdd`, `update`, `delete`). On `agenda`, a calendar name or ID to filter to — OMIT it to span all calendars, and do not pass 'primary', which is an API alias rather than an id agenda matches on. On `freebusy`, a comma-separated list of calendar IDs to check IN ADDITION to your own."
       eventId:
         type: string
         description: "Event ID"
@@ -188,7 +188,7 @@ operations:
         required: true
       attendees:
         type: string
-        description: "Comma-separated email addresses. On `update` this REPLACES the entire attendee list (Google's events.patch overwrites arrays) — pass an empty string to clear all attendees. On `freebusy`, the addresses whose availability to check."
+        description: "Comma-separated email addresses. On `update`, whatever you pass REPLACES the existing list — addresses you leave out are removed, and an empty string clears everyone. OMIT the parameter to leave the attendee list untouched while changing other fields. On `freebusy`, the addresses whose availability to check."
       calendarId:
         type: string
-        description: "Calendar ID (default: 'primary'). Use the `calendars` operation to list available IDs; required for events on shared calendars. On `freebusy`, a comma-separated list of calendar IDs to check IN ADDITION to your own. On `agenda`, a calendar name or ID to filter to."
+        description: "Calendar ID. Use the `calendars` operation to list available IDs; required for events on shared calendars. Defaults to 'primary' on the event operations (`list`, `get`, `create`, `quickAdd`, `update`, `delete`). On `agenda`, a calendar name or ID to filter to — OMIT it to span all calendars, and do not pass 'primary', which is an API alias rather than an id agenda matches on. On `freebusy`, a comma-separated list of calendar IDs to check IN ADDITION to your own."

@@ -558,6 +558,91 @@ describe('calendarPatch', () => {
       expect(conferenceData.createRequest.conferenceSolutionKey.type).toBe('hangoutsMeet');
     });
 
+    it('removes an existing Meet link when meet: false', async () => {
+      // Measured against live Google, because no amount of reading the code could settle
+      // it: events.patch with `conferenceData: null` returns 200 and leaves the link in
+      // place, and so does `{}`. Only a full events.update omitting conferenceData
+      // removes it. The manifest used to tell the model Google forbids removal outright.
+      mockCall
+        .mockResolvedValueOnce({ id: 'evt-1', summary: 'Standup', location: 'Room A', hangoutLink: 'https://meet.google.com/abc' })
+        .mockResolvedValueOnce({ id: 'evt-1', summary: 'Standup', location: 'Room A' });
+
+      await calendarPatch.customHandlers!.update({ eventId: 'evt-1', meet: false }, 'user@test.com');
+
+      // Read first, then a full replace — not a patch.
+      expect(mockCall.mock.calls[0][1]).toBe('events.get');
+      expect(mockCall.mock.calls[1][1]).toBe('events.update');
+      const params = mockCall.mock.calls[1][2];
+      expect(params.conferenceData).toBeUndefined();
+      const request = await requestFor('calendar', 'events.update', params);
+      // Without the version the omission is ignored rather than read as a removal.
+      expect(queryOf(request).conferenceDataVersion).toBe('1');
+    });
+
+    it('preserves the rest of the event when removing a Meet link', async () => {
+      // events.update REPLACES the resource. A version of this that skipped the read
+      // wiped the probe event's location during development — silently, with a 200.
+      mockCall
+        .mockResolvedValueOnce({
+          id: 'evt-1', summary: 'Standup', location: 'Room A', description: 'notes',
+          attendees: [{ email: 'a@test.com' }], hangoutLink: 'https://meet.google.com/abc',
+        })
+        .mockResolvedValueOnce({ id: 'evt-1' });
+
+      await calendarPatch.customHandlers!.update({ eventId: 'evt-1', meet: false }, 'user@test.com');
+
+      const params = mockCall.mock.calls[1][2];
+      expect(params.summary).toBe('Standup');
+      expect(params.location).toBe('Room A');
+      expect(params.description).toBe('notes');
+      expect(params.attendees).toEqual([{ email: 'a@test.com' }]);
+    });
+
+    it('strips server-owned fields rather than echoing them back', async () => {
+      mockCall
+        .mockResolvedValueOnce({
+          id: 'evt-1', etag: '"123"', kind: 'calendar#event', htmlLink: 'https://x',
+          created: '2026-01-01', updated: '2026-01-02', iCalUID: 'uid@google.com',
+          sequence: 3, creator: { email: 'c@test.com' }, organizer: { email: 'o@test.com' },
+          hangoutLink: 'https://meet.google.com/abc', conferenceData: { conferenceId: 'abc' },
+          summary: 'Standup',
+        })
+        .mockResolvedValueOnce({ id: 'evt-1' });
+
+      await calendarPatch.customHandlers!.update({ eventId: 'evt-1', meet: false }, 'user@test.com');
+
+      const params = mockCall.mock.calls[1][2];
+      for (const field of ['etag', 'kind', 'htmlLink', 'created', 'updated', 'iCalUID',
+        'sequence', 'creator', 'organizer', 'hangoutLink', 'conferenceData']) {
+        expect(params[field]).toBeUndefined();
+      }
+      expect(params.summary).toBe('Standup');
+    });
+
+    it('applies other changes in the same call that removes the link', async () => {
+      mockCall
+        .mockResolvedValueOnce({ id: 'evt-1', summary: 'Old', location: 'Room A', hangoutLink: 'https://meet.google.com/abc' })
+        .mockResolvedValueOnce({ id: 'evt-1' });
+
+      await calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', meet: false, summary: 'New' }, 'user@test.com');
+
+      const params = mockCall.mock.calls[1][2];
+      expect(params.summary).toBe('New');      // caller's change wins over the read
+      expect(params.location).toBe('Room A');  // untouched field survives
+    });
+
+    it('treats meet: false as a change on its own', async () => {
+      // It used to fall through to the "nothing to change" guard, so the one request
+      // that could remove a link was rejected as empty.
+      mockCall
+        .mockResolvedValueOnce({ id: 'evt-1', summary: 'Standup' })
+        .mockResolvedValueOnce({ id: 'evt-1' });
+
+      await expect(calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', meet: false }, 'user@test.com')).resolves.toBeDefined();
+    });
+
     it('honors explicit calendarId', async () => {
       mockCall.mockResolvedValue({ id: 'evt-1' });
       await calendarPatch.customHandlers!.update(

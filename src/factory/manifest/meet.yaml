@@ -16,7 +16,7 @@ operations:
         description: "EBNF filter. On `listConferences`, e.g. 'space.meeting_code = \"abc-mnop-xyz\"' or 'start_time>=\"2026-01-01T00:00:00Z\"'. On `listParticipants`, e.g. 'latest_end_time IS NULL' for active participants."
       maxResults:
         type: number
-        description: "Max results per page. Default and ceiling differ by operation: `listConferences` 25/100, `listParticipants` 100/250, `listTranscriptEntries` 10/100."
+        description: "Max results per page, as default/ceiling. Differs by operation: `listConferences` 25/100, `listParticipants` 100/250, `listTranscriptEntries` 100/100. (Google's own default for transcript entries is 10; this tool raises it.)"
         default: 25
         max: 100
         maps_to: pageSize
@@ -49,7 +49,7 @@ operations:
         description: "EBNF filter. On `listConferences`, e.g. 'space.meeting_code = \"abc-mnop-xyz\"' or 'start_time>=\"2026-01-01T00:00:00Z\"'. On `listParticipants`, e.g. 'latest_end_time IS NULL' for active participants."
       maxResults:
         type: number
-        description: "Max results per page. Default and ceiling differ by operation: `listConferences` 25/100, `listParticipants` 100/250, `listTranscriptEntries` 10/100."
+        description: "Max results per page, as default/ceiling. Differs by operation: `listConferences` 25/100, `listParticipants` 100/250, `listTranscriptEntries` 100/100. (Google's own default for transcript entries is 10; this tool raises it.)"
         default: 100
         max: 250
         maps_to: pageSize
@@ -90,7 +90,7 @@ operations:
         maps_to: parent
       maxResults:
         type: number
-        description: "Max results per page. Default and ceiling differ by operation: `listConferences` 25/100, `listParticipants` 100/250, `listTranscriptEntries` 10/100."
+        description: "Max results per page, as default/ceiling. Differs by operation: `listConferences` 25/100, `listParticipants` 100/250, `listTranscriptEntries` 100/100. (Google's own default for transcript entries is 10; this tool raises it.)"
         default: 100
         max: 100
         maps_to: pageSize
