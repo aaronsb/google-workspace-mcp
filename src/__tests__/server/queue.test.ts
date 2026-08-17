@@ -315,3 +315,40 @@ describe('handleQueue', () => {
     });
   });
 });
+
+describe('a blocked operation is a failure, not a success', () => {
+  // Policies decline by RETURNING a response, not by throwing, so the queue's catch never
+  // sees them. Before this, a queue of two writes on a read-only account reported
+  // "2/2 succeeded" while writing nothing, and `onError: 'bail'` ran the rest anyway.
+  const blockingHandler = async () => ({
+    text: '**Blocked by safety policy:** not allowed',
+    refs: { blocked: true, policy: 'not allowed' },
+  });
+
+  it('counts as failed rather than succeeded', async () => {
+    const result = await handleQueue(
+      { operations: [{ tool: 'manage_contacts', args: { operation: 'create' } }] },
+      { manage_contacts: blockingHandler },
+    );
+    expect(result.text).toContain('0/1 succeeded');
+  });
+
+  it('bails the rest of the queue under onError: bail', async () => {
+    let secondRan = false;
+    const result = await handleQueue(
+      {
+        operations: [
+          { tool: 'manage_contacts', args: { operation: 'create' } },
+          { tool: 'manage_email', args: { operation: 'send' } },
+        ],
+        onError: 'bail',
+      },
+      {
+        manage_contacts: blockingHandler,
+        manage_email: async () => { secondRan = true; return { text: 'sent', refs: {} }; },
+      },
+    );
+    expect(secondRan).toBe(false);
+    expect(result.text).toContain('0/2 succeeded');
+  });
+});

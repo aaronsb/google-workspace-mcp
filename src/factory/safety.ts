@@ -11,12 +11,20 @@
  * - Log/audit destructive actions
  *
  * Policies are composable — multiple can apply to the same operation.
- * They're configured per-deployment, not per-service.
  *
- * Example use cases:
+ * Most are configured per-deployment via GWS_SAFETY_POLICY:
  * - "Draft-only mode" — agents can read email but not send
  * - "No-delete mode" — prevent permanent deletion across all services
  * - "Audit mode" — log all write operations to stderr
+ *
+ * `account-access` is the exception and is always active. It enforces a per-ACCOUNT
+ * choice the user made at consent time rather than a deployment-wide one, and it blocks
+ * by returning a reason rather than throwing. See ADR-202.
+ *
+ * WHAT THIS LAYER DOES NOT COVER: only factory-generated handlers run it. The hand-coded
+ * tools — manage_scratchpad in particular, whose send/sync adapters write to Gmail, Docs,
+ * Sheets, Calendar and Tasks — reach Google without consulting any policy here. Tracked
+ * separately; do not read the list above as exhaustive.
  */
 
 import { readCredential } from '../accounts/credentials.js';
@@ -200,9 +208,17 @@ export const accountAccess: SafetyPolicy = {
     try {
       const cred = await readCredential(ctx.account);
       granted = new Set(cred.scopes ?? []);
-    } catch {
+    } catch (err) {
       // Not authenticated, or the credential is unreadable. The auth path already has a
       // good error for that; inventing a second one here would only obscure it.
+      //
+      // Say so on stderr regardless. Blocks are logged; a silent allow is not, so a
+      // truncated credential file would otherwise disable enforcement for that account
+      // with no signal anywhere — the failure mode you least want to be quiet.
+      process.stderr.write(
+        `[google-workspace-mcp] safety: account-access NOT enforcing for ${ctx.account} — ` +
+        `could not read its credential (${err instanceof Error ? err.message : String(err)})\n`,
+      );
       return { action: 'allow' };
     }
     if (granted.size === 0) return { action: 'allow' };

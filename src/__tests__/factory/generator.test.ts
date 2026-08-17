@@ -106,6 +106,44 @@ describe('manifest type vs the HTTP verb Google uses', () => {
     expect(disagreements).toEqual([]);
   });
 
+  /**
+   * The operations the test above cannot check, pinned by hand — because `type` is their
+   * ONLY enforcement input.
+   *
+   * They declare no `resource`: each is a custom handler making several calls, so there is
+   * no single descriptor method to compare against and the loop above skips them on
+   * `if (!method) continue`. That skip lands precisely where the access policy has nothing
+   * else to go on (src/factory/safety.ts, requiredScopes), so `type: action` here is what
+   * stands between a read-only account and a send.
+   *
+   * Changing gmail.send to `type: list` would otherwise disable enforcement for
+   * send/reply/replyAll/forward with the whole suite still green.
+   */
+  const RESOURCE_LESS: Record<string, 'list' | 'detail' | 'action'> = {
+    'calendar.agenda': 'list',
+    'calendar.create': 'action',
+    'drive.upload': 'action',
+    'gmail.send': 'action',
+    'gmail.reply': 'action',
+    'gmail.replyAll': 'action',
+    'gmail.forward': 'action',
+  };
+
+  it('pins the type of every operation with no resource behind it', () => {
+    const manifest = loadManifest();
+    const found: Record<string, string> = {};
+
+    for (const [serviceName, service] of Object.entries(manifest.services)) {
+      for (const [opName, op] of Object.entries(service.operations)) {
+        if (!op.resource) found[`${serviceName}.${opName}`] = op.type;
+      }
+    }
+
+    // Equality, not containment. A NEW resource-less operation has to be added here
+    // deliberately — with its type stated — rather than defaulting to unenforced.
+    expect(found).toEqual(RESOURCE_LESS);
+  });
+
   it('keeps every exception real', async () => {
     // An exception left behind after its operation changed would quietly excuse a genuine
     // disagreement. Each one has to still be a disagreement.
