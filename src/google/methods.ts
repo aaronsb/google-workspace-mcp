@@ -227,6 +227,33 @@ export type MeetMethod =
   | 'spaces.get'
   | 'spaces.patch';
 
+/** 24 methods declared by Google for people v1. */
+export type PeopleMethod =
+  | 'contactGroups.batchGet'
+  | 'contactGroups.create'
+  | 'contactGroups.delete'
+  | 'contactGroups.get'
+  | 'contactGroups.list'
+  | 'contactGroups.members.modify'
+  | 'contactGroups.update'
+  | 'otherContacts.copyOtherContactToMyContactsGroup'
+  | 'otherContacts.list'
+  | 'otherContacts.search'
+  | 'people.batchCreateContacts'
+  | 'people.batchDeleteContacts'
+  | 'people.batchUpdateContacts'
+  | 'people.connections.list'
+  | 'people.createContact'
+  | 'people.deleteContact'
+  | 'people.deleteContactPhoto'
+  | 'people.get'
+  | 'people.getBatchGet'
+  | 'people.listDirectoryPeople'
+  | 'people.searchContacts'
+  | 'people.searchDirectoryPeople'
+  | 'people.updateContact'
+  | 'people.updateContactPhoto';
+
 /** 17 methods declared by Google for sheets v4. */
 export type SheetsMethod =
   | 'spreadsheets.batchUpdate'
@@ -271,6 +298,7 @@ export type GoogleService =
   | 'drive'
   | 'gmail'
   | 'meet'
+  | 'people'
   | 'sheets'
   | 'tasks';
 
@@ -281,6 +309,7 @@ export interface ServiceMethods {
   drive: DriveMethod;
   gmail: GmailMethod;
   meet: MeetMethod;
+  people: PeopleMethod;
   sheets: SheetsMethod;
   tasks: TasksMethod;
 }

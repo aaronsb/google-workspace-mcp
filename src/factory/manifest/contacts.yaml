@@ -1,0 +1,247 @@
+tool_name: manage_contacts
+description: "Look people up in Google Contacts: your saved contacts, the addresses you have corresponded with but never saved, and your organization's directory."
+requires_email: true
+google_service: people
+
+# The People API asks the caller to name every field it wants back, on every call, via
+# `personFields` or `readMask`. Omit the mask and the call is REJECTED outright — this is
+# not a shape that degrades to a sensible default.
+#
+# Those masks live in `defaults` rather than `params` so they never enter the generated
+# schema. An agent asking "who is Dana" should not first have to know that a birthday is
+# spelled `birthdays` and lives behind a different parameter name depending on which of
+# the seven operations it picked. The masks also differ per operation because Google
+# restricts them per operation, which is exactly the routing this tool exists to absorb.
+#
+# `sources` is left out of the schema for a sharper reason: its legal values are NOT the
+# same across operations. The contact operations take READ_SOURCE_TYPE_*, the directory
+# operations take DIRECTORY_SOURCE_TYPE_*, and generateSchema keeps only the FIRST
+# declaration of a param name — so a single advertised `sources` enum would be wrong for
+# whichever half lost the race.
+operations:
+
+  # --- Your own contacts ---
+
+  list:
+    type: list
+    description: "list your saved contacts"
+    resource: people.connections.list
+    params:
+      maxResults:
+        type: number
+        description: "Max people to return (default 25). Capped per operation: 30 for `search` and `searchOther`, 100 for everything else."
+        default: 25
+        max: 100
+        maps_to: pageSize
+      pageToken:
+        type: string
+        description: "Continue from where a previous page stopped — pass the token that response printed"
+      sortOrder:
+        type: string
+        description: "Order for `list` — by first name, by last name, or most recently changed first"
+        enum: [firstName, lastName, lastModified]
+    defaults:
+      # connections.list reads one person's connections, and the person is always the
+      # authenticated account. `people/me` is Google's alias for it, so the agent never
+      # has to know its own resource name.
+      resourceName: people/me
+      personFields: names,emailAddresses,phoneNumbers,organizations,metadata
+      sortOrder: firstName
+
+  search:
+    type: list
+    description: "search your saved contacts by name, email, nickname or phone"
+    resource: people.searchContacts
+    params:
+      query:
+        type: string
+        description: "Text to match against names, email addresses, nicknames and phone numbers. Matching is by PREFIX: `ann` finds Anna, `nna` finds nobody."
+        required: true
+      maxResults:
+        type: number
+        description: "Max people to return (default 25). Capped per operation: 30 for `search` and `searchOther`, 100 for everything else."
+        default: 25
+        max: 30
+        maps_to: pageSize
+    defaults:
+      readMask: names,emailAddresses,phoneNumbers,organizations,metadata
+
+  get:
+    type: detail
+    description: "get one person in full — addresses, birthday, notes, relations"
+    resource: people.get
+    params:
+      contactId:
+        type: string
+        description: "Person id as `list` or `search` printed it (e.g. `people/c1234567890`). A bare id without the `people/` prefix is accepted."
+        required: true
+        maps_to: resourceName
+    defaults:
+      personFields: names,nicknames,emailAddresses,phoneNumbers,addresses,organizations,birthdays,biographies,urls,relations,memberships,photos,metadata
+
+  # The Person body is built by the patch, not declared here. Every field the People API
+  # wants is a parallel array of objects — `names: [{givenName, familyName}]` — and any
+  # param this manifest declares that Google does not recognise as a query parameter goes
+  # into the request body VERBATIM. Declared flat, `name: "Ada Lovelace"` would be sent as
+  # a top-level `name` field, which Google ignores, producing a contact with no name and
+  # no error. So these are declared for the SCHEMA and converted before the call.
+  create:
+    type: action
+    description: "create a new contact"
+    resource: people.createContact
+    params:
+      name:
+        type: string
+        description: "Full name, e.g. `Ada Lovelace`. Split into given and family name on the way in; a single word becomes the given name."
+      contactEmail:
+        type: string
+        description: "The contact's email address. (`email` is the account making the call, not the person being saved.) On `update` this REPLACES every address the contact has — pass an empty string to clear them."
+      phone:
+        type: string
+        description: "Phone number, in whatever form you have it — Google normalizes it. On `update` this REPLACES every number the contact has — pass an empty string to clear them."
+      company:
+        type: string
+        description: "Organization name"
+      jobTitle:
+        type: string
+        description: "Job title within the organization"
+      notes:
+        type: string
+        description: "Free-text note stored on the contact"
+    defaults:
+      # Echoes back EVERY field this operation can write. Live, the shorter read mask
+      # confirmed a create without the note it had just stored — a confirmation that
+      # drops a field the caller supplied is indistinguishable from one that dropped it
+      # on the way in.
+      personFields: names,emailAddresses,phoneNumbers,organizations,biographies,metadata
+
+  # updatePersonFields is not sent from here — the patch derives it from which fields the
+  # caller actually supplied. A fixed list would name fields nobody touched, and naming a
+  # field in updatePersonFields with no value in the body CLEARS it. Declared statically,
+  # this operation would wipe a contact's phone number every time someone corrected a
+  # job title.
+  update:
+    type: action
+    description: "change an existing contact (only the fields you pass; pass an empty string to clear one)"
+    resource: people.updateContact
+    params:
+      contactId:
+        type: string
+        description: "Person id as `list` or `search` printed it (e.g. `people/c1234567890`). A bare id without the `people/` prefix is accepted."
+        required: true
+        maps_to: resourceName
+      name:
+        type: string
+        description: "Full name, e.g. `Ada Lovelace`. Split into given and family name on the way in; a single word becomes the given name."
+      contactEmail:
+        type: string
+        description: "The contact's email address. (`email` is the account making the call, not the person being saved.) On `update` this REPLACES every address the contact has — pass an empty string to clear them."
+      phone:
+        type: string
+        description: "Phone number, in whatever form you have it — Google normalizes it. On `update` this REPLACES every number the contact has — pass an empty string to clear them."
+      company:
+        type: string
+        description: "Organization name"
+      jobTitle:
+        type: string
+        description: "Job title within the organization"
+      notes:
+        type: string
+        description: "Free-text note stored on the contact"
+    defaults:
+      personFields: names,emailAddresses,phoneNumbers,organizations,biographies,metadata
+
+  delete:
+    type: action
+    description: "delete a contact"
+    resource: people.deleteContact
+    params:
+      contactId:
+        type: string
+        description: "Person id as `list` or `search` printed it (e.g. `people/c1234567890`). A bare id without the `people/` prefix is accepted."
+        required: true
+        maps_to: resourceName
+
+  # --- Other contacts: addresses seen in mail, never saved ---
+
+  listOther:
+    type: list
+    description: "list 'other contacts' — addresses you have corresponded with but never saved"
+    resource: otherContacts.list
+    params:
+      maxResults:
+        type: number
+        description: "Max people to return (default 25). Capped per operation: 30 for `search` and `searchOther`, 100 for everything else."
+        default: 25
+        max: 100
+        maps_to: pageSize
+      pageToken:
+        type: string
+        description: "Continue from where a previous page stopped — pass the token that response printed"
+    defaults:
+      # otherContacts accepts a narrower mask than the contact operations do; asking it
+      # for organizations is an error, not an empty field.
+      readMask: names,emailAddresses,phoneNumbers,metadata
+
+  searchOther:
+    type: list
+    description: "search 'other contacts' by name or email"
+    resource: otherContacts.search
+    params:
+      query:
+        type: string
+        description: "Text to match against names, email addresses, nicknames and phone numbers. Matching is by PREFIX: `ann` finds Anna, `nna` finds nobody."
+        required: true
+      maxResults:
+        type: number
+        description: "Max people to return (default 25). Capped per operation: 30 for `search` and `searchOther`, 100 for everything else."
+        default: 25
+        max: 30
+        maps_to: pageSize
+    defaults:
+      readMask: names,emailAddresses,phoneNumbers,metadata
+
+  # --- The organization directory (Google Workspace accounts only) ---
+
+  listDirectory:
+    type: list
+    description: "list people in your organization's directory (Workspace accounts only)"
+    resource: people.listDirectoryPeople
+    params:
+      maxResults:
+        type: number
+        description: "Max people to return (default 25). Capped per operation: 30 for `search` and `searchOther`, 100 for everything else."
+        default: 25
+        max: 100
+        maps_to: pageSize
+      pageToken:
+        type: string
+        description: "Continue from where a previous page stopped — pass the token that response printed"
+    defaults:
+      readMask: names,emailAddresses,phoneNumbers,organizations,metadata
+      # `sources` is REQUIRED here — the directory operations reject a call that does not
+      # say which directory to read. Both value sets are wanted: DOMAIN_PROFILE is the
+      # people with accounts, DOMAIN_CONTACT the shared contacts an admin published.
+      sources: DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE,DIRECTORY_SOURCE_TYPE_DOMAIN_CONTACT
+
+  searchDirectory:
+    type: list
+    description: "search your organization's directory by name or email (Workspace accounts only)"
+    resource: people.searchDirectoryPeople
+    params:
+      query:
+        type: string
+        description: "Text to match against names, email addresses, nicknames and phone numbers. Matching is by PREFIX: `ann` finds Anna, `nna` finds nobody."
+        required: true
+      maxResults:
+        type: number
+        description: "Max people to return (default 25). Capped per operation: 30 for `search` and `searchOther`, 100 for everything else."
+        default: 25
+        max: 100
+        maps_to: pageSize
+      pageToken:
+        type: string
+        description: "Continue from where a previous page stopped — pass the token that response printed"
+    defaults:
+      readMask: names,emailAddresses,phoneNumbers,organizations,metadata
+      sources: DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE,DIRECTORY_SOURCE_TYPE_DOMAIN_CONTACT

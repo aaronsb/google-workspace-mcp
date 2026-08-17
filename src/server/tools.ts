@@ -125,7 +125,11 @@ const handCodedSchemas: ToolSchema[] = [
             properties: {
               tool: {
                 type: 'string',
-                enum: ['manage_email', 'manage_calendar', 'manage_drive', 'manage_sheets', 'manage_docs', 'manage_tasks', 'manage_meet', 'manage_accounts', 'manage_scratchpad', 'manage_workspace'],
+                // Filled in below from the tools this server actually advertises. Written
+                // out by hand, this list silently omitted every tool added after it: a new
+                // tool worked on its own and was unreachable from a queue, with nothing to
+                // say why. manage_contacts was the one that surfaced it.
+                enum: [] as string[],
                 description: 'Tool to call',
               },
               args: {
@@ -162,6 +166,24 @@ export const toolSchemas: ToolSchema[] = [
   ...handCodedSchemas,
   ...factorySchemas,
 ];
+
+/**
+ * Point queue_operations at every tool this server advertises — itself included.
+ *
+ * Done here rather than in the literal above because the factory schemas are not built
+ * until `generatedTools` has run, and queue_operations is declared alongside the
+ * hand-coded tools that come first.
+ *
+ * There is no carve-out. A queue is a tool call, so the tools a queue may name are the
+ * tools; nesting is bounded by depth in handleQueue, which answers with a sentence saying
+ * what the limit is, rather than by omission here, which would answer a plainly
+ * advertised tool with "Unknown tool".
+ */
+const queueTool = handCodedSchemas.find(t => t.name === 'queue_operations');
+if (queueTool) {
+  const operations = (queueTool.inputSchema.properties as Record<string, { items: { properties: { tool: { enum: string[] } } } }>).operations;
+  operations.items.properties.tool.enum = toolSchemas.map(t => t.name);
+}
 
 export function getToolSchema(name: string): ToolSchema | undefined {
   return toolSchemas.find(t => t.name === name);

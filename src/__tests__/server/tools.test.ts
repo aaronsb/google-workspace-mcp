@@ -34,6 +34,21 @@ describe('tool registry', () => {
     }
   });
 
+  it('queue_operations can reach every tool the server advertises', () => {
+    // This enum used to be written out by hand, so it silently omitted every tool added
+    // after it. A new tool worked on its own and was unreachable from a queue, with
+    // nothing anywhere to say why — the handler side never had the problem, because
+    // domainHandlers is built from the registry. manage_contacts is what surfaced it.
+    const queue = getToolSchema('queue_operations')!;
+    const offered = (queue.inputSchema as any).properties.operations.items.properties.tool.enum as string[];
+
+    // Every tool, with no carve-out — including queue_operations itself. Nesting is
+    // bounded by depth in handleQueue, not by hiding the tool here.
+    expect([...offered].sort()).toEqual([...toolSchemas.map(t => t.name)].sort());
+    expect(offered).toContain('manage_contacts');
+    expect(offered).toContain('queue_operations');
+  });
+
   it('all domain tools require operation', () => {
     const domainTools = toolSchemas.filter(t => t.name !== 'queue_operations');
     for (const tool of domainTools) {

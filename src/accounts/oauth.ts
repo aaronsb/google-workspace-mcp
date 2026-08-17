@@ -23,6 +23,14 @@ export const SERVICE_SCOPE_MAP: Record<string, string[]> = {
     'https://www.googleapis.com/auth/meetings.space.readonly',
     'https://www.googleapis.com/auth/meetings.space.settings',
   ],
+  // manage_contacts reads three separate collections and Google gates each behind its
+  // own scope: your saved contacts, the addresses you have only corresponded with, and
+  // the organization directory. Two of the three have no write form at all.
+  contacts: [
+    'https://www.googleapis.com/auth/contacts',
+    'https://www.googleapis.com/auth/contacts.other.readonly',
+    'https://www.googleapis.com/auth/directory.readonly',
+  ],
 };
 
 /**
@@ -50,6 +58,11 @@ export const SERVICE_SCOPE_MAP: Record<string, string[]> = {
  *   what each operation needs.
  * - drive, sheets — two GET methods and one respectively that no read-only scope covers,
  *   so read access there allows less than full access but slightly more than reading.
+ * - contacts — only the first of its three scopes has a write form. `contacts.readonly`
+ *   replaces `contacts`; `contacts.other.readonly` and `directory.readonly` are already
+ *   read-only and so are identical in both maps. A read-only contacts account reaches
+ *   every read manage_contacts has and is refused `create` by Google, which is the
+ *   mapping working.
  */
 export const SERVICE_SCOPE_MAP_READONLY: Record<string, string[]> = {
   gmail:    ['https://www.googleapis.com/auth/gmail.readonly'],
@@ -60,6 +73,11 @@ export const SERVICE_SCOPE_MAP_READONLY: Record<string, string[]> = {
   tasks:    ['https://www.googleapis.com/auth/tasks.readonly'],
   slides:   ['https://www.googleapis.com/auth/presentations.readonly'],
   meet:     ['https://www.googleapis.com/auth/meetings.space.readonly'],
+  contacts: [
+    'https://www.googleapis.com/auth/contacts.readonly',
+    'https://www.googleapis.com/auth/contacts.other.readonly',
+    'https://www.googleapis.com/auth/directory.readonly',
+  ],
 };
 
 /** How much authority an account's token carries. */

@@ -39,6 +39,22 @@ for (const tool of generatedTools) {
   domainHandlers[tool.schema.name] = tool.handler;
 }
 
+/**
+ * What a queued operation may call: every tool, including `queue_operations`.
+ *
+ * A queue is a tool call like any other, so the set of things it can name is the set of
+ * tools — no carve-out, and nothing for a caller to discover by being refused. Nesting is
+ * bounded by depth inside handleQueue rather than by omission here, so the limit arrives
+ * as a sentence saying what it is instead of an "Unknown tool" for something the server
+ * plainly advertises.
+ */
+function queueableHandlers(depth: number): Record<string, ToolHandler> {
+  return {
+    ...domainHandlers,
+    queue_operations: (params) => handleQueue(params, queueableHandlers(depth + 1), depth + 1),
+  };
+}
+
 export async function handleToolCall(
   toolName: string,
   params: Record<string, unknown>,
@@ -48,7 +64,7 @@ export async function handleToolCall(
 
   // Queue wraps the domain handlers (each queued op also advances the epoch)
   if (toolName === 'queue_operations') {
-    const result = await handleQueue(params, domainHandlers);
+    const result = await handleQueue(params, queueableHandlers(1), 1);
     const queueEmail = extractEmailFromQueue(params);
     if (queueEmail) {
       await tracker.ensureBaseline(queueEmail, currentEpoch);

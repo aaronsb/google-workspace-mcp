@@ -5,7 +5,7 @@
 [![Node](https://img.shields.io/node/v/@aaronsb/google-workspace-mcp?logo=node.js&label=node)](https://nodejs.org)
 [![License](https://img.shields.io/github/license/aaronsb/google-workspace-mcp)](LICENSE)
 
-**Give your AI agent real access to Google Workspace** — Gmail, Calendar, Drive, Docs, Sheets, Tasks and Meet — from one MCP server, across as many accounts as you have.
+**Give your AI agent real access to Google Workspace** — Gmail, Calendar, Drive, Docs, Sheets, Tasks, Meet and Contacts — from one MCP server, across as many accounts as you have.
 
 Search your mail, check your calendar, write a doc, file a task — in conversation, as yourself.
 
@@ -15,7 +15,7 @@ First, you need **Google OAuth credentials** — the one prerequisite common to 
 
 1. Go to [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials)
 2. Create an **OAuth 2.0 Client ID**, application type **Desktop app**
-3. Enable the APIs you want (Gmail, Calendar, Drive, Sheets, Docs, Tasks, Meet)
+3. Enable the APIs you want (Gmail, Calendar, Drive, Sheets, Docs, Tasks, Meet — and **People API** for contacts, which is what Google calls it in the console)
 4. Keep the **Client ID** and **Client Secret** handy — you'll paste them in below
 
 Then pick the path that matches how you work. All three run the same server.
@@ -90,7 +90,7 @@ flowchart LR
     agent["🤖 Your AI agent<br>Claude Desktop, Claude Code…"]
     server["⚙️ This MCP server<br>picks the right account,<br>builds the real request"]
     keys[("🔑 Your accounts<br>OAuth tokens, kept<br>on your own machine")]
-    google["☁️ Google<br>Gmail · Calendar · Drive<br>Docs · Sheets · Tasks · Meet"]
+    google["☁️ Google<br>Gmail · Calendar · Drive · Docs<br>Sheets · Tasks · Meet · Contacts"]
 
     human -->|"“what's on my calendar?”"| agent
     agent -->|"tool call"| server
@@ -117,7 +117,7 @@ flowchart LR
 
 ## What it can do
 
-**11 tools across 7 Google services**, plus multi-account handling, batching, content authoring, and a file sandbox.
+**12 tools across 8 Google services**, plus multi-account handling, batching, content authoring, and a file sandbox.
 
 | Tool | What It Does |
 |------|--------------|
@@ -127,7 +127,8 @@ flowchart LR
 | `manage_sheets` | Sheets — read / write ranges (row-numbered output), append, clear, manage tabs, copy / duplicate / rename |
 | `manage_docs` | Docs — get, create, append, insert text, find-and-replace |
 | `manage_tasks` | Tasks — list / create / update / complete tasks and task lists |
-| `manage_meet` | Meet — browse past conferences, participants, transcripts, recordings, smart notes |
+| `manage_meet` | Meet — create and configure meeting spaces, see who is in a call now, browse past conferences, participants, transcripts, recordings, smart notes |
+| `manage_contacts` | Contacts — look people up in your saved contacts, the addresses you have only corresponded with, and your organization's directory; create, update and delete contacts |
 | `manage_accounts` | Multi-account lifecycle — add accounts, manage credentials and scopes |
 | `manage_scratchpad` | Compose / edit multi-line content (line- or JSON-path-addressed), attach files, send to any target; JSON mode live-syncs to Docs / Sheets |
 | `manage_workspace` | File operations in the workspace sandbox (exchange point for attachments, downloads, exports) |

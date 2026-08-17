@@ -135,8 +135,16 @@ describe('oauth', () => {
 
     it('handles all services at once', () => {
       const { scopes } = scopesForServices(ALL_SERVICES);
-      // base (2) + gmail(1) + drive(1) + calendar(1) + sheets(1) + docs(1) + tasks(1) + slides(1) + meet(3) = 12
-      expect(scopes.length).toBe(12);
+      // Asserted against the map rather than a literal count. A hardcoded total says
+      // nothing about WHICH scopes were asked for, and has to be edited by hand every
+      // time a service is added — an edit whose only signal is that the number moved.
+      const expected = new Set([
+        'openid',
+        'https://www.googleapis.com/auth/userinfo.email',
+        ...Object.values(SERVICE_SCOPE_MAP).flat(),
+      ]);
+      expect(new Set(scopes)).toEqual(expected);
+      expect(scopes.length).toBe(expected.size);   // deduplicated
     });
 
     it('ignores empty segments', () => {

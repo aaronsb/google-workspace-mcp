@@ -84,6 +84,7 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const SERVICE_VERSIONS = {
   gmail: 'v1', drive: 'v3', calendar: 'v3', docs: 'v1',
   sheets: 'v4', tasks: 'v1', meet: 'v2',
+  people: 'v1',
 };
 
 /**
