@@ -408,3 +408,160 @@ describe('Meet custom handlers', () => {
     });
   });
 });
+
+/**
+ * Meeting spaces — the write half of manage_meet, and the first operations in this tool
+ * that need `meetings.space.created` rather than `meetings.space.readonly` (ADR-202).
+ *
+ * Each of these exists because Google asks for something the agent should not have to
+ * know: a resource-name format, an enum where a boolean reads better, a field mask, or
+ * an EBNF filter.
+ */
+describe('meetPatch — meeting spaces', () => {
+  const H = meetPatch.customHandlers!;
+  const ACCOUNT = 'user@test.com';
+
+  beforeEach(() => mockCall.mockReset());
+
+  const space = {
+    name: 'spaces/abc123',
+    meetingUri: 'https://meet.google.com/abc-mnop-xyz',
+    meetingCode: 'abc-mnop-xyz',
+    config: { accessType: 'TRUSTED', moderation: 'MODERATION_OFF' },
+  };
+
+  describe('createSpace', () => {
+    it('leads with the joinable link', async () => {
+      mockCall.mockResolvedValue(space);
+      const result = await H.createSpace({}, ACCOUNT);
+
+      expect(result.text).toContain('https://meet.google.com/abc-mnop-xyz');
+      expect(result.refs.meetingUri).toBe('https://meet.google.com/abc-mnop-xyz');
+      // The resource name is the handle every other operation takes, so it rides along.
+      expect(result.refs.space).toBe('spaces/abc123');
+    });
+
+    it('sends no config when the caller asked for nothing', async () => {
+      mockCall.mockResolvedValue(space);
+      await H.createSpace({}, ACCOUNT);
+      expect(mockCall.mock.calls[0][2]).toEqual({});
+    });
+
+    it('turns a moderation boolean into the enum Google wants', async () => {
+      mockCall.mockResolvedValue(space);
+      await H.createSpace({ accessType: 'RESTRICTED', moderation: true }, ACCOUNT);
+
+      expect(mockCall.mock.calls[0][2]).toEqual({
+        config: { accessType: 'RESTRICTED', moderation: 'MODERATION_ON' },
+      });
+    });
+
+    it('sends MODERATION_OFF for false rather than dropping the field', async () => {
+      mockCall.mockResolvedValue(space);
+      await H.createSpace({ moderation: false }, ACCOUNT);
+      expect(mockCall.mock.calls[0][2]).toEqual({ config: { moderation: 'MODERATION_OFF' } });
+    });
+  });
+
+  describe('getSpace', () => {
+    it.each([
+      ['a bare meeting code', 'abc-mnop-xyz'],
+      ['a full resource name', 'spaces/abc-mnop-xyz'],
+      ['a pasted Meet link', 'https://meet.google.com/abc-mnop-xyz'],
+    ])('accepts %s', async (_label, input) => {
+      // Google takes only `spaces/{id}` and 404s the rest without saying which form it
+      // wanted. People copy whichever one is in front of them.
+      mockCall.mockResolvedValue(space);
+      await H.getSpace({ space: input }, ACCOUNT);
+      expect(mockCall.mock.calls[0][2]).toEqual({ name: 'spaces/abc-mnop-xyz' });
+    });
+
+    it('reports a call in progress when there is one', async () => {
+      mockCall.mockResolvedValue({ ...space, activeConference: { conferenceRecord: 'conferenceRecords/xyz' } });
+      const result = await H.getSpace({ space: 'abc-mnop-xyz' }, ACCOUNT);
+
+      expect(result.text).toContain('In progress now');
+      expect(result.refs.activeConference).toBe('conferenceRecords/xyz');
+    });
+
+    it('says plainly when nothing is running', async () => {
+      mockCall.mockResolvedValue(space);
+      const result = await H.getSpace({ space: 'abc-mnop-xyz' }, ACCOUNT);
+
+      expect(result.text).toContain('**In progress now:** no');
+      expect(result.refs.activeConference).toBeNull();
+    });
+  });
+
+  describe('updateSpace', () => {
+    it('builds the updateMask from what was actually passed', async () => {
+      // Omit updateMask and Google returns 200 having applied nothing — the silent
+      // success this codebase keeps running into.
+      mockCall.mockResolvedValue(space);
+      await H.updateSpace({ space: 'abc-mnop-xyz', accessType: 'OPEN' }, ACCOUNT);
+
+      expect(mockCall.mock.calls[0][2]).toEqual({
+        name: 'spaces/abc-mnop-xyz',
+        updateMask: 'config.accessType',
+        config: { accessType: 'OPEN' },
+      });
+    });
+
+    it('masks both fields when both change', async () => {
+      mockCall.mockResolvedValue(space);
+      await H.updateSpace({ space: 'abc-mnop-xyz', accessType: 'OPEN', moderation: true }, ACCOUNT);
+
+      expect((mockCall.mock.calls[0][2] as Record<string, unknown>).updateMask)
+        .toBe('config.accessType,config.moderation');
+    });
+
+    it('refuses an update with nothing to change', async () => {
+      await expect(H.updateSpace({ space: 'abc-mnop-xyz' }, ACCOUNT))
+        .rejects.toThrow(/at least one of/);
+      expect(mockCall).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('endActiveConference', () => {
+    it('does not claim a meeting was running', async () => {
+      // Google returns an empty body and a 200 whether or not anyone was in the room.
+      // "Ended the meeting" would be a small lie in the case where nobody was.
+      mockCall.mockResolvedValue({});
+      const result = await H.endActiveConference({ space: 'abc-mnop-xyz' }, ACCOUNT);
+
+      expect(mockCall.mock.calls[0][1]).toBe('spaces.endActiveConference');
+      expect(mockCall.mock.calls[0][2]).toEqual({ name: 'spaces/abc-mnop-xyz' });
+      expect(result.text).toContain('confirms the request, not that a meeting was running');
+    });
+  });
+
+  describe('activeConferences', () => {
+    it('asks for open-ended records rather than making the agent write EBNF', async () => {
+      mockCall.mockResolvedValue({ conferenceRecords: [] });
+      await H.activeConferences({}, ACCOUNT);
+
+      expect(mockCall.mock.calls[0][2]).toEqual({ filter: 'end_time IS NULL', pageSize: 25 });
+    });
+
+    it('says nothing is running rather than returning an empty list', async () => {
+      mockCall.mockResolvedValue({ conferenceRecords: [] });
+      const result = await H.activeConferences({}, ACCOUNT);
+
+      expect(result.text).toContain('No conferences are in progress');
+      expect(result.refs.count).toBe(0);
+    });
+
+    it('lists what is live with its meeting code', async () => {
+      mockCall.mockResolvedValue({
+        conferenceRecords: [
+          { name: 'conferenceRecords/one', space: { name: 'spaces/abc-mnop-xyz' }, startTime: '2026-08-17T15:00:00Z' },
+        ],
+      });
+      const result = await H.activeConferences({}, ACCOUNT);
+
+      expect(result.text).toContain('In progress now (1)');
+      expect(result.text).toContain('conferenceRecords/one');
+      expect(result.refs.count).toBe(1);
+    });
+  });
+});

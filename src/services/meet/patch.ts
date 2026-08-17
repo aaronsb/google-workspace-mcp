@@ -10,6 +10,7 @@
  */
 
 import { call } from '../../google/client.js';
+import { requireString } from '../../server/handlers/validate.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
@@ -456,6 +457,162 @@ const prefixConferenceParent = async (params: Record<string, unknown>) =>
 const prefixConferenceName = async (params: Record<string, unknown>) =>
   prefixResourceName(params, 'name', 'conferenceRecords/');
 
+
+// --- Meeting spaces ---
+
+/**
+ * Normalize whatever the caller has to the `spaces/...` resource name Google wants.
+ *
+ * People copy meeting codes out of a Meet link ("abc-mnop-xyz"), out of a calendar entry
+ * with the dashes stripped, or paste the whole URL. Google accepts only `spaces/{id}`,
+ * and rejects the rest with a 404 that says nothing about which form it wanted.
+ */
+function spaceName(value: string): string {
+  const raw = value.trim();
+  if (raw.startsWith('spaces/')) return raw;
+  // A full URL: https://meet.google.com/abc-mnop-xyz
+  const fromUrl = raw.match(/meet\.google\.com\/([a-z-]+)/i);
+  if (fromUrl) return `spaces/${fromUrl[1]}`;
+  return `spaces/${raw}`;
+}
+
+/** The body Google takes for creating or updating a space's config. */
+function spaceConfig(params: Record<string, unknown>): Record<string, unknown> {
+  const config: Record<string, unknown> = {};
+  if (typeof params.accessType === 'string') config.accessType = params.accessType;
+  if (params.moderation !== undefined) {
+    config.moderation = params.moderation ? 'MODERATION_ON' : 'MODERATION_OFF';
+  }
+  return config;
+}
+
+/**
+ * Render a space so the joinable link is the first thing visible.
+ *
+ * Google returns `meetingUri` and `meetingCode` alongside a `name` of the form
+ * `spaces/xyz`. The name is the handle every other operation takes; the URI is the thing
+ * a human is actually asking for. Both, labelled.
+ */
+function formatSpace(data: Record<string, unknown>, verb: string): HandlerResponse {
+  const config = (data.config ?? {}) as Record<string, unknown>;
+  const active = (data.activeConference ?? {}) as Record<string, unknown>;
+  const access = typeof config.accessType === 'string' ? config.accessType : '(default)';
+  const moderation = config.moderation === 'MODERATION_ON' ? 'on' : 'off';
+
+  return {
+    text: [
+      `${verb}: **${String(data.meetingUri ?? '(no link returned)')}**`,
+      '',
+      `**Meeting code:** ${String(data.meetingCode ?? '—')}`,
+      `**Space:** ${String(data.name ?? '—')}`,
+      `**Who can join:** ${access}`,
+      `**Host controls:** ${moderation}`,
+      active.conferenceRecord
+        ? `**In progress now** — conference record \`${String(active.conferenceRecord)}\``
+        : '**In progress now:** no',
+    ].join('\n'),
+    refs: {
+      space: data.name,
+      meetingCode: data.meetingCode,
+      meetingUri: data.meetingUri,
+      accessType: config.accessType,
+      activeConference: active.conferenceRecord ?? null,
+    },
+  };
+}
+
+/**
+ * Create a standalone meeting link.
+ *
+ * spaces.create declares NO parameters in Discovery, so the generated resource op would
+ * send an empty request and every space would come back with default settings — the same
+ * silent drop that made documents.create ignore titles. Hence a custom handler.
+ */
+async function createSpace(params: Record<string, unknown>, account: string): Promise<HandlerResponse> {
+  const config = spaceConfig(params);
+  const data = await call('meet', 'spaces.create',
+    Object.keys(config).length ? { config } : {}, { account }) as Record<string, unknown>;
+  return formatSpace(data, 'Meeting created');
+}
+
+/** Look up a space by meeting code, link, or resource name. */
+async function getSpace(params: Record<string, unknown>, account: string): Promise<HandlerResponse> {
+  const name = spaceName(requireString(params, 'space'));
+  const data = await call('meet', 'spaces.get', { name }, { account }) as Record<string, unknown>;
+  return formatSpace(data, 'Meeting');
+}
+
+/**
+ * Change a space's settings.
+ *
+ * `updateMask` is required and must name exactly the fields being changed — omit it and
+ * Google returns 200 having applied nothing, which is the failure mode this codebase
+ * keeps meeting. The mask is built from what the caller actually supplied.
+ */
+async function updateSpace(params: Record<string, unknown>, account: string): Promise<HandlerResponse> {
+  const name = spaceName(requireString(params, 'space'));
+  const config = spaceConfig(params);
+  const mask = Object.keys(config).map(k => `config.${k}`);
+
+  if (mask.length === 0) {
+    throw new Error('updateSpace needs at least one of: accessType, moderation');
+  }
+
+  const data = await call('meet', 'spaces.patch',
+    { name, updateMask: mask.join(','), config }, { account }) as Record<string, unknown>;
+  return formatSpace(data, 'Meeting updated');
+}
+
+/**
+ * End the call happening in a space.
+ *
+ * Google returns an empty body and a 200 whether or not anyone was in the room, so the
+ * response cannot claim a meeting was actually ended — only that the request was
+ * accepted. Saying "ended the meeting" when nobody was in it would be a small lie of
+ * exactly the kind this codebase spends its time removing.
+ */
+async function endActiveConference(params: Record<string, unknown>, account: string): Promise<HandlerResponse> {
+  const name = spaceName(requireString(params, 'space'));
+  await call('meet', 'spaces.endActiveConference', { name }, { account });
+  return {
+    text: `Asked Google to end any call in progress in \`${name}\`.\n\n` +
+      `> Google accepts this whether or not anyone was in the room, so this confirms the ` +
+      `request, not that a meeting was running. Check with \`getSpace\`.`,
+    refs: { space: name, ended: true },
+  };
+}
+
+/**
+ * Conferences happening right now.
+ *
+ * Google exposes this as conferenceRecords.list with the EBNF filter `end_time IS NULL` —
+ * a record without an end time is a call still in progress. Wrapping it means the agent
+ * asks for "what is live now" instead of composing filter syntax.
+ */
+async function activeConferences(params: Record<string, unknown>, account: string): Promise<HandlerResponse> {
+  const pageSize = Number(params.maxResults) || 25;
+  const data = await call('meet', 'conferenceRecords.list',
+    { filter: 'end_time IS NULL', pageSize }, { account }) as Record<string, unknown>;
+
+  const records = (data.conferenceRecords ?? []) as Array<Record<string, unknown>>;
+  if (records.length === 0) {
+    return { text: 'No conferences are in progress right now.', refs: { count: 0, active: [] } };
+  }
+
+  const lines = records.map(r => {
+    const code = meetingCode(r.space);
+    return `- \`${String(r.name ?? '')}\`${code ? ` — ${code}` : ''} (started ${String(r.startTime ?? '?')})`;
+  });
+
+  return {
+    text: `## In progress now (${records.length})\n\n${lines.join('\n')}`,
+    refs: {
+      count: records.length,
+      active: records.map(r => ({ conferenceRecord: r.name, startTime: r.startTime })),
+    },
+  };
+}
+
 export const meetPatch: ServicePatch = {
   beforeExecute: {
     listParticipants: prefixConferenceParent,
@@ -518,5 +675,10 @@ export const meetPatch: ServicePatch = {
 
   customHandlers: {
     getFullTranscript,
+    createSpace,
+    getSpace,
+    updateSpace,
+    endActiveConference,
+    activeConferences,
   },
 };
