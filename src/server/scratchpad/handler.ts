@@ -12,9 +12,61 @@ import {
   importEmail, importDoc, importSheet, importDriveFile, importMeet,
 } from './adapters/index.js';
 import { call } from '../../google/client.js';
+import { evaluatePolicies, type OperationInfo } from '../../factory/safety.js';
 import { resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
 import { lookupMimeType } from '../../services/gmail/mime.js';
 import type { HandlerResponse } from '../handler.js';
+
+/**
+ * What each write actually does to Google, so the safety layer can see it.
+ *
+ * manage_scratchpad is hand-registered rather than factory-generated, so nothing here
+ * passes through `generateHandler` — and therefore nothing reached `evaluatePolicies`.
+ * Every entry below was a write that bypassed the policy layer entirely (#171): a
+ * read-only account refused `manage_docs write` could write the same content through
+ * `send`, and with GWS_SAFETY_POLICY=draft-only-email an ordinary account could still
+ * send mail, which Google accepts because the token is legitimately broad.
+ *
+ * `operation` is chosen to match what the existing policies already look for — `send`
+ * so draft-only-email matches it, `create`/`write` for the rest. `resource` is the method
+ * the adapter really calls, verified against descriptor.json; a wrong one would make
+ * `requiredScopes` return [] and fail open silently.
+ *
+ * The `workspace` target is absent deliberately: it writes a local file and touches no
+ * Google API, so there is nothing to authorize.
+ */
+const WRITE_INTENT: Record<string, OperationInfo & { operation: string }> = {
+  email:          { operation: 'send',   service: 'gmail',    googleService: 'gmail',    resource: 'users.messages.send',        type: 'action' },
+  email_draft:    { operation: 'create', service: 'gmail',    googleService: 'gmail',    resource: 'users.drafts.create',        type: 'action' },
+  doc_create:     { operation: 'create', service: 'docs',     googleService: 'docs',     resource: 'documents.create',           type: 'action' },
+  doc_write:      { operation: 'write',  service: 'docs',     googleService: 'docs',     resource: 'documents.batchUpdate',      type: 'action' },
+  sheet_write:    { operation: 'write',  service: 'sheets',   googleService: 'sheets',   resource: 'spreadsheets.values.update', type: 'action' },
+  calendar_event: { operation: 'create', service: 'calendar', googleService: 'calendar', resource: 'events.insert',              type: 'action' },
+  task_create:    { operation: 'create', service: 'tasks',    googleService: 'tasks',    resource: 'tasks.insert',               type: 'action' },
+  // The live-binding sync write-backs, which are not send targets and reach Google from
+  // pushLiveDoc / pushLiveSheet rather than from the send switch.
+  doc_sync:       { operation: 'write',  service: 'docs',     googleService: 'docs',     resource: 'documents.batchUpdate',      type: 'action' },
+  sheet_sync:     { operation: 'write',  service: 'sheets',   googleService: 'sheets',   resource: 'spreadsheets.values.update', type: 'action' },
+};
+
+/**
+ * Run the safety policies for a scratchpad write. Returns a response to hand back when
+ * the write is refused, or null to proceed.
+ *
+ * Mirrors what generateHandler does for every generated operation.
+ */
+async function checkWritePolicy(intent: string, account: string): Promise<HandlerResponse | null> {
+  const op = WRITE_INTENT[intent];
+  if (!op || !account) return null;
+
+  const result = await evaluatePolicies([], { operation: op.operation, params: {}, account }, op.googleService, op);
+  if (result.action !== 'block') return null;
+
+  return {
+    text: `**Blocked by safety policy:** ${result.reason}`,
+    refs: { blocked: true, error: true, policy: result.reason },
+  };
+}
 
 const scratchpads = new ScratchpadManager();
 
@@ -321,6 +373,11 @@ async function maybeHandleDocsBoundMutation(
   const binding = scratchpads.getBinding(id);
   if (binding?.service !== 'docs') return null;
 
+  // Ahead of the local mutation, not just the API call. Refusing after applying it would
+  // leave the buffer holding a change the document will never receive.
+  const refused = await checkWritePolicy('doc_sync', binding.account);
+  if (refused) return refused;
+
   const before = scratchpads.getContent(id);
   if (before === null) return scratchpadNotFound(id);
 
@@ -398,6 +455,12 @@ async function reloadDocsBuffer(id: string, binding: LiveBinding): Promise<void>
 async function syncIfBound(id: string): Promise<HandlerResponse | null> {
   const binding = scratchpads.getBinding(id);
   if (!binding) return null;
+
+  // Only the sheets branch below reaches Google; the docs branch is handled upstream.
+  if (binding.service === 'sheets') {
+    const refused = await checkWritePolicy('sheet_sync', binding.account);
+    if (refused) return refused;
+  }
 
   const content = scratchpads.getContent(id);
   if (content === null) return null;
@@ -551,6 +614,10 @@ async function handleSend(params: Record<string, unknown>): Promise<HandlerRespo
 
   const targetParams = (params.targetParams ?? {}) as Record<string, string>;
   const keep = params.keep !== false; // default true
+
+  // Before the switch, so one check covers every target that reaches Google. #171.
+  const refused = await checkWritePolicy(target, targetParams.email);
+  if (refused) return refused;
 
   let result: HandlerResponse;
 

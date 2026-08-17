@@ -21,10 +21,14 @@
  * choice the user made at consent time rather than a deployment-wide one, and it blocks
  * by returning a reason rather than throwing. See ADR-202.
  *
- * WHAT THIS LAYER DOES NOT COVER: only factory-generated handlers run it. The hand-coded
- * tools — manage_scratchpad in particular, whose send/sync adapters write to Gmail, Docs,
- * Sheets, Calendar and Tasks — reach Google without consulting any policy here. Tracked
- * separately; do not read the list above as exhaustive.
+ * WHO RUNS THIS: `generateHandler` calls it for every factory-generated operation, and
+ * `manage_scratchpad` calls it explicitly for its send and sync writes (#171) because it
+ * is hand-registered and gets no policy check for free. Any future hand-registered tool
+ * that writes to Google has to do the same — nothing enforces that from here, which is
+ * exactly how scratchpad went uncovered.
+ *
+ * `manage_accounts` and `manage_workspace` are also hand-registered and need no check:
+ * neither writes through a Google API.
  */
 
 import { readCredential } from '../accounts/credentials.js';
