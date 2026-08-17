@@ -476,12 +476,25 @@ function spaceName(value: string): string {
   return `spaces/${raw}`;
 }
 
-/** The body Google takes for creating or updating a space's config. */
+/**
+ * The body Google takes for creating or updating a space's config.
+ *
+ * `moderation` is a boolean on this tool and an enum on the wire. The enum values are
+ * `ON` and `OFF` — measured against the live API, not read off a reference. The first
+ * attempt used `MODERATION_ON`/`MODERATION_OFF`, which Google rejects outright:
+ *
+ *   Invalid value at 'space.config.moderation'
+ *   (type.googleapis.com/google.apps.meet.v2.SpaceConfig.Moderation), "MODERATION_ON"
+ *
+ * Nothing in this repo could have caught that. descriptor.json carries method paths,
+ * parameters and scopes, but not request-body schemas, so no enum in any batchUpdate- or
+ * config-shaped body is checkable at build time.
+ */
 function spaceConfig(params: Record<string, unknown>): Record<string, unknown> {
   const config: Record<string, unknown> = {};
   if (typeof params.accessType === 'string') config.accessType = params.accessType;
   if (params.moderation !== undefined) {
-    config.moderation = params.moderation ? 'MODERATION_ON' : 'MODERATION_OFF';
+    config.moderation = params.moderation ? 'ON' : 'OFF';
   }
   return config;
 }
@@ -497,7 +510,7 @@ function formatSpace(data: Record<string, unknown>, verb: string): HandlerRespon
   const config = (data.config ?? {}) as Record<string, unknown>;
   const active = (data.activeConference ?? {}) as Record<string, unknown>;
   const access = typeof config.accessType === 'string' ? config.accessType : '(default)';
-  const moderation = config.moderation === 'MODERATION_ON' ? 'on' : 'off';
+  const moderation = config.moderation === 'ON' ? 'on' : 'off';
 
   return {
     text: [
@@ -535,6 +548,27 @@ async function createSpace(params: Record<string, unknown>, account: string): Pr
   return formatSpace(data, 'Meeting created');
 }
 
+/**
+ * Resolve whatever the caller passed to the CANONICAL space name Google mutates by.
+ *
+ * `spaces.get` accepts a meeting code — `spaces/abc-mnop-xyz` resolves fine. `spaces.patch`
+ * and `spaces.endActiveConference` do not: they need the opaque id (`spaces/2pEB_C0hNJMB`)
+ * and answer a meeting code with
+ *
+ *   403 Permission denied on resource Space (or it might not exist)
+ *
+ * which reads like an authorization problem and is not one. Measured, not assumed.
+ *
+ * So a write resolves first and mutates second. It costs a round trip on every write, and
+ * the alternative is telling the agent that reads and writes take different spellings of
+ * the same thing.
+ */
+async function canonicalSpaceName(value: string, account: string): Promise<string> {
+  const looked = await call('meet', 'spaces.get',
+    { name: spaceName(value) }, { account }) as Record<string, unknown>;
+  return typeof looked.name === 'string' ? looked.name : spaceName(value);
+}
+
 /** Look up a space by meeting code, link, or resource name. */
 async function getSpace(params: Record<string, unknown>, account: string): Promise<HandlerResponse> {
   const name = spaceName(requireString(params, 'space'));
@@ -550,13 +584,17 @@ async function getSpace(params: Record<string, unknown>, account: string): Promi
  * keeps meeting. The mask is built from what the caller actually supplied.
  */
 async function updateSpace(params: Record<string, unknown>, account: string): Promise<HandlerResponse> {
-  const name = spaceName(requireString(params, 'space'));
+  const requested = requireString(params, 'space');
   const config = spaceConfig(params);
   const mask = Object.keys(config).map(k => `config.${k}`);
 
+  // Before the round trip, not after — a caller who passed nothing to change should not
+  // pay for a lookup to be told so.
   if (mask.length === 0) {
     throw new Error('updateSpace needs at least one of: accessType, moderation');
   }
+
+  const name = await canonicalSpaceName(requested, account);
 
   const data = await call('meet', 'spaces.patch',
     { name, updateMask: mask.join(','), config }, { account }) as Record<string, unknown>;
@@ -566,19 +604,34 @@ async function updateSpace(params: Record<string, unknown>, account: string): Pr
 /**
  * End the call happening in a space.
  *
- * Google returns an empty body and a 200 whether or not anyone was in the room, so the
- * response cannot claim a meeting was actually ended — only that the request was
- * accepted. Saying "ended the meeting" when nobody was in it would be a small lie of
- * exactly the kind this codebase spends its time removing.
+ * Google refuses when nothing is running, rather than accepting silently:
+ *
+ *   400 FAILED_PRECONDITION — There is no active conference for the given space.
+ *
+ * Measured. An earlier version of this comment claimed the opposite, on no evidence.
+ *
+ * That refusal is good news and a bad response to hand an agent: the requested end state
+ * — no call in progress — already holds, so surfacing a raw 400 invites a retry loop
+ * against a condition that will never change. It comes back as an ordinary answer saying
+ * nothing was running. Every other failure still throws.
  */
 async function endActiveConference(params: Record<string, unknown>, account: string): Promise<HandlerResponse> {
-  const name = spaceName(requireString(params, 'space'));
-  await call('meet', 'spaces.endActiveConference', { name }, { account });
+  const name = await canonicalSpaceName(requireString(params, 'space'), account);
+
+  try {
+    await call('meet', 'spaces.endActiveConference', { name }, { account });
+  } catch (err) {
+    const reason = (err as { reason?: string }).reason;
+    if (reason !== 'FAILED_PRECONDITION') throw err;
+    return {
+      text: `No call is in progress in \`${name}\` — nothing to end.`,
+      refs: { space: name, ended: false, wasActive: false },
+    };
+  }
+
   return {
-    text: `Asked Google to end any call in progress in \`${name}\`.\n\n` +
-      `> Google accepts this whether or not anyone was in the room, so this confirms the ` +
-      `request, not that a meeting was running. Check with \`getSpace\`.`,
-    refs: { space: name, ended: true },
+    text: `Ended the call in \`${name}\`. Everyone who was in it has been disconnected.`,
+    refs: { space: name, ended: true, wasActive: true },
   };
 }
 

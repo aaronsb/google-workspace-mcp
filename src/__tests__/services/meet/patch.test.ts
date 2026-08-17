@@ -427,7 +427,7 @@ describe('meetPatch — meeting spaces', () => {
     name: 'spaces/abc123',
     meetingUri: 'https://meet.google.com/abc-mnop-xyz',
     meetingCode: 'abc-mnop-xyz',
-    config: { accessType: 'TRUSTED', moderation: 'MODERATION_OFF' },
+    config: { accessType: 'TRUSTED', moderation: 'OFF' },
   };
 
   describe('createSpace', () => {
@@ -447,19 +447,19 @@ describe('meetPatch — meeting spaces', () => {
       expect(mockCall.mock.calls[0][2]).toEqual({});
     });
 
-    it('turns a moderation boolean into the enum Google wants', async () => {
+    it('turns a moderation boolean into the enum Google wants — ON, not MODERATION_ON', async () => {
       mockCall.mockResolvedValue(space);
       await H.createSpace({ accessType: 'RESTRICTED', moderation: true }, ACCOUNT);
 
       expect(mockCall.mock.calls[0][2]).toEqual({
-        config: { accessType: 'RESTRICTED', moderation: 'MODERATION_ON' },
+        config: { accessType: 'RESTRICTED', moderation: 'ON' },
       });
     });
 
-    it('sends MODERATION_OFF for false rather than dropping the field', async () => {
+    it('sends OFF for false rather than dropping the field', async () => {
       mockCall.mockResolvedValue(space);
       await H.createSpace({ moderation: false }, ACCOUNT);
-      expect(mockCall.mock.calls[0][2]).toEqual({ config: { moderation: 'MODERATION_OFF' } });
+      expect(mockCall.mock.calls[0][2]).toEqual({ config: { moderation: 'OFF' } });
     });
   });
 
@@ -497,11 +497,16 @@ describe('meetPatch — meeting spaces', () => {
     it('builds the updateMask from what was actually passed', async () => {
       // Omit updateMask and Google returns 200 having applied nothing — the silent
       // success this codebase keeps running into.
-      mockCall.mockResolvedValue(space);
+      // spaces.patch needs the canonical id; a meeting code answers 403 "Permission
+      // denied on resource Space", which reads like auth and is not. So: resolve, patch.
+      mockCall
+        .mockResolvedValueOnce({ ...space, name: 'spaces/CANON' })
+        .mockResolvedValueOnce(space);
       await H.updateSpace({ space: 'abc-mnop-xyz', accessType: 'OPEN' }, ACCOUNT);
 
-      expect(mockCall.mock.calls[0][2]).toEqual({
-        name: 'spaces/abc-mnop-xyz',
+      expect(mockCall.mock.calls[0][1]).toBe('spaces.get');
+      expect(mockCall.mock.calls[1][2]).toEqual({
+        name: 'spaces/CANON',
         updateMask: 'config.accessType',
         config: { accessType: 'OPEN' },
       });
@@ -511,11 +516,11 @@ describe('meetPatch — meeting spaces', () => {
       mockCall.mockResolvedValue(space);
       await H.updateSpace({ space: 'abc-mnop-xyz', accessType: 'OPEN', moderation: true }, ACCOUNT);
 
-      expect((mockCall.mock.calls[0][2] as Record<string, unknown>).updateMask)
+      expect((mockCall.mock.calls[1][2] as Record<string, unknown>).updateMask)
         .toBe('config.accessType,config.moderation');
     });
 
-    it('refuses an update with nothing to change', async () => {
+    it('refuses an update with nothing to change, without paying for a lookup first', async () => {
       await expect(H.updateSpace({ space: 'abc-mnop-xyz' }, ACCOUNT))
         .rejects.toThrow(/at least one of/);
       expect(mockCall).not.toHaveBeenCalled();
@@ -523,15 +528,44 @@ describe('meetPatch — meeting spaces', () => {
   });
 
   describe('endActiveConference', () => {
-    it('does not claim a meeting was running', async () => {
-      // Google returns an empty body and a 200 whether or not anyone was in the room.
-      // "Ended the meeting" would be a small lie in the case where nobody was.
-      mockCall.mockResolvedValue({});
+    it('resolves the canonical name first, then ends the call', async () => {
+      mockCall
+        .mockResolvedValueOnce({ ...space, name: 'spaces/CANON' })  // spaces.get
+        .mockResolvedValueOnce({});                                  // endActiveConference
       const result = await H.endActiveConference({ space: 'abc-mnop-xyz' }, ACCOUNT);
 
-      expect(mockCall.mock.calls[0][1]).toBe('spaces.endActiveConference');
-      expect(mockCall.mock.calls[0][2]).toEqual({ name: 'spaces/abc-mnop-xyz' });
-      expect(result.text).toContain('confirms the request, not that a meeting was running');
+      expect(mockCall.mock.calls[0][1]).toBe('spaces.get');
+      expect(mockCall.mock.calls[1][1]).toBe('spaces.endActiveConference');
+      expect(mockCall.mock.calls[1][2]).toEqual({ name: 'spaces/CANON' });
+      expect(result.refs.wasActive).toBe(true);
+      expect(result.text).toContain('Everyone who was in it has been disconnected');
+    });
+
+    it('answers plainly when no call is running instead of surfacing a 400', async () => {
+      // Google refuses with FAILED_PRECONDITION when nothing is in progress. The state
+      // the caller asked for already holds, so a raw 400 would invite a retry loop
+      // against a condition that will never change.
+      const refusal = Object.assign(new Error('There is no active conference for the given space.'),
+        { reason: 'FAILED_PRECONDITION' });
+      mockCall
+        .mockResolvedValueOnce({ ...space, name: 'spaces/CANON' })
+        .mockRejectedValueOnce(refusal);
+
+      const result = await H.endActiveConference({ space: 'abc-mnop-xyz' }, ACCOUNT);
+
+      expect(result.refs.wasActive).toBe(false);
+      expect(result.refs.ended).toBe(false);
+      expect(result.text).toContain('nothing to end');
+    });
+
+    it('still throws on any other failure', async () => {
+      const denied = Object.assign(new Error('Permission denied'), { reason: 'PERMISSION_DENIED' });
+      mockCall
+        .mockResolvedValueOnce({ ...space, name: 'spaces/CANON' })
+        .mockRejectedValueOnce(denied);
+
+      await expect(H.endActiveConference({ space: 'abc-mnop-xyz' }, ACCOUNT))
+        .rejects.toThrow('Permission denied');
     });
   });
 
