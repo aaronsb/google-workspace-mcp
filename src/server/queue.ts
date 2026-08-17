@@ -51,7 +51,7 @@ export async function handleQueue(
 ): Promise<HandlerResponse> {
   if (depth > MAX_QUEUE_DEPTH) {
     throw new Error(
-      `queue_operations nested more than ${MAX_QUEUE_DEPTH} deep. Each level multiplies the ` +
+      `bulk_operations nested more than ${MAX_QUEUE_DEPTH} deep. Each level multiplies the ` +
       `work — at 10 operations per queue that ceiling is already 1,000 calls. Flatten the ` +
       `inner queues into their parent.`,
     );

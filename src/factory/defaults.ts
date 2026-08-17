@@ -104,7 +104,7 @@ function formatDefaultAction(data: unknown): HandlerResponse {
   return {
     text: parts.join(''),
     // `id` stays populated whatever Google called the field, so next-steps and
-    // queue_operations references keep resolving.
+    // bulk_operations references keep resolving.
     refs: { id, ...extractScalarRefs(obj) },
   };
 }

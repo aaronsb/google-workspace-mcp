@@ -120,7 +120,7 @@ function flattenTabs(tabs: unknown, depth = 0): FlatTab[] {
  * Render one tab as a titled section, headed by the id that addresses it.
  *
  * The id goes in the TEXT, not just in `refs`. Only `result.text` is returned to the
- * model — `refs` is internal, read by queue_operations for chaining — so a tab id that
+ * model — `refs` is internal, read by bulk_operations for chaining — so a tab id that
  * lives only in refs cannot be used by the agent reading this. Telling a reader to "pass
  * the tabId" while keeping every tabId out of the response is #158's original complaint
  * with a new hiding place.

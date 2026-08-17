@@ -113,7 +113,7 @@ const handCodedSchemas: ToolSchema[] = [
     },
   },
   {
-    name: 'queue_operations',
+    name: 'bulk_operations',
     description: 'Execute multiple operations in sequence. Operations run in order with result references ($0.field) to chain outputs. Use for multi-step workflows.',
     inputSchema: {
       type: 'object',
@@ -159,6 +159,30 @@ const handCodedSchemas: ToolSchema[] = [
   },
 ];
 
+/**
+ * The former name, still advertised and still working. ADR-308.
+ *
+ * Removing it outright would answer an established call with "Unknown tool" and no
+ * indication of what replaced it — MCP client configurations and agent habits both name
+ * it. The schema is shared by reference with `bulk_operations`, so the two cannot drift
+ * and the derived tool enum below fills both at once.
+ *
+ * Remove after one minor release.
+ */
+const DEPRECATED_ALIASES: Record<string, string> = {
+  queue_operations: 'bulk_operations',
+};
+
+for (const [oldName, newName] of Object.entries(DEPRECATED_ALIASES)) {
+  const target = handCodedSchemas.find((t) => t.name === newName);
+  if (!target) continue;
+  handCodedSchemas.push({
+    name: oldName,
+    description: `RENAMED to \`${newName}\`, which does the same thing. This name still works and will be removed in a future release. ${target.description}`,
+    inputSchema: target.inputSchema,
+  });
+}
+
 // Factory-generated schemas from the shared registry
 const factorySchemas: ToolSchema[] = generatedTools.map(t => t.schema);
 
@@ -179,9 +203,11 @@ export const toolSchemas: ToolSchema[] = [
  * what the limit is, rather than by omission here, which would answer a plainly
  * advertised tool with "Unknown tool".
  */
-const queueTool = handCodedSchemas.find(t => t.name === 'queue_operations');
-if (queueTool) {
-  const operations = (queueTool.inputSchema.properties as Record<string, { items: { properties: { tool: { enum: string[] } } } }>).operations;
+const bulkTool = handCodedSchemas.find(t => t.name === 'bulk_operations');
+if (bulkTool) {
+  const operations = (bulkTool.inputSchema.properties as Record<string, { items: { properties: { tool: { enum: string[] } } } }>).operations;
+  // The alias shares this inputSchema object by reference, so it is filled by the same
+  // assignment and cannot disagree about which tools exist.
   operations.items.properties.tool.enum = toolSchemas.map(t => t.name);
 }
 
