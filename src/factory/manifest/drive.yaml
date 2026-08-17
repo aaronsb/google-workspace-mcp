@@ -51,10 +51,10 @@ operations:
         required: true
       name:
         type: string
-        description: "File name in Drive (defaults to local name)"
+        description: "File name in Drive. On `upload`, defaults to the local file's name. On `copy`, the name for the copy — without it Drive names it 'Copy of <original>'. On `update`, the new name (a rename)."
       parentFolderId:
         type: string
-        description: "Destination folder ID"
+        description: "Destination folder ID. On `copy`, defaults to the source file's folder."
 
   viewImage:
     type: detail
@@ -63,7 +63,7 @@ operations:
     params:
       fileId:
         type: string
-        description: "File ID of the image to view"
+        description: "File ID"
         required: true
     defaults:
       supportsAllDrives: true
@@ -75,7 +75,7 @@ operations:
     params:
       fileId:
         type: string
-        description: "File ID to download"
+        description: "File ID"
         required: true
       outputPath:
         type: string
@@ -91,14 +91,14 @@ operations:
     params:
       fileId:
         type: string
-        description: "File ID to copy"
+        description: "File ID"
         required: true
       name:
         type: string
-        description: "Name for the copy (without it, Drive names it 'Copy of <original>')"
+        description: "File name in Drive. On `upload`, defaults to the local file's name. On `copy`, the name for the copy — without it Drive names it 'Copy of <original>'. On `update`, the new name (a rename)."
       parentFolderId:
         type: string
-        description: "Folder ID to place the copy in (defaults to the source's folder)"
+        description: "Destination folder ID. On `copy`, defaults to the source file's folder."
     defaults:
       supportsAllDrives: true
 
@@ -109,11 +109,11 @@ operations:
     params:
       fileId:
         type: string
-        description: "File ID to update"
+        description: "File ID"
         required: true
       name:
         type: string
-        description: "New file name (rename)"
+        description: "File name in Drive. On `upload`, defaults to the local file's name. On `copy`, the name for the copy — without it Drive names it 'Copy of <original>'. On `update`, the new name (a rename)."
       addParents:
         type: string
         description: "Comma-separated folder ID(s) to add as parents (move into a folder)"
@@ -130,7 +130,7 @@ operations:
     params:
       fileId:
         type: string
-        description: "File ID to delete"
+        description: "File ID"
         required: true
     defaults:
       supportsAllDrives: true
@@ -142,7 +142,7 @@ operations:
     params:
       fileId:
         type: string
-        description: "File ID to export"
+        description: "File ID"
         required: true
       mimeType:
         type: string
@@ -150,7 +150,7 @@ operations:
         required: true
       outputPath:
         type: string
-        description: "Local path to save exported file"
+        description: "Local path to save the file"
     defaults:
       supportsAllDrives: true
 
@@ -175,7 +175,7 @@ operations:
     params:
       fileId:
         type: string
-        description: "File ID to share"
+        description: "File ID"
         required: true
       shareEmail:
         type: string
@@ -258,7 +258,7 @@ operations:
         required: true
       content:
         type: string
-        description: "Comment text"
+        description: "Comment text. On `replyToComment`, the reply text."
         required: true
       quotedText:
         type: string
@@ -299,11 +299,11 @@ operations:
         required: true
       commentId:
         type: string
-        description: "Comment ID to reply to"
+        description: "Comment ID"
         required: true
       content:
         type: string
-        description: "Reply text"
+        description: "Comment text. On `replyToComment`, the reply text."
         required: true
     defaults:
       fields: "id, content, htmlContent, author(displayName), createdTime"

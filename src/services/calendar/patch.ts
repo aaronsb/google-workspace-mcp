@@ -185,6 +185,48 @@ function formatAgenda(events: AgendaEvent[], window: { timeMin: string; timeMax:
   };
 }
 
+/**
+ * Fields Google owns. events.update REPLACES the resource, so the existing event is read
+ * and echoed back — but these are server-generated and must not be echoed with it.
+ */
+const READ_ONLY_EVENT_FIELDS = [
+  'kind', 'etag', 'id', 'htmlLink', 'created', 'updated', 'iCalUID', 'sequence',
+  'creator', 'organizer', 'hangoutLink', 'conferenceData', 'eventType',
+];
+
+/**
+ * Remove an event's Meet link, preserving everything else about the event.
+ *
+ * The only call that removes a conference is a full events.update omitting
+ * conferenceData — patch accepts `null` and `{}` with a 200 and changes nothing
+ * (measured). A full update replaces the resource, so anything not echoed back is
+ * DESTROYED: read the event, drop the server-owned fields, layer the caller's changes on
+ * top, and send the result.
+ *
+ * `conferenceDataVersion: 1` is required for the omission to be honoured as a removal
+ * rather than ignored as an unmanaged field.
+ */
+async function removeMeetLink(
+  calendarId: string,
+  eventId: string,
+  changes: Record<string, unknown>,
+  account: string,
+): Promise<Record<string, unknown>> {
+  const existing = await call('calendar', 'events.get',
+    { calendarId, eventId }, { account }) as Record<string, unknown>;
+
+  const preserved: Record<string, unknown> = { ...existing };
+  for (const field of READ_ONLY_EVENT_FIELDS) delete preserved[field];
+
+  return await call('calendar', 'events.update', {
+    calendarId,
+    eventId,
+    conferenceDataVersion: 1,
+    ...preserved,
+    ...changes,
+  }, { account }) as Record<string, unknown>;
+}
+
 export const calendarPatch: ServicePatch = {
   beforeExecute: {
     // Default the range to "from the start of today" when the caller gave none.
@@ -405,9 +447,25 @@ export const calendarPatch: ServicePatch = {
       // Build --params: note the conferenceDataVersion=1 requirement when creating a Meet link.
       const queryParams: Record<string, unknown> = { calendarId, eventId };
 
-      // Optional Meet link attach. Google Calendar does not allow removing a Meet link
-      // via events.patch, so we only handle the "add" case.
-      if (params.meet) {
+      // Optional Meet link.
+      //
+      // ADDING is a patch: conferenceData.createRequest plus conferenceDataVersion=1.
+      //
+      // REMOVING is not, and the comment that used to sit here said Google forbids it.
+      // Measured against live Google, that is not what happens: events.patch with
+      // `conferenceData: null` returns 200 and leaves the link in place, and so does
+      // `conferenceData: {}`. Removal works only through a FULL events.update that omits
+      // conferenceData. Both silent-success shapes, indistinguishable from a refusal —
+      // which is presumably how the claim survived unchallenged.
+      //
+      // events.update REPLACES the resource, so the existing event has to be read and
+      // echoed back. Skipping that is not a style question: a naive update during this
+      // investigation wiped the probe event's `location` without a word.
+      //
+      // None of which the agent should have to know. `meet: false` removes the link;
+      // the read-modify-write lives here. See removeMeetLink below.
+      const removingMeet = params.meet === false;
+      if (params.meet === true) {
         const requestId = `meet-${eventId}-${Date.now()}`;
         body.conferenceData = {
           createRequest: {
@@ -418,16 +476,21 @@ export const calendarPatch: ServicePatch = {
         queryParams.conferenceDataVersion = 1;
       }
 
-      if (Object.keys(body).length === 0) {
+      // Removing the Meet link IS a change, even with no other field set. It used to
+      // fall through to this guard and report "no field to change" for a request that
+      // named one.
+      if (Object.keys(body).length === 0 && !removingMeet) {
         throw new Error(
           'update requires at least one field to change: summary, start, end, description, location, attendees, or meet',
         );
       }
 
-      const data = await call('calendar', 'events.patch', {
-        ...queryParams,
-        ...body,
-      }, { account }) as Record<string, unknown>;
+      const data = removingMeet
+        ? await removeMeetLink(calendarId, eventId, body, account)
+        : await call('calendar', 'events.patch', {
+          ...queryParams,
+          ...body,
+        }, { account }) as Record<string, unknown>;
 
       const changed = Object.keys(body);
       const meetLink = data.hangoutLink ? `\n**Meet:** ${data.hangoutLink}` : '';

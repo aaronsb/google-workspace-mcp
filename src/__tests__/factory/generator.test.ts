@@ -47,8 +47,9 @@ describe('loadManifest', () => {
 });
 
 /**
- * Collisions that ALREADY exist, frozen by fingerprint so new ones fail. Not endorsed —
- * see the issue named in known-param-collisions.txt.
+ * Escape hatch for a collision that cannot be harmonized. Empty since #161, which makes
+ * the test below a hard gate rather than a ratchet. Adding a line is a deliberate act;
+ * see the file's own header before you do.
  */
 const KNOWN_COLLISIONS = new Set(readFileSync(
   new URL('./known-param-collisions.txt', import.meta.url), 'utf-8',
@@ -72,10 +73,14 @@ describe('generateSchema — one declaration per param name', () => {
     // reached the schema. `type` and `enum` are dropped by the same line, so they are
     // checked here too.
     //
-    // The allowlist freezes each collision by FINGERPRINT of its losing text, not by
-    // param name: a name-keyed entry would permit a future third, materially different
-    // description for that same param forever. Change either side of a frozen pair and
-    // this fails, which is the point.
+    // The allowlist is empty (#161), so any collision fails here. It keys on a
+    // FINGERPRINT of the losing text rather than the param name, because a name-keyed
+    // entry would permit a future third, materially different description for that same
+    // param forever.
+    //
+    // The fix for a failure is to harmonize the description — ONE text naming the
+    // operations where meaning actually diverges, as every manifest now does — not to
+    // freeze the collision.
     const manifest = loadManifest();
     const conflicts: string[] = [];
 
