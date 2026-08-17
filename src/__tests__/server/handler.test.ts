@@ -44,15 +44,36 @@ describe('handleToolCall', () => {
     // a tool the server advertises.
     mockQueue.mockResolvedValue(stubResponse);
 
-    await handleToolCall('queue_operations', { operations: [] });
+    await handleToolCall('bulk_operations', { operations: [] });
 
     const [, handlers, depth] = mockQueue.mock.calls[0];
     expect(depth).toBe(1);
     expect(Object.keys(handlers)).toEqual(expect.arrayContaining([
-      'queue_operations', 'manage_contacts', 'manage_email', 'manage_accounts',
+      'bulk_operations', 'queue_operations', 'manage_contacts', 'manage_email', 'manage_accounts',
     ]));
 
     // The nested handler must recurse one level deeper, or the bound never bites.
+    await handlers.bulk_operations({ operations: [] });
+    expect(mockQueue.mock.calls[1][2]).toBe(2);
+  });
+
+  it('routes the queue_operations alias to the same handler (ADR-308)', async () => {
+    // Advertising the old name is not enough — it has to dispatch. A schema-only alias
+    // would list in tools/list and then answer "Unknown tool" when called.
+    mockQueue.mockResolvedValue(stubResponse);
+
+    await handleToolCall('queue_operations', { operations: [] });
+
+    expect(mockQueue).toHaveBeenCalledTimes(1);
+    expect(mockQueue.mock.calls[0][2]).toBe(1);
+  });
+
+  it('lets the old name nest too, so an agent that learned it is not broken one level down', async () => {
+    mockQueue.mockResolvedValue(stubResponse);
+
+    await handleToolCall('bulk_operations', { operations: [] });
+    const [, handlers] = mockQueue.mock.calls[0];
+
     await handlers.queue_operations({ operations: [] });
     expect(mockQueue.mock.calls[1][2]).toBe(2);
   });

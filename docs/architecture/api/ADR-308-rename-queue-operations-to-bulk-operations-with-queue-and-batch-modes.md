@@ -1,0 +1,199 @@
+---
+status: Proposed
+date: 2026-08-17
+deciders:
+  - aaronsb
+related:
+  - ADR-103
+  - ADR-300
+---
+
+# ADR-308: Rename queue_operations to bulk_operations, with queue and batch modes
+
+## Context
+
+`queue_operations` runs several tool calls in sequence, threading results between them with
+`$N.field` references. It is named after its **strategy** rather than its **purpose**: a
+queue is one way to do many things, and the tool exists to do many things.
+
+That naming stopped being cosmetic once the second strategy turned out to be available.
+Google publishes methods that perform one operation across many resources in a single HTTP
+request. Doing 200 contact deletions through the queue costs 200 round trips; Google offers
+to do it in one.
+
+### What Google actually publishes
+
+Measured across all eight services in `descriptor.json`. Every method with `batch` in its
+name falls into one of two groups, and only the second is a bulk *mode*:
+
+**Many edits to ONE resource** — already how these operations work, not a bulk mode:
+
+| Service | Method |
+|---|---|
+| docs | `documents.batchUpdate` |
+| sheets | `spreadsheets.batchUpdate`, `values.batchUpdate`, `values.batchClear`, `values.batchGet` (+ `ByDataFilter` variants) |
+
+`manage_docs write` and every `manage_sheets` write already call these. A caller asking for
+"batch" here would be asking for what they already have.
+
+**One operation across MANY resources** — the real bulk surface:
+
+| Service | Method | Verb |
+|---|---|---|
+| gmail | `users.messages.batchModify` | POST |
+| gmail | `users.messages.batchDelete` | POST |
+| people | `people.batchCreateContacts` | POST |
+| people | `people.batchUpdateContacts` | POST |
+| people | `people.batchDeleteContacts` | POST |
+| people | `people.getBatchGet` | GET |
+
+Six methods, two services. **All six are coverage gaps** — none appears in any manifest.
+`calendar`, `docs`, `drive`, `meet` and `tasks` publish no such method at all, so for those
+services a queue is not a fallback, it is the only thing there is.
+
+An earlier count of this surface said five methods and missed `people.getBatchGet`, which
+is a batch *read*. It also included `sheets.values.batchGet`, which belongs to the first
+group — many ranges within one spreadsheet. Both errors came from reading method names
+rather than what the methods address.
+
+## Decision
+
+Rename the tool to `bulk_operations` and give it a `mode` naming the strategy.
+
+```
+bulk_operations { mode: 'queue' | 'batch', ... }
+```
+
+`mode` defaults to `'queue'`, so every existing call behaves exactly as it does today.
+
+### queue — N operations, N calls, in order
+
+Unchanged. An `operations` array of `{tool, args}`, executed in sequence, with `$N.field`
+references threading a result into a later argument, `onError` of `bail` or `continue`, and
+nesting up to `MAX_QUEUE_DEPTH`. This is the general mechanism: it works for any tool, any
+operation, any mix.
+
+### batch — one call across many resources
+
+```
+bulk_operations {
+  mode: 'batch',
+  tool: 'manage_contacts',
+  operation: 'delete',
+  items: [ {contactId: 'people/c1'}, {contactId: 'people/c2'} ]
+}
+```
+
+One tool, one operation, many items, one HTTP request. Deliberately *not* the queue's
+`operations` array: a batch is a single call and cannot thread `$N` references between its
+items, so borrowing a shape that implies ordering and chaining would advertise semantics
+the mode does not have.
+
+Asking to batch something Google cannot batch fails with the list of what can:
+
+```
+manage_calendar 'delete' cannot be batched — Google publishes no batch method for it.
+Operations that can: manage_email modify, manage_email trash,
+manage_contacts create, manage_contacts update, manage_contacts delete, manage_contacts get.
+Use mode:'queue' instead, which works for every operation.
+```
+
+### Capability is declared in the manifest and checked against the descriptor
+
+An operation opts in by naming the Google method that batches it:
+
+```yaml
+delete:
+  type: action
+  resource: people.deleteContact
+  batch_resource: people.batchDeleteContacts
+```
+
+A test asserts every `batch_resource` resolves in `descriptor.json`, the same way `resource`
+is checked. The list of batchable operations is then *derived* from the manifest at
+startup, never hand-written.
+
+This matters because this repository has now produced the same defect three times: a
+hand-maintained list beside a generated one, drifting silently. `queue_operations`' own tool
+enum was hardcoded and omitted `manage_contacts` for an entire release; `coverage-baseline.json`
+sat a month stale, missing a whole service; and #161 was a hand-kept description diverging
+from what the model was told. A hardcoded list of batchable operations would be the fourth.
+
+### The old name keeps working for one minor release
+
+`queue_operations` stays registered as an alias, dispatching to the same handler, and its
+description says it is renamed. MCP client configurations and agent habits both reference
+it, and a tool that vanishes gives a caller no way to discover what replaced it.
+
+## Consequences
+
+### Positive
+
+- 200 contact deletions become one request instead of 200.
+- Six coverage gaps close, in the two services that publish batch methods.
+- The tool is named for what it does rather than for one of its two strategies.
+- `batch` failing loudly, with the batchable list, teaches the surface at the point of use.
+
+### Negative
+
+- A public tool is renamed. Every rename costs its callers something even with an alias,
+  and the alias has to be removed eventually.
+- Two modes with different input shapes in one tool. The alternative — one shape — was
+  rejected below, but the cost is real: a caller must read which fields go with which mode.
+- Per-item error reporting differs by method. `batchDelete` returns 204 with no body, so a
+  partial failure is not distinguishable per item; `batchCreateContacts` returns a result
+  per contact. The tool cannot present one uniform result shape without inventing detail
+  Google did not send.
+
+### Neutral
+
+- `batch` is narrow and will stay narrow. It covers what Google publishes, which is two
+  services. That is a property of Google's API surface, not of this design.
+- `people.batchUpdateContacts` requires each contact's current `etag`, exactly as the
+  single-contact `update` does. It can be satisfied with one `getBatchGet` followed by one
+  `batchUpdateContacts` — two calls for N contacts, still far better than N — but it is
+  the most involved of the six and lands in the second increment.
+
+## Alternatives Considered
+
+- **Keep the name `queue_operations` and add `mode`.** Rejected: it names the tool after
+  one of the two things it does, and the confusion compounds as soon as `mode: 'batch'`
+  exists inside something called a queue.
+- **Coalesce automatically** — keep the single `operations` array and merge consecutive
+  entries sharing a tool and operation into one batch call. Attractive because it keeps one
+  input shape and needs no new parameter. Rejected: it makes the number of HTTP requests a
+  silent function of argument order, so reordering a list changes cost and error reporting
+  with nothing in the call to say so. The caller should be able to see, in the call they
+  wrote, whether they asked for one request or two hundred.
+- **A separate `batch_operations` tool.** Rejected: two tools whose descriptions differ in
+  one clause is exactly the surface the agent has to disambiguate on every use, and
+  `tools/list` is served once per server, so both would always be advertised.
+- **Expose the batch methods as ordinary operations** — `manage_contacts batchDelete`.
+  Rejected: it spreads bulk semantics across every service's schema, and repeats the
+  `items` parameter in each. The generator flattens all operations into one schema per
+  service and keeps only the first declaration of a repeated parameter name, so per-service
+  `items` parameters would have to be described identically forever (the #161 shape).
+- **Ship the rename without batch.** Rejected as a release: a rename that adds no
+  capability spends the callers' migration cost and returns nothing for it.
+
+## Notes
+
+Delivered in two increments so each is reviewable, split so that nothing advertised is
+inert:
+
+1. **The rename alone** — `bulk_operations`, with `queue_operations` kept as an alias.
+   No behaviour change, no new parameter.
+2. **`mode` and batch** — the `mode` parameter, `batch_resource` in the manifest with its
+   descriptor check, batch execution, and the six methods.
+
+`mode` belongs to the second increment rather than the first. Shipping a `mode: 'batch'`
+the tool cannot execute would advertise a capability in `tools/list` — served once per
+server, to every caller — that answers with an apology. An agent has no way to tell an
+advertised-but-unimplemented option from a broken one.
+
+Both increments land before the release that carries the rename.
+
+Batch size limits are documented by Google as 200 for `batchUpdateContacts` and
+`batchCreateContacts`, 500 for `batchDeleteContacts`, and 1000 ids for the Gmail methods.
+These are to be **verified against live Google** before being enforced, not transcribed —
+this repository has twice found a documented value to be wrong on the wire.

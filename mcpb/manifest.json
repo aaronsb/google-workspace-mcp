@@ -85,8 +85,12 @@
       "description": "Manage files in the workspace sandbox — the exchange point for attachments, downloads, and exports"
     },
     {
+      "name": "bulk_operations",
+      "description": "Execute multiple operations in sequence, chaining results between steps"
+    },
+    {
       "name": "queue_operations",
-      "description": "Chain multiple operations sequentially with result references between steps"
+      "description": "RENAMED to bulk_operations — this name still works and will be removed in a future release"
     }
   ],
   "user_config": {

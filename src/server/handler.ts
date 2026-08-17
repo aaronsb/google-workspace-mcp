@@ -40,18 +40,28 @@ for (const tool of generatedTools) {
 }
 
 /**
- * What a queued operation may call: every tool, including `queue_operations`.
+ * The names that reach the bulk handler. `queue_operations` is the former name, kept
+ * working for one minor release — ADR-308. Both are advertised and both dispatch here.
+ */
+export const BULK_TOOL_NAMES = ['bulk_operations', 'queue_operations'];
+
+/**
+ * What a queued operation may call: every tool, including `bulk_operations` itself.
  *
- * A queue is a tool call like any other, so the set of things it can name is the set of
- * tools — no carve-out, and nothing for a caller to discover by being refused. Nesting is
- * bounded by depth inside handleQueue rather than by omission here, so the limit arrives
- * as a sentence saying what it is instead of an "Unknown tool" for something the server
- * plainly advertises.
+ * A bulk call is a tool call like any other, so the set of things it can name is the set
+ * of tools — no carve-out, and nothing for a caller to discover by being refused. Nesting
+ * is bounded by depth inside handleQueue rather than by omission here, so the limit
+ * arrives as a sentence saying what it is instead of an "Unknown tool" for something the
+ * server plainly advertises.
+ *
+ * The old name is queueable too. An agent that learned it before the rename should not
+ * find it working at the top level and failing one level down.
  */
 function queueableHandlers(depth: number): Record<string, ToolHandler> {
+  const nested: ToolHandler = (params) => handleQueue(params, queueableHandlers(depth + 1), depth + 1);
   return {
     ...domainHandlers,
-    queue_operations: (params) => handleQueue(params, queueableHandlers(depth + 1), depth + 1),
+    ...Object.fromEntries(BULK_TOOL_NAMES.map((name) => [name, nested])),
   };
 }
 
@@ -62,8 +72,8 @@ export async function handleToolCall(
   const currentEpoch = advanceEpoch();
   const tracker = getSessionTracker();
 
-  // Queue wraps the domain handlers (each queued op also advances the epoch)
-  if (toolName === 'queue_operations') {
+  // Bulk wraps the domain handlers (each queued op also advances the epoch)
+  if (BULK_TOOL_NAMES.includes(toolName)) {
     const result = await handleQueue(params, queueableHandlers(1), 1);
     const queueEmail = extractEmailFromQueue(params);
     if (queueEmail) {
