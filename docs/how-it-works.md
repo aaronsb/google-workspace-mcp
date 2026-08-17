@@ -12,7 +12,7 @@ Two phases. Google's API specification is acquired at **build time** and frozen 
 ```mermaid
 flowchart LR
     disco["Google Discovery<br>documents"] --> gen["descriptor generator<br>generate-descriptor.mjs"]
-    gen --> desc[("src/google/descriptor.json<br>233 methods · committed<br>paths · verbs · params · scopes")]
+    gen --> desc[("src/google/descriptor.json<br>257 methods · committed<br>paths · verbs · params · scopes")]
     desc --> gate{{"CI drift gate<br>regenerate and compare"}}
 
     classDef external fill:#f6821f,color:#1a1a1a,stroke:#d97706

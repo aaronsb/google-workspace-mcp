@@ -117,7 +117,7 @@ flowchart LR
 
 ## What it can do
 
-**12 tools across 8 Google services**, plus multi-account handling, batching, content authoring, and a file sandbox.
+**12 tools across 8 Google services**, plus multi-account handling, per-account read-only access, bulk execution, content authoring, and a file sandbox.
 
 | Tool | What It Does |
 |------|--------------|
@@ -132,7 +132,7 @@ flowchart LR
 | `manage_accounts` | Multi-account lifecycle — add accounts, manage credentials and scopes |
 | `manage_scratchpad` | Compose / edit multi-line content (line- or JSON-path-addressed), attach files, send to any target; JSON mode live-syncs to Docs / Sheets |
 | `manage_workspace` | File operations in the workspace sandbox (exchange point for attachments, downloads, exports) |
-| `queue_operations` | Chain operations sequentially with `$N.field` result references |
+| `bulk_operations` | Do many things in one call — chain different operations in sequence with `$N.field` references, or apply one operation to many resources in a single Google request (`queue_operations` still works as an alias) |
 
 Every response carries **next-steps** guidance, so the agent always knows what it can do next.
 
@@ -164,11 +164,20 @@ sequenceDiagram
     A-->>H: Done. Invoice filed, task set for Friday.
 ```
 
-Two things make this work. Every response tells the agent **what it can do next**, so it isn't guessing at the next step. And `queue_operations` lets it run a whole chain in **one call**, feeding each result into the next — so "find the invoice, file it, remind me" is a single round trip rather than four.
+Two things make this work. Every response tells the agent **what it can do next**, so it isn't guessing at the next step. And `bulk_operations` lets it run a whole chain in **one call**, feeding each result into the next — so "find the invoice, file it, remind me" is a single round trip rather than four.
+
+When the work is *the same* operation over many things, it can go further and use one Google request for all of them:
+
+```
+bulk_operations { mode: 'batch', tool: 'manage_email', operation: 'trash',
+                  items: ['msg1', 'msg2', 'msg3', … ] }
+```
+
+Two hundred messages trashed in one round trip instead of two hundred. This is narrow on purpose — it works only where Google publishes a method for it, which today is contacts (create, update, delete, get) and Gmail (trash, label changes). Ask for it anywhere else and the answer names the operations that can, and points you back at sequential mode, which works everywhere.
 
 ## Ask for what's missing
 
-This server exposes **80 operations**, reaching 60 of the **233 methods** Google publishes across those seven APIs. It is a curated subset on purpose: an agent has to *choose* among these, and every method it must weigh is one it can pick wrongly. A tool with 233 operations isn't more capable than one with 80 — it's harder to use correctly.
+This server exposes **95 operations**, reaching 79 of the **257 methods** Google publishes across those eight APIs. It is a curated subset on purpose: an agent has to *choose* among these, and every method it must weigh is one it can pick wrongly. A tool with 257 operations isn't more capable than one with 95 — it's harder to use correctly.
 
 But that judgement was made without you.
 
@@ -176,7 +185,7 @@ But that judgement was made without you.
 
 Every method is listed — what it does, whether we expose it, and a **Request** link that opens a pre-filled issue. The descriptions are Google's own, quoted verbatim, and the page is generated from the same specification the client is built from, so it can't drift from reality.
 
-That page also lists **four whole APIs this server doesn't touch yet** — Chat, Contacts, Slides and Forms — for the same reason: *not targeted* is a decision, not a fact of nature.
+That page also lists **three whole APIs this server doesn't touch yet** — Chat, Slides and Forms — for the same reason: *not targeted* is a decision, not a fact of nature.
 
 A good request **names the task, not the method**:
 
@@ -215,7 +224,29 @@ manage_calendar { "operation": "agenda", "email": "you@gmail.com" }
 manage_drive    { "operation": "search", "email": "you@gmail.com", "query": "quarterly report" }
 ```
 
-### Multi-Step Workflows
+### Give an account read-only access
+
+Some accounts should never be written to. Ask for less at consent time and the **token itself** cannot send, edit or delete — this isn't a rule layered over a broad token:
+
+```
+manage_accounts { "operation": "scopes", "email": "you@gmail.com",
+                  "services": "gmail,drive,contacts", "access": "read" }
+```
+
+Google is asked for the read-only variant of each scope, so ticking every box on the consent screen still yields a read-only token. `manage_accounts status` reports what each account actually holds.
+
+A write from a read-only account is refused before the request leaves, with the account, the operation, and the way back:
+
+```
+'create' needs write access to contacts. Account you@gmail.com was authorized
+read-only for contacts. Re-authorize with manage_accounts {operation:'scopes',
+email:'you@gmail.com', services:'contacts', access:'readwrite'}, or use an
+account that already has it.
+```
+
+Where a service has no read-only scope, you're told which ones and what they'll still be able to do **before** the browser opens.
+
+### Multi-step workflows
 
 Chain operations with result references — the output of one step feeds the next:
 
@@ -227,6 +258,22 @@ Chain operations with result references — the output of one step feeds the nex
   ]
 }
 ```
+
+### One operation, many things
+
+Where Google publishes a method for it, the same operation across many resources costs one request:
+
+```json
+{
+  "mode": "batch",
+  "tool": "manage_contacts",
+  "operation": "delete",
+  "email": "you@gmail.com",
+  "items": ["people/c1", "people/c2", "people/c3"]
+}
+```
+
+Anything shared by the whole batch goes at the top level; `items` carry only what differs — a bare id is enough when that's all it is.
 
 ## Where your data lives
 
@@ -248,7 +295,7 @@ The server builds its Google API client **from Google's own machine-readable API
 
 - **[How it works](docs/how-it-works.md)** — the build-time / runtime split, the descriptor, the factory
 - **[API coverage](docs/coverage.md)** — what's exposed, what isn't, and how to ask for more
-- **[The full API surface](docs/api-surface.md)** — every method Google publishes, plus the four APIs we don't target yet
+- **[The full API surface](docs/api-surface.md)** — every method Google publishes, plus the three APIs we don't target yet
 - **[Architecture decisions](docs/architecture/)** — the ADRs, including why this server owns its Google client outright
 
 ## License
