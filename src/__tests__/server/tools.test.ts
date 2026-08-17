@@ -41,13 +41,12 @@ describe('tool registry', () => {
     // domainHandlers is built from the registry. manage_contacts is what surfaced it.
     const queue = getToolSchema('queue_operations')!;
     const offered = (queue.inputSchema as any).properties.operations.items.properties.tool.enum as string[];
-    const expected = toolSchemas.map(t => t.name).filter(n => n !== 'queue_operations');
 
-    expect([...offered].sort()).toEqual([...expected].sort());
+    // Every tool, with no carve-out — including queue_operations itself. Nesting is
+    // bounded by depth in handleQueue, not by hiding the tool here.
+    expect([...offered].sort()).toEqual([...toolSchemas.map(t => t.name)].sort());
     expect(offered).toContain('manage_contacts');
-    // A queue that can enqueue a queue is a recursion with nothing to gain and a stack
-    // to lose.
-    expect(offered).not.toContain('queue_operations');
+    expect(offered).toContain('queue_operations');
   });
 
   it('all domain tools require operation', () => {

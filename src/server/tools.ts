@@ -168,21 +168,21 @@ export const toolSchemas: ToolSchema[] = [
 ];
 
 /**
- * Point queue_operations at every tool this server advertises.
+ * Point queue_operations at every tool this server advertises — itself included.
  *
  * Done here rather than in the literal above because the factory schemas are not built
  * until `generatedTools` has run, and queue_operations is declared alongside the
  * hand-coded tools that come first.
  *
- * queue_operations excludes itself: a queue that can enqueue a queue is a recursion with
- * no reason to exist and a stack to lose.
+ * There is no carve-out. A queue is a tool call, so the tools a queue may name are the
+ * tools; nesting is bounded by depth in handleQueue, which answers with a sentence saying
+ * what the limit is, rather than by omission here, which would answer a plainly
+ * advertised tool with "Unknown tool".
  */
 const queueTool = handCodedSchemas.find(t => t.name === 'queue_operations');
 if (queueTool) {
   const operations = (queueTool.inputSchema.properties as Record<string, { items: { properties: { tool: { enum: string[] } } } }>).operations;
-  operations.items.properties.tool.enum = toolSchemas
-    .map(t => t.name)
-    .filter(name => name !== 'queue_operations');
+  operations.items.properties.tool.enum = toolSchemas.map(t => t.name);
 }
 
 export function getToolSchema(name: string): ToolSchema | undefined {

@@ -37,6 +37,26 @@ describe('handleToolCall', () => {
     expect(mockCall).not.toHaveBeenCalled();
   });
 
+  it('hands the queue every tool, itself included, and deepens on nesting', async () => {
+    // The queue's own tests build their nesting helper by hand, so they pass whether or
+    // not handler.ts actually wires one up. This is the only place the production wiring
+    // is pinned: without it, `queue_operations` inside a queue answers "Unknown tool" for
+    // a tool the server advertises.
+    mockQueue.mockResolvedValue(stubResponse);
+
+    await handleToolCall('queue_operations', { operations: [] });
+
+    const [, handlers, depth] = mockQueue.mock.calls[0];
+    expect(depth).toBe(1);
+    expect(Object.keys(handlers)).toEqual(expect.arrayContaining([
+      'queue_operations', 'manage_contacts', 'manage_email', 'manage_accounts',
+    ]));
+
+    // The nested handler must recurse one level deeper, or the bound never bites.
+    await handlers.queue_operations({ operations: [] });
+    expect(mockQueue.mock.calls[1][2]).toBe(2);
+  });
+
   it('routes manage_email to factory-generated handler', async () => {
     // triage is a resource op: users.messages.list with an unread-inbox query.
     mockCall.mockResolvedValue({ messages: [] });
@@ -96,7 +116,7 @@ describe('handleToolCall', () => {
       manage_email: expect.any(Function),
       manage_calendar: expect.any(Function),
       manage_drive: expect.any(Function),
-    }));
+    }), 1);   // depth: a top-level queue starts at 1
   });
 
   it('throws on unknown tool name', async () => {
