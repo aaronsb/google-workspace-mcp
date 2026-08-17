@@ -71,7 +71,11 @@ describe('coverage baseline', () => {
     const declared = new Set<string>();
     for (const service of Object.values(loadManifest().services)) {
       for (const op of Object.values(service.operations)) {
-        if (op.resource) declared.add(`${service.google_service}.${op.resource}`);
+        // Batch resources count: the server calls them (ADR-308), and the baseline is
+        // what claims which methods are reachable.
+        for (const resource of [op.resource, op.batch?.resource]) {
+          if (resource) declared.add(`${service.google_service}.${resource}`);
+        }
       }
     }
 

@@ -21,9 +21,6 @@ function buildCoveredPaths(manifest: Manifest): Map<string, { service: string; o
 
   for (const [_serviceName, serviceDef] of Object.entries(manifest.services)) {
     for (const [opName, opDef] of Object.entries(serviceDef.operations)) {
-      const path = opDef.resource;
-      if (!path) continue;
-
       const paramNames = new Set<string>();
       if (opDef.params) {
         for (const [name, paramDef] of Object.entries(opDef.params)) {
@@ -32,11 +29,18 @@ function buildCoveredPaths(manifest: Manifest): Map<string, { service: string; o
         }
       }
 
-      covered.set(path, {
-        service: serviceDef.google_service,
-        opName,
-        params: paramNames,
-      });
+      // An operation reaches its own method AND its batch method where it declares one
+      // (ADR-308). Counting only `resource` reported the five batch methods the server
+      // genuinely calls as gaps — and left this file disagreeing with docs/api-surface.md,
+      // which is generated from the same manifest.
+      for (const path of [opDef.resource, opDef.batch?.resource]) {
+        if (!path) continue;
+        covered.set(path, {
+          service: serviceDef.google_service,
+          opName,
+          params: paramNames,
+        });
+      }
     }
   }
 
