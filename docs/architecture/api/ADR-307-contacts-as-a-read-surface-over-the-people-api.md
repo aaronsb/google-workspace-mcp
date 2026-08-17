@@ -1,0 +1,173 @@
+---
+status: Draft
+date: 2026-08-17
+deciders:
+  - aaronsb
+related:
+  - ADR-103
+  - ADR-202
+  - ADR-300
+---
+
+# ADR-307: Contacts as a read surface over the People API
+
+## Context
+
+"Who is this person and how do I reach them" is a question an agent asks constantly, and
+until now the server could not answer it. Contacts was sequenced deliberately behind
+ADR-202: contact data is the most personal thing in a Workspace account, so the tool
+arrives after the machinery that lets an account be authorized read-only, rather than
+before it.
+
+Three things about the People API shape this design, and all three are the kind of fact
+that a green test suite cannot tell you.
+
+### A Person is parallel arrays, not fields
+
+A name is not a string. It is `names: [{ displayName, metadata: { primary } }, ...]`, and
+every field works the same way — one array per field, each entry carrying its own
+metadata, and the entry that counts flagged rather than ordered first. Handed to the
+generic formatter, a person renders with no name and no address: the same failure as a
+Docs read that returned metadata and no text.
+
+Ordering is the sharp edge. Google does not put the primary entry first; it marks it. On
+a contact with a work address and a personal one, taking `[0]` is a coin flip over which
+address a reply goes to.
+
+### Every read must name the fields it wants
+
+`personFields` and `readMask` are not optimizations. Omit the mask and the call is
+rejected outright — this is not a shape that degrades to a sensible default. The legal
+mask also differs per operation: `otherContacts` refuses `organizations`, which is a 400
+rather than an empty column.
+
+### "Sources" means two different things
+
+The contact operations take `READ_SOURCE_TYPE_*`; the directory operations take
+`DIRECTORY_SOURCE_TYPE_*`, and the directory operations *require* it. Since
+`generateSchema` keeps only the first declaration of a parameter name across a service's
+operations (ADR-300), a single advertised `sources` enum would be silently wrong for
+whichever half lost the race.
+
+### Search returns nothing until the cache is warmed
+
+Google states it on both search methods, in the Discovery document this server generates
+from: *"Before searching, clients should send a warmup request with an empty query to
+update the cache."* A first search without one comes back empty — indistinguishable from
+"you have no contact by that name", and the most convincing wrong answer this tool could
+give.
+
+## Decision
+
+`manage_contacts` exposes **seven read operations and five parameters**. The masks, the
+source types, the sort constants and `people/me` do not appear in the schema at all.
+
+```
+list             people.connections.list        your saved contacts
+search           people.searchContacts
+get              people.get                     one person in full
+listOther        otherContacts.list             addresses seen in mail, never saved
+searchOther      otherContacts.search
+listDirectory    people.listDirectoryPeople     the organization directory
+searchDirectory  people.searchDirectoryPeople
+```
+
+The agent supplies `operation`, `email`, and at most `query`, `contactId`, `maxResults`,
+`pageToken`, `sortOrder`. Everything else the API demands is supplied by the manifest's
+`defaults` — which `buildResourceParams` merges before the call and which never enter the
+generated schema.
+
+This is the factory principle applied rather than bent: *simple for the agent, the tool
+absorbs the routing*. Four response envelopes (`connections`, `otherContacts`, `people`,
+`results[].person`) collapse to one rendered list. Three sort constants become
+`firstName` / `lastName` / `lastModified`, translated in `beforeExecute` — and refused
+there, loudly, if a value arrives that the map does not cover, because the low-level MCP
+handler does not validate against `inputSchema` and an untranslated value would reach
+Google verbatim.
+
+The warmup is absorbed the same way: both search operations fire it in `beforeExecute`,
+once per account per process, and a warmup that fails is swallowed rather than raised —
+if it failed for a reason that matters, the real search is about to fail the same way and
+say so properly.
+
+### Read-only, and scoped in three parts
+
+The tool exposes no writes today. Its scopes are three, because Google gates each
+collection separately, and only the first has a write form:
+
+| collection | read/write | read |
+|---|---|---|
+| your contacts | `contacts` | `contacts.readonly` |
+| other contacts | `contacts.other.readonly` | same |
+| directory | `directory.readonly` | same |
+
+So a contacts account authorized `access: 'read'` under ADR-202 can reach every operation
+the tool has. That is the intended shape: the narrower token costs nothing today, and is
+already in place when writes arrive.
+
+### The enum guard moves rather than lapses
+
+The suite already refuses to advertise a value Google would reject (added with the Meet
+spaces work, after `MODERATION_ON` shipped where Google wanted `ON`). `sortOrder`
+advertises values Google has never heard of, so a naive guard would fail on it.
+
+Waiving the check for translated params would put the first hole in it. Instead the check
+moves to the far side of the translation: a registry names the real map, and the test
+asserts that every advertised value maps, and that every mapped value is one Google
+declares. Both halves were verified by breaking them.
+
+## Consequences
+
+### Positive
+
+- An agent can answer "how do I reach Dana" in one call, with no knowledge of field masks,
+  source constants, or which of four envelope keys this operation used.
+- The three collections are distinct operations rather than a flag, so "search my
+  contacts" and "search the company directory" are different questions with different
+  scopes — and an account can hold one without the other.
+- Contacts arrives already compatible with per-account read-only authorization, which was
+  the reason for sequencing it here.
+
+### Negative
+
+- The masks are a policy decision baked into the manifest. A caller who wants a field
+  outside the chosen set cannot ask for it; widening the mask is a code change.
+- Seven operations is the largest read-only surface in the server, and the directory pair
+  is inert on a personal Google account — it answers with an error that has nothing to do
+  with the caller's request.
+- Adding contacts to an existing account requires re-consent. The scopes are new, so every
+  already-authorized account must pass through `manage_accounts scopes` before
+  `manage_contacts` can call anything.
+
+### Neutral
+
+- No write operations. `createContact`, `updateContact` and `deleteContact` are a separate
+  decision, and each needs the parallel-array body built correctly — a harder problem than
+  reading one, and one worth doing against a live account rather than from the reference.
+- `people.get` needs `profile`, not merely `userinfo.email` — measured, on an account that
+  held the latter and was refused. Nothing in this tool depends on that, but it rules out
+  probing the Person shape without full consent.
+- **Not yet exercised against live Google.** Every operation here is built from the
+  Discovery document and pinned by tests against a mocked seam, which proves what the
+  server SENDS and nothing about what Google returns. The masks, the `sources` values,
+  the per-operation `maxResults` ceilings, and whether the warmup is needed in practice
+  are all unconfirmed until an account is re-consented and each operation is called. This
+  session's own history says that is where the defects are.
+
+## Alternatives Considered
+
+- **One `search` operation with a `scope: contacts|other|directory` flag.** Fewer
+  operations, and it hides the fact that the three are gated by different OAuth scopes.
+  An agent that gets a directory error would have no way to see that its account was never
+  authorized for directory reads.
+- **Expose `personFields` / `readMask` as parameters.** Faithful to the API and hostile to
+  the caller: it makes every contact lookup start with a schema question, and the legal
+  values differ per operation, so the one advertised description would be wrong somewhere.
+- **Expose `sources` with Google's enum.** Rejected because the enum is not one enum. The
+  first declaration would win and silently mislabel the other half.
+- **Advertise Google's sort constants verbatim** and skip the translation. Simpler code,
+  and it leaks `LAST_MODIFIED_DESCENDING` into a tool whose other parameters read like
+  English. The translation is four lines and one registry entry.
+- **Wait for the call-time access policy** before adding contacts. Rejected: the consent
+  half of ADR-202 is what contacts needed, and it has shipped. The call-time half changes
+  the error an account sees, not what it is allowed to do.

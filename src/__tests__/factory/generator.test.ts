@@ -7,6 +7,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { loadManifest, generateTools, generateSchema, generateHandler } from '../../factory/generator.js';
 import { patches } from '../../factory/patches.js';
+import { SORT_ORDERS } from '../../services/contacts/patch.js';
 import type { Manifest, ServiceDef } from '../../factory/types.js';
 
 // ONE seam (ADR-103). Every operation the generator can reach — resource ops via
@@ -116,7 +117,12 @@ describe('manifest type vs the HTTP verb Google uses', () => {
       const [serviceName, opName] = key.split('.');
       const op = manifest.services[serviceName]?.operations?.[opName];
       if (!op) { stale.push(`${key}: no such operation`); continue; }
-      const method = descriptor.services[serviceName]?.methods?.[op.resource ?? ''];
+      // Resolve through google_service, not the manifest filename. They differ:
+      // contacts.yaml declares `google_service: people`, so keying the descriptor by
+      // the filename would report a live exception as stale the moment one was added
+      // for a service whose two names disagree.
+      const service = manifest.services[serviceName];
+      const method = descriptor.services[service.google_service ?? serviceName]?.methods?.[op.resource ?? ''];
       if (!method) { stale.push(`${key}: no descriptor method`); continue; }
 
       const declaredRead = op.type === 'list' || op.type === 'detail';
@@ -129,7 +135,48 @@ describe('manifest type vs the HTTP verb Google uses', () => {
   });
 });
 
+/**
+ * Params whose manifest enum is deliberately NOT Google's vocabulary, because a
+ * beforeExecute hook translates it before the call.
+ *
+ * The check does not go away for these — it moves to the far side of the translation.
+ * The entry names the real map, so what gets verified is what production sends, and a
+ * translation that stopped covering an advertised value fails here.
+ */
+const TRANSLATED_ENUMS: Record<string, Record<string, string>> = {
+  'contacts.list.sortOrder': SORT_ORDERS,
+};
+
 describe('manifest enums against the values Google declares', () => {
+  it('translates every value it advertises, into one Google declares', async () => {
+    const manifest = loadManifest();
+    const descriptor = await loadDescriptor();
+    const wrong: string[] = [];
+
+    for (const [key, translation] of Object.entries(TRANSLATED_ENUMS)) {
+      const [serviceName, opName, paramName] = key.split('.');
+      const service = manifest.services[serviceName];
+      const op = service?.operations?.[opName];
+      const def = op?.params?.[paramName] as { enum?: string[]; maps_to?: string } | undefined;
+      if (!def?.enum?.length) { wrong.push(`${key}: no such param, or it declares no enum`); continue; }
+
+      const target = def.maps_to ?? paramName;
+      const allowed = descriptor.services[service.google_service ?? serviceName]
+        ?.methods?.[op.resource ?? '']?.parameters?.[target]?.enum;
+      if (!allowed?.length) { wrong.push(`${key}: Google declares no enum for '${target}'`); continue; }
+
+      // Advertised but untranslated is the failure that matters: the value reaches
+      // Google verbatim and is rejected, having been offered by our own schema.
+      for (const advertised of def.enum) {
+        const sent = translation[advertised];
+        if (!sent) wrong.push(`${key}: advertises '${advertised}', which the translation does not map`);
+        else if (!allowed.includes(sent)) wrong.push(`${key}: '${advertised}' translates to '${sent}', which Google does not accept`);
+      }
+    }
+
+    expect(wrong).toEqual([]);
+  });
+
   it('never offers the model a value Google would reject', async () => {
     // The descriptor now carries enum values — from method parameters and from schema
     // properties — because request BODIES were otherwise unchecked by anything here. A
@@ -154,6 +201,8 @@ describe('manifest enums against the values Google declares', () => {
         for (const [paramName, def] of Object.entries(op.params ?? {})) {
           const ours = (def as { enum?: string[] }).enum;
           if (!ours?.length) continue;
+          // Checked on the far side of its translation by the test above.
+          if (`${serviceName}.${opName}.${paramName}` in TRANSLATED_ENUMS) continue;
 
           const target = (def as { maps_to?: string }).maps_to ?? paramName;
           const fromParam = svc?.methods?.[op.resource ?? '']?.parameters?.[target]?.enum;
@@ -295,7 +344,7 @@ describe('generateTools', () => {
     expect(names).toContain('manage_sheets');
     expect(names).toContain('manage_tasks');
     expect(names).toContain('manage_meet');
-    // manage_contacts excluded pending auth scope support
+    expect(names).toContain('manage_contacts');
   });
 
   it('each tool has both schema and handler', () => {

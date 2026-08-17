@@ -1,0 +1,292 @@
+/**
+ * Contacts patch tests — the field masks, the four envelopes, and the parallel arrays.
+ */
+import { beforeEach, describe, expect, it, vi, type MockedFunction } from 'vitest';
+
+vi.mock('../../../google/client.js');
+import { call } from '../../../google/client.js';
+const mockCall = call as MockedFunction<typeof call>;
+
+import { loadManifest, generateHandler } from '../../../factory/generator.js';
+import { patches } from '../../../factory/patches.js';
+import { contactsPatch, resetWarmupCache } from '../../../services/contacts/patch.js';
+import type { PatchContext } from '../../../factory/types.js';
+
+const manifest = loadManifest();
+const handler = generateHandler(manifest.services.contacts, patches.contacts);
+
+function ctx(operation: string, params: Record<string, unknown> = {}): PatchContext {
+  return { operation, params, account: 'u@t.com' };
+}
+
+/**
+ * The params handed to Google by the LAST call() — what actually goes on the wire.
+ *
+ * Last, not first: the search operations fire a warmup call ahead of the real one, so
+ * indexing from the front would assert against the warmup and pass while the real
+ * request carried nothing.
+ */
+function sent(): Record<string, unknown> {
+  return mockCall.mock.calls[mockCall.mock.calls.length - 1][2];
+}
+
+beforeEach(() => {
+  mockCall.mockReset();
+  resetWarmupCache();
+});
+
+/**
+ * The People API REJECTS a read that does not name its fields, so a mask that stopped
+ * being sent would break every operation at once — against Google, and nowhere else.
+ *
+ * This is the test that did not exist for `includeTabsContent`: deleting that default
+ * left the suite green and returned the bug it had been added to fix. Each operation is
+ * pinned to the mask it needs, so removing one from the YAML fails here.
+ */
+describe('the field mask every read requires', () => {
+  it.each([
+    ['list',            'personFields', 'names,emailAddresses,phoneNumbers,organizations,metadata'],
+    ['get',             'personFields', 'names,nicknames,emailAddresses,phoneNumbers,addresses,organizations,birthdays,biographies,urls,relations,memberships,photos,metadata'],
+    ['search',          'readMask',     'names,emailAddresses,phoneNumbers,organizations,metadata'],
+    ['listOther',       'readMask',     'names,emailAddresses,phoneNumbers,metadata'],
+    ['searchOther',     'readMask',     'names,emailAddresses,phoneNumbers,metadata'],
+    ['listDirectory',   'readMask',     'names,emailAddresses,phoneNumbers,organizations,metadata'],
+    ['searchDirectory', 'readMask',     'names,emailAddresses,phoneNumbers,organizations,metadata'],
+  ])('%s sends %s', async (operation, key, mask) => {
+    mockCall.mockResolvedValue({});
+    await handler({ operation, email: 'u@t.com', query: 'x', contactId: 'people/c1' });
+    expect(sent()[key]).toBe(mask);
+  });
+
+  it('never asks otherContacts for a field it refuses to return', async () => {
+    // otherContacts accepts a narrower mask than the contact operations: asking it for
+    // organizations is a 400, not an empty column.
+    mockCall.mockResolvedValue({});
+    await handler({ operation: 'listOther', email: 'u@t.com' });
+    expect(String(sent().readMask)).not.toContain('organizations');
+  });
+
+  it('reads the caller`s own connections without making the agent name itself', async () => {
+    mockCall.mockResolvedValue({});
+    await handler({ operation: 'list', email: 'u@t.com' });
+    expect(sent().resourceName).toBe('people/me');
+  });
+
+  it('tells the directory operations which directory to read', async () => {
+    // `sources` is required on both directory operations — omitting it is an error,
+    // not a default.
+    mockCall.mockResolvedValue({});
+    await handler({ operation: 'listDirectory', email: 'u@t.com' });
+    expect(sent().sources).toBe('DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE,DIRECTORY_SOURCE_TYPE_DOMAIN_CONTACT');
+  });
+});
+
+describe('request shaping', () => {
+  it('accepts a person id with or without its people/ prefix', async () => {
+    mockCall.mockResolvedValue({});
+    await handler({ operation: 'get', email: 'u@t.com', contactId: 'c1234567890' });
+    expect(sent().resourceName).toBe('people/c1234567890');
+
+    mockCall.mockReset();
+    mockCall.mockResolvedValue({});
+    await handler({ operation: 'get', email: 'u@t.com', contactId: 'people/c1234567890' });
+    expect(sent().resourceName).toBe('people/c1234567890');
+  });
+
+  it('translates the sort order it advertises into the constant Google wants', async () => {
+    mockCall.mockResolvedValue({});
+    await handler({ operation: 'list', email: 'u@t.com', sortOrder: 'lastModified' });
+    expect(sent().sortOrder).toBe('LAST_MODIFIED_DESCENDING');
+  });
+
+  it('sorts by first name unless asked otherwise', async () => {
+    mockCall.mockResolvedValue({});
+    await handler({ operation: 'list', email: 'u@t.com' });
+    expect(sent().sortOrder).toBe('FIRST_NAME_ASCENDING');
+  });
+
+  it('refuses a sort order it cannot translate, rather than passing it through', async () => {
+    // The low-level MCP handler does not validate against inputSchema, so the advertised
+    // enum stops nothing. Passed through, `LAST_MODIFIED_ASCENDING` would be a Google
+    // 400 blamed on the caller for using a value the API does document.
+    mockCall.mockResolvedValue({});
+    await expect(
+      handler({ operation: 'list', email: 'u@t.com', sortOrder: 'LAST_MODIFIED_ASCENDING' }),
+    ).rejects.toThrow('sortOrder must be one of');
+  });
+
+  it('clamps maxResults to what each operation allows', async () => {
+    mockCall.mockResolvedValue({});
+    await handler({ operation: 'search', email: 'u@t.com', query: 'a', maxResults: 500 });
+    expect(sent().pageSize).toBe(30);
+
+    mockCall.mockReset();
+    mockCall.mockResolvedValue({});
+    await handler({ operation: 'list', email: 'u@t.com', maxResults: 500 });
+    expect(sent().pageSize).toBe(100);
+  });
+});
+
+/**
+ * Six operations, four envelope keys. A shape the reader does not know renders as
+ * "No contacts found" — a confident, wrong answer, and the failure mode this repo has
+ * already shipped once.
+ */
+/**
+ * Google states the requirement on both search methods in the Discovery document this
+ * server generates from: "Before searching, clients should send a warmup request with an
+ * empty query to update the cache." Skipping it returns an empty result set, which reads
+ * as "no such person" — a wrong answer with nothing to distinguish it from a right one.
+ */
+describe('search warmup', () => {
+  it.each([
+    ['search',      'people.searchContacts'],
+    ['searchOther', 'otherContacts.search'],
+  ])('%s warms the cache with an empty query before searching', async (operation, resource) => {
+    mockCall.mockResolvedValue({ results: [] });
+    await handler({ operation, email: 'u@t.com', query: 'dana' });
+
+    expect(mockCall).toHaveBeenCalledTimes(2);
+    expect(mockCall.mock.calls[0][1]).toBe(resource);
+    expect(mockCall.mock.calls[0][2].query).toBe('');
+    expect(mockCall.mock.calls[1][2].query).toBe('dana');
+  });
+
+  it('warms once per account, not once per search', async () => {
+    mockCall.mockResolvedValue({ results: [] });
+    await handler({ operation: 'search', email: 'u@t.com', query: 'a' });
+    await handler({ operation: 'search', email: 'u@t.com', query: 'b' });
+    expect(mockCall).toHaveBeenCalledTimes(3);   // warmup + two searches
+  });
+
+  it('warms each account separately', async () => {
+    // The cache is Google's and it is per user. Warming one account tells us nothing
+    // about the next one.
+    mockCall.mockResolvedValue({ results: [] });
+    await handler({ operation: 'search', email: 'one@t.com', query: 'a' });
+    await handler({ operation: 'search', email: 'two@t.com', query: 'a' });
+    expect(mockCall).toHaveBeenCalledTimes(4);
+  });
+
+  it('searches anyway when the warmup fails', async () => {
+    // A warmup that 403s means the real search is about to 403 with a message worth
+    // reading. Throwing here would replace it with one that is not.
+    mockCall.mockRejectedValueOnce(new Error('warmup exploded'));
+    mockCall.mockResolvedValue({ results: [] });
+    await expect(handler({ operation: 'search', email: 'u@t.com', query: 'dana' })).resolves.toBeDefined();
+    expect(mockCall.mock.calls[1][2].query).toBe('dana');
+  });
+});
+
+describe('the four envelopes', () => {
+  const person = {
+    resourceName: 'people/c1',
+    names: [{ displayName: 'Dana Whitfield' }],
+    emailAddresses: [{ value: 'dana@example.com' }],
+  };
+
+  it.each([
+    ['connections (list)',     { connections: [person] }],
+    ['otherContacts (listOther)', { otherContacts: [person] }],
+    ['people (listDirectory)', { people: [person] }],
+    ['results (search)',       { results: [{ person }] }],
+  ])('reads %s', (_label, data) => {
+    const out = contactsPatch.formatList!(data, ctx('list'));
+    expect(out.text).toContain('Dana Whitfield');
+    expect(out.text).toContain('people/c1');
+    expect(out.refs?.count).toBe(1);
+  });
+
+  it('says a search found nothing, and why it might not have', () => {
+    const out = contactsPatch.formatList!({ results: [] }, ctx('search', { query: 'nna' }));
+    expect(out.text).toContain('No contacts found');
+    expect(out.text).toContain('prefix');
+    expect(out.refs?.count).toBe(0);
+  });
+});
+
+describe('parallel-array fields', () => {
+  it('takes the entry Google FLAGGED primary, not the one that happens to be first', () => {
+    // Google orders these arbitrarily and marks the one that counts. Taking [0] is a
+    // coin flip over which address a reply would go to.
+    const data = {
+      connections: [{
+        resourceName: 'people/c1',
+        names: [{ displayName: 'Old Alias' }, { displayName: 'Dana Whitfield', metadata: { primary: true } }],
+        emailAddresses: [
+          { value: 'stale@example.com' },
+          { value: 'dana@example.com', metadata: { primary: true } },
+        ],
+      }],
+    };
+    const out = contactsPatch.formatList!(data, ctx('list'));
+    expect(out.text).toContain('Dana Whitfield');
+    expect(out.text).toContain('dana@example.com');
+    expect(out.text).not.toContain('stale@example.com');
+  });
+
+  it('names a person who has only an email address', () => {
+    // The whole point of listOther is addresses nobody saved, so most of its rows have
+    // no `names` at all. Rendering them blank throws away the only fact on offer.
+    const out = contactsPatch.formatList!(
+      { otherContacts: [{ resourceName: 'otherContacts/c9', emailAddresses: [{ value: 'ping@example.com' }] }] },
+      ctx('listOther'),
+    );
+    expect(out.text).toContain('ping@example.com');
+    expect(out.text).not.toContain('(no name)');
+  });
+
+  it('renders every address with its label, primary first', () => {
+    const out = contactsPatch.formatDetail!({
+      resourceName: 'people/c1',
+      names: [{ displayName: 'Dana Whitfield' }],
+      emailAddresses: [
+        { value: 'home@example.com', formattedType: 'Home' },
+        { value: 'work@example.com', formattedType: 'Work', metadata: { primary: true } },
+      ],
+      organizations: [{ name: 'Acme', title: 'Field Engineer' }],
+      biographies: [{ value: 'Met at the 2026 offsite.' }],
+    }, ctx('get'));
+
+    expect(out.text).toContain('**Email:** work@example.com (work), home@example.com (home)');
+    expect(out.text).toContain('**Organization:** Acme — Field Engineer');
+    expect(out.text).toContain('Met at the 2026 offsite.');
+    expect(out.refs?.contactId).toBe('people/c1');
+  });
+
+  it('keeps a birthday that has no year', () => {
+    // Google stores the day alone when that is all it was given. Treating a year-less
+    // date as a partial record and dropping it loses the field entirely.
+    const out = contactsPatch.formatDetail!({
+      resourceName: 'people/c1',
+      names: [{ displayName: 'Dana' }],
+      birthdays: [{ date: { month: 3, day: 4 } }],
+    }, ctx('get'));
+    expect(out.text).toContain('**Birthday:** 3-4');
+  });
+});
+
+describe('truncation', () => {
+  it('puts the continuation token in the TEXT, not only in refs', async () => {
+    // `refs` never reaches the model — server.ts returns result.text alone. A token
+    // carried only in refs is a page the agent is told about in a channel it cannot
+    // read, which is how tab ids were lost in #157.
+    mockCall.mockResolvedValue({
+      connections: [{ resourceName: 'people/c1', names: [{ displayName: 'Dana' }] }],
+      nextPageToken: 'CAEQAA',
+      totalPeople: 431,
+    });
+    const out = await handler({ operation: 'list', email: 'u@t.com' });
+    expect(out.text).toContain('CAEQAA');
+    expect(out.text).toContain('pageToken');
+    expect(out.text).toContain('1 of 431');
+  });
+
+  it('says nothing about more pages when there are none', () => {
+    const out = contactsPatch.formatList!(
+      { connections: [{ resourceName: 'people/c1', names: [{ displayName: 'Dana' }] }] },
+      ctx('list'),
+    );
+    expect(out.text).not.toContain('pageToken');
+  });
+});

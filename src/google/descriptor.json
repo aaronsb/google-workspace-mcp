@@ -5112,6 +5112,667 @@
       "servicePath": "",
       "version": "v2"
     },
+    "people": {
+      "discoveryUrl": "https://people.googleapis.com/$discovery/rest?version=v1",
+      "enums": {
+        "AgeRangeType.ageRange": [
+          "AGE_RANGE_UNSPECIFIED",
+          "LESS_THAN_EIGHTEEN",
+          "EIGHTEEN_TO_TWENTY",
+          "TWENTY_ONE_OR_OLDER"
+        ],
+        "Biography.contentType": [
+          "CONTENT_TYPE_UNSPECIFIED",
+          "TEXT_PLAIN",
+          "TEXT_HTML"
+        ],
+        "ContactGroup.groupType": [
+          "GROUP_TYPE_UNSPECIFIED",
+          "USER_CONTACT_GROUP",
+          "SYSTEM_CONTACT_GROUP"
+        ],
+        "MiscKeyword.type": [
+          "TYPE_UNSPECIFIED",
+          "OUTLOOK_BILLING_INFORMATION",
+          "OUTLOOK_DIRECTORY_SERVER",
+          "OUTLOOK_KEYWORD",
+          "OUTLOOK_MILEAGE",
+          "OUTLOOK_PRIORITY",
+          "OUTLOOK_SENSITIVITY",
+          "OUTLOOK_SUBJECT",
+          "OUTLOOK_USER",
+          "HOME",
+          "WORK",
+          "OTHER"
+        ],
+        "Nickname.type": [
+          "DEFAULT",
+          "MAIDEN_NAME",
+          "INITIALS",
+          "GPLUS",
+          "OTHER_NAME",
+          "ALTERNATE_NAME",
+          "SHORT_NAME"
+        ],
+        "Person.ageRange": [
+          "AGE_RANGE_UNSPECIFIED",
+          "LESS_THAN_EIGHTEEN",
+          "EIGHTEEN_TO_TWENTY",
+          "TWENTY_ONE_OR_OLDER"
+        ],
+        "PersonMetadata.objectType": [
+          "OBJECT_TYPE_UNSPECIFIED",
+          "PERSON",
+          "PAGE"
+        ],
+        "ProfileMetadata.objectType": [
+          "OBJECT_TYPE_UNSPECIFIED",
+          "PERSON",
+          "PAGE"
+        ],
+        "Source.type": [
+          "SOURCE_TYPE_UNSPECIFIED",
+          "ACCOUNT",
+          "PROFILE",
+          "DOMAIN_PROFILE",
+          "CONTACT",
+          "OTHER_CONTACT",
+          "DOMAIN_CONTACT"
+        ]
+      },
+      "globalParameters": {
+        "$.xgafv": {
+          "location": "query"
+        },
+        "access_token": {
+          "location": "query"
+        },
+        "alt": {
+          "location": "query"
+        },
+        "callback": {
+          "location": "query"
+        },
+        "fields": {
+          "location": "query"
+        },
+        "key": {
+          "location": "query"
+        },
+        "oauth_token": {
+          "location": "query"
+        },
+        "prettyPrint": {
+          "location": "query"
+        },
+        "quotaUser": {
+          "location": "query"
+        },
+        "uploadType": {
+          "location": "query"
+        },
+        "upload_protocol": {
+          "location": "query"
+        }
+      },
+      "methods": {
+        "contactGroups.batchGet": {
+          "httpMethod": "GET",
+          "parameters": {
+            "groupFields": {
+              "location": "query"
+            },
+            "maxMembers": {
+              "location": "query"
+            },
+            "resourceNames": {
+              "location": "query",
+              "repeated": true
+            }
+          },
+          "path": "v1/contactGroups:batchGet",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts",
+            "https://www.googleapis.com/auth/contacts.readonly"
+          ]
+        },
+        "contactGroups.create": {
+          "httpMethod": "POST",
+          "parameters": {},
+          "path": "v1/contactGroups",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts"
+          ]
+        },
+        "contactGroups.delete": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "deleteContacts": {
+              "location": "query"
+            },
+            "resourceName": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v1/{+resourceName}",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts"
+          ]
+        },
+        "contactGroups.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "groupFields": {
+              "location": "query"
+            },
+            "maxMembers": {
+              "location": "query"
+            },
+            "resourceName": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v1/{+resourceName}",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts",
+            "https://www.googleapis.com/auth/contacts.readonly"
+          ]
+        },
+        "contactGroups.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "groupFields": {
+              "location": "query"
+            },
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "syncToken": {
+              "location": "query"
+            }
+          },
+          "path": "v1/contactGroups",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts",
+            "https://www.googleapis.com/auth/contacts.readonly"
+          ]
+        },
+        "contactGroups.members.modify": {
+          "httpMethod": "POST",
+          "parameters": {
+            "resourceName": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v1/{+resourceName}/members:modify",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts"
+          ]
+        },
+        "contactGroups.update": {
+          "httpMethod": "PUT",
+          "parameters": {
+            "resourceName": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v1/{+resourceName}",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts"
+          ]
+        },
+        "otherContacts.copyOtherContactToMyContactsGroup": {
+          "httpMethod": "POST",
+          "parameters": {
+            "resourceName": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v1/{+resourceName}:copyOtherContactToMyContactsGroup",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts",
+            "https://www.googleapis.com/auth/contacts.other.readonly"
+          ]
+        },
+        "otherContacts.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "readMask": {
+              "location": "query"
+            },
+            "requestSyncToken": {
+              "location": "query"
+            },
+            "sources": {
+              "enum": [
+                "READ_SOURCE_TYPE_UNSPECIFIED",
+                "READ_SOURCE_TYPE_PROFILE",
+                "READ_SOURCE_TYPE_CONTACT",
+                "READ_SOURCE_TYPE_DOMAIN_CONTACT",
+                "READ_SOURCE_TYPE_OTHER_CONTACT"
+              ],
+              "location": "query",
+              "repeated": true
+            },
+            "syncToken": {
+              "location": "query"
+            }
+          },
+          "path": "v1/otherContacts",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts.other.readonly"
+          ]
+        },
+        "otherContacts.search": {
+          "httpMethod": "GET",
+          "parameters": {
+            "pageSize": {
+              "location": "query"
+            },
+            "query": {
+              "location": "query"
+            },
+            "readMask": {
+              "location": "query"
+            }
+          },
+          "path": "v1/otherContacts:search",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts.other.readonly"
+          ]
+        },
+        "people.batchCreateContacts": {
+          "httpMethod": "POST",
+          "parameters": {},
+          "path": "v1/people:batchCreateContacts",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts"
+          ]
+        },
+        "people.batchDeleteContacts": {
+          "httpMethod": "POST",
+          "parameters": {},
+          "path": "v1/people:batchDeleteContacts",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts"
+          ]
+        },
+        "people.batchUpdateContacts": {
+          "httpMethod": "POST",
+          "parameters": {},
+          "path": "v1/people:batchUpdateContacts",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts"
+          ]
+        },
+        "people.connections.list": {
+          "httpMethod": "GET",
+          "parameters": {
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "personFields": {
+              "location": "query"
+            },
+            "requestMask.includeField": {
+              "location": "query"
+            },
+            "requestSyncToken": {
+              "location": "query"
+            },
+            "resourceName": {
+              "location": "path",
+              "required": true
+            },
+            "sortOrder": {
+              "enum": [
+                "LAST_MODIFIED_ASCENDING",
+                "LAST_MODIFIED_DESCENDING",
+                "FIRST_NAME_ASCENDING",
+                "LAST_NAME_ASCENDING"
+              ],
+              "location": "query"
+            },
+            "sources": {
+              "enum": [
+                "READ_SOURCE_TYPE_UNSPECIFIED",
+                "READ_SOURCE_TYPE_PROFILE",
+                "READ_SOURCE_TYPE_CONTACT",
+                "READ_SOURCE_TYPE_DOMAIN_CONTACT",
+                "READ_SOURCE_TYPE_OTHER_CONTACT"
+              ],
+              "location": "query",
+              "repeated": true
+            },
+            "syncToken": {
+              "location": "query"
+            }
+          },
+          "path": "v1/{+resourceName}/connections",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts",
+            "https://www.googleapis.com/auth/contacts.readonly"
+          ]
+        },
+        "people.createContact": {
+          "httpMethod": "POST",
+          "parameters": {
+            "personFields": {
+              "location": "query"
+            },
+            "sources": {
+              "enum": [
+                "READ_SOURCE_TYPE_UNSPECIFIED",
+                "READ_SOURCE_TYPE_PROFILE",
+                "READ_SOURCE_TYPE_CONTACT",
+                "READ_SOURCE_TYPE_DOMAIN_CONTACT",
+                "READ_SOURCE_TYPE_OTHER_CONTACT"
+              ],
+              "location": "query",
+              "repeated": true
+            }
+          },
+          "path": "v1/people:createContact",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts"
+          ]
+        },
+        "people.deleteContact": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "resourceName": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v1/{+resourceName}:deleteContact",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts"
+          ]
+        },
+        "people.deleteContactPhoto": {
+          "httpMethod": "DELETE",
+          "parameters": {
+            "personFields": {
+              "location": "query"
+            },
+            "resourceName": {
+              "location": "path",
+              "required": true
+            },
+            "sources": {
+              "enum": [
+                "READ_SOURCE_TYPE_UNSPECIFIED",
+                "READ_SOURCE_TYPE_PROFILE",
+                "READ_SOURCE_TYPE_CONTACT",
+                "READ_SOURCE_TYPE_DOMAIN_CONTACT",
+                "READ_SOURCE_TYPE_OTHER_CONTACT"
+              ],
+              "location": "query",
+              "repeated": true
+            }
+          },
+          "path": "v1/{+resourceName}:deleteContactPhoto",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts"
+          ]
+        },
+        "people.get": {
+          "httpMethod": "GET",
+          "parameters": {
+            "personFields": {
+              "location": "query"
+            },
+            "requestMask.includeField": {
+              "location": "query"
+            },
+            "resourceName": {
+              "location": "path",
+              "required": true
+            },
+            "sources": {
+              "enum": [
+                "READ_SOURCE_TYPE_UNSPECIFIED",
+                "READ_SOURCE_TYPE_PROFILE",
+                "READ_SOURCE_TYPE_CONTACT",
+                "READ_SOURCE_TYPE_DOMAIN_CONTACT",
+                "READ_SOURCE_TYPE_OTHER_CONTACT"
+              ],
+              "location": "query",
+              "repeated": true
+            }
+          },
+          "path": "v1/{+resourceName}",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts",
+            "https://www.googleapis.com/auth/contacts.other.readonly",
+            "https://www.googleapis.com/auth/contacts.readonly",
+            "https://www.googleapis.com/auth/directory.readonly",
+            "https://www.googleapis.com/auth/user.addresses.read",
+            "https://www.googleapis.com/auth/user.birthday.read",
+            "https://www.googleapis.com/auth/user.emails.read",
+            "https://www.googleapis.com/auth/user.gender.read",
+            "https://www.googleapis.com/auth/user.organization.read",
+            "https://www.googleapis.com/auth/user.phonenumbers.read",
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/userinfo.profile"
+          ]
+        },
+        "people.getBatchGet": {
+          "httpMethod": "GET",
+          "parameters": {
+            "personFields": {
+              "location": "query"
+            },
+            "requestMask.includeField": {
+              "location": "query"
+            },
+            "resourceNames": {
+              "location": "query",
+              "repeated": true
+            },
+            "sources": {
+              "enum": [
+                "READ_SOURCE_TYPE_UNSPECIFIED",
+                "READ_SOURCE_TYPE_PROFILE",
+                "READ_SOURCE_TYPE_CONTACT",
+                "READ_SOURCE_TYPE_DOMAIN_CONTACT",
+                "READ_SOURCE_TYPE_OTHER_CONTACT"
+              ],
+              "location": "query",
+              "repeated": true
+            }
+          },
+          "path": "v1/people:batchGet",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts",
+            "https://www.googleapis.com/auth/contacts.other.readonly",
+            "https://www.googleapis.com/auth/contacts.readonly",
+            "https://www.googleapis.com/auth/directory.readonly",
+            "https://www.googleapis.com/auth/user.addresses.read",
+            "https://www.googleapis.com/auth/user.birthday.read",
+            "https://www.googleapis.com/auth/user.emails.read",
+            "https://www.googleapis.com/auth/user.gender.read",
+            "https://www.googleapis.com/auth/user.organization.read",
+            "https://www.googleapis.com/auth/user.phonenumbers.read",
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/userinfo.profile"
+          ]
+        },
+        "people.listDirectoryPeople": {
+          "httpMethod": "GET",
+          "parameters": {
+            "mergeSources": {
+              "enum": [
+                "DIRECTORY_MERGE_SOURCE_TYPE_UNSPECIFIED",
+                "DIRECTORY_MERGE_SOURCE_TYPE_CONTACT"
+              ],
+              "location": "query",
+              "repeated": true
+            },
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "readMask": {
+              "location": "query"
+            },
+            "requestSyncToken": {
+              "location": "query"
+            },
+            "sources": {
+              "enum": [
+                "DIRECTORY_SOURCE_TYPE_UNSPECIFIED",
+                "DIRECTORY_SOURCE_TYPE_DOMAIN_CONTACT",
+                "DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE"
+              ],
+              "location": "query",
+              "repeated": true
+            },
+            "syncToken": {
+              "location": "query"
+            }
+          },
+          "path": "v1/people:listDirectoryPeople",
+          "scopes": [
+            "https://www.googleapis.com/auth/directory.readonly"
+          ]
+        },
+        "people.searchContacts": {
+          "httpMethod": "GET",
+          "parameters": {
+            "pageSize": {
+              "location": "query"
+            },
+            "query": {
+              "location": "query"
+            },
+            "readMask": {
+              "location": "query"
+            },
+            "sources": {
+              "enum": [
+                "READ_SOURCE_TYPE_UNSPECIFIED",
+                "READ_SOURCE_TYPE_PROFILE",
+                "READ_SOURCE_TYPE_CONTACT",
+                "READ_SOURCE_TYPE_DOMAIN_CONTACT",
+                "READ_SOURCE_TYPE_OTHER_CONTACT"
+              ],
+              "location": "query",
+              "repeated": true
+            }
+          },
+          "path": "v1/people:searchContacts",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts",
+            "https://www.googleapis.com/auth/contacts.readonly"
+          ]
+        },
+        "people.searchDirectoryPeople": {
+          "httpMethod": "GET",
+          "parameters": {
+            "mergeSources": {
+              "enum": [
+                "DIRECTORY_MERGE_SOURCE_TYPE_UNSPECIFIED",
+                "DIRECTORY_MERGE_SOURCE_TYPE_CONTACT"
+              ],
+              "location": "query",
+              "repeated": true
+            },
+            "pageSize": {
+              "location": "query"
+            },
+            "pageToken": {
+              "location": "query"
+            },
+            "query": {
+              "location": "query"
+            },
+            "readMask": {
+              "location": "query"
+            },
+            "sources": {
+              "enum": [
+                "DIRECTORY_SOURCE_TYPE_UNSPECIFIED",
+                "DIRECTORY_SOURCE_TYPE_DOMAIN_CONTACT",
+                "DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE"
+              ],
+              "location": "query",
+              "repeated": true
+            }
+          },
+          "path": "v1/people:searchDirectoryPeople",
+          "scopes": [
+            "https://www.googleapis.com/auth/directory.readonly"
+          ]
+        },
+        "people.updateContact": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "personFields": {
+              "location": "query"
+            },
+            "resourceName": {
+              "location": "path",
+              "required": true
+            },
+            "sources": {
+              "enum": [
+                "READ_SOURCE_TYPE_UNSPECIFIED",
+                "READ_SOURCE_TYPE_PROFILE",
+                "READ_SOURCE_TYPE_CONTACT",
+                "READ_SOURCE_TYPE_DOMAIN_CONTACT",
+                "READ_SOURCE_TYPE_OTHER_CONTACT"
+              ],
+              "location": "query",
+              "repeated": true
+            },
+            "updatePersonFields": {
+              "location": "query"
+            }
+          },
+          "path": "v1/{+resourceName}:updateContact",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts"
+          ]
+        },
+        "people.updateContactPhoto": {
+          "httpMethod": "PATCH",
+          "parameters": {
+            "resourceName": {
+              "location": "path",
+              "required": true
+            }
+          },
+          "path": "v1/{+resourceName}:updateContactPhoto",
+          "scopes": [
+            "https://www.googleapis.com/auth/contacts"
+          ]
+        }
+      },
+      "rootUrl": "https://people.googleapis.com/",
+      "servicePath": "",
+      "version": "v1"
+    },
     "sheets": {
       "discoveryUrl": "https://sheets.googleapis.com/$discovery/rest?version=v4",
       "enums": {
