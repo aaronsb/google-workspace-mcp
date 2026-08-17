@@ -225,7 +225,7 @@ publish-all: check-release-tag mcpb ## Publish to npm, MCP Registry, GitHub Rele
 	@echo "Publishing v$(VERSION) to all channels."
 	@echo "  1. npm (2FA in the browser — passkey/security key)"
 	@echo "  2. MCP Registry (requires GitHub auth)"
-	@echo "  3. GitHub Release (with the .mcpb bundle)"
+	@echo "  3. GitHub Release (reconciles the one CI made on tag push)"
 	@echo ""
 	@read -p "Continue? [y/N] " confirm && [ "$$confirm" = "y" ] || (echo "Aborted." && exit 1)
 	@echo ""
@@ -247,8 +247,35 @@ publish-all: check-release-tag mcpb ## Publish to npm, MCP Registry, GitHub Rele
 	mcp-publisher publish server.json
 	@echo ""
 	@echo "── GitHub Release ──"
-	@read -p "Release notes (one line, or empty for default): " notes; \
-	if [ -z "$$notes" ]; then notes="Release v$(VERSION)"; fi; \
-	gh release create "v$(VERSION)" --title "v$(VERSION)" --notes "$$notes" google-workspace-mcp-*.mcpb
+	@# RECONCILE, not create. The tag push already triggered release-mcpb.yml, which
+	@# creates the release with --generate-notes and uploads the bundle — so a bare
+	@# `gh release create` here fails "already exists" on EVERY release, and a red exit
+	@# at the end of a publish trains you to ignore the exit code of a publish. Run this
+	@# before CI finishes and the release is genuinely absent, so handle both.
+	@#
+	@# The bundle is named EXACTLY, never globbed. `google-workspace-mcp-*.mcpb` matched
+	@# the per-platform bundles of the mcpb-all era, which this repo stopped producing but
+	@# which still sit in working trees — and it does NOT match today's single output. On
+	@# v4.2.0 that glob resolved to two THREE-POINT-OH bundles from a year earlier while
+	@# omitting the one just built. Only the duplicate-release error stopped them shipping.
+	@bundle=google-workspace-mcp.mcpb; \
+	[ -f "$$bundle" ] || { echo "no $$bundle — run 'make mcpb'"; exit 1; }; \
+	packed=$$(unzip -p "$$bundle" manifest.json 2>/dev/null | sed -n 's/.*"version"[^"]*"\([^"]*\)".*/\1/p' | head -1); \
+	if [ -z "$$packed" ]; then \
+	  echo "warn: cannot read a version out of $$bundle (no unzip?) — staleness unchecked"; \
+	elif [ "$$packed" != "$(VERSION)" ]; then \
+	  echo "$$bundle holds v$$packed, but this is the v$(VERSION) publish."; \
+	  echo "  Attaching it would ship the wrong code under this tag. Rebuild: make mcpb"; exit 1; \
+	fi; \
+	read -p "Release notes (one line, or empty to keep the notes CI generated): " notes; \
+	if gh release view "v$(VERSION)" >/dev/null 2>&1; then \
+	  echo "gh: v$(VERSION) already exists (CI creates it on tag push) — updating in place"; \
+	  if [ -n "$$notes" ]; then gh release edit "v$(VERSION)" --notes "$$notes"; fi; \
+	  gh release upload "v$(VERSION)" "$$bundle" --clobber; \
+	elif [ -n "$$notes" ]; then \
+	  gh release create "v$(VERSION)" --title "v$(VERSION)" --notes "$$notes" "$$bundle"; \
+	else \
+	  gh release create "v$(VERSION)" --title "v$(VERSION)" --generate-notes "$$bundle"; \
+	fi
 	@echo ""
 	@echo "v$(VERSION) published to all channels."
