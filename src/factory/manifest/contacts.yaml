@@ -109,7 +109,11 @@ operations:
         type: string
         description: "Free-text note stored on the contact"
     defaults:
-      personFields: names,emailAddresses,phoneNumbers,organizations,metadata
+      # Echoes back EVERY field this operation can write. Live, the shorter read mask
+      # confirmed a create without the note it had just stored — a confirmation that
+      # drops a field the caller supplied is indistinguishable from one that dropped it
+      # on the way in.
+      personFields: names,emailAddresses,phoneNumbers,organizations,biographies,metadata
 
   # --- Other contacts: addresses seen in mail, never saved ---
 

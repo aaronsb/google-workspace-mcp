@@ -195,6 +195,16 @@ describe('create builds the Person body', () => {
       .rejects.toThrow('needs at least one of');
   });
 
+  it('echoes back every field it can write, so the note is not silently dropped', async () => {
+    // Live, the create confirmation omitted a note it had just stored, because the read
+    // mask on the write was narrower than the write itself.
+    mockCall.mockResolvedValue({});
+    await handler({ operation: 'create', email: 'u@t.com', notes: 'x' });
+    for (const field of ['names', 'emailAddresses', 'phoneNumbers', 'organizations', 'biographies']) {
+      expect(String(sent().personFields)).toContain(field);
+    }
+  });
+
   it('reports the new id, which is the only handle on what it just made', async () => {
     mockCall.mockResolvedValue({
       resourceName: 'people/c777',

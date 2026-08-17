@@ -3,6 +3,8 @@ description: Service factory manifest expansion, patch development, operation co
 vocabulary: manifest operation patch formatter service factory coverage gws yaml generator handler hooks custom hydration schema defaults lint discover curate
 pattern: manifest|patch\.ts|factory|coverage
 files: src/factory/|src/services/
+threshold: 2.0
+scope: agent, subagent
 ---
 # Service Factory Development
 
