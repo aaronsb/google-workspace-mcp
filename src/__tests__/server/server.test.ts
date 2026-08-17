@@ -41,6 +41,7 @@ vi.mock('@modelcontextprotocol/sdk/types.js', () => ({
 vi.mock('../../server/handler.js');
 
 import { createServer } from '../../server/server.js';
+import { getActivePolicies } from '../../factory/safety.js';
 import { handleToolCall } from '../../server/handler.js';
 import { GoogleApiError } from '../../google/errors.js';
 import type { HandlerResponse } from '../../server/handler.js';
@@ -68,6 +69,16 @@ describe('createServer', () => {
   it('registers ListTools and CallTool handlers', () => {
     expect(listToolsHandler).toBeInstanceOf(Function);
     expect(callToolHandler).toBeInstanceOf(Function);
+  });
+
+  // Pins the wiring, not the policy. account-access enforces the access level the USER
+  // chose at consent time (ADR-202), so it is the one policy that must be active with no
+  // GWS_SAFETY_POLICY set — otherwise a read-only account silently keeps full authority
+  // and the consent half becomes decorative. Nothing else fails if this line is deleted:
+  // the policy's own tests configure it directly and stay green.
+  it('activates account-access with no GWS_SAFETY_POLICY set', () => {
+    expect(process.env.GWS_SAFETY_POLICY).toBeFalsy();
+    expect(getActivePolicies().map((p) => p.name)).toContain('account-access');
   });
 
   describe('ListTools handler', () => {

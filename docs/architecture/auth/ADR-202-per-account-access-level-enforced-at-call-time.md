@@ -93,6 +93,46 @@ The manifest's `type:` is the declared intent; the descriptor's `httpMethod` and
 - **Enforce only at the token.** Simplest — let Google reject the call. Rejected because the agent gets a 403 with no idea which account, which scope, or how to fix it, and because the failure arrives after the request has left.
 - **Per-operation access levels.** More precise than per-service, and not something Google sells: its scopes cover whole services, so per-operation limits would be enforced entirely by us while the token stayed broad. The gap between what the token permits and what we enforce is exactly where a bypass lives.
 
+## Update — 2026-08-17: the call-time policy landed
+
+Four things the design above left open, settled by building it.
+
+**The policy is always on.** Every other policy in `src/factory/safety.ts` is an operator
+opt-in through `GWS_SAFETY_POLICY`. This one is not, because it enforces a choice the
+*user* already made at consent time — requiring a second opt-in to honour the first would
+make the first decorative. It is a no-op for read/write accounts, which is every account
+by default. A test pins the wiring, since deleting it would leave the policy's own tests
+green while the server stopped enforcing anything.
+
+**Seven of 95 operations have no `resource`,** because they are custom handlers that make
+several calls — and six of the seven are writes (`gmail.send`, `reply`, `replyAll`,
+`forward`, `drive.upload`, `calendar.create`). Enforcing only where the descriptor has an
+entry would exempt exactly the operations most worth enforcing, so those fall back to the
+manifest's `type`, which the existing test already pins against `httpMethod`.
+
+**Write scopes are the read/write set minus the read-only set,** not the read/write set.
+`contacts` and `meet` both carry read-only scopes *inside* their read/write set because
+the service needs them at either level. Without the subtraction, a read-only contacts
+account holding `directory.readonly` intersects `SERVICE_SCOPE_MAP.contacts` and a write
+is permitted. Found by writing the test, not by reading the code.
+
+**Measured, and it vindicates deriving from the descriptor:** across every action-typed
+operation, exactly one is satisfiable by a read-only token — `drive.export`, which is a
+GET the manifest labels an action. Google accepts `drive.readonly` for `files.export`, so
+allowing it is correct. A hand-kept list of write operations would have refused a read the
+token genuinely permits.
+
+The policy **fails open** on every uncertainty: no credential, unreadable credential, no
+scopes, no manifest info, unknown method. A safety check that blocks on its own doubt is
+an outage, and each of these reaches Google, which refuses it independently if it should
+be refused.
+
+Still open: `confirmWriteAccess: true` can be sent on the first call, skipping the warning
+entirely, since nothing server-side remembers having warned. Note also that the gate is
+currently unreachable from any real input — every service in the map now has a read-only
+scope, `meet` included via `meetings.space.readonly`. It guards the first service added
+without one.
+
 ## Notes
 
 Issue #130 proposed the consent half of this and its author offered a working branch. This ADR extends that proposal with the call-time half, which the tool-surface constraint forces. Credit for the original proposal and the `SERVICE_SCOPE_MAP_READONLY` shape is theirs.
