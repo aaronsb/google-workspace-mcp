@@ -11,10 +11,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
+    - uses: actions/checkout@v7
+    - uses: actions/setup-node@v7
       with:
-        node-version: '22'
+        node-version: '24'
         cache: 'npm'
     - run: npm ci
     # Every test file must be run by some gate. `npm test` uses an allowlist of
@@ -32,10 +32,10 @@ jobs:
     # ts-jest used to cover this on every `npm test`; nothing else does now.
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
+    - uses: actions/checkout@v7
+    - uses: actions/setup-node@v7
       with:
-        node-version: '22'
+        node-version: '24'
         cache: 'npm'
     - run: npm ci
     - run: npm run type-check
@@ -43,10 +43,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
+    - uses: actions/checkout@v7
+    - uses: actions/setup-node@v7
       with:
-        node-version: '22'
+        node-version: '24'
         cache: 'npm'
     - run: npm ci
     - run: npm run build
@@ -70,14 +70,14 @@ jobs:
     # installs, and all a consumer gets.
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
+    - uses: actions/checkout@v7
+    - uses: actions/setup-node@v7
       with:
-        node-version: '22'
+        node-version: '24'
         cache: 'npm'
     - run: npm ci
     - run: npm run build
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v7
       with:
         node-version: '22.12.0'   # == engines.node in package.json. Keep in sync.
     - run: rm -rf node_modules && npm ci --omit=dev
@@ -101,14 +101,14 @@ jobs:
     # protects the dynamic import.
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
+    - uses: actions/checkout@v7
+    - uses: actions/setup-node@v7
       with:
-        node-version: '22'
+        node-version: '24'
         cache: 'npm'
     - run: npm ci
     - run: npm run build
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v7
       with:
         node-version: '20.19.0'   # deliberately BELOW the floor — that is the point
     - run: rm -rf node_modules && npm ci --omit=dev
@@ -129,10 +129,10 @@ jobs:
     # never the one under test. Verified to fail against the pre-fix entrypoint.
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
+    - uses: actions/checkout@v7
+    - uses: actions/setup-node@v7
       with:
-        node-version: '22'
+        node-version: '24'
         cache: 'npm'
     - run: npm ci
     - run: npm run build
@@ -141,10 +141,10 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
+    - uses: actions/checkout@v7
+    - uses: actions/setup-node@v7
       with:
-        node-version: '22'
+        node-version: '24'
         cache: 'npm'
     - run: npm ci
     - run: npm run lint

@@ -96,6 +96,31 @@ converted too.
 - The workflow must stay on a Node whose npm satisfies the trusted-publishing floor, which is
   a second version coupling in CI alongside `engines-floor`.
 
+## Update — 2026-08-17: the MCP Registry half also converted
+
+Written above: *"The MCP Registry step still runs from `make publish-all` and still needs a
+human. This ADR does not convert it."* It does now, in the same workflow file, as a second
+job gated on the npm job by `needs:`.
+
+Two things settled it. `mcp-publisher` already ships a `github-oidc` login mode, and the
+registry derives authority differently from npm: it reads the `repository_owner` claim out
+of the OIDC token and grants `io.github.<owner>/*` from that alone. No registry-side
+configuration exists to set up — and equally, none exists to protect the namespace if this
+repository's owner ever changes.
+
+The evidence that the manual step was worth removing was already on the registry: it held
+2.7.1, 3.0.0, 4.0.0, 4.0.1, 4.2.0 and 4.2.1 — **v4.1.0 was skipped entirely and nothing
+noticed**, because the step depended on someone remembering it. That is the same argument
+this ADR made about the expired token, arriving by a different route.
+
+Ordering is load-bearing: `server.json` advertises the npm package at the version being
+released, so publishing the registry entry before npm would point people at a tarball that
+does not exist. The registry job also asserts `server.json`'s two version fields against the
+tag, since `version-sync` writing them and the tag naming them are separate facts.
+
+`make publish-all` remains the fallback for both channels, and its registry step now skips a
+version already published, matching what its npm step does.
+
 ## Alternatives Considered
 
 - **Keep publishing by hand.** Rejected: it is what produced the v4.3.0 delay and both
