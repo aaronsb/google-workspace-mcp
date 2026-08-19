@@ -42,9 +42,10 @@
   "devDependencies": {
     "@types/node": "^20.11.24",
     "@types/sanitize-html": "^2.16.1",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
     "eslint": "^8.56.0",
+    "typescript": "^5.9.3",
     "vitest": "^4.1.10"
   },
   "engines": {
