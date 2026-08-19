@@ -464,6 +464,121 @@ describe('calendarPatch', () => {
         { email: 'c@d.com' },
       ]);
     });
+
+    describe('all-day events (allDay: true)', () => {
+      it('sends date fields, with an EXCLUSIVE end computed from the inclusive last day', async () => {
+        // The Calendar API's all-day end date is one day AFTER the last day of
+        // the event. The caller thinks in inclusive days, so '2026-07-12' as the
+        // last day must become end.date '2026-07-13'.
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        await calendarPatch.customHandlers!.create(
+          { summary: 'Vacation', start: '2026-07-12', end: '2026-07-12', allDay: true },
+          'user@test.com',
+        );
+
+        const request = await requestFor('calendar', 'events.insert', mockCall.mock.calls[0][2]);
+        expect(request.body!.start).toEqual({ date: '2026-07-12' });
+        expect(request.body!.end).toEqual({ date: '2026-07-13' });
+        expect(request.body!.dateTime).toBeUndefined();
+      });
+
+      it('extends a multi-day inclusive range by one day for the API', async () => {
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        await calendarPatch.customHandlers!.create(
+          { summary: 'Conference', start: '2026-07-12', end: '2026-07-14', allDay: true },
+          'user@test.com',
+        );
+
+        const request = await requestFor('calendar', 'events.insert', mockCall.mock.calls[0][2]);
+        expect(request.body!.start).toEqual({ date: '2026-07-12' });
+        expect(request.body!.end).toEqual({ date: '2026-07-15' });
+      });
+
+      it('defaults a missing end to the start date (a one-day event)', async () => {
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        await calendarPatch.customHandlers!.create(
+          { summary: 'Birthday', start: '2026-07-12', allDay: true },
+          'user@test.com',
+        );
+
+        const request = await requestFor('calendar', 'events.insert', mockCall.mock.calls[0][2]);
+        expect(request.body!.start).toEqual({ date: '2026-07-12' });
+        expect(request.body!.end).toEqual({ date: '2026-07-13' });
+      });
+
+      it('uses the date part when an ISO datetime is passed', async () => {
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        await calendarPatch.customHandlers!.create(
+          { summary: 'Holiday', start: '2026-07-12T00:00:00Z', end: '2026-07-14T23:59:59Z', allDay: true },
+          'user@test.com',
+        );
+
+        const request = await requestFor('calendar', 'events.insert', mockCall.mock.calls[0][2]);
+        expect(request.body!.start).toEqual({ date: '2026-07-12' });
+        expect(request.body!.end).toEqual({ date: '2026-07-15' });
+      });
+
+      it('rejects values that are not dates', async () => {
+        await expect(
+          calendarPatch.customHandlers!.create(
+            { summary: 'X', start: 'noon-ish', allDay: true },
+            'user@test.com',
+          ),
+        ).rejects.toThrow(/YYYY-MM-DD/);
+        expect(mockCall).not.toHaveBeenCalled();
+      });
+
+      it('still requires an end for TIMED events (the all-day-only relaxation)', async () => {
+        await expect(
+          calendarPatch.customHandlers!.create(
+            { summary: 'Meeting', start: '2026-07-12T09:00:00Z' },
+            'user@test.com',
+          ),
+        ).rejects.toThrow(/end is required for timed events/);
+        expect(mockCall).not.toHaveBeenCalled();
+      });
+
+      it('renders the inclusive range and marks the event all-day', async () => {
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        const result = await calendarPatch.customHandlers!.create(
+          { summary: 'Trip', start: '2026-07-12', end: '2026-07-14', allDay: true },
+          'user@test.com',
+        );
+
+        expect(result.text).toContain('(all day)');
+        expect(result.text).toContain('**When:** 2026-07-12 – 2026-07-14');
+        expect(result.refs.allDay).toBe(true);
+        expect(result.refs.start).toBe('2026-07-12');
+        expect(result.refs.end).toBe('2026-07-14');
+      });
+
+      it('renders a single-day event as just its date', async () => {
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        const result = await calendarPatch.customHandlers!.create(
+          { summary: 'Trip', start: '2026-07-12', allDay: true },
+          'user@test.com',
+        );
+
+        expect(result.text).toContain('**When:** 2026-07-12');
+        expect(result.text).not.toContain(' – ');
+      });
+
+      it('scopes the Meet idempotency key to allDay so timed/all-day twins differ', async () => {
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        await calendarPatch.customHandlers!.create(
+          { summary: 'X', start: '2026-07-12', end: '2026-07-12', allDay: true, meet: true },
+          'user@test.com',
+        );
+        await calendarPatch.customHandlers!.create(
+          { summary: 'X', start: '2026-07-12T00:00:00Z', end: '2026-07-12T01:00:00Z', meet: true },
+          'user@test.com',
+        );
+
+        const requestIdOf = (i: number) =>
+          ((mockCall.mock.calls[i][2].conferenceData as any).createRequest.requestId as string);
+        expect(requestIdOf(0)).not.toBe(requestIdOf(1));
+      });
+    });
   });
 
   describe('update custom handler', () => {
@@ -511,6 +626,33 @@ describe('calendarPatch', () => {
       const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[0][2])).body!;
       expect(body.start).toEqual({ dateTime: '2026-05-01T10:00:00Z' });
       expect(body.end).toEqual({ dateTime: '2026-05-01T11:00:00Z' });
+    });
+
+    it('maps start and end to exclusive date fields when allDay: true', async () => {
+      mockCall.mockResolvedValue({ id: 'evt-1' });
+      await calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', start: '2026-07-12', end: '2026-07-14', allDay: true },
+        'user@test.com',
+      );
+
+      const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[0][2])).body!;
+      expect(body.start).toEqual({ date: '2026-07-12' });
+      expect(body.end).toEqual({ date: '2026-07-15' });
+    });
+
+    it('treats an all-day end patched alone as a one-day event on that date', async () => {
+      // The manifest tells callers to pass both start and end when moving an
+      // all-day event; an end without a start has no anchor, so it becomes a
+      // single-day event on that date (exclusive end = date + 1).
+      mockCall.mockResolvedValue({ id: 'evt-1' });
+      await calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', end: '2026-07-20', allDay: true },
+        'user@test.com',
+      );
+
+      const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[0][2])).body!;
+      expect(body.end).toEqual({ date: '2026-07-21' });
+      expect(body.start).toBeUndefined();
     });
 
     it('converts comma-separated attendees string into array of {email}', async () => {

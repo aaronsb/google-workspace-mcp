@@ -326,7 +326,9 @@ export function formatEventList(data: unknown): HandlerResponse {
     const summary = String(event.summary ?? '(no title)');
     const start = formatEventTime(event.start);
     const end = formatEventTime(event.end);
-    const timeRange = formatTimeRange(start, end);
+    const timeRange = isAllDay(event.start)
+      ? formatAllDayRange(start, end)
+      : formatTimeRange(start, end);
     const location = event.location ? ` | ${event.location}` : '';
     const attendeeCount = Array.isArray(event.attendees) ? event.attendees.length : 0;
     const attendees = attendeeCount > 0 ? ` | ${attendeeCount} attendee${attendeeCount > 1 ? 's' : ''}` : '';
@@ -365,7 +367,7 @@ export function formatEventDetail(data: unknown): HandlerResponse {
   const parts: string[] = [
     `## ${summary}`,
     '',
-    `**When:** ${formatTimeRange(start, end)}`,
+    `**When:** ${isAllDay(event.start) ? formatAllDayRange(start, end) : formatTimeRange(start, end)}`,
   ];
 
   if (location) parts.push(`**Where:** ${location}`);
@@ -484,6 +486,45 @@ function formatEventTime(time: unknown): string {
   if (!time) return '';
   const t = time as Record<string, string>;
   return t.dateTime ?? t.date ?? '';
+}
+
+/** True when the event's start is a bare date — an all-day event, not a timed one. */
+function isAllDay(time: unknown): boolean {
+  const t = time as Record<string, unknown> | undefined;
+  return Boolean(t && typeof t.date === 'string' && !t.dateTime);
+}
+
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/**
+ * "Sat, Aug 20" from a YYYY-MM-DD, built from UTC components. Parsing the bare
+ * date with `new Date()` yields UTC midnight, which then shifts a day in most
+ * timezones — the all-day display must not depend on the viewer's offset.
+ */
+function formatDateLabel(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number);
+  if (!y || !m || !d) return ymd;
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return `${WEEKDAY_SHORT[dow]}, ${MONTH_SHORT[m - 1]} ${d}`;
+}
+
+/**
+ * All-day range for display. The Calendar API's end date is EXCLUSIVE (one day
+ * after the last day of the event), so the last day shown is `end - 1`; a
+ * single-day event renders as just its date.
+ */
+function formatAllDayRange(startDate: string, endDate?: string): string {
+  let lastDay = startDate;
+  if (endDate && endDate > startDate) {
+    const last = new Date(`${endDate}T00:00:00Z`);
+    last.setUTCDate(last.getUTCDate() - 1);
+    lastDay = last.toISOString().slice(0, 10);
+  }
+  const range = lastDay === startDate
+    ? formatDateLabel(startDate)
+    : `${formatDateLabel(startDate)} – ${formatDateLabel(lastDay)}`;
+  return `${range} (all day)`;
 }
 
 function formatTimeRange(start: string, end: string): string {
