@@ -69,6 +69,7 @@ function fingerprint(message: string): string {
 const TYPE_EXCEPTIONS: Record<string, string> = {
   'calendar.freebusy': 'a read shaped as POST — freebusy.query sends its time range in a body',
   'drive.export': 'declared an action because it writes a local file, but the API call is a GET',
+  'gmail.archive': 'declared an action because it writes a local markdown file, but the API call is a GET',
 };
 
 describe('manifest type vs the HTTP verb Google uses', () => {

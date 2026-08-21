@@ -46,6 +46,22 @@ operations:
     defaults:
       userId: me
 
+  archive:
+    type: action
+    description: "save an email's headers and body to a markdown file in the workspace — a LOCAL archive, not Gmail's 'remove from inbox' (attachments are listed, not downloaded)"
+    resource: users.messages.get
+    params:
+      messageId:
+        type: string
+        description: "Email message ID"
+        required: true
+        maps_to: id
+      outputPath:
+        type: string
+        description: "Local path to save the markdown file (workspace-relative; defaults to a slug from the message date and subject)"
+    defaults:
+      userId: me
+
   send:
     type: action
     description: "compose and send a new email (creates draft when attachments present, 35MB attachment limit via upload endpoint)"
