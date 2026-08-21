@@ -469,3 +469,192 @@ describe('drivePatch custom handlers', () => {
     });
   });
 });
+
+describe('drivePatch folder, trash, and role handlers', () => {
+  beforeEach(() => {
+    mockCall.mockReset();
+  });
+
+  describe('createFolder', () => {
+    it('posts a folder with the folder MIME type in the body', async () => {
+      mockCall.mockResolvedValueOnce({ id: 'folder-1', name: 'Matter 12345', mimeType: 'application/vnd.google-apps.folder' });
+
+      const handler = drivePatch.customHandlers!.createFolder!;
+      const result = await handler({ name: 'Matter 12345' }, 'user@test.com');
+
+      const [service, resourcePath, params] = mockCall.mock.calls[0];
+      expect(service).toBe('drive');
+      expect(resourcePath).toBe('files.create');
+
+      const request = await requestFor('drive', 'files.create', params);
+      expect(request.method).toBe('POST');
+      expect(request.body).toMatchObject({ name: 'Matter 12345', mimeType: 'application/vnd.google-apps.folder' });
+      expect(request.body!.parents).toBeUndefined();
+
+      expect(result.refs.folderId).toBe('folder-1');
+      expect(result.refs.fileId).toBe('folder-1');
+      expect(result.text).toContain('Folder created: **Matter 12345**');
+    });
+
+    it('nests under parentFolderId as body.parents = [id] (an array, not a string)', async () => {
+      mockCall.mockResolvedValueOnce({ id: 'child-1', name: '01 - Evidence', parents: ['root-1'] });
+
+      const handler = drivePatch.customHandlers!.createFolder!;
+      await handler({ name: '01 - Evidence', parentFolderId: 'root-1' }, 'user@test.com');
+
+      const request = await requestFor('drive', 'files.create', mockCall.mock.calls[0][2]);
+      expect(request.body!.parents).toEqual(['root-1']);
+      expect(request.body!.mimeType).toBe('application/vnd.google-apps.folder');
+    });
+
+    it('requires a name', async () => {
+      const handler = drivePatch.customHandlers!.createFolder!;
+      await expect(handler({}, 'user@test.com')).rejects.toThrow('name');
+      expect(mockCall).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listFolder', () => {
+    it('lists non-trashed children with a parents query', async () => {
+      mockCall.mockResolvedValueOnce({
+        files: [
+          { id: 'sub-1', name: '01 - Evidence', mimeType: 'application/vnd.google-apps.folder' },
+          { id: 'f-1', name: 'index.pdf', mimeType: 'application/pdf' },
+        ],
+      });
+
+      const handler = drivePatch.customHandlers!.listFolder!;
+      const result = await handler({ folderId: 'root-1' }, 'user@test.com');
+
+      const [service, resourcePath, params] = mockCall.mock.calls[0];
+      expect(service).toBe('drive');
+      expect(resourcePath).toBe('files.list');
+      expect(params.q).toContain("'root-1' in parents");
+      expect(params.q).toContain('trashed=false');
+
+      expect(result.text).toContain('[DIR] 01 - Evidence');
+      expect(result.text).toContain('index.pdf');
+      expect(result.refs.count).toBe(2);
+      const files = result.refs.files as Array<{ isFolder: boolean }>;
+      expect(files[0].isFolder).toBe(true);
+      expect(files[1].isFolder).toBe(false);
+    });
+
+    it('reports an empty folder', async () => {
+      mockCall.mockResolvedValueOnce({ files: [] });
+
+      const handler = drivePatch.customHandlers!.listFolder!;
+      const result = await handler({ folderId: 'root-2' }, 'user@test.com');
+
+      expect(result.text).toContain('empty');
+      expect(result.refs.count).toBe(0);
+      expect(result.refs.files).toEqual([]);
+    });
+  });
+
+  describe('tree', () => {
+    it('walks folders recursively and counts files only', async () => {
+      mockCall
+        .mockResolvedValueOnce({
+          files: [
+            { id: 'sub-1', name: '01 - Evidence', mimeType: 'application/vnd.google-apps.folder' },
+            { id: 'f-0', name: 'index.pdf', mimeType: 'application/pdf' },
+          ],
+        })
+        .mockResolvedValueOnce({
+          files: [
+            { id: 'f-1', name: 'exhibit.pdf', mimeType: 'application/pdf' },
+            { id: 'f-2', name: 'scan.jpeg', mimeType: 'image/jpeg' },
+          ],
+        });
+
+      const handler = drivePatch.customHandlers!.tree!;
+      const result = await handler({ folderId: 'root-1' }, 'user@test.com');
+
+      expect(mockCall).toHaveBeenCalledTimes(2);
+      expect(mockCall.mock.calls[1][2].q).toContain("'sub-1' in parents");
+
+      expect(result.text).toContain('[DIR] 01 - Evidence');
+      expect(result.text).toContain('exhibit.pdf');
+      expect(result.text).toContain('**TOTAL FILES:** 3');
+      expect(result.refs.fileCount).toBe(3);
+    });
+  });
+
+  describe('trash', () => {
+    it('patches trashed:true in the body (recoverable, not permanent)', async () => {
+      mockCall.mockResolvedValueOnce({ id: 'file-1', name: 'Doc.pdf', trashed: true });
+
+      const handler = drivePatch.customHandlers!.trash!;
+      const result = await handler({ fileId: 'file-1' }, 'user@test.com');
+
+      const [service, resourcePath, params] = mockCall.mock.calls[0];
+      expect(service).toBe('drive');
+      expect(resourcePath).toBe('files.update');
+
+      const request = await requestFor('drive', 'files.update', params);
+      expect(request.method).toBe('PATCH');
+      expect(request.body).toMatchObject({ trashed: true });
+
+      expect(result.text).toContain('Moved to trash');
+      expect(result.refs.trashed).toBe(true);
+    });
+  });
+
+  describe('setRole', () => {
+    it('finds the permission by email then updates its role without notifying', async () => {
+      mockCall
+        .mockResolvedValueOnce({
+          permissions: [{ id: 'perm-1', type: 'user', role: 'reader', emailAddress: 'bob@test.com' }],
+        })
+        .mockResolvedValueOnce({ id: 'perm-1', role: 'writer', emailAddress: 'bob@test.com' });
+
+      const handler = drivePatch.customHandlers!.setRole!;
+      const result = await handler(
+        { fileId: 'file-1', shareEmail: 'bob@test.com', role: 'writer' },
+        'user@test.com',
+      );
+
+      expect(mockCall.mock.calls[0][1]).toBe('permissions.list');
+      expect(mockCall.mock.calls[0][2].fileId).toBe('file-1');
+
+      const [service, resourcePath, params] = mockCall.mock.calls[1];
+      expect(service).toBe('drive');
+      expect(resourcePath).toBe('permissions.update');
+      expect(params.permissionId).toBe('perm-1');
+      const request = await requestFor('drive', 'permissions.update', params);
+      expect(request.method).toBe('PATCH');
+      expect(request.body).toMatchObject({ role: 'writer' });
+
+      expect(result.text).toContain('No notification email was sent');
+      expect(result.refs.notificationEmailSent).toBe(false);
+      expect(result.refs.role).toBe('writer');
+    });
+
+    it('defaults to reader when no role is given', async () => {
+      mockCall
+        .mockResolvedValueOnce({
+          permissions: [{ id: 'perm-1', type: 'user', role: 'writer', emailAddress: 'bob@test.com' }],
+        })
+        .mockResolvedValueOnce({ id: 'perm-1', role: 'reader', emailAddress: 'bob@test.com' });
+
+      const handler = drivePatch.customHandlers!.setRole!;
+      await handler({ fileId: 'file-1', shareEmail: 'bob@test.com' }, 'user@test.com');
+
+      const request = await requestFor('drive', 'permissions.update', mockCall.mock.calls[1][2]);
+      expect(request.body).toMatchObject({ role: 'reader' });
+    });
+
+    it('errors when the email has no existing permission', async () => {
+      mockCall.mockResolvedValueOnce({ permissions: [] });
+
+      const handler = drivePatch.customHandlers!.setRole!;
+      await expect(
+        handler({ fileId: 'file-1', shareEmail: 'nobody@test.com' }, 'user@test.com'),
+      ).rejects.toThrow('no existing permission');
+
+      expect(mockCall).toHaveBeenCalledTimes(1);
+    });
+  });
+
+});

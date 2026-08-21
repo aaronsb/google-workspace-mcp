@@ -157,7 +157,7 @@ function isReadOperation(operation: string): boolean {
   // Prefix patterns: get*, list*, search*
   if (op.startsWith('get') || op.startsWith('list') || op.startsWith('search')) return true;
   // Exact read-only names
-  const readOps = ['read', 'triage', 'labels', 'threads', 'agenda', 'calendars', 'freebusy'];
+  const readOps = ['read', 'triage', 'labels', 'threads', 'agenda', 'calendars', 'freebusy', 'tree'];
   return readOps.includes(op);
 }
 
