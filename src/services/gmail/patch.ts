@@ -7,10 +7,14 @@
  * - Custom handlers: send/reply use specific response formatting
  */
 
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
+
 import { call } from '../../google/client.js';
 import { GoogleApiError } from '../../google/errors.js';
-import { formatEmailList, formatEmailDetail, extractBodyFromPayload, decodeSnippet, type EmailBodyFormat } from '../../server/formatting/markdown.js';
+import { formatEmailList, formatEmailDetail, extractBodyFromPayload, extractAttachments, decodeSnippet, type EmailBodyFormat } from '../../server/formatting/markdown.js';
 import { requireString } from '../../server/handlers/validate.js';
+import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
 import { handleGetAttachment, handleViewAttachment } from './attachments.js';
 import { sendMail, replyMail, forwardMail } from './mail.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
@@ -84,6 +88,38 @@ async function mapLimited<T, R>(
   });
   await Promise.all(workers);
   return results;
+}
+
+/** "Tue, 19 Aug 2026 ..." -> "2026-08-19"; '' when the header is not parseable. */
+const MONTH_TO_MM: Record<string, string> = {
+  Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+  Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12',
+};
+
+function dateSlug(dateHeader: string): string {
+  const m = /(\d{1,2}) ([A-Za-z]{3}) (\d{4})/.exec(dateHeader);
+  if (!m) return '';
+  const mm = MONTH_TO_MM[m[2]];
+  if (!mm) return '';
+  return `${m[3]}-${mm}-${m[1].padStart(2, '0')}`;
+}
+
+function slugify(value: string, maxLength = 50): string {
+  const slug = value
+    .replace(/[^\w\s-]/g, '')
+    .trim()
+    .replace(/[\s_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, maxLength)
+    .toLowerCase();
+  return slug || 'email';
+}
+
+/** A readable default filename: "<YYYY-MM-DD>_<subject-slug>.md", falling back to the id. */
+function defaultArchiveFilename(messageId: string, dateHeader: string, subject: string): string {
+  const prefix = dateSlug(dateHeader) || messageId;
+  return `${prefix}_${slugify(subject || 'message')}.md`;
 }
 
 /** Format labels list — name, type, unread count. */
@@ -242,6 +278,76 @@ export const gmailPatch: ServicePatch = {
   },
 
   customHandlers: {
+    /**
+     * Archive. Save one message's headers + plain-text body to a markdown file in the
+     * workspace. A LOCAL archive — it reads the message and writes a file, and never
+     * touches Gmail's INBOX label (that is `modify` with removeLabelIds: INBOX).
+     * Attachments are listed in the file, not downloaded — use `getAttachment` for that.
+     */
+    archive: async (params, account): Promise<HandlerResponse> => {
+      const messageId = requireString(params, 'messageId');
+
+      const data = await call('gmail', 'users.messages.get', {
+        userId: 'me',
+        id: messageId,
+        format: 'full',
+      }, { account }) as Record<string, unknown>;
+
+      const payload = data.payload as Record<string, unknown> | undefined;
+      const headers = (payload?.headers ?? []) as Array<{ name: string; value: string }>;
+      const getHeader = (name: string) =>
+        headers.find((h) => h.name.toLowerCase() === name.toLowerCase())?.value ?? '';
+
+      const subject = getHeader('subject') || '(no subject)';
+      const date = getHeader('date');
+      const from = getHeader('from');
+      const to = getHeader('to');
+      const cc = getHeader('cc');
+
+      const bodyText = extractBodyFromPayload(payload);
+      const attachments = payload?.parts ? extractAttachments(payload.parts as unknown[]) : [];
+
+      const filename = params.outputPath
+        ? String(params.outputPath)
+        : defaultArchiveFilename(messageId, date, subject);
+
+      const doc = [
+        `# ${subject}`,
+        '',
+        `**Message ID:** \`${messageId}\``,
+        `**Date:** ${date}`,
+        `**From:** ${from}`,
+        `**To:** ${to}`,
+      ];
+      if (cc) doc.push(`**Cc:** ${cc}`);
+      if (attachments.length > 0) {
+        doc.push(`**Attachments:** ${attachments.map((a) => `${a.filename} (${a.size} bytes)`).join(', ')}`);
+      }
+      doc.push('', '---', '', bodyText || '(no text body found)', '');
+
+      const wsStatus = await ensureWorkspaceDir();
+      if (!wsStatus.valid) throw new Error(`Workspace invalid: ${wsStatus.warning}`);
+      const outputPath = resolveWorkspacePath(filename);
+      await verifyPathSafety(outputPath);
+      await mkdir(dirname(outputPath), { recursive: true });
+      await writeFile(outputPath, doc.join('\n'), 'utf-8');
+
+      return {
+        text: `Archived message to **${filename}**\n\n**Message ID:** ${messageId}\n**Path:** ${outputPath}`,
+        refs: {
+          messageId,
+          filename,
+          path: outputPath,
+          subject,
+          from,
+          to,
+          date,
+          attachmentCount: attachments.length,
+          attachments: attachments.map((a) => a.filename),
+        },
+      };
+    },
+
     /**
      * Forward.
      *
