@@ -462,31 +462,59 @@ export const calendarPatch: ServicePatch = {
       // supplied is the sole case that can go wrong, so the shape of the event
       // as it stands is fetched only then — every other update still costs one
       // API call, not two.
+      let derivedStart: string | undefined;
+      let derivedEnd: string | undefined;
       if ((params.start === undefined) !== (params.end === undefined)) {
         const existing = await call('calendar', 'events.get',
           { calendarId, eventId }, { account }) as Record<string, unknown>;
-        const existingIsAllDay = !((existing?.start as Record<string, unknown> | undefined)?.dateTime);
+        const exStart = existing?.start as Record<string, unknown> | undefined;
+        const exEnd = existing?.end as Record<string, unknown> | undefined;
+        const existingIsAllDay = !exStart?.dateTime;
+
         if (allDay !== existingIsAllDay) {
-          throw new Error(
-            `Converting an event ${allDay ? 'to' : 'from'} all-day changes the shape of both ` +
-            'start and end, so pass both (Google rejects a start and end that disagree).',
-          );
+          // Converting TO all-day: the side the caller left out is derivable,
+          // because a datetime projects onto a date by taking its date part.
+          // Deriving from the EXISTING value rather than from the supplied one
+          // preserves the event's span — a two-day meeting stays two days.
+          if (allDay) {
+            const counterpart = params.start === undefined ? exStart : exEnd;
+            const raw = counterpart?.dateTime ?? counterpart?.date;
+            if (typeof raw !== 'string') {
+              throw new Error(
+                'Converting to all-day needs both start and end, and the event on record ' +
+                'has no usable counterpart to derive the missing one from.',
+              );
+            }
+            if (params.start === undefined) derivedStart = allDayDate(raw);
+            else derivedEnd = allDayDate(raw);
+          } else {
+            // Converting FROM all-day, the missing side is a datetime, and there
+            // is no honest way to invent a time of day the caller never gave —
+            // any choice silently rewrites when the event happens.
+            throw new Error(
+              'Converting an event from all-day to timed needs both start and end, ' +
+              'because the missing one would need a time of day that only you can choose.',
+            );
+          }
         }
       }
 
-      if (params.start !== undefined) {
+      const startValue = params.start ?? derivedStart;
+      const endValue = params.end ?? derivedEnd;
+
+      if (startValue !== undefined) {
         body.start = allDay
-          ? { date: allDayDate(String(params.start)), dateTime: null }
-          : { dateTime: String(params.start), date: null };
+          ? { date: allDayDate(String(startValue)), dateTime: null }
+          : { dateTime: String(startValue), date: null };
       }
-      if (params.end !== undefined) {
+      if (endValue !== undefined) {
         // The API's all-day end is EXCLUSIVE; the caller's is INCLUSIVE. Patching
         // an end without a start has no anchor to measure from, so the end date
         // itself is treated as the inclusive last day; `body.start` is left unset
         // either way, so the event keeps the start it already had.
         body.end = allDay
-          ? { date: exclusiveEndDate(String(params.start ?? params.end), String(params.end)), dateTime: null }
-          : { dateTime: String(params.end), date: null };
+          ? { date: exclusiveEndDate(String(startValue ?? endValue), String(endValue)), dateTime: null }
+          : { dateTime: String(endValue), date: null };
       }
 
       // attendees: comma-separated string → array of {email} objects.

@@ -660,21 +660,43 @@ describe('calendarPatch', () => {
       expect(body.start).toBeUndefined();
     });
 
-    it('refuses a half-conversion instead of letting Google reject it', async () => {
-      // Patching one side of a CONVERSION would leave start and end disagreeing,
-      // which Google rejects. The event as it stands is timed; allDay: true with
-      // only an end would half-convert it.
+    it('derives the missing start from the event on record when converting TO all-day', async () => {
+      // A datetime projects onto a date by taking its date part, so the side the
+      // caller left out is recoverable. Deriving from the EXISTING start rather
+      // than from the supplied end keeps the event's span.
+      mockCall
+        .mockResolvedValueOnce({
+          id: 'evt-1',
+          start: { dateTime: '2026-07-18T09:00:00Z' },
+          end: { dateTime: '2026-07-18T10:00:00Z' },
+        })
+        .mockResolvedValueOnce({ id: 'evt-1' });
+
+      await calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', end: '2026-07-20', allDay: true },
+        'user@test.com',
+      );
+
+      const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[1][2])).body!;
+      expect(body.start).toEqual({ date: '2026-07-18', dateTime: null });
+      expect(body.end).toEqual({ date: '2026-07-21', dateTime: null });
+    });
+
+    it('refuses to invent a time of day when converting FROM all-day', async () => {
+      // The missing side would be a datetime. Any default silently rewrites when
+      // the event happens, so this is the caller's choice to make, not ours.
       mockCall.mockResolvedValueOnce({
         id: 'evt-1',
-        start: { dateTime: '2026-07-18T09:00:00Z' },
+        start: { date: '2026-07-18' },
+        end: { date: '2026-07-19' },
       });
 
       await expect(
         calendarPatch.customHandlers!.update(
-          { eventId: 'evt-1', end: '2026-07-20', allDay: true },
+          { eventId: 'evt-1', start: '2026-07-18T09:00:00Z' },
           'user@test.com',
         ),
-      ).rejects.toThrow(/pass both/);
+      ).rejects.toThrow(/time of day/);
 
       // Only the lookup happened — no patch was attempted.
       expect(mockCall).toHaveBeenCalledTimes(1);
