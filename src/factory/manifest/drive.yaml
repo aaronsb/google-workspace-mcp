@@ -198,6 +198,10 @@ operations:
         type: string
         description: "Folder ID (pass the id returned by createFolder or search)"
         required: true
+      maxDepth:
+        type: number
+        description: "How many folder levels to descend (default 10). The tree is labelled partial when this limit stops the walk."
+
 
   # --- Sharing ---
 
@@ -227,7 +231,7 @@ operations:
         description: "Email address of the collaborator. On `share`, required when type is 'user' or 'group'; omit for 'domain' (use the `domain` param) or 'anyone'. On `setRole`, the existing collaborator whose role to change."
       role:
         type: string
-        description: "Permission level"
+        description: "Permission level. On `share`, the level to grant — defaults to `reader`. On `setRole`, the new level, and it is REQUIRED there: with no default to fall back on, an omitted role would silently demote the collaborator, and setRole sends no notification."
         enum: [reader, commenter, writer, organizer]
         default: reader
       type:
@@ -272,9 +276,10 @@ operations:
         required: true
       role:
         type: string
-        description: "Permission level"
+        description: "Permission level. On `share`, the level to grant — defaults to `reader`. On `setRole`, the new level, and it is REQUIRED there: with no default to fall back on, an omitted role would silently demote the collaborator, and setRole sends no notification."
         enum: [reader, commenter, writer, organizer]
         default: reader
+        required: true
 
   # --- Comments ---
 

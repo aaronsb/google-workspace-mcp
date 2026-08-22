@@ -624,8 +624,10 @@ describe('calendarPatch', () => {
       );
 
       const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[0][2])).body!;
-      expect(body.start).toEqual({ dateTime: '2026-05-01T10:00:00Z' });
-      expect(body.end).toEqual({ dateTime: '2026-05-01T11:00:00Z' });
+      // The null counterpart is what lets events.patch clear an all-day event's
+      // `date` fields; without it the merge leaves both shapes set and Google 400s.
+      expect(body.start).toEqual({ dateTime: '2026-05-01T10:00:00Z', date: null });
+      expect(body.end).toEqual({ dateTime: '2026-05-01T11:00:00Z', date: null });
     });
 
     it('maps start and end to exclusive date fields when allDay: true', async () => {
@@ -636,23 +638,79 @@ describe('calendarPatch', () => {
       );
 
       const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[0][2])).body!;
-      expect(body.start).toEqual({ date: '2026-07-12' });
-      expect(body.end).toEqual({ date: '2026-07-15' });
+      expect(body.start).toEqual({ date: '2026-07-12', dateTime: null });
+      expect(body.end).toEqual({ date: '2026-07-15', dateTime: null });
     });
 
-    it('treats an all-day end patched alone as a one-day event on that date', async () => {
-      // The manifest tells callers to pass both start and end when moving an
-      // all-day event; an end without a start has no anchor, so it becomes a
-      // single-day event on that date (exclusive end = date + 1).
-      mockCall.mockResolvedValue({ id: 'evt-1' });
+    it('shortens an already-all-day event when only the end is patched', async () => {
+      // An end without a start has no anchor, so the end date itself is the
+      // inclusive last day (exclusive end = date + 1). `body.start` stays unset,
+      // so the event keeps the start it already had.
+      mockCall
+        .mockResolvedValueOnce({ id: 'evt-1', start: { date: '2026-07-18' } })
+        .mockResolvedValueOnce({ id: 'evt-1' });
+
       await calendarPatch.customHandlers!.update(
         { eventId: 'evt-1', end: '2026-07-20', allDay: true },
         'user@test.com',
       );
 
-      const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[0][2])).body!;
-      expect(body.end).toEqual({ date: '2026-07-21' });
+      const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[1][2])).body!;
+      expect(body.end).toEqual({ date: '2026-07-21', dateTime: null });
       expect(body.start).toBeUndefined();
+    });
+
+    it('derives the missing start from the event on record when converting TO all-day', async () => {
+      // A datetime projects onto a date by taking its date part, so the side the
+      // caller left out is recoverable. Deriving from the EXISTING start rather
+      // than from the supplied end keeps the event's span.
+      mockCall
+        .mockResolvedValueOnce({
+          id: 'evt-1',
+          start: { dateTime: '2026-07-18T09:00:00Z' },
+          end: { dateTime: '2026-07-18T10:00:00Z' },
+        })
+        .mockResolvedValueOnce({ id: 'evt-1' });
+
+      await calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', end: '2026-07-20', allDay: true },
+        'user@test.com',
+      );
+
+      const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[1][2])).body!;
+      expect(body.start).toEqual({ date: '2026-07-18', dateTime: null });
+      expect(body.end).toEqual({ date: '2026-07-21', dateTime: null });
+    });
+
+    it('refuses to invent a time of day when converting FROM all-day', async () => {
+      // The missing side would be a datetime. Any default silently rewrites when
+      // the event happens, so this is the caller's choice to make, not ours.
+      mockCall.mockResolvedValueOnce({
+        id: 'evt-1',
+        start: { date: '2026-07-18' },
+        end: { date: '2026-07-19' },
+      });
+
+      await expect(
+        calendarPatch.customHandlers!.update(
+          { eventId: 'evt-1', start: '2026-07-18T09:00:00Z' },
+          'user@test.com',
+        ),
+      ).rejects.toThrow(/time of day/);
+
+      // Only the lookup happened — no patch was attempted.
+      expect(mockCall).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not spend a lookup when both start and end are supplied', async () => {
+      mockCall.mockResolvedValue({ id: 'evt-1' });
+
+      await calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', start: '2026-07-12', end: '2026-07-14', allDay: true },
+        'user@test.com',
+      );
+
+      expect(mockCall).toHaveBeenCalledTimes(1);
     });
 
     it('converts comma-separated attendees string into array of {email}', async () => {

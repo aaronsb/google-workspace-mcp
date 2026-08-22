@@ -552,6 +552,39 @@ describe('drivePatch folder, trash, and role handlers', () => {
     });
   });
 
+  describe('listChildren paging and query safety', () => {
+    it('follows nextPageToken so the reported count is the whole folder', async () => {
+      // A single page looks authoritative. If the walk stopped at page one, the
+      // "(n)" in the header would be a confident wrong number.
+      mockCall
+        .mockResolvedValueOnce({
+          nextPageToken: 'page-2',
+          files: [{ id: 'f-1', name: 'a.pdf', mimeType: 'application/pdf' }],
+        })
+        .mockResolvedValueOnce({
+          files: [{ id: 'f-2', name: 'b.pdf', mimeType: 'application/pdf' }],
+        });
+
+      const handler = drivePatch.customHandlers!.listFolder!;
+      const result = await handler({ folderId: 'root-1' }, 'user@test.com');
+
+      expect(mockCall).toHaveBeenCalledTimes(2);
+      expect(mockCall.mock.calls[1][2].pageToken).toBe('page-2');
+      expect(result.text).toContain('(2)');
+      expect(result.refs.count).toBe(2);
+      expect(result.refs.truncated).toBe(false);
+    });
+
+    it("escapes a single quote in the folder id so it cannot close the q literal", async () => {
+      mockCall.mockResolvedValueOnce({ files: [] });
+
+      const handler = drivePatch.customHandlers!.listFolder!;
+      await handler({ folderId: "ev'il" }, 'user@test.com');
+
+      expect(mockCall.mock.calls[0][2].q).toBe("'ev\\'il' in parents and trashed=false");
+    });
+  });
+
   describe('tree', () => {
     it('walks folders recursively and counts files only', async () => {
       mockCall
@@ -578,6 +611,40 @@ describe('drivePatch folder, trash, and role handlers', () => {
       expect(result.text).toContain('exhibit.pdf');
       expect(result.text).toContain('**TOTAL FILES:** 3');
       expect(result.refs.fileCount).toBe(3);
+    });
+
+    it('stops at maxDepth and labels the count partial rather than claiming it is total', async () => {
+      mockCall.mockResolvedValue({
+        files: [{ id: 'sub-deep', name: 'deeper', mimeType: 'application/vnd.google-apps.folder' }],
+      });
+
+      const handler = drivePatch.customHandlers!.tree!;
+      const result = await handler({ folderId: 'root-1', maxDepth: 2 }, 'user@test.com');
+
+      expect(mockCall).toHaveBeenCalledTimes(2);
+      expect(result.text).toContain('partial');
+      expect(result.refs.partial).toBe(true);
+    });
+
+    it('does not revisit a folder reachable by two parents', async () => {
+      mockCall
+        .mockResolvedValueOnce({
+          files: [
+            { id: 'shared', name: 'shared', mimeType: 'application/vnd.google-apps.folder' },
+            { id: 'other', name: 'other', mimeType: 'application/vnd.google-apps.folder' },
+          ],
+        })
+        .mockResolvedValueOnce({ files: [{ id: 'f-1', name: 'a.pdf', mimeType: 'application/pdf' }] })
+        .mockResolvedValueOnce({
+          files: [{ id: 'shared', name: 'shared', mimeType: 'application/vnd.google-apps.folder' }],
+        });
+
+      const handler = drivePatch.customHandlers!.tree!;
+      const result = await handler({ folderId: 'root-1' }, 'user@test.com');
+
+      // root, shared, other — 'shared' is listed twice but walked once.
+      expect(mockCall).toHaveBeenCalledTimes(3);
+      expect(result.refs.fileCount).toBe(1);
     });
   });
 
@@ -631,18 +698,17 @@ describe('drivePatch folder, trash, and role handlers', () => {
       expect(result.refs.role).toBe('writer');
     });
 
-    it('defaults to reader when no role is given', async () => {
-      mockCall
-        .mockResolvedValueOnce({
-          permissions: [{ id: 'perm-1', type: 'user', role: 'writer', emailAddress: 'bob@test.com' }],
-        })
-        .mockResolvedValueOnce({ id: 'perm-1', role: 'reader', emailAddress: 'bob@test.com' });
-
+    it('refuses to change a role when none is given, rather than defaulting', async () => {
+      // Defaulting here would demote an existing writer to reader, and setRole
+      // sends no notification — so the demotion would be silent. `share` may
+      // default to least privilege on a GRANT; changing an existing role has no
+      // safe default, so this throws before any API call is made.
       const handler = drivePatch.customHandlers!.setRole!;
-      await handler({ fileId: 'file-1', shareEmail: 'bob@test.com' }, 'user@test.com');
+      await expect(
+        handler({ fileId: 'file-1', shareEmail: 'bob@test.com' }, 'user@test.com'),
+      ).rejects.toThrow('role is required');
 
-      const request = await requestFor('drive', 'permissions.update', mockCall.mock.calls[1][2]);
-      expect(request.body).toMatchObject({ role: 'reader' });
+      expect(mockCall).not.toHaveBeenCalled();
     });
 
     it('errors when the email has no existing permission', async () => {
@@ -650,7 +716,7 @@ describe('drivePatch folder, trash, and role handlers', () => {
 
       const handler = drivePatch.customHandlers!.setRole!;
       await expect(
-        handler({ fileId: 'file-1', shareEmail: 'nobody@test.com' }, 'user@test.com'),
+        handler({ fileId: 'file-1', shareEmail: 'nobody@test.com', role: 'writer' }, 'user@test.com'),
       ).rejects.toThrow('no existing permission');
 
       expect(mockCall).toHaveBeenCalledTimes(1);
