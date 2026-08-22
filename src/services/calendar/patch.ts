@@ -455,6 +455,25 @@ export const calendarPatch: ServicePatch = {
       // counterpart as an explicit null so the merge clears the old shape —
       // that null is what makes a timed <-> all-day conversion possible.
       const allDay = params.allDay === true;
+
+      // Google requires start and end to share a shape. Patching one alone is
+      // fine while the shape is unchanged, but a CONVERSION has to move both or
+      // the event is left half-converted and comes back as a 400. Only one
+      // supplied is the sole case that can go wrong, so the shape of the event
+      // as it stands is fetched only then — every other update still costs one
+      // API call, not two.
+      if ((params.start === undefined) !== (params.end === undefined)) {
+        const existing = await call('calendar', 'events.get',
+          { calendarId, eventId }, { account }) as Record<string, unknown>;
+        const existingIsAllDay = !((existing?.start as Record<string, unknown> | undefined)?.dateTime);
+        if (allDay !== existingIsAllDay) {
+          throw new Error(
+            `Converting an event ${allDay ? 'to' : 'from'} all-day changes the shape of both ` +
+            'start and end, so pass both (Google rejects a start and end that disagree).',
+          );
+        }
+      }
+
       if (params.start !== undefined) {
         body.start = allDay
           ? { date: allDayDate(String(params.start)), dateTime: null }

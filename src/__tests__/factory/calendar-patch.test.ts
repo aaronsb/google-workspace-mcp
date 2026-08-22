@@ -642,19 +642,53 @@ describe('calendarPatch', () => {
       expect(body.end).toEqual({ date: '2026-07-15', dateTime: null });
     });
 
-    it('treats an all-day end patched alone as a one-day event on that date', async () => {
-      // The manifest tells callers to pass both start and end when moving an
-      // all-day event; an end without a start has no anchor, so it becomes a
-      // single-day event on that date (exclusive end = date + 1).
-      mockCall.mockResolvedValue({ id: 'evt-1' });
+    it('shortens an already-all-day event when only the end is patched', async () => {
+      // An end without a start has no anchor, so the end date itself is the
+      // inclusive last day (exclusive end = date + 1). `body.start` stays unset,
+      // so the event keeps the start it already had.
+      mockCall
+        .mockResolvedValueOnce({ id: 'evt-1', start: { date: '2026-07-18' } })
+        .mockResolvedValueOnce({ id: 'evt-1' });
+
       await calendarPatch.customHandlers!.update(
         { eventId: 'evt-1', end: '2026-07-20', allDay: true },
         'user@test.com',
       );
 
-      const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[0][2])).body!;
+      const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[1][2])).body!;
       expect(body.end).toEqual({ date: '2026-07-21', dateTime: null });
       expect(body.start).toBeUndefined();
+    });
+
+    it('refuses a half-conversion instead of letting Google reject it', async () => {
+      // Patching one side of a CONVERSION would leave start and end disagreeing,
+      // which Google rejects. The event as it stands is timed; allDay: true with
+      // only an end would half-convert it.
+      mockCall.mockResolvedValueOnce({
+        id: 'evt-1',
+        start: { dateTime: '2026-07-18T09:00:00Z' },
+      });
+
+      await expect(
+        calendarPatch.customHandlers!.update(
+          { eventId: 'evt-1', end: '2026-07-20', allDay: true },
+          'user@test.com',
+        ),
+      ).rejects.toThrow(/pass both/);
+
+      // Only the lookup happened — no patch was attempted.
+      expect(mockCall).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not spend a lookup when both start and end are supplied', async () => {
+      mockCall.mockResolvedValue({ id: 'evt-1' });
+
+      await calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', start: '2026-07-12', end: '2026-07-14', allDay: true },
+        'user@test.com',
+      );
+
+      expect(mockCall).toHaveBeenCalledTimes(1);
     });
 
     it('converts comma-separated attendees string into array of {email}', async () => {
