@@ -13,7 +13,8 @@ import { createHash } from 'node:crypto';
 
 import { call } from '../../google/client.js';
 import { formatEventList, formatEventDetail } from '../../server/formatting/markdown.js';
-import { requireString } from '../../server/handlers/validate.js';
+import { requireString, optionalString } from '../../server/handlers/validate.js';
+import { allDayDate, exclusiveEndDate, allDayRange } from './dates.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
@@ -361,16 +362,28 @@ export const calendarPatch: ServicePatch = {
     create: async (params, account): Promise<HandlerResponse> => {
       const summary = requireString(params, 'summary');
       const start = requireString(params, 'start');
-      const end = requireString(params, 'end');
+      const allDay = params.allDay === true;
+      // `end` is optional ONLY for all-day events (defaults to the start date).
+      // A timed event without an end has no duration — reject it explicitly.
+      const end = optionalString(params, 'end');
+      if (!allDay && end === undefined) {
+        throw new Error('end is required for timed events (or pass allDay: true for a date-only event)');
+      }
       const calendarId = (params.calendarId as string) || 'primary';
 
       // Attendees are an ARRAY OF OBJECTS in the event body, not a repeated scalar.
-      const body: Record<string, unknown> = {
-        calendarId,
-        summary,
-        start: { dateTime: start },
-        end: { dateTime: end },
-      };
+      // All-day events use `date` (YYYY-MM-DD); timed ones use `dateTime` (RFC 3339).
+      const body: Record<string, unknown> = { calendarId, summary };
+      if (allDay) {
+        body.start = { date: allDayDate(start) };
+        // The Calendar API's all-day end date is EXCLUSIVE — one day after the
+        // last day. `end` here is the caller's INCLUSIVE last day, and defaults
+        // to the start date (a one-day event).
+        body.end = { date: exclusiveEndDate(start, end ?? start) };
+      } else {
+        body.start = { dateTime: start };
+        body.end = { dateTime: end };
+      }
       if (params.description) body.description = String(params.description);
       if (params.location) body.location = String(params.location);
       if (params.attendees) {
@@ -385,7 +398,7 @@ export const calendarPatch: ServicePatch = {
         // Derive it deterministically from the event fields so a retried create
         // cannot double-book.
         const fingerprint = createHash('sha256')
-          .update(JSON.stringify({ calendarId, summary, start, end, location: params.location ?? '' }))
+          .update(JSON.stringify({ calendarId, summary, start, end, allDay, location: params.location ?? '' }))
           .digest('hex').slice(0, 32);
         body.conferenceData = {
           createRequest: {
@@ -398,13 +411,15 @@ export const calendarPatch: ServicePatch = {
 
       const data = await call('calendar', 'events.insert', body, { account }) as Record<string, unknown>;
       const meetLink = params.meet ? ' (with Google Meet)' : '';
+      const allDayMarker = allDay ? ' (all day)' : '';
+      const when = allDay ? allDayRange(start, end) : `${start} – ${end}`;
       return {
-        text: `Event created: **${summary}**${meetLink}\n\n` +
-          `**When:** ${start} – ${end}\n` +
+        text: `Event created: **${summary}**${meetLink}${allDayMarker}\n\n` +
+          `**When:** ${when}\n` +
           (params.location ? `**Where:** ${params.location}\n` : '') +
           `**Calendar:** ${calendarId}\n` +
           `**Event ID:** ${data.id ?? 'unknown'}`,
-        refs: { id: data.id, eventId: data.id, calendarId, summary, start, end },
+        refs: { id: data.id, eventId: data.id, calendarId, summary, start, end, allDay },
       };
     },
 
@@ -430,8 +445,25 @@ export const calendarPatch: ServicePatch = {
       if (params.summary !== undefined) body.summary = String(params.summary);
       if (params.description !== undefined) body.description = String(params.description);
       if (params.location !== undefined) body.location = String(params.location);
-      if (params.start !== undefined) body.start = { dateTime: String(params.start) };
-      if (params.end !== undefined) body.end = { dateTime: String(params.end) };
+
+      // All-day updates map start/end to `date` (YYYY-MM-DD); timed ones to
+      // `dateTime` (RFC 3339). `allDay: true` with new datetimes converts an
+      // all-day event to timed; omitting it (or false) with datetimes converts
+      // the other way — the field shape is what Google keys on.
+      const allDay = params.allDay === true;
+      if (params.start !== undefined) {
+        body.start = allDay
+          ? { date: allDayDate(String(params.start)) }
+          : { dateTime: String(params.start) };
+      }
+      if (params.end !== undefined) {
+        // The API's all-day end is EXCLUSIVE; the caller's is INCLUSIVE. An end
+        // patched without a start has no anchor, so treat it as a one-day event
+        // on that date — the manifest tells callers to pass both.
+        body.end = allDay
+          ? { date: exclusiveEndDate(String(params.start ?? params.end), String(params.end)) }
+          : { dateTime: String(params.end) };
+      }
 
       // attendees: comma-separated string → array of {email} objects.
       // Google events.patch replaces the attendees array wholesale (no diff semantics),

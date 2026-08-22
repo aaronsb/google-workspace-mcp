@@ -208,6 +208,24 @@ describe('formatEventList', () => {
     expect(result.text).toContain('(no title)');
   });
 
+  it('renders an all-day event as its date, not a shifted local time', () => {
+    // A bare `date` parsed as UTC midnight would render as the previous evening
+    // in most timezones ("Aug 19 20:00" etc.) — all-day must show the date.
+    const result = formatEventList({
+      items: [{ id: 'evt-1', summary: 'Lunch', start: { date: '2026-08-20' }, end: { date: '2026-08-21' } }],
+    });
+    expect(result.text).toContain('Thu, Aug 20 (all day)');
+    expect(result.text).not.toContain('20:00');
+  });
+
+  it('renders a multi-day all-day range with the exclusive end minus one day', () => {
+    const result = formatEventList({
+      items: [{ id: 'evt-1', summary: 'Trip', start: { date: '2026-08-20' }, end: { date: '2026-08-23' } }],
+    });
+    // API end is exclusive: 2026-08-23 means the last day is the 22nd.
+    expect(result.text).toContain('Thu, Aug 20 – Sat, Aug 22 (all day)');
+  });
+
   it('handles empty items', () => {
     expect(formatEventList({}).text).toBe('No events found.');
     expect(formatEventList({}).refs.count).toBe(0);
@@ -235,6 +253,15 @@ describe('formatEventDetail', () => {
   it('handles missing conference data', () => {
     const result = formatEventDetail({ id: 'x', start: {}, end: {} });
     expect(result.refs.meetLink).toBeUndefined();
+  });
+
+  it('renders an all-day event detail as its date', () => {
+    const result = formatEventDetail({
+      id: 'evt-1', summary: 'Holiday',
+      start: { date: '2026-08-20' }, end: { date: '2026-08-21' },
+    });
+    expect(result.text).toContain('**When:** Thu, Aug 20 (all day)');
+    expect(result.refs.start).toBe('2026-08-20');
   });
 
   it('shows declined attendees with [-] marker', () => {

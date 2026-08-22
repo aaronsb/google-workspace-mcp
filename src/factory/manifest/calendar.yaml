@@ -81,12 +81,14 @@ operations:
         required: true
       start:
         type: string
-        description: "Start time (ISO 8601)"
+        description: "Start time (ISO 8601) — or a DATE (YYYY-MM-DD) when allDay is true"
         required: true
       end:
         type: string
-        description: "End time (ISO 8601)"
-        required: true
+        description: "End time (ISO 8601) — or, when allDay is true, a DATE (YYYY-MM-DD) that is the INCLUSIVE last day; the exclusive end date the Calendar API requires is computed for you. Optional for all-day events: a missing end (or one equal to start) makes a one-day event."
+      allDay:
+        type: boolean
+        description: "Whether the event is all-day. When true, start and end are DATES (YYYY-MM-DD — an ISO datetime's date part is used) and end, if given, is the INCLUSIVE last day; the exclusive end date the Calendar API requires is computed for you. Omit it (or pass false) for a timed event with start/end as dateTime — pass false with new datetimes to convert an all-day event back to a timed one."
       description:
         type: string
         description: "Event description or notes"
@@ -132,10 +134,13 @@ operations:
         description: "Event title"
       start:
         type: string
-        description: "Start time (ISO 8601)"
+        description: "Start time (ISO 8601) — or a DATE (YYYY-MM-DD) when allDay is true"
       end:
         type: string
-        description: "End time (ISO 8601)"
+        description: "End time (ISO 8601) — or, when allDay is true, a DATE (YYYY-MM-DD) that is the INCLUSIVE last day; the exclusive end date the Calendar API requires is computed for you. Optional for all-day events: a missing end (or one equal to start) makes a one-day event."
+      allDay:
+        type: boolean
+        description: "Whether the event is all-day. When true, start and end are DATES (YYYY-MM-DD — an ISO datetime's date part is used) and end, if given, is the INCLUSIVE last day; the exclusive end date the Calendar API requires is computed for you. Omit it (or pass false) for a timed event with start/end as dateTime — pass false with new datetimes to convert an all-day event back to a timed one."
       description:
         type: string
         description: "Event description or notes"
