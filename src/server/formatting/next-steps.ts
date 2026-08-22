@@ -126,6 +126,23 @@ const suggestions: Record<string, Record<string, NextStep[]>> = {
     download: [
       { description: 'Search for more files', tool: 'manage_drive', example: { operation: 'search', email: '<email>' } },
     ],
+    createFolder: [
+      { description: 'Upload a file into this folder', tool: 'manage_drive', example: { operation: 'upload', email: '<email>', filePath: '<local path>', parentFolderId: '<folderId>' } },
+      { description: 'List the folder contents', tool: 'manage_drive', example: { operation: 'listFolder', email: '<email>', folderId: '<folderId>' } },
+    ],
+    listFolder: [
+      { description: 'View the whole tree', tool: 'manage_drive', example: { operation: 'tree', email: '<email>', folderId: '<folderId>' } },
+      { description: 'Get file details', tool: 'manage_drive', example: { operation: 'get', email: '<email>', fileId: '<id from results>' } },
+    ],
+    tree: [
+      { description: 'List a single level', tool: 'manage_drive', example: { operation: 'listFolder', email: '<email>', folderId: '<folderId>' } },
+    ],
+    trash: [
+      { description: 'Find trashed items', tool: 'manage_drive', example: { operation: 'search', email: '<email>', query: 'trashed=true' } },
+    ],
+    setRole: [
+      { description: 'List current permissions', tool: 'manage_drive', example: { operation: 'listPermissions', email: '<email>', fileId: '<fileId>' } },
+    ],
   },
   sheets: {
     create: [

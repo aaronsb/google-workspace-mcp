@@ -80,7 +80,16 @@
           }
         },
         "files.create": {
-          "status": "gap"
+          "status": "covered",
+          "params": {
+            "ignoreDefaultVisibility": "gap",
+            "supportsAllDrives": "gap",
+            "includePermissionsForView": "gap",
+            "keepRevisionForever": "gap",
+            "ocrLanguage": "gap",
+            "useContentAsIndexableText": "gap",
+            "includeLabels": "gap"
+          }
         },
         "changes.list": {
           "status": "gap"
@@ -156,7 +165,14 @@
           "status": "gap"
         },
         "permissions.update": {
-          "status": "gap"
+          "status": "covered",
+          "params": {
+            "transferOwnership": "gap",
+            "supportsAllDrives": "gap",
+            "permissionId": "gap",
+            "removeExpiration": "gap",
+            "useDomainAdminAccess": "gap"
+          }
         },
         "accessproposals.list": {
           "status": "gap"

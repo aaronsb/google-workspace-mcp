@@ -51,10 +51,10 @@ operations:
         required: true
       name:
         type: string
-        description: "File name in Drive. On `upload`, defaults to the local file's name. On `copy`, the name for the copy — without it Drive names it 'Copy of <original>'. On `update`, the new name (a rename)."
+        description: "File name in Drive. On `upload`, defaults to the local file's name. On `copy`, the name for the copy — without it Drive names it 'Copy of <original>'. On `update`, the new name (a rename). On `createFolder`, the folder name."
       parentFolderId:
         type: string
-        description: "Destination folder ID. On `copy`, defaults to the source file's folder."
+        description: "Destination folder ID. On `upload`, places the file in this folder. On `copy`, defaults to the source file's folder. On `createFolder`, nests the new folder under this parent."
 
   viewImage:
     type: detail
@@ -95,10 +95,10 @@ operations:
         required: true
       name:
         type: string
-        description: "File name in Drive. On `upload`, defaults to the local file's name. On `copy`, the name for the copy — without it Drive names it 'Copy of <original>'. On `update`, the new name (a rename)."
+        description: "File name in Drive. On `upload`, defaults to the local file's name. On `copy`, the name for the copy — without it Drive names it 'Copy of <original>'. On `update`, the new name (a rename). On `createFolder`, the folder name."
       parentFolderId:
         type: string
-        description: "Destination folder ID. On `copy`, defaults to the source file's folder."
+        description: "Destination folder ID. On `upload`, places the file in this folder. On `copy`, defaults to the source file's folder. On `createFolder`, nests the new folder under this parent."
     defaults:
       supportsAllDrives: true
 
@@ -113,7 +113,7 @@ operations:
         required: true
       name:
         type: string
-        description: "File name in Drive. On `upload`, defaults to the local file's name. On `copy`, the name for the copy — without it Drive names it 'Copy of <original>'. On `update`, the new name (a rename)."
+        description: "File name in Drive. On `upload`, defaults to the local file's name. On `copy`, the name for the copy — without it Drive names it 'Copy of <original>'. On `update`, the new name (a rename). On `createFolder`, the folder name."
       addParents:
         type: string
         description: "Comma-separated folder ID(s) to add as parents (move into a folder)"
@@ -135,6 +135,16 @@ operations:
     defaults:
       supportsAllDrives: true
 
+  trash:
+    type: action
+    description: "move a file or folder to trash (recoverable for 30 days — use instead of delete when you only need to remove it)"
+    resource: files.update
+    params:
+      fileId:
+        type: string
+        description: "File ID"
+        required: true
+
   export:
     type: action
     description: "export a Google Workspace document (Docs, Sheets, Slides) to a file format"
@@ -153,6 +163,41 @@ operations:
         description: "Local path to save the file"
     defaults:
       supportsAllDrives: true
+
+  # --- Folders ---
+
+  createFolder:
+    type: action
+    description: "create a new folder (optionally nested under a parent folder)"
+    resource: files.create
+    params:
+      name:
+        type: string
+        description: "File name in Drive. On `upload`, defaults to the local file's name. On `copy`, the name for the copy — without it Drive names it 'Copy of <original>'. On `update`, the new name (a rename). On `createFolder`, the folder name."
+        required: true
+      parentFolderId:
+        type: string
+        description: "Destination folder ID. On `upload`, places the file in this folder. On `copy`, defaults to the source file's folder. On `createFolder`, nests the new folder under this parent."
+
+  listFolder:
+    type: list
+    description: "list the files and subfolders directly inside a folder"
+    resource: files.list
+    params:
+      folderId:
+        type: string
+        description: "Folder ID (pass the id returned by createFolder or search)"
+        required: true
+
+  tree:
+    type: list
+    description: "print a recursive folder tree and count the files (subfolders excluded from the count)"
+    resource: files.list
+    params:
+      folderId:
+        type: string
+        description: "Folder ID (pass the id returned by createFolder or search)"
+        required: true
 
   # --- Sharing ---
 
@@ -179,7 +224,7 @@ operations:
         required: true
       shareEmail:
         type: string
-        description: "Email address (required when type is 'user' or 'group'). Omit for 'domain' (use 'domain' param) or 'anyone'."
+        description: "Email address of the collaborator. On `share`, required when type is 'user' or 'group'; omit for 'domain' (use the `domain` param) or 'anyone'. On `setRole`, the existing collaborator whose role to change."
       role:
         type: string
         description: "Permission level"
@@ -211,6 +256,25 @@ operations:
         required: true
     defaults:
       supportsAllDrives: true
+
+  setRole:
+    type: action
+    description: "change an existing collaborator's role (no notification email is sent)"
+    resource: permissions.update
+    params:
+      fileId:
+        type: string
+        description: "File ID"
+        required: true
+      shareEmail:
+        type: string
+        description: "Email address of the collaborator. On `share`, required when type is 'user' or 'group'; omit for 'domain' (use the `domain` param) or 'anyone'. On `setRole`, the existing collaborator whose role to change."
+        required: true
+      role:
+        type: string
+        description: "Permission level"
+        enum: [reader, commenter, writer, organizer]
+        default: reader
 
   # --- Comments ---
 

@@ -41,6 +41,31 @@ async function readWorkspaceFile(filePath: string, filename: string, mimeType?: 
   return result;
 }
 
+/** Drive's MIME type for a folder. */
+const FOLDER_MIME = 'application/vnd.google-apps.folder';
+
+/**
+ * Non-trashed children of a folder, ordered by name.
+ *
+ * This is the `ls` primitive from gdrive-tools: files.list filtered to one
+ * parent. Used by `listFolder` (one level) and `tree` (recursive).
+ */
+async function listChildren(
+  folderId: string,
+  account: string,
+  pageSize = 1000,
+): Promise<Array<Record<string, unknown>>> {
+  const data = await call('drive', 'files.list', {
+    q: `'${folderId}' in parents and trashed=false`,
+    fields: 'files(id, name, mimeType, size)',
+    pageSize,
+    orderBy: 'name',
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  }, { account }) as Record<string, unknown>;
+  return (data.files || []) as Array<Record<string, unknown>>;
+}
+
 export const drivePatch: ServicePatch = {
   formatList: (data: unknown) => formatFileList(data),
   formatDetail: (data: unknown) => formatFileDetail(data),
@@ -145,6 +170,97 @@ export const drivePatch: ServicePatch = {
           name: data.name,
           ...(parents ? { parents } : {}),
         },
+      };
+    },
+
+    createFolder: async (params, account): Promise<HandlerResponse> => {
+      // files.create makes a folder when mimeType is the folder MIME, and takes
+      // `parents` as an ARRAY of ids in the request body. The generic path collapses
+      // every param into the body as a scalar, so a single parentFolderId would land
+      // as `parents: "id"` (a string) and Drive rejects it. Build the body here.
+      const name = requireString(params, 'name');
+
+      const body: Record<string, unknown> = { name, mimeType: FOLDER_MIME };
+      if (params.parentFolderId) body.parents = [String(params.parentFolderId)];
+
+      const data = await call('drive', 'files.create', {
+        fields: 'id, name, mimeType, parents, webViewLink',
+        supportsAllDrives: true,
+        ...body,
+      }, { account }) as Record<string, unknown>;
+
+      return {
+        text: `Folder created: **${data.name ?? name}**\n\n**Folder ID:** ${data.id ?? 'unknown'}` +
+          (data.webViewLink ? `\n**Link:** ${data.webViewLink}` : ''),
+        refs: { folderId: data.id, fileId: data.id, id: data.id, name: data.name ?? name },
+      };
+    },
+
+    listFolder: async (params, account): Promise<HandlerResponse> => {
+      const folderId = requireString(params, 'folderId');
+      const children = await listChildren(folderId, account);
+
+      if (children.length === 0) {
+        return {
+          text: `Folder ${folderId} is empty (or contains only trashed items).`,
+          refs: { folderId, fileId: folderId, count: 0, files: [] },
+        };
+      }
+
+      const rows = children.map((f) => ({
+        fileId: String(f.id ?? ''),
+        name: String(f.name ?? ''),
+        mimeType: String(f.mimeType ?? ''),
+        isFolder: f.mimeType === FOLDER_MIME,
+      }));
+      const lines = children.map((f) =>
+        `${f.mimeType === FOLDER_MIME ? '[DIR] ' : ''}${String(f.name ?? '')}  (${String(f.id ?? '')})`);
+
+      return {
+        text: `## Contents of ${folderId} (${children.length})\n\n${lines.join('\n')}`,
+        refs: { folderId, fileId: folderId, count: children.length, files: rows },
+      };
+    },
+
+    tree: async (params, account): Promise<HandlerResponse> => {
+      const folderId = requireString(params, 'folderId');
+      const lines: string[] = [];
+      let fileCount = 0;
+
+      const walk = async (id: string, depth: number): Promise<void> => {
+        const children = await listChildren(id, account);
+        for (const child of children) {
+          const isDir = child.mimeType === FOLDER_MIME;
+          lines.push('   '.repeat(depth) + (isDir ? '[DIR] ' : '      ') + String(child.name ?? ''));
+          if (isDir) await walk(String(child.id), depth + 1);
+          else fileCount += 1;
+        }
+      };
+
+      await walk(folderId, 0);
+
+      return {
+        text: `## Folder tree\n\n${lines.join('\n')}\n\n**TOTAL FILES:** ${fileCount}`,
+        refs: { folderId, fileId: folderId, fileCount },
+      };
+    },
+
+    trash: async (params, account): Promise<HandlerResponse> => {
+      // files.update with trashed:true in the BODY moves a file to trash — recoverable
+      // for 30 days. This is the safe alternative to `delete`, which is permanent.
+      const fileId = requireString(params, 'fileId');
+
+      const data = await call('drive', 'files.update', {
+        fileId,
+        fields: 'id, name, trashed',
+        supportsAllDrives: true,
+        trashed: true,
+      }, { account }) as Record<string, unknown>;
+
+      return {
+        text: `Moved to trash: **${data.name ?? fileId}**\n\n**File ID:** ${data.id ?? fileId}\n` +
+          `Recoverable for 30 days from Drive's Trash.`,
+        refs: { fileId: data.id ?? fileId, id: data.id ?? fileId, name: data.name, trashed: true },
       };
     },
 
@@ -508,6 +624,48 @@ export const drivePatch: ServicePatch = {
           `**File ID:** ${fileId}\n` +
           `**Permission ID:** ${data.id ?? 'unknown'}`,
         refs: { fileId, permissionId: data.id, role, type, target },
+      };
+    },
+
+    setRole: async (params, account): Promise<HandlerResponse> => {
+      // permissions.update changes an existing permission's role WITHOUT sending any
+      // notification email — the "upgrade quietly" path gdrive-tools calls set_role.
+      // The permission must already exist, so resolve the email to its permission id
+      // first (the API addresses permissions by id, not email).
+      const fileId = requireString(params, 'fileId');
+      const email = requireString(params, 'shareEmail');
+      const role = typeof params.role === 'string' ? params.role : 'reader';
+
+      const listData = await call('drive', 'permissions.list', {
+        fileId,
+        fields: 'permissions(id, type, role, emailAddress)',
+        supportsAllDrives: true,
+      }, { account }) as Record<string, unknown>;
+      const permissions = (listData.permissions || []) as Array<Record<string, unknown>>;
+      const match = permissions.find((p) =>
+        (String(p.emailAddress ?? '')).toLowerCase() === email.toLowerCase());
+
+      if (!match) {
+        throw new Error(`${email} has no existing permission on ${fileId} — use 'share' to grant access first.`);
+      }
+
+      const data = await call('drive', 'permissions.update', {
+        fileId,
+        permissionId: String(match.id),
+        fields: 'id, role, emailAddress',
+        supportsAllDrives: true,
+        role,
+      }, { account }) as Record<string, unknown>;
+
+      return {
+        text: `Updated ${email} to **${data.role ?? role}** on ${fileId}. No notification email was sent.`,
+        refs: {
+          fileId,
+          permissionId: data.id ?? match.id,
+          role: data.role ?? role,
+          target: email,
+          notificationEmailSent: false,
+        },
       };
     },
 
