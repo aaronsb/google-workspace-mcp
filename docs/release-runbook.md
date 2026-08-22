@@ -4,26 +4,30 @@ How to ship a new version of google-workspace-mcp.
 
 ## What Happens on Release
 
-Pushing a `v*` tag triggers one CI workflow:
+Pushing a `v*` tag triggers two CI workflows, publishing three channels:
 
 | Workflow | File | What it does |
 |----------|------|-------------|
 | **Build .mcpb** | `.github/workflows/release-mcpb.yml` | Builds the .mcpb bundle and attaches it to the GitHub Release |
+| **Publish** | `.github/workflows/npm-publish.yml` | Publishes to npm, then to the MCP Registry |
 
-**npm is published by hand**, from `make publish-all`, authenticated interactively with a
-security key.
+**Nothing needs publishing by hand.** Both npm and the MCP Registry go out from CI by
+OIDC (ADR-105) — no `NPM_TOKEN`, no secret to rotate. The registry job `needs` the npm
+job, because `server.json` advertises the npm package at that version and publishing the
+registry entry first would point people at a tarball that does not exist yet.
 
-There used to be a second workflow that published to npm from a long-lived `NPM_TOKEN`.
-The token expired, and the job then failed on three consecutive releases while the manual
-publish did the real work — a permanently-red workflow that nobody reads, which is worse
-than no workflow at all. It is gone. Publishing with a security key is also stronger than
-a token sitting in CI that can publish the package at any time, and there is no secret to
-rotate.
+The workflow picks the npm dist-tag itself: a pre-release publishes under `alpha`/`beta`/
+`rc`, never `latest`, or every `npm install` and every `^x.y.z` range picks it up. It
+reads the marker out of the version string, the same derivation `make publish-all` uses.
 
-The one thing that workflow did which the Makefile did not was pick the npm dist-tag: a
-pre-release must publish under `alpha`/`beta`/`rc`, never `latest`, or every `npm install`
-and every `^x.y.z` range picks it up. `make publish-all` now does that (see the `npm`
-section of the target).
+`make publish-all` still exists for publishing by hand if CI is unavailable. It is no
+longer the normal path — running it after a tag would republish what CI already shipped.
+
+> An earlier workflow published from a long-lived `NPM_TOKEN`. It expired in June 2026
+> and failed three consecutive releases (v3.0.0, v4.0.0, v4.0.1) before being deleted in
+> `2c5669c`, at which point publishing genuinely was manual. Trusted publishing by OIDC
+> returned it to CI in `02df43e`, and `53b4c1b` added the MCP Registry beside it. This
+> document described the gap between those commits until 2026-08-22.
 
 ## Release Flow
 
@@ -66,11 +70,13 @@ git push && git push --tags
 ### 4. Verify CI
 
 ```bash
-gh run list --limit 3   # the .mcpb build should be running
+gh run list --limit 3   # both the .mcpb build and the publish should be running
 gh run watch <run-id>
 ```
 
-Check the .mcpb build is green and the bundle is attached to the GitHub Release.
+Both workflows must be green. The publish job runs npm first and the MCP Registry after
+it, so a red registry job on a green npm job means the package shipped and the registry
+entry did not — those need checking separately in step 5.
 
 ### 5. Verify artifacts
 
@@ -108,9 +114,10 @@ make version-sync
 # commit, tag, push as above
 ```
 
-`make publish-all` reads the pre-release marker out of the version string and publishes
-with `--tag alpha` (or `beta`/`rc`) rather than `--tag latest`, so a pre-release is
-available to people who ask for it and invisible to everyone else.
+CI reads the pre-release marker out of the version string and publishes with `--tag alpha`
+(or `beta`/`rc`) rather than `--tag latest`, so a pre-release is available to people who
+ask for it and invisible to everyone else. `make publish-all` derives the same tag the
+same way, for the hand-publish path.
 
 ## Retagging
 
