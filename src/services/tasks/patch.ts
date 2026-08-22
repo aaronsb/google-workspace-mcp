@@ -22,8 +22,12 @@ import type { ServicePatch } from '../../factory/types.js';
  *
  * These are named as GOOGLE names them, not as the manifest does. beforeExecute runs
  * AFTER buildResourceParams has applied `maps_to`, so by this point `taskListId` is
- * already `tasklist` and `taskId` is `task`. The ids need no checking here anyway —
- * the manifest marks them required, so the tool schema rejects a call without them.
+ * already `tasklist` and `taskId` is `task`.
+ *
+ * This used to claim the ids need no checking because the manifest marks them
+ * required and the schema rejects a call without them. It does not — generateSchema
+ * builds `required` from `requires_email` alone and never reads a param's own
+ * `required` flag, so a missing id reaches Google as a malformed request. See #165.
  */
 const MUTABLE = ['title', 'notes', 'due', 'status'] as const;
 

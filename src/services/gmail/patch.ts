@@ -372,7 +372,7 @@ export const gmailPatch: ServicePatch = {
       });
 
       return {
-        text: `Message forwarded to ${to}.\n\n**Message ID:** ${data.id ?? 'unknown'}`,
+        text: `Message forwarded to ${to}.\n\n**Message ID:** ${data.id}`,
         refs: { id: data.id, threadId: data.threadId, messageId, to },
       };
     },
@@ -406,13 +406,13 @@ export const gmailPatch: ServicePatch = {
 
       if (draft || attachmentNames.length > 0) {
         return {
-          text: `Draft created for ${to}.\n\n**Subject:** ${subject}${attachNote}\n**Draft ID:** ${data.id ?? 'unknown'}`,
+          text: `Draft created for ${to}.\n\n**Subject:** ${subject}${attachNote}\n**Draft ID:** ${data.id}`,
           refs: { id: data.id, draftId: data.id, to, subject, attachments: attachmentNames, isDraft: true },
         };
       }
 
       return {
-        text: `Email sent to ${to}.\n\n**Subject:** ${subject}\n**Message ID:** ${data.id ?? 'unknown'}`,
+        text: `Email sent to ${to}.\n\n**Subject:** ${subject}\n**Message ID:** ${data.id}`,
         refs: { id: data.id, threadId: data.threadId, to, subject },
       };
     },
@@ -469,13 +469,13 @@ export const gmailPatch: ServicePatch = {
 
       if (draft || attachmentNames.length > 0) {
         return {
-          text: `Draft reply created.\n\n**Draft ID:** ${data.id ?? 'unknown'}${attachNote}`,
+          text: `Draft reply created.\n\n**Draft ID:** ${data.id}${attachNote}`,
           refs: { id: data.id, draftId: data.id, messageId, attachments: attachmentNames, isDraft: true },
         };
       }
 
       return {
-        text: `Reply sent.\n\n**Message ID:** ${data.id ?? 'unknown'}`,
+        text: `Reply sent.\n\n**Message ID:** ${data.id}`,
         refs: { id: data.id, threadId: data.threadId, messageId },
       };
     },
@@ -502,13 +502,13 @@ export const gmailPatch: ServicePatch = {
 
       if (draft || attachmentNames.length > 0) {
         return {
-          text: `Draft reply-all created.\n\n**Draft ID:** ${data.id ?? 'unknown'}${attachNote}`,
+          text: `Draft reply-all created.\n\n**Draft ID:** ${data.id}${attachNote}`,
           refs: { id: data.id, draftId: data.id, messageId, attachments: attachmentNames, isDraft: true },
         };
       }
 
       return {
-        text: `Reply-all sent.\n\n**Message ID:** ${data.id ?? 'unknown'}`,
+        text: `Reply-all sent.\n\n**Message ID:** ${data.id}`,
         refs: { id: data.id, threadId: data.threadId, messageId },
       };
     },

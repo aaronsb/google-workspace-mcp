@@ -77,12 +77,27 @@ async function deliver(
     ? (draft ? { message: { threadId } } : { threadId })
     : {};
 
-  return await upload('gmail', resource, { userId: 'me' }, {
+  const data = await upload('gmail', resource, { userId: 'me' }, {
     account,
     media: message,
     contentType: 'message/rfc822',
     metadata,
   }) as Record<string, unknown>;
+
+  // Gmail returns the created resource, and its id is the only evidence the
+  // send happened. Without one there is nothing to look the message up by, so
+  // "sent" would be a claim rather than a fact — and sending is the one thing
+  // here that cannot be checked afterwards or undone. Refuse to report success
+  // we cannot stand behind.
+  if (typeof data?.id !== 'string' || data.id === '') {
+    throw new Error(
+      `Gmail accepted the ${draft ? 'draft' : 'send'} request but returned no message id, ` +
+      `so whether it ${draft ? 'was saved' : 'was sent'} cannot be confirmed. ` +
+      'Check the mailbox before retrying — retrying may deliver it twice.',
+    );
+  }
+
+  return data;
 }
 
 export async function sendMail(account: string, opts: SendOptions): Promise<Record<string, unknown>> {

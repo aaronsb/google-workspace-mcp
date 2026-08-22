@@ -192,3 +192,48 @@ describe('replyMail', () => {
     expect(headerLine(msg, 'Cc')).not.toContain('alice@test.com');
   });
 });
+
+describe('an unconfirmed send is not reported as a send', () => {
+  // Sending is the one operation here that cannot be undone or checked
+  // afterwards. A response with no id leaves nothing to look the message up by,
+  // so "sent" would be a claim rather than a fact.
+  it('throws when Gmail returns no message id', async () => {
+    mockCall.mockResolvedValue(originalMessage());
+    mockUpload.mockResolvedValue({});
+
+    await expect(replyMail(ACCOUNT, { messageId: 'msg-1', body: 'ok' }))
+      .rejects.toThrow(/no message id/);
+  });
+
+  it('throws when the id is present but empty', async () => {
+    mockCall.mockResolvedValue(originalMessage());
+    mockUpload.mockResolvedValue({ id: '' });
+
+    await expect(replyMail(ACCOUNT, { messageId: 'msg-1', body: 'ok' }))
+      .rejects.toThrow(/no message id/);
+  });
+
+  it('warns about double delivery, since the request may well have landed', async () => {
+    mockCall.mockResolvedValue(originalMessage());
+    mockUpload.mockResolvedValue({});
+
+    await expect(replyMail(ACCOUNT, { messageId: 'msg-1', body: 'ok' }))
+      .rejects.toThrow(/twice/);
+  });
+
+  it('says "draft" rather than "sent" when a draft could not be confirmed', async () => {
+    mockCall.mockResolvedValue(originalMessage());
+    mockUpload.mockResolvedValue({});
+
+    await expect(replyMail(ACCOUNT, { messageId: 'msg-1', body: 'ok', draft: true }))
+      .rejects.toThrow(/draft/);
+  });
+
+  it('returns the response untouched when an id is present', async () => {
+    mockCall.mockResolvedValue(originalMessage());
+    mockUpload.mockResolvedValue({ id: 'sent-1', threadId: ORIGINAL_THREAD });
+
+    const data = await replyMail(ACCOUNT, { messageId: 'msg-1', body: 'ok' });
+    expect(data.id).toBe('sent-1');
+  });
+});
