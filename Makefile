@@ -201,7 +201,13 @@ _release-commit:
 	git tag -a "v$(NEW_VERSION)" -m "v$(NEW_VERSION)"
 	git push && git push --tags
 	@echo ""
-	@echo "Released v$(NEW_VERSION). Run 'make publish-all' to publish everywhere."
+	@echo "Released v$(NEW_VERSION). The tag push publishes it — npm, the MCP Registry"
+	@echo "and the GitHub Release all go out from CI by OIDC (ADR-105). Nothing to run."
+	@echo ""
+	@echo "  gh run list --limit 3     # both workflows should be green"
+	@echo ""
+	@echo "'make publish-all' is the fallback for when CI cannot do it, and running it"
+	@echo "now would republish what CI already shipped."
 
 # --- Publishing ---
 
@@ -228,9 +234,13 @@ check-release-tag: ## Refuse to publish unless v$(VERSION) is tagged AT the comm
 #
 # YES=1 does not remove the confirmation, it moves it to the command line: typing it is
 # the affirmative act. Publishing is still a one-way door and nothing here defaults to it.
-publish-all: check-release-tag mcpb ## Publish to npm, MCP Registry, GitHub Release (YES=1 to skip prompts)
+# The FALLBACK path, for when CI cannot publish. The normal path is a tag push:
+# npm-publish.yml ships npm and the MCP Registry by OIDC, release-mcpb.yml attaches
+# the bundle. Run this after a successful tag and it republishes what already shipped.
+publish-all: check-release-tag mcpb ## Publish by hand when CI cannot (normal path is the tag push)
 	@echo ""
-	@echo "Publishing v$(VERSION) to all channels."
+	@echo "Publishing v$(VERSION) to all channels BY HAND."
+	@echo "CI already does this on a tag push — only continue if it could not."
 	@echo "  1. npm (2FA in the browser — passkey/security key)"
 	@echo "  2. MCP Registry (requires GitHub auth)"
 	@echo "  3. GitHub Release (reconciles the one CI made on tag push)"
