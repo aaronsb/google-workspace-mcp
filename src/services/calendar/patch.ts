@@ -447,22 +447,27 @@ export const calendarPatch: ServicePatch = {
       if (params.location !== undefined) body.location = String(params.location);
 
       // All-day updates map start/end to `date` (YYYY-MM-DD); timed ones to
-      // `dateTime` (RFC 3339). `allDay: true` with new datetimes converts an
-      // all-day event to timed; omitting it (or false) with datetimes converts
-      // the other way — the field shape is what Google keys on.
+      // `dateTime` (RFC 3339).
+      //
+      // events.patch MERGES these nested objects rather than replacing them, so
+      // sending `{ date }` onto an event that holds `{ dateTime }` leaves BOTH
+      // fields set and Google rejects it with "Invalid start time". Send the
+      // counterpart as an explicit null so the merge clears the old shape —
+      // that null is what makes a timed <-> all-day conversion possible.
       const allDay = params.allDay === true;
       if (params.start !== undefined) {
         body.start = allDay
-          ? { date: allDayDate(String(params.start)) }
-          : { dateTime: String(params.start) };
+          ? { date: allDayDate(String(params.start)), dateTime: null }
+          : { dateTime: String(params.start), date: null };
       }
       if (params.end !== undefined) {
-        // The API's all-day end is EXCLUSIVE; the caller's is INCLUSIVE. An end
-        // patched without a start has no anchor, so treat it as a one-day event
-        // on that date — the manifest tells callers to pass both.
+        // The API's all-day end is EXCLUSIVE; the caller's is INCLUSIVE. Patching
+        // an end without a start has no anchor to measure from, so the end date
+        // itself is treated as the inclusive last day; `body.start` is left unset
+        // either way, so the event keeps the start it already had.
         body.end = allDay
-          ? { date: exclusiveEndDate(String(params.start ?? params.end), String(params.end)) }
-          : { dateTime: String(params.end) };
+          ? { date: exclusiveEndDate(String(params.start ?? params.end), String(params.end)), dateTime: null }
+          : { dateTime: String(params.end), date: null };
       }
 
       // attendees: comma-separated string → array of {email} objects.

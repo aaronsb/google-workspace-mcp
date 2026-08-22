@@ -624,8 +624,10 @@ describe('calendarPatch', () => {
       );
 
       const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[0][2])).body!;
-      expect(body.start).toEqual({ dateTime: '2026-05-01T10:00:00Z' });
-      expect(body.end).toEqual({ dateTime: '2026-05-01T11:00:00Z' });
+      // The null counterpart is what lets events.patch clear an all-day event's
+      // `date` fields; without it the merge leaves both shapes set and Google 400s.
+      expect(body.start).toEqual({ dateTime: '2026-05-01T10:00:00Z', date: null });
+      expect(body.end).toEqual({ dateTime: '2026-05-01T11:00:00Z', date: null });
     });
 
     it('maps start and end to exclusive date fields when allDay: true', async () => {
@@ -636,8 +638,8 @@ describe('calendarPatch', () => {
       );
 
       const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[0][2])).body!;
-      expect(body.start).toEqual({ date: '2026-07-12' });
-      expect(body.end).toEqual({ date: '2026-07-15' });
+      expect(body.start).toEqual({ date: '2026-07-12', dateTime: null });
+      expect(body.end).toEqual({ date: '2026-07-15', dateTime: null });
     });
 
     it('treats an all-day end patched alone as a one-day event on that date', async () => {
@@ -651,7 +653,7 @@ describe('calendarPatch', () => {
       );
 
       const body = (await requestFor('calendar', 'events.patch', mockCall.mock.calls[0][2])).body!;
-      expect(body.end).toEqual({ date: '2026-07-21' });
+      expect(body.end).toEqual({ date: '2026-07-21', dateTime: null });
       expect(body.start).toBeUndefined();
     });
 

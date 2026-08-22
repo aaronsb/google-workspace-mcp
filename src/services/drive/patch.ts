@@ -45,25 +45,59 @@ async function readWorkspaceFile(filePath: string, filename: string, mimeType?: 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
 /**
+ * Escape a value for interpolation into a Drive `q` query.
+ *
+ * Drive's query grammar quotes string literals with single quotes, so an id or
+ * name containing one would close the literal early. Backslash first, then the
+ * quote, or the escapes we add would themselves be escaped.
+ */
+function escapeQueryValue(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+/** How many pages of children to walk before giving up and saying so. */
+const MAX_CHILD_PAGES = 20;
+
+/** How deep `tree` recurses before stopping and labelling the result partial. */
+const DEFAULT_TREE_DEPTH = 10;
+
+/**
  * Non-trashed children of a folder, ordered by name.
  *
  * This is the `ls` primitive from gdrive-tools: files.list filtered to one
  * parent. Used by `listFolder` (one level) and `tree` (recursive).
+ *
+ * Pages to exhaustion rather than taking the first page: callers render a count
+ * ("TOTAL FILES", "Contents of X (n)"), and a silently truncated list makes that
+ * count wrong while still looking authoritative. `truncated` says when the page
+ * cap stopped the walk early, so the caller can label the number honestly.
  */
 async function listChildren(
   folderId: string,
   account: string,
   pageSize = 1000,
-): Promise<Array<Record<string, unknown>>> {
-  const data = await call('drive', 'files.list', {
-    q: `'${folderId}' in parents and trashed=false`,
-    fields: 'files(id, name, mimeType, size)',
-    pageSize,
-    orderBy: 'name',
-    supportsAllDrives: true,
-    includeItemsFromAllDrives: true,
-  }, { account }) as Record<string, unknown>;
-  return (data.files || []) as Array<Record<string, unknown>>;
+): Promise<{ files: Array<Record<string, unknown>>; truncated: boolean }> {
+  const files: Array<Record<string, unknown>> = [];
+  let pageToken: string | undefined;
+  let pages = 0;
+
+  do {
+    const data = await call('drive', 'files.list', {
+      q: `'${escapeQueryValue(folderId)}' in parents and trashed=false`,
+      fields: 'nextPageToken, files(id, name, mimeType, size)',
+      pageSize,
+      orderBy: 'name',
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      ...(pageToken ? { pageToken } : {}),
+    }, { account }) as Record<string, unknown>;
+
+    files.push(...((data.files || []) as Array<Record<string, unknown>>));
+    pageToken = typeof data.nextPageToken === 'string' ? data.nextPageToken : undefined;
+    pages += 1;
+  } while (pageToken && pages < MAX_CHILD_PAGES);
+
+  return { files, truncated: Boolean(pageToken) };
 }
 
 export const drivePatch: ServicePatch = {
@@ -198,7 +232,7 @@ export const drivePatch: ServicePatch = {
 
     listFolder: async (params, account): Promise<HandlerResponse> => {
       const folderId = requireString(params, 'folderId');
-      const children = await listChildren(folderId, account);
+      const { files: children, truncated } = await listChildren(folderId, account);
 
       if (children.length === 0) {
         return {
@@ -217,18 +251,30 @@ export const drivePatch: ServicePatch = {
         `${f.mimeType === FOLDER_MIME ? '[DIR] ' : ''}${String(f.name ?? '')}  (${String(f.id ?? '')})`);
 
       return {
-        text: `## Contents of ${folderId} (${children.length})\n\n${lines.join('\n')}`,
-        refs: { folderId, fileId: folderId, count: children.length, files: rows },
+        text: `## Contents of ${folderId} (${truncated ? `${children.length}+, listing capped` : children.length})\n\n${lines.join('\n')}`,
+        refs: { folderId, fileId: folderId, count: children.length, truncated, files: rows },
       };
     },
 
     tree: async (params, account): Promise<HandlerResponse> => {
       const folderId = requireString(params, 'folderId');
+      const maxDepth = typeof params.maxDepth === 'number' ? params.maxDepth : DEFAULT_TREE_DEPTH;
       const lines: string[] = [];
       let fileCount = 0;
+      let capped = false;
 
+      // One serial API call per directory, so an unbounded walk on a deep tree is
+      // slow and can exhaust the rate limit. `seen` guards the other direction: a
+      // Drive file may have several parents, so the folder graph can revisit a
+      // node and — via shortcuts — cycle.
+      const seen = new Set<string>();
       const walk = async (id: string, depth: number): Promise<void> => {
-        const children = await listChildren(id, account);
+        if (depth >= maxDepth) { capped = true; return; }
+        if (seen.has(id)) return;
+        seen.add(id);
+
+        const { files: children, truncated } = await listChildren(id, account);
+        if (truncated) capped = true;
         for (const child of children) {
           const isDir = child.mimeType === FOLDER_MIME;
           lines.push('   '.repeat(depth) + (isDir ? '[DIR] ' : '      ') + String(child.name ?? ''));
@@ -240,8 +286,8 @@ export const drivePatch: ServicePatch = {
       await walk(folderId, 0);
 
       return {
-        text: `## Folder tree\n\n${lines.join('\n')}\n\n**TOTAL FILES:** ${fileCount}`,
-        refs: { folderId, fileId: folderId, fileCount },
+        text: `## Folder tree\n\n${lines.join('\n')}\n\n**TOTAL FILES:** ${capped ? `${fileCount}+ (partial — depth limit ${maxDepth} or page cap reached)` : fileCount}`,
+        refs: { folderId, fileId: folderId, fileCount, partial: capped },
       };
     },
 
@@ -634,7 +680,13 @@ export const drivePatch: ServicePatch = {
       // first (the API addresses permissions by id, not email).
       const fileId = requireString(params, 'fileId');
       const email = requireString(params, 'shareEmail');
-      const role = typeof params.role === 'string' ? params.role : 'reader';
+
+      // No default here. `share` may safely default to `reader` — granting the
+      // least privilege is the conservative choice when adding a collaborator.
+      // Changing an EXISTING role has no conservative default: falling back to
+      // `reader` silently demotes whoever is being edited, and this operation
+      // sends no notification, so nobody would learn of it.
+      const role = requireString(params, 'role');
 
       const listData = await call('drive', 'permissions.list', {
         fileId,
