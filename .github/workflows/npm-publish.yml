@@ -123,19 +123,21 @@ jobs:
       # A failed publish is easy to miss: it lives in a different workflow from the tag
       # push, and the .mcpb release succeeds beside it, so the release looks done. Assert
       # the registry actually serves the tagged version rather than trusting the step
-      # above not to quietly no-op.
+      # above not to quietly no-op. npm's post-publish processing is async and has
+      # taken minutes (jira-cloud v0.11.2), so the window is five minutes, not fifty
+      # seconds.
       - name: Verify the registry serves this version
         run: |
           TAG="${GITHUB_REF_NAME#v}"
           PKG=$(node -p 'require("./package.json").name')
-          for i in 1 2 3 4 5; do
+          for i in $(seq 1 10); do
             PUBLISHED=$(npm view "$PKG@$TAG" version 2>/dev/null || true)
             if [ "$PUBLISHED" = "$TAG" ]; then
               echo "npm serves $PKG@$TAG"
               exit 0
             fi
-            echo "registry has not caught up (attempt $i/5), waiting..."
-            sleep 10
+            echo "registry has not caught up (attempt $i/10), waiting..."
+            sleep 30
           done
           echo "FATAL: npm does not serve $PKG@$TAG after a reported-successful publish"
           exit 1
