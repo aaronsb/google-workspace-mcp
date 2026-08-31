@@ -26,6 +26,13 @@ jobs:
           node-version: '24'
           cache: 'npm'
 
+      # npm-publish.yml enforces the same invariant, but each workflow triggers
+      # independently off the tag push — without this gate, a tag on a commit with stale
+      # manifests ships a public GitHub Release carrying a mismatched bundle while the
+      # npm job fails beside it.
+      - name: Check the release identity
+        run: node scripts/check-publish-identity.cjs "$GITHUB_REF_NAME"
+
       - name: Install dependencies
         run: npm ci
 

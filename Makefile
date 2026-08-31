@@ -247,6 +247,9 @@ publish-all: check-release-tag mcpb ## Publish by hand when CI cannot (normal pa
 	@echo ""
 	@if [ -n "$(YES)" ]; then echo "YES=1 — confirmed on the command line, not prompting."; \
 	else read -p "Continue? [y/N] " confirm && [ "$$confirm" = "y" ] || { echo "Aborted."; exit 1; }; fi
+	@# Same identity gate CI runs: a fallback runs precisely when something already
+	@# went wrong, so it needs the guard more than CI does.
+	node scripts/check-publish-identity.cjs "v$(VERSION)"
 	@echo ""
 	@echo "── npm ──"
 	@# .github/workflows/npm-publish.yml publishes on tag push via OIDC (ADR-105), so by
@@ -261,8 +264,12 @@ publish-all: check-release-tag mcpb ## Publish by hand when CI cannot (normal pa
 	  who=$$(npm whoami 2>/dev/null) && echo "npm: logged in as $$who" || { \
 	    echo "npm: not logged in — starting 'npm login' (browser + security key)"; npm login; }; \
 	  : "A PRE-RELEASE must not become 'latest' — bare `npm publish` ships an alpha to"; \
-	  : "everyone on ^x.y.z. Same derivation as npm-publish.yml, which explains it in full."; \
-	  tag=$$(echo "$(VERSION)" | grep -oE 'alpha|beta|rc' || echo latest); \
+	  : "everyone on ^x.y.z. Same derivation as npm-publish.yml, which explains it in full:"; \
+	  : "anything after '-' is a pre-release, not just the spellings we remembered."; \
+	  case "$(VERSION)" in \
+	    *-*) v="$(VERSION)"; p="$${v#*-}"; p="$${p%%.*}"; case "$$p" in [0-9]*) p=prerelease;; esac; tag="$$p";; \
+	    *) tag=latest;; \
+	  esac; \
 	  echo "npm: publishing $(VERSION) under dist-tag '$$tag'"; \
 	  npm publish --access public --tag "$$tag"; \
 	fi
@@ -272,13 +279,18 @@ publish-all: check-release-tag mcpb ## Publish by hand when CI cannot (normal pa
 	@# there — same reasoning as the npm step above. `mcp-publisher login github` is a
 	@# device flow needing a tty, so the skip also keeps this target runnable without one
 	@# when the registry is already current.
+	@# The probe filters by EXACT server name — ?search= is a substring match, so
+	@# without the filter any similarly named server carrying this version number
+	@# would skip the real publish. Same filter as scripts/mcp-registry-publish.sh,
+	@# which CI uses; this inline copy exists only to put the device-flow login
+	@# between the probe and the publish.
 	@name=$$(node -p "require('./server.json').name"); \
 	published=$$(curl -fsSL "https://registry.modelcontextprotocol.io/v0/servers?search=$$name&limit=100" 2>/dev/null \
-	  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log((j.servers||[]).map(x=>x.version||(x.server&&x.server.version)).filter(Boolean).join(" "))}catch(e){console.log("")}})'); \
+	  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log((j.servers||[]).filter(x=>(x.name||(x.server&&x.server.name))===process.argv[1]).map(x=>x.version||(x.server&&x.server.version)).filter(Boolean).join(" "))}catch(e){console.log("")}})' "$$name"); \
 	if echo " $$published " | grep -q " $(VERSION) "; then \
 	  echo "mcp: $$name $(VERSION) is already on the registry — skipping"; \
 	else \
-	  mcp-publisher login github && mcp-publisher publish server.json; \
+	  mcp-publisher login github && bash scripts/mcp-registry-publish.sh; \
 	fi
 	@echo ""
 	@echo "── GitHub Release ──"
