@@ -44,6 +44,15 @@ if (server.packages[0].identifier !== pkg.name) {
   );
 }
 
+
+// The MCP Registry rejects descriptions over 100 characters with a 422 — after
+// npm has already published, leaving the channels half-released (seen on
+// salesforce-cloud v0.8.1).
+const descLen = [...(server.description || '')].length;
+if (descLen > 100) {
+  failures.push(`server.json description is ${descLen} characters; the MCP Registry caps it at 100`);
+}
+
 if (failures.length > 0) {
   for (const f of failures) console.error(`FATAL: ${f}`);
   console.error("Run 'make version-sync' and commit the result.");
