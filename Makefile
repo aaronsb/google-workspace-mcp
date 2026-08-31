@@ -198,6 +198,10 @@ _release-commit:
 	$(eval NEW_VERSION := $(shell node -p 'require("./package.json").version'))
 	git add package.json package-lock.json server.json mcpb/manifest.json src/version.ts
 	git commit -m "chore: release v$(NEW_VERSION)"
+	# Run the full publish-identity gate (including the registry's 100-char
+	# description cap) BEFORE tagging — a violation caught in CI has already
+	# burned a version number.
+	node scripts/check-publish-identity.cjs "v$(NEW_VERSION)"
 	git tag -a "v$(NEW_VERSION)" -m "v$(NEW_VERSION)"
 	git push && git push --tags
 	@echo ""
