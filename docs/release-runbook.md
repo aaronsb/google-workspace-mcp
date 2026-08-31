@@ -16,9 +16,10 @@ OIDC (ADR-105) — no `NPM_TOKEN`, no secret to rotate. The registry job `needs`
 job, because `server.json` advertises the npm package at that version and publishing the
 registry entry first would point people at a tarball that does not exist yet.
 
-The workflow picks the npm dist-tag itself: a pre-release publishes under `alpha`/`beta`/
-`rc`, never `latest`, or every `npm install` and every `^x.y.z` range picks it up. It
-reads the marker out of the version string, the same derivation `make publish-all` uses.
+The workflow picks the npm dist-tag itself: any pre-release (anything after `-` in the
+version, per semver) publishes under its identifier — `alpha`, `beta`, `rc`, `pre`,
+`next` — never `latest`, or every `npm install` and every `^x.y.z` range picks it up.
+`make publish-all` uses the same derivation.
 
 `make publish-all` still exists for publishing by hand if CI is unavailable. It is no
 longer the normal path — running it after a tag would republish what CI already shipped.
@@ -114,10 +115,10 @@ make version-sync
 # commit, tag, push as above
 ```
 
-CI reads the pre-release marker out of the version string and publishes with `--tag alpha`
-(or `beta`/`rc`) rather than `--tag latest`, so a pre-release is available to people who
-ask for it and invisible to everyone else. `make publish-all` derives the same tag the
-same way, for the hand-publish path.
+CI derives the dist-tag from the semver pre-release identifier (anything after `-`) and
+publishes with `--tag alpha` (or `beta`, `rc`, `pre`, ...) rather than `--tag latest`, so
+a pre-release is available to people who ask for it and invisible to everyone else.
+`make publish-all` derives the same tag the same way, for the hand-publish path.
 
 ## Retagging
 

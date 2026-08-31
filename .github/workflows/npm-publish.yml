@@ -41,23 +41,14 @@ jobs:
 
       # Node 24 ships an npm 11.x that is usually new enough, and Node 22 shipped npm 10.x
       # which is not. Neither is a promise: the bundled npm moves with the Node patch the
-      # runner happens to have. An npm below the floor does not report a missing feature —
-      # it looks for a token, finds none, and fails with a 401 that says nothing about OIDC.
-      # So upgrade, then assert, rather than trusting what the image came with.
+      # runner happens to have. An npm below the 11.5.1 floor does not report a missing
+      # feature — it looks for a token, finds none, and fails with a 401 that says nothing
+      # about OIDC. Carrying the floor in the install spec makes an unsatisfiable floor
+      # fail loudly right here.
       - name: Upgrade npm past the trusted-publishing floor
         run: |
-          npm install -g npm@latest
-          V=$(npm --version)
-          echo "npm $V"
-          node -e '
-            const v = process.argv[1];
-            const [maj, min, pat] = v.split(".").map(Number);
-            const ok = maj > 11 || (maj === 11 && (min > 5 || (min === 5 && pat >= 1)));
-            if (!ok) {
-              console.error(`npm ${v} is below the 11.5.1 trusted-publishing floor — publish would fall back to token auth and 401.`);
-              process.exit(1);
-            }
-          ' "$V"
+          npm install -g 'npm@>=11.5.1'
+          npm --version
 
       - name: Install dependencies
         run: npm ci
@@ -76,42 +67,78 @@ jobs:
       # A PRE-RELEASE must not become `latest`. `npm publish` with no --tag publishes as
       # `latest`, which every `npm install` and every `^x.y.z` range picks up — so an alpha
       # published bare is not "available to those who want it", it is shipped to everyone.
-      # This mirrors the same derivation in `make publish-all`; both read the marker out of
-      # the version string.
+      # Semver defines a pre-release as anything after `-`, so match on that rather than an
+      # allowlist of names — an allowlist publishes the spellings it forgot (`-pre`,
+      # `-next`, `-canary`) as `latest`. This mirrors the same derivation in
+      # `make publish-all`.
       - name: Determine npm dist-tag
         id: npm-tag
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          if echo "$VERSION" | grep -qE '(alpha|beta|rc)'; then
-            echo "tag=$(echo "$VERSION" | grep -oE '(alpha|beta|rc)')" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=latest" >> "$GITHUB_OUTPUT"
-          fi
+          case "$VERSION" in
+            *-*)
+              PRE="${VERSION#*-}"
+              PRE="${PRE%%.*}"
+              # npm rejects a dist-tag that parses as a semver range, which a
+              # bare numeric identifier (v1.0.0-1) would.
+              case "$PRE" in
+                [0-9]*) PRE=prerelease ;;
+              esac
+              echo "tag=$PRE" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "tag=latest" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      # The tag names one version; package.json names another. Publishing on a mismatch
-      # ships whatever package.json says under a tag that claims something else.
-      - name: Check the tag matches package.json
-        run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          PKG_VERSION="${{ steps.npm-tag.outputs.version }}"
-          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "tag $GITHUB_REF_NAME says $TAG_VERSION, package.json says $PKG_VERSION."
-            exit 1
-          fi
-          echo "tag $GITHUB_REF_NAME matches package.json $PKG_VERSION"
+      # The tag, package.json, server.json, the manifest, and src/version.ts must agree on
+      # one version, and server.json must point at the npm package this repo publishes.
+      # One script owns that invariant; every publish path calls it.
+      - name: Check the release identity
+        run: node scripts/check-publish-identity.cjs "$GITHUB_REF_NAME"
 
       # An npm version is permanent, so a re-run of this job on an already-published
       # version must be a no-op rather than a red X on a release that actually succeeded.
+      # The pre-check compares the served version rather than trusting `npm view`'s exit
+      # code, and a failed publish re-checks the registry before turning red — otherwise a
+      # transient registry error during the pre-check turns a no-op re-run into a publish
+      # conflict.
       - name: Publish to npm
         run: |
           PKG=$(node -p "require('./package.json').name")
           VERSION="${{ steps.npm-tag.outputs.version }}"
-          if npm view "$PKG@$VERSION" version >/dev/null 2>&1; then
+          if [ "$(npm view "$PKG@$VERSION" version 2>/dev/null)" = "$VERSION" ]; then
             echo "$PKG@$VERSION is already on the registry — nothing to publish."
             exit 0
           fi
-          npm publish --provenance --access public --tag "${{ steps.npm-tag.outputs.tag }}"
+          if ! npm publish --provenance --access public --tag "${{ steps.npm-tag.outputs.tag }}"; then
+            if [ "$(npm view "$PKG@$VERSION" version 2>/dev/null)" = "$VERSION" ]; then
+              echo "$PKG@$VERSION is already on the registry — the publish conflict is a no-op."
+              exit 0
+            fi
+            exit 1
+          fi
+
+      # A failed publish is easy to miss: it lives in a different workflow from the tag
+      # push, and the .mcpb release succeeds beside it, so the release looks done. Assert
+      # the registry actually serves the tagged version rather than trusting the step
+      # above not to quietly no-op.
+      - name: Verify the registry serves this version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p 'require("./package.json").name')
+          for i in 1 2 3 4 5; do
+            PUBLISHED=$(npm view "$PKG@$TAG" version 2>/dev/null || true)
+            if [ "$PUBLISHED" = "$TAG" ]; then
+              echo "npm serves $PKG@$TAG"
+              exit 0
+            fi
+            echo "registry has not caught up (attempt $i/5), waiting..."
+            sleep 10
+          done
+          echo "FATAL: npm does not serve $PKG@$TAG after a reported-successful publish"
+          exit 1
 
   mcp-registry:
     name: Publish to the MCP Registry
@@ -138,20 +165,13 @@ jobs:
           tar -xzf mcp-publisher.tar.gz mcp-publisher
           ./mcp-publisher --version
 
-      # server.json carries the version TWICE — once for the server entry and once for the
-      # npm package it points at — and `make version-sync` writes only what it knows about.
-      # A mismatch here publishes a registry entry naming the wrong tarball, which no
-      # amount of npm-side checking would catch.
-      - name: Check server.json agrees with the tag
-        run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          SERVER_VERSION=$(node -p "require('./server.json').version")
-          PKG_VERSION=$(node -p "require('./server.json').packages[0].version")
-          fail=0
-          [ "$SERVER_VERSION" = "$TAG_VERSION" ] || { echo "server.json version is $SERVER_VERSION, tag says $TAG_VERSION"; fail=1; }
-          [ "$PKG_VERSION" = "$TAG_VERSION" ] || { echo "server.json packages[0].version is $PKG_VERSION, tag says $TAG_VERSION"; fail=1; }
-          [ "$fail" = 0 ] || { echo "Run 'make version-sync' and commit the result."; exit 1; }
-          echo "server.json and its npm package both say $TAG_VERSION"
+      # Same script as the npm job — server.json carries the version TWICE (the server
+      # entry and the npm package it points at) and names the tarball this entry points
+      # at, and `make version-sync` writes only what it knows about. A mismatch here
+      # publishes a registry entry naming the wrong tarball, which no amount of npm-side
+      # checking would catch.
+      - name: Check the release identity
+        run: node scripts/check-publish-identity.cjs "$GITHUB_REF_NAME"
 
       - name: Authenticate by GitHub OIDC
         # No secret. The registry validates the token's issuer and audience, then grants
@@ -159,22 +179,8 @@ jobs:
         run: ./mcp-publisher login github-oidc
 
       # Same reasoning as the npm step: a re-run on an already-published version must be a
-      # no-op rather than a red X on a release that already succeeded.
+      # no-op rather than a red X on a release that already succeeded. The script filters
+      # the registry search by exact server name — the search is a substring match — and
+      # treats a failed probe as "unknown, publish anyway".
       - name: Publish to the MCP Registry
-        run: |
-          NAME=$(node -p "require('./server.json').name")
-          VERSION="${GITHUB_REF_NAME#v}"
-          published=$(curl -fsSL "https://registry.modelcontextprotocol.io/v0/servers?search=${NAME}&limit=100" \
-            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
-                const j=JSON.parse(s);
-                const vs=(j.servers||[]).map(x=>x.version||(x.server&&x.server.version)).filter(Boolean);
-                console.log(vs.join(" "));
-              })')
-          echo "already on the registry: ${published:-<none>}"
-          for v in $published; do
-            if [ "$v" = "$VERSION" ]; then
-              echo "$NAME $VERSION is already published — nothing to do."
-              exit 0
-            fi
-          done
-          ./mcp-publisher publish server.json
+        run: MCP_PUBLISHER=./mcp-publisher bash scripts/mcp-registry-publish.sh
