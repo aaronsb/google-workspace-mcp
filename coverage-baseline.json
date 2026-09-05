@@ -557,10 +557,14 @@
           "status": "gap"
         },
         "users.drafts.delete": {
-          "status": "gap"
+          "status": "covered"
         },
         "users.drafts.list": {
-          "status": "gap"
+          "status": "covered",
+          "params": {
+            "pageToken": "gap",
+            "includeSpamTrash": "gap"
+          }
         },
         "users.drafts.send": {
           "status": "gap"
