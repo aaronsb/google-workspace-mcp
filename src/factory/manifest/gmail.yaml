@@ -211,6 +211,44 @@ operations:
     defaults:
       userId: me
 
+  # --- Drafts ---
+
+  # Drafts are their own Gmail resource: users.drafts.list returns DRAFT ids
+  # (they start with "r", e.g. r24657...), and deleteDraft addresses the draft, not
+  # the message. A message id from `search in:drafts` cannot be handed to
+  # drafts.delete, which is why listDrafts exists — it pairs each draft id with
+  # its recipient/subject/date.
+
+  listDrafts:
+    type: list
+    description: "list saved drafts (unsent messages) with each draft's DRAFT id (the r… id), recipient, subject and date. Use that draft id with deleteDraft — a message id from search in:drafts will not work for deletion."
+    resource: users.drafts.list
+    params:
+      query:
+        type: string
+        description: 'Gmail search query (e.g. "from:alice subject:meeting has:attachment")'
+        maps_to: q
+      maxResults:
+        type: number
+        description: "Max results (default: 10, max: 50)"
+        default: 10
+        max: 50
+    defaults:
+      userId: me
+
+  deleteDraft:
+    type: action
+    description: "permanently delete a draft (unsent message) by its draft id (the r… id returned by listDrafts). Irreversible — the draft is discarded, not moved to trash."
+    resource: users.drafts.delete
+    params:
+      draftId:
+        type: string
+        description: "Draft id as returned by listDrafts (an r… id, not the message id)"
+        required: true
+        maps_to: id
+    defaults:
+      userId: me
+
   getAttachment:
     type: detail
     description: "download an email attachment to workspace directory (use read first to see attachment list)"

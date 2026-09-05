@@ -12,7 +12,7 @@ import { dirname } from 'node:path';
 
 import { call } from '../../google/client.js';
 import { GoogleApiError } from '../../google/errors.js';
-import { formatEmailList, formatEmailDetail, extractBodyFromPayload, extractAttachments, decodeSnippet, type EmailBodyFormat } from '../../server/formatting/markdown.js';
+import { formatEmailList, formatEmailDetail, extractBodyFromPayload, extractAttachments, decodeSnippet, truncate, formatShortDate, type EmailBodyFormat } from '../../server/formatting/markdown.js';
 import { requireString } from '../../server/handlers/validate.js';
 import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
 import { handleGetAttachment, handleViewAttachment } from './attachments.js';
@@ -72,6 +72,55 @@ async function hydrateMessages(
 
 /** Concurrent, but bounded. */
 const HYDRATE_CONCURRENCY = 8;
+
+/**
+ * Hydrate draft resources with message metadata (From, To, Subject, Date, snippet).
+ *
+ * users.drafts.list returns one bare {id: draftId, message: {id, threadId}} per draft —
+ * enough to identify a draft, nothing to tell drafts apart. Each draft's message is
+ * fetched (metadata format, exactly like the search/triage hydration) and the DRAFT id
+ * stays on the row, because it — not the message id — is what deleteDraft addresses.
+ */
+async function hydrateDrafts(
+  drafts: Array<{ id: string; message?: { id?: string; threadId?: string } }>,
+  account: string,
+): Promise<Record<string, unknown>[]> {
+  return mapLimited(drafts, HYDRATE_CONCURRENCY, async (draft) => {
+    const draftId = draft.id;
+    const messageId = draft.message?.id;
+    if (!messageId) {
+      return { draftId, error: 'draft carries no message id' };
+    }
+    try {
+      const data = await call('gmail', 'users.messages.get', {
+        userId: 'me',
+        id: messageId,
+        format: 'metadata',
+        metadataHeaders: ['From', 'To', 'Subject', 'Date'],
+      }, { account }) as Record<string, unknown>;
+      const headers = ((data.payload as Record<string, unknown>)?.headers ?? []) as Array<{ name: string; value: string }>;
+      const getHeader = (name: string) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value;
+      return {
+        draftId,
+        messageId: data.id,
+        threadId: data.threadId,
+        to: getHeader('to'),
+        from: getHeader('from'),
+        subject: getHeader('subject'),
+        date: getHeader('date'),
+        snippet: data.snippet,
+      };
+    } catch (err) {
+      return {
+        draftId,
+        messageId,
+        error: err instanceof GoogleApiError
+          ? `could not load (${err.status}${err.reason ? ' ' + err.reason : ''})`
+          : `could not load (${err instanceof Error ? err.message : String(err)})`,
+      };
+    }
+  });
+}
 
 async function mapLimited<T, R>(
   items: T[],
@@ -186,6 +235,48 @@ function formatThreadList(data: unknown): HandlerResponse {
   };
 }
 
+/**
+ * Format draft list — DRAFT id (the id deleteDraft needs), recipient, subject, date.
+ *
+ * Drafts are their own Gmail resource, so the row's first column is the DRAFT id
+ * (the "r…" id), NOT the message id: handing the message id to deleteDraft is how a draft
+ * "deletes" without deleting. The refs carry both, keyed so `deleteDraft` can be
+ * chained straight off a row (`$0.draftId`).
+ */
+function formatDraftList(data: unknown): HandlerResponse {
+  const raw = data as Record<string, unknown>;
+  const drafts = (raw?.drafts ?? []) as Array<Record<string, unknown>>;
+
+  if (drafts.length === 0) {
+    const hasEstimate = 'resultSizeEstimate' in (raw ?? {});
+    const text = hasEstimate
+      ? 'No drafts found.'
+      : 'No drafts returned. The API response was missing expected fields — this may indicate an authentication or scope issue rather than an empty result.';
+    return { text, refs: { count: 0 } };
+  }
+
+  const lines = drafts.map(d => {
+    const draftId = String(d.draftId ?? '');
+    // A draft we FAILED TO FETCH is not a draft with no recipient and no subject.
+    // Same rule as the messages list: say what actually happened, in the row.
+    if (d.error) return `${draftId} | ⚠ ${String(d.error)}`;
+    const to = truncate(String(d.to ?? '(no recipient)'), 40);
+    const subject = truncate(String(d.subject ?? '(no subject)'), 50);
+    const date = formatShortDate(d.date);
+    return `${draftId} | ${to} | ${subject} | ${date}`;
+  });
+
+  return {
+    text: `## Drafts (${drafts.length})\n\n${lines.join('\n')}`,
+    refs: {
+      count: drafts.length,
+      draftId: String(drafts[0]?.draftId ?? ''),
+      draftIds: drafts.map(d => String(d.draftId ?? '')).filter(Boolean),
+      messageIds: drafts.map(d => String(d.messageId ?? '')).filter(Boolean),
+    },
+  };
+}
+
 /** Format thread detail — all messages in the thread. */
 function formatThreadDetail(data: unknown): HandlerResponse {
   const raw = data as Record<string, unknown>;
@@ -251,6 +342,18 @@ export const gmailPatch: ServicePatch = {
       const messages = await hydrateMessages(ids, ctx.account);
       return { messages, resultSizeEstimate: raw?.resultSizeEstimate };
     },
+
+    // users.drafts.list returns bare draft resources ({id, message:{id}}) — hydrate
+    // each with metadata so listDrafts shows recipient/subject/date, not just ids.
+    listDrafts: async (result, ctx) => {
+      const raw = result as Record<string, unknown>;
+      const drafts = (raw?.drafts ?? []) as Array<{ id: string; message?: { id?: string; threadId?: string } }>;
+      if (drafts.length === 0) {
+        return { drafts: [], resultSizeEstimate: raw?.resultSizeEstimate ?? 0 };
+      }
+      const hydrated = await hydrateDrafts(drafts, ctx.account);
+      return { drafts: hydrated, resultSizeEstimate: raw?.resultSizeEstimate };
+    },
   },
 
   formatList: (data: unknown, ctx: PatchContext) => {
@@ -259,6 +362,8 @@ export const gmailPatch: ServicePatch = {
         return formatLabelList(data);
       case 'threads':
         return formatThreadList(data);
+      case 'listDrafts':
+        return formatDraftList(data);
       default:
         return formatEmailList(data);
     }
@@ -448,6 +553,28 @@ export const gmailPatch: ServicePatch = {
 
     getAttachment: handleGetAttachment,
     viewAttachment: handleViewAttachment,
+
+    /**
+     * Delete a draft — permanently discard an unsent message.
+     *
+     * The id is the DRAFT resource id (the "r…" id listDrafts returns). This addresses the draft
+     * RESOURCE: a message id from `search in:drafts` cannot be handed to
+     * users.drafts.delete, so it is rejected here rather than silently doing
+     * nothing at Google. Unlike trash there is no undo — Gmail discards drafts,
+     * it does not recycle them through the trash, so the confirmation says
+     * "deleted" and there is deliberately no untrash step offered after it.
+     */
+    deleteDraft: async (params, account): Promise<HandlerResponse> => {
+      const draftId = requireString(params, 'draftId');
+      await call('gmail', 'users.drafts.delete', {
+        userId: 'me',
+        id: draftId,
+      }, { account });
+      return {
+        text: `Deleted draft **${draftId}**.`,
+        refs: { draftId, deleted: true },
+      };
+    },
 
     reply: async (params, account): Promise<HandlerResponse> => {
       const messageId = requireString(params, 'messageId');
