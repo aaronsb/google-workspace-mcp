@@ -338,6 +338,7 @@ describe('generateSchema', () => {
     expect(props.operation.enum).toContain('forward');
     expect(props.operation.enum).toContain('trash');
     expect(props.operation.enum).toContain('labels');
+    expect(props.operation.enum).toContain('createLabel');
   });
 
   it('includes email param when requires_email is true', () => {
@@ -470,6 +471,30 @@ describe('generateHandler', () => {
     expect(result.text).toContain('msg-1');
     expect(result.text).toContain('alice@t.com');
     expect(result.text).toContain('|');
+  });
+
+  it('createLabel calls users.labels.create with the name and visibility', async () => {
+    // A plain resource op: `name` and the visibility flags are body fields on
+    // users.labels.create (the only path parameter is userId), so the generated handler
+    // needs no patch. The label ID comes back in the text because `modify` needs it.
+    mockCall.mockResolvedValueOnce({ id: 'Label_9', name: 'REC/Receipt', type: 'user' });
+    const handler = generateHandler(manifest.services.gmail, patches.gmail);
+
+    const result = await handler({
+      operation: 'createLabel',
+      email: 'u@t.com',
+      name: 'REC/Receipt',
+      labelListVisibility: 'labelShow',
+    });
+
+    expect(mockCall).toHaveBeenCalledWith(
+      'gmail',
+      'users.labels.create',
+      { userId: 'me', name: 'REC/Receipt', labelListVisibility: 'labelShow' },
+      expect.objectContaining({ account: 'u@t.com' }),
+    );
+    expect(result.text).toContain('Label_9');
+    expect(result.text).toContain('REC/Receipt');
   });
 
   it('delegates to customHandler when defined', async () => {

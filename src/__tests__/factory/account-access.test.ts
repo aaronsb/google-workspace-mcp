@@ -121,6 +121,24 @@ describe('what the descriptor says, not what the manifest guessed', () => {
   });
 });
 
+describe('gmail.createLabel', () => {
+  // Creating a label is a write: users.labels.create takes gmail.labels or gmail.modify,
+  // neither of which a read-only (gmail.readonly) token holds.
+  const createLabel = op({ service: 'gmail', resource: 'users.labels.create', type: 'action' });
+
+  it('is refused for a read-only account', async () => {
+    grant(['gmail'], 'read');
+    const result = await evaluatePolicies([], ctx('createLabel'), 'gmail', createLabel);
+    expect(result.action).toBe('block');
+  });
+
+  it('is allowed for a read/write account', async () => {
+    grant(['gmail'], 'readwrite');
+    const result = await evaluatePolicies([], ctx('createLabel'), 'gmail', createLabel);
+    expect(result.action).toBe('allow');
+  });
+});
+
 describe('failing open', () => {
   // A safety check that blocks on its own uncertainty is an outage. Every one of these
   // reaches Google, which refuses it independently if it should be refused.

@@ -395,7 +395,7 @@
           "status": "gap"
         },
         "users.labels.create": {
-          "status": "gap"
+          "status": "covered"
         },
         "users.labels.get": {
           "status": "gap"

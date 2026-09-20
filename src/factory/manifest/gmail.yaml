@@ -275,6 +275,26 @@ operations:
     defaults:
       userId: me
 
+  createLabel:
+    type: action
+    description: "create a label. A slash in the name makes it nested (e.g. 'REC/Receipt' under 'REC'). Fails if the name already exists. Use `labels` first to check, then pass the returned label ID to `modify`."
+    resource: users.labels.create
+    params:
+      name:
+        type: string
+        description: "Label name, e.g. 'REC/Receipt'. Nested labels use a slash; create the parent first if Gmail shows nesting."
+        required: true
+      labelListVisibility:
+        type: string
+        description: "Whether the label appears in the label list: labelShow (default), labelShowIfUnread, or labelHide"
+        enum: [labelShow, labelShowIfUnread, labelHide]
+      messageListVisibility:
+        type: string
+        description: "Whether the label appears on messages in the message list: show (default) or hide"
+        enum: [show, hide]
+    defaults:
+      userId: me
+
   # --- Threads ---
 
   threads:
