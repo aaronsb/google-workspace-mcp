@@ -123,7 +123,8 @@ export const noDelete: SafetyPolicy = {
     // Task/tasklist delete is permanent
     // Calendar delete is permanent
     const permanentDeletes: Record<string, string[]> = {
-      gmail: [],          // 'trash' is reversible, which is fine
+      // 'trash' is reversible, which is fine; drafts have no trash, so deleteDraft is permanent
+      gmail: ['deleteDraft'],
       calendar: ['delete'],
       drive: ['delete'],
       tasks: ['delete', 'deleteTaskList'],

@@ -558,9 +558,8 @@ export const gmailPatch: ServicePatch = {
      * Delete a draft — permanently discard an unsent message.
      *
      * The id is the DRAFT resource id (the "r…" id listDrafts returns). This addresses the draft
-     * RESOURCE: a message id from `search in:drafts` cannot be handed to
-     * users.drafts.delete, so it is rejected here rather than silently doing
-     * nothing at Google. Unlike trash there is no undo — Gmail discards drafts,
+     * RESOURCE: a message id from `search in:drafts` is not a draft id, and Google
+     * rejects it as not found. Unlike trash there is no undo — Gmail discards drafts,
      * it does not recycle them through the trash, so the confirmation says
      * "deleted" and there is deliberately no untrash step offered after it.
      */
