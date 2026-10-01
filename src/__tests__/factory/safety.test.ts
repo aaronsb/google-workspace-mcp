@@ -74,6 +74,10 @@ describe('noDelete', () => {
     expect((await evaluatePolicies([], ctx('deleteTaskList'), 'tasks')).action).toBe('block');
   });
 
+  it('blocks gmail deleteDraft (drafts have no trash)', async () => {
+    expect((await evaluatePolicies([], ctx('deleteDraft'), 'gmail')).action).toBe('block');
+  });
+
   it('allows gmail trash (reversible)', async () => {
     expect((await evaluatePolicies([], ctx('trash'), 'gmail')).action).toBe('allow');
   });

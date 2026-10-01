@@ -466,11 +466,11 @@ export function formatFileDetail(data: unknown): HandlerResponse {
 
 // --- Helpers ---
 
-function truncate(s: string, max: number): string {
+export function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max - 1) + '…' : s;
 }
 
-function formatShortDate(value: unknown): string {
+export function formatShortDate(value: unknown): string {
   if (!value) return '';
   const s = String(value);
   try {

@@ -62,6 +62,14 @@ const suggestions: Record<string, Record<string, NextStep[]>> = {
       { description: 'Read a specific email', tool: 'manage_email', example: { operation: 'read', email: '<email>', messageId: '<id from results>' } },
       { description: 'Search for specific emails', tool: 'manage_email', example: { operation: 'search', email: '<email>', query: '<query>' } },
     ],
+    listDrafts: [
+      { description: 'Delete a draft', tool: 'manage_email', example: { operation: 'deleteDraft', email: '<email>', draftId: '<draftId from results>' } },
+      { description: 'Compose a new email', tool: 'manage_email', example: { operation: 'send', email: '<email>', to: '<recipient>', subject: '<subject>', body: '<body>' } },
+    ],
+    deleteDraft: [
+      { description: 'List remaining drafts', tool: 'manage_email', example: { operation: 'listDrafts', email: '<email>' } },
+      { description: 'Compose a new email', tool: 'manage_email', example: { operation: 'send', email: '<email>', to: '<recipient>', subject: '<subject>', body: '<body>' } },
+    ],
   },
   calendar: {
     list: [

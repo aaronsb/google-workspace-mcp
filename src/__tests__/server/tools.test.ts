@@ -74,6 +74,14 @@ describe('manage_email schema', () => {
     expect(props.operation.enum).toContain('send');
     expect(props.operation.enum).toContain('reply');
     expect(props.operation.enum).toContain('triage');
+    expect(props.operation.enum).toContain('listDrafts');
+    expect(props.operation.enum).toContain('deleteDraft');
+  });
+
+  it('exposes draftId (the id deleteDraft needs) and nothing named after a message id', () => {
+    expect(props.draftId).toMatchObject({ type: 'string' });
+    expect(props.draftId.description).toContain('Draft id');
+    expect(props.draftId.description).toContain('listDrafts');
   });
 
   it('requires email', () => {
