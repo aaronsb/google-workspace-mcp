@@ -184,6 +184,11 @@ describe('handleAccounts', () => {
       expect(mockAuthAdd).toHaveBeenCalledWith('test-id', 'test-secret', 'personal', undefined, 'readwrite');
     });
 
+    it('passes services through to narrow the first grant', async () => {
+      await handleAccounts({ operation: 'authenticate', access: 'read', services: 'gmail,drive,calendar' });
+      expect(mockAuthAdd).toHaveBeenCalledWith('test-id', 'test-secret', 'personal', undefined, 'read', 'gmail,drive,calendar');
+    });
+
     it('passes read through when asked', async () => {
       const result = await handleAccounts({ operation: 'authenticate', access: 'read' });
       expect(mockAuthAdd).toHaveBeenCalledWith('test-id', 'test-secret', 'personal', undefined, 'read');

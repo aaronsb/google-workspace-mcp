@@ -167,12 +167,16 @@ export async function handleAccounts(params: Record<string, unknown>): Promise<H
       const category = (params.category as string) || 'personal';
       const description = params.description as string | undefined;
       const access = requestedAccess(params);
+      // Optional: narrow the first grant to named services (same format as `scopes`).
+      // Absent means every service, exactly as before — the argument is only passed
+      // through when a caller actually supplied it.
+      const services = (params.services as string | undefined)?.trim() || undefined;
 
       // Check what this access level would actually grant BEFORE opening a browser.
       const warning = writeAccessWarning(
-        scopesForServices(ALL_SERVICES, access).stillAllowWrites,
+        scopesForServices(services ?? ALL_SERVICES, access).stillAllowWrites,
         params,
-        `manage_accounts {"operation":"authenticate","access":"read","confirmWriteAccess":true}`,
+        `manage_accounts {"operation":"authenticate",${services ? `"services":"${services}",` : ''}"access":"read","confirmWriteAccess":true}`,
         false,
       );
       if (warning) return warning;
@@ -182,6 +186,7 @@ export async function handleAccounts(params: Record<string, unknown>): Promise<H
         category as 'personal' | 'work' | 'other',
         description,
         access,
+        ...(services ? [services] : []),
       );
       const grantNote = result.stillAllowWrites?.length
         ? `\n\n> Read-only was requested. ${result.stillAllowWrites.join(', ')} had no read-only option and can still be changed by this account.`

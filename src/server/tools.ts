@@ -29,7 +29,7 @@ const handCodedSchemas: ToolSchema[] = [
         email: { type: 'string', description: 'Required for remove, status, refresh, scopes' },
         category: { type: 'string', enum: ['personal', 'work', 'other'], description: 'For authenticate (default: personal)' },
         description: { type: 'string', description: 'For authenticate — optional label' },
-        services: { type: 'string', description: 'For scopes — comma-separated service names (e.g. gmail,drive,calendar,sheets)' },
+        services: { type: 'string', description: 'For scopes (required) and authenticate (optional, default: all services) — comma-separated service names (e.g. gmail,drive,calendar,sheets)' },
         access: {
           type: 'string',
           enum: ['read', 'readwrite'],
