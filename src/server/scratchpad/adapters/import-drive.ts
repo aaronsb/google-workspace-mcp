@@ -4,8 +4,7 @@
  */
 
 import * as fs from 'node:fs/promises';
-import { call, download } from '../../../google/client.js';
-import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../../executor/workspace.js';
+import { downloadToWorkspace } from '../../../services/drive/workspace-download.js';
 import type { HandlerResponse } from '../../handler.js';
 import type { ScratchpadManager } from '../manager.js';
 
@@ -27,45 +26,25 @@ export async function importDriveFile(
   }
 
   try {
-    // Get file metadata to check type
-    const meta = await call('drive', 'files.get', {
-      fileId,
-      fields: 'id,name,mimeType,size',
-      supportsAllDrives: true,
-    }, { account: email }) as Record<string, unknown>;
+    const file = await downloadToWorkspace(fileId, email, {
+      accept: ({ name, mimeType }) => {
+        if (!TEXT_MIME_PREFIXES.some(p => mimeType.startsWith(p))) {
+          throw new Error(
+            `File "${name}" is ${mimeType} — not a text format.\n` +
+            `Attach it to the scratchpad instead (attach with source "drive").`,
+          );
+        }
+      },
+    });
 
-    const mimeType = String(meta.mimeType ?? '');
-    const name = String(meta.name ?? fileId);
-
-    const isText = TEXT_MIME_PREFIXES.some(p => mimeType.startsWith(p));
-    if (!isText) {
-      return {
-        text: `File "${name}" is ${mimeType} — not a text format.\nUse manage_drive download to get the file, then attach it to the scratchpad instead.`,
-        refs: { error: true, scratchpadId, fileId, mimeType },
-      };
-    }
-
-    // Download to workspace, then read. `alt: 'media'` is what turns files.get from
-    // a metadata read into a byte stream. Without it this is a metadata read, and the
-    // feature silently returns no bytes.
-    await ensureWorkspaceDir();
-    const filePath = resolveWorkspacePath(name);
-    await verifyPathSafety(filePath);
-
-    await download('drive', 'files.get', {
-      fileId,
-      alt: 'media',
-      supportsAllDrives: true,
-    }, filePath, { account: email });
-
-    const content = await fs.readFile(filePath, 'utf-8');
+    const content = await fs.readFile(file.path, 'utf-8');
     const lines = content.split('\n');
 
     scratchpads.appendRawLines(scratchpadId, lines);
 
     return {
-      text: `Imported "${name}" (${lines.length} lines) into scratchpad ${scratchpadId}.`,
-      refs: { scratchpadId, fileId, filename: name, linesImported: lines.length },
+      text: `Imported "${file.name}" (${lines.length} lines) into scratchpad ${scratchpadId}.`,
+      refs: { scratchpadId, fileId, filename: file.filename, linesImported: lines.length },
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

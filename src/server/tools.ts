@@ -99,7 +99,8 @@ const handCodedSchemas: ToolSchema[] = [
         // attach
         source: { type: 'string', description: 'For attach: file source (workspace or drive). For import: resource type (doc, email, sheet, drive_file).' },
         filename: { type: 'string', description: 'For attach (workspace source): filename in workspace' },
-        fileId: { type: 'string', description: 'For attach (drive source): Drive file ID' },
+        fileId: { type: 'string', description: 'For attach (drive source): Drive file ID. The file is downloaded into the workspace at attach time.' },
+        email: { type: 'string', description: 'For attach (drive source): account that can read the Drive file' },
         refId: { type: 'string', description: 'For detach: attachment reference ID (att-1, att-2, etc.)' },
         // import
         sourceParams: { type: 'object', description: 'For import: source-specific parameters (e.g., { documentId, mode } for doc, { messageId } for email)' },

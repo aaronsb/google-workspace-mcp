@@ -15,6 +15,7 @@ import { call } from '../../google/client.js';
 import { evaluatePolicies, type OperationInfo } from '../../factory/safety.js';
 import { resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
 import { lookupMimeType } from '../../services/gmail/mime.js';
+import { downloadToWorkspace } from '../../services/drive/workspace-download.js';
 import type { HandlerResponse } from '../handler.js';
 
 /**
@@ -521,43 +522,40 @@ async function handleAttach(params: Record<string, unknown>): Promise<HandlerRes
   const id = requireScratchpadId(params);
   if (!id) return scratchpadNotFound(params.scratchpadId as string);
 
-  const source = params.source as 'workspace' | 'drive' | undefined;
-  if (!source) return error('source is required for attach (workspace or drive).');
-  const filename = params.filename as string | undefined;
-  const fileId = params.fileId as string | undefined;
-  if (!filename && !fileId) return error('filename (for workspace) or fileId (for drive) is required.');
+  const source = params.source as string | undefined;
+  if (source !== 'workspace' && source !== 'drive') {
+    return error('source is required for attach (workspace or drive).');
+  }
 
-  let resolvedFilename: string;
-  let mimeType: string;
-  let size: number;
+  // Every attachment is a workspace file by the time it reaches the side-table: a Drive
+  // file is downloaded into the workspace here, so its file ID only ever reaches the
+  // Drive API and `location` is always a contained path the send adapters can trust.
+  let filename: string;
   let location: string;
-
-  if (source === 'workspace') {
-    if (!filename) return error('filename is required for workspace attachments.');
-    try {
-      const filePath = resolveWorkspacePath(filename);
-      await verifyPathSafety(filePath);
-      const stat = await fs.stat(filePath);
-      resolvedFilename = filename;
-      mimeType = lookupMimeType(filename);
-      size = stat.size;
-      location = filePath;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return error(`Cannot attach workspace file: ${msg}`);
+  let size: number;
+  try {
+    if (source === 'workspace') {
+      const given = params.filename as string | undefined;
+      if (!given) return error('filename is required for workspace attachments.');
+      location = resolveWorkspacePath(given);
+      await verifyPathSafety(location);
+      filename = given;
+    } else {
+      const fileId = params.fileId as string | undefined;
+      const account = params.email as string | undefined;
+      if (!fileId || !account) return error('fileId and email are required for drive attachments.');
+      ({ filename, path: location } = await downloadToWorkspace(fileId, account));
     }
-  } else {
-    // Drive attachments — use fileId as identifier, metadata resolved later on send
-    resolvedFilename = fileId ?? 'unknown';
-    mimeType = 'application/octet-stream';
-    size = 0;
-    location = fileId ?? '';
+    size = (await fs.stat(location)).size;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return error(`Cannot attach ${source} file: ${msg}`);
   }
 
   const result = scratchpads.attach(id, {
     source,
-    filename: resolvedFilename,
-    mimeType,
+    filename,
+    mimeType: lookupMimeType(filename),
     size,
     location,
   }, params.afterLine as number | undefined);
