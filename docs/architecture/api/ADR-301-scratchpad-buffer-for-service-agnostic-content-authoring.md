@@ -100,7 +100,7 @@ interface AttachmentRef {
   filename: string;
   mimeType: string;
   size: number;
-  location: string;        // workspace file path or Drive fileId
+  location: string;        // absolute workspace path — Drive files are downloaded on attach
 }
 ```
 
@@ -168,7 +168,7 @@ This model is more API calls than deferred send, but each call is small and the 
 | Operation | Parameters | Effect |
 |---|---|---|
 | `import` | `scratchpadId`, `source`, `sourceParams` | Load content from a GWS resource. Sets format. |
-| `attach` | `scratchpadId`, `source` (`workspace`\|`drive`), `filename` or `fileId`, `afterLine?` | Add file to side-table, insert reference marker. |
+| `attach` | `scratchpadId`, `source` (`workspace`\|`drive`), `filename` (workspace) or `fileId` + `email` (drive), `afterLine?` | Add file to side-table, insert reference marker. A Drive file is downloaded into the workspace first, so every attachment's `location` is a contained workspace path and the file ID only ever reaches the Drive API. |
 | `detach` | `scratchpadId`, `refId` | Remove from side-table. Marker line left for agent to remove. |
 
 **Delivery operations:**

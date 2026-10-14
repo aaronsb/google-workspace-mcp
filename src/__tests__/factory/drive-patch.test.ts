@@ -25,6 +25,7 @@ vi.mock('../../executor/workspace.js', () => ({
   ensureWorkspaceDir: vi.fn(async () => ({ path: tmpWorkspace, valid: true })),
   getWorkspaceDir: vi.fn(() => tmpWorkspace),
   resolveWorkspacePath: vi.fn((filename: string) => path.join(tmpWorkspace, filename)),
+  sanitizeFilename: vi.fn((name: string) => name),
   verifyPathSafety: vi.fn(async () => {}),
 }));
 

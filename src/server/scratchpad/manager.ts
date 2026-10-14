@@ -33,6 +33,7 @@ export interface AttachmentRef {
   filename: string;
   mimeType: string;
   size: number;
+  /** Absolute path inside the workspace. Drive files are downloaded on attach. */
   location: string;
 }
 

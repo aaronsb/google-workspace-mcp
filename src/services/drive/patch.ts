@@ -19,6 +19,7 @@ import { formatFileList, formatFileDetail } from '../../server/formatting/markdo
 import { requireString } from '../../server/handlers/validate.js';
 import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
 import { isTextFile, formatFileOutput, buildImageBlock, buildImageBlockFromFile, isImageFile, type FileOutputResult } from '../../executor/file-output.js';
+import { downloadToWorkspace } from './workspace-download.js';
 import type { ServicePatch } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
@@ -312,33 +313,10 @@ export const drivePatch: ServicePatch = {
 
     download: async (params, account): Promise<HandlerResponse> => {
       const fileId = requireString(params, 'fileId');
+      const outputPath = params.outputPath ? String(params.outputPath) : undefined;
+      const file = await downloadToWorkspace(fileId, account, { outputPath });
 
-      // Get file metadata for filename and mime type
-      const meta = await call('drive', 'files.get', {
-        fileId,
-        fields: 'name,mimeType',
-        supportsAllDrives: true,
-      }, { account }) as Record<string, unknown>;
-      const filename = String(params.outputPath || meta.name || `file-${fileId}`);
-      const mimeType = String(meta.mimeType || '');
-
-      // Ensure workspace and resolve output path
-      const wsStatus = await ensureWorkspaceDir();
-      if (!wsStatus.valid) throw new Error(`Workspace invalid: ${wsStatus.warning}`);
-      const outputPath = resolveWorkspacePath(filename);
-      await verifyPathSafety(outputPath);
-
-      // Ensure parent directories exist (outputPath may contain subdirectories)
-      await fs.mkdir(path.dirname(outputPath), { recursive: true });
-
-      // Stream the bytes straight to disk — they are never a JS string (ADR-103).
-      await download('drive', 'files.get', {
-        fileId,
-        alt: 'media',
-        supportsAllDrives: true,
-      }, outputPath, { account });
-
-      const output = await readWorkspaceFile(outputPath, filename, mimeType);
+      const output = await readWorkspaceFile(file.path, file.filename, file.mimeType);
 
       return {
         text: formatFileOutput(output),
