@@ -34,7 +34,11 @@ export interface AccountStatus {
 
 /**
  * Authenticate a new account via our own OAuth2 flow.
- * Requests all service scopes by default.
+ * Requests all service scopes by default; `services` narrows the FIRST grant to the
+ * named services, so an account never holds a scope it was not asked for — the
+ * alternative (authorize everything, then narrow with `scopes`) leaves a window in which
+ * the token is broader than intended and fails outright under a Workspace admin
+ * allowlist that permits only the narrower set.
  *
  * `access` defaults to 'readwrite', so an account authorized without naming it is
  * granted exactly what it would have been before ADR-202.
@@ -43,8 +47,9 @@ export async function authenticateAccount(
   clientId: string,
   clientSecret: string,
   access: AccessLevel = 'readwrite',
+  services: string = ALL_SERVICES,
 ): Promise<AuthResult> {
-  const { scopes, stillAllowWrites } = scopesForServices(ALL_SERVICES, access);
+  const { scopes, stillAllowWrites } = scopesForServices(services, access);
   const result = await runOAuth(clientId, clientSecret, scopes, access, stillAllowWrites);
   return { ...result, access, stillAllowWrites };
 }
