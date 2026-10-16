@@ -11,7 +11,12 @@ const CALLBACK_TIMEOUT = 5 * 60_000; // 5 minutes
 
 /** Service name → OAuth scope URL(s). */
 export const SERVICE_SCOPE_MAP: Record<string, string[]> = {
-  gmail:    ['https://www.googleapis.com/auth/gmail.modify'],
+  // settings.basic is the only scope Google accepts for creating or deleting a filter
+  // (ADR-309). Reading filters needs only gmail.modify or gmail.readonly.
+  gmail: [
+    'https://www.googleapis.com/auth/gmail.modify',
+    'https://www.googleapis.com/auth/gmail.settings.basic',
+  ],
   drive:    ['https://www.googleapis.com/auth/drive'],
   calendar: ['https://www.googleapis.com/auth/calendar'],
   sheets:   ['https://www.googleapis.com/auth/spreadsheets'],

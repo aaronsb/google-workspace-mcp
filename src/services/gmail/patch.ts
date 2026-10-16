@@ -11,133 +11,18 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { call } from '../../google/client.js';
-import { GoogleApiError } from '../../google/errors.js';
 import { formatEmailList, formatEmailDetail, extractBodyFromPayload, extractAttachments, decodeSnippet, truncate, formatShortDate, type EmailBodyFormat } from '../../server/formatting/markdown.js';
-import { requireString } from '../../server/handlers/validate.js';
+import { requireString, clamp } from '../../server/handlers/validate.js';
 import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
 import { handleGetAttachment, handleViewAttachment } from './attachments.js';
+import { hydrateMessages, hydrateDrafts } from './hydrate.js';
+import {
+  handleListFilters, handleGetFilter, handlePreviewFilter,
+  handleCreateFilter, handleUpdateFilter, handleDeleteFilter,
+} from './filters.js';
 import { sendMail, replyMail, forwardMail } from './mail.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
-
-/**
- * Hydrate message IDs with metadata (From, Subject, Date, snippet).
- * Reused from the original email handler.
- */
-async function hydrateMessages(
-  messageIds: Array<{ id: string }>,
-  account: string,
-): Promise<Record<string, unknown>[]> {
-  // Google throttles per USER, not per process, so this burst competes with every
-  // other client signed in to the same account. Firing all 50 at once is the surest
-  // way to be told no. A modest window is barely slower — the calls still overlap —
-  // and it is far less likely to be throttled in the first place.
-  return mapLimited(messageIds, HYDRATE_CONCURRENCY, async (msg) => {
-    try {
-      const data = await call('gmail', 'users.messages.get', {
-        userId: 'me',
-        id: msg.id,
-        format: 'metadata',
-        metadataHeaders: ['From', 'Subject', 'Date'],
-      }, { account }) as Record<string, unknown>;
-      const headers = ((data.payload as Record<string, unknown>)?.headers ?? []) as Array<{ name: string; value: string }>;
-      const getHeader = (name: string) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value;
-      return {
-        id: data.id,
-        threadId: data.threadId,
-        from: getHeader('from'),
-        subject: getHeader('subject'),
-        date: getHeader('date'),
-        snippet: data.snippet,
-      };
-    } catch (err) {
-      // A message we could not READ must never look like a message with NOTHING IN IT.
-      //
-      // This used to `catch { return { id: msg.id } }` — every failure became a row
-      // with no sender, no subject and no date, indistinguishable from a genuinely
-      // empty message. Under rate limiting the tail of an inbox silently rendered as
-      // blank lines, and the tool reported success while showing the user nothing.
-      //
-      // The client retries a 429 now, so reaching here means it did not recover. Say
-      // so, in the row, where the person reading the list will actually see it.
-      return {
-        id: msg.id,
-        error: err instanceof GoogleApiError
-          ? `could not load (${err.status}${err.reason ? ' ' + err.reason : ''})`
-          : `could not load (${err instanceof Error ? err.message : String(err)})`,
-      };
-    }
-  });
-}
-
-/** Concurrent, but bounded. */
-const HYDRATE_CONCURRENCY = 8;
-
-/**
- * Hydrate draft resources with message metadata (From, To, Subject, Date, snippet).
- *
- * users.drafts.list returns one bare {id: draftId, message: {id, threadId}} per draft —
- * enough to identify a draft, nothing to tell drafts apart. Each draft's message is
- * fetched (metadata format, exactly like the search/triage hydration) and the DRAFT id
- * stays on the row, because it — not the message id — is what deleteDraft addresses.
- */
-async function hydrateDrafts(
-  drafts: Array<{ id: string; message?: { id?: string; threadId?: string } }>,
-  account: string,
-): Promise<Record<string, unknown>[]> {
-  return mapLimited(drafts, HYDRATE_CONCURRENCY, async (draft) => {
-    const draftId = draft.id;
-    const messageId = draft.message?.id;
-    if (!messageId) {
-      return { draftId, error: 'draft carries no message id' };
-    }
-    try {
-      const data = await call('gmail', 'users.messages.get', {
-        userId: 'me',
-        id: messageId,
-        format: 'metadata',
-        metadataHeaders: ['From', 'To', 'Subject', 'Date'],
-      }, { account }) as Record<string, unknown>;
-      const headers = ((data.payload as Record<string, unknown>)?.headers ?? []) as Array<{ name: string; value: string }>;
-      const getHeader = (name: string) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value;
-      return {
-        draftId,
-        messageId: data.id,
-        threadId: data.threadId,
-        to: getHeader('to'),
-        from: getHeader('from'),
-        subject: getHeader('subject'),
-        date: getHeader('date'),
-        snippet: data.snippet,
-      };
-    } catch (err) {
-      return {
-        draftId,
-        messageId,
-        error: err instanceof GoogleApiError
-          ? `could not load (${err.status}${err.reason ? ' ' + err.reason : ''})`
-          : `could not load (${err instanceof Error ? err.message : String(err)})`,
-      };
-    }
-  });
-}
-
-async function mapLimited<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let next = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) {
-      const i = next++;
-      results[i] = await fn(items[i]);      // fn never rejects — it catches internally
-    }
-  });
-  await Promise.all(workers);
-  return results;
-}
 
 /** "Tue, 19 Aug 2026 ..." -> "2026-08-19"; '' when the header is not parseable. */
 const MONTH_TO_MM: Record<string, string> = {
@@ -320,27 +205,87 @@ function formatThreadDetail(data: unknown): HandlerResponse {
   };
 }
 
+/** Largest page `messages.list` returns; the ids-only page size. */
+const IDS_ONLY_PAGE = 500;
+
+function isIdsOnly(ctx: PatchContext): boolean {
+  return ctx.operation === 'search' && (ctx.params.idsOnly === true || ctx.params.idsOnly === 'true');
+}
+
+/** The paging fields of a Gmail list response, kept through hydration. */
+function pagingFrom(raw: Record<string, unknown> | undefined): Record<string, unknown> {
+  return {
+    ...(typeof raw?.nextPageToken === 'string' && raw.nextPageToken ? { nextPageToken: raw.nextPageToken } : {}),
+    ...(typeof raw?.resultSizeEstimate === 'number' ? { resultSizeEstimate: raw.resultSizeEstimate } : {}),
+  };
+}
+
+/**
+ * Say when a list stopped before the end (ADR-309).
+ *
+ * A full page and a complete result look identical otherwise: 50 rows of 50 and 50 rows
+ * of 400 render the same, and the reader sizes the problem from the wrong one.
+ */
+function withPaging(response: HandlerResponse, data: unknown, ctx: PatchContext): HandlerResponse {
+  const raw = (data ?? {}) as Record<string, unknown>;
+  const nextPageToken = typeof raw.nextPageToken === 'string' ? raw.nextPageToken : '';
+  if (!nextPageToken) return response;
+
+  const estimate = typeof raw.resultSizeEstimate === 'number' ? raw.resultSizeEstimate : undefined;
+  const sized = estimate !== undefined
+    ? ` Google estimates about ${estimate} in total; that figure is an estimate and is often wrong.`
+    : '';
+  return {
+    text: `${response.text}\n\nMore results exist.${sized} Call \`${ctx.operation}\` again with the same parameters and pageToken: ${nextPageToken}`,
+    refs: { ...response.refs, nextPageToken, ...(estimate !== undefined ? { resultSizeEstimate: estimate } : {}) },
+  };
+}
+
+/** An ids-only search page: the ids, comma-separated, ready for bulk_operations batch. */
+function formatIdList(data: unknown): HandlerResponse {
+  const ids = ((data as Record<string, unknown>)?.ids ?? []) as string[];
+  if (ids.length === 0) return { text: 'No messages found.', refs: { count: 0, ids: [] } };
+  return {
+    text: `## Message ids (${ids.length})\n\n${ids.join(',')}`,
+    refs: { count: ids.length, ids },
+  };
+}
+
 export const gmailPatch: ServicePatch = {
+  beforeExecute: {
+    // An ids-only page costs one call however long it is, so it pages at the API's own
+    // limit rather than at the cap that exists to bound hydration.
+    search: (callParams, ctx) => isIdsOnly(ctx)
+      ? { ...callParams, maxResults: clamp(ctx.params.maxResults, IDS_ONLY_PAGE, IDS_ONLY_PAGE) }
+      : callParams,
+  },
+
   afterExecute: {
     // triage IS search, with a different default query. Same raw Google shape
     // (messages.list -> bare ids), same hydrate, same formatter.
     triage: async (result, ctx) => gmailPatch.afterExecute!.search(result, ctx),
 
     search: async (result, ctx) => {
-      // messages.list returns bare IDs — hydrate with metadata
+      // messages.list returns bare IDs. idsOnly hands them back as they are, which is what
+      // makes walking thousands of matches cheap; otherwise each row is hydrated.
       const raw = result as Record<string, unknown>;
       const ids = (raw?.messages ?? []) as Array<{ id: string }>;
+      const paging = pagingFrom(raw);
+      if (isIdsOnly(ctx)) {
+        return { ids: ids.map((m) => m.id), idsOnly: true, ...paging };
+      }
       if (ids.length === 0) {
         // Preserve resultSizeEstimate so formatters can distinguish
         // "search ran, no matches" from unexpected empty responses
         return {
           messages: [],
+          ...paging,
           resultSizeEstimate: raw?.resultSizeEstimate ?? 0,
           query: ctx.params.query ?? '',
         };
       }
       const messages = await hydrateMessages(ids, ctx.account);
-      return { messages, resultSizeEstimate: raw?.resultSizeEstimate };
+      return { messages, ...paging };
     },
 
     // users.drafts.list returns bare draft resources ({id, message:{id}}) — hydrate
@@ -349,10 +294,10 @@ export const gmailPatch: ServicePatch = {
       const raw = result as Record<string, unknown>;
       const drafts = (raw?.drafts ?? []) as Array<{ id: string; message?: { id?: string; threadId?: string } }>;
       if (drafts.length === 0) {
-        return { drafts: [], resultSizeEstimate: raw?.resultSizeEstimate ?? 0 };
+        return { drafts: [], ...pagingFrom(raw), resultSizeEstimate: raw?.resultSizeEstimate ?? 0 };
       }
       const hydrated = await hydrateDrafts(drafts, ctx.account);
-      return { drafts: hydrated, resultSizeEstimate: raw?.resultSizeEstimate };
+      return { drafts: hydrated, ...pagingFrom(raw) };
     },
   },
 
@@ -361,11 +306,11 @@ export const gmailPatch: ServicePatch = {
       case 'labels':
         return formatLabelList(data);
       case 'threads':
-        return formatThreadList(data);
+        return withPaging(formatThreadList(data), data, ctx);
       case 'listDrafts':
-        return formatDraftList(data);
+        return withPaging(formatDraftList(data), data, ctx);
       default:
-        return formatEmailList(data);
+        return withPaging(isIdsOnly(ctx) ? formatIdList(data) : formatEmailList(data), data, ctx);
     }
   },
   formatDetail: (data: unknown, ctx: PatchContext) => {
@@ -553,6 +498,14 @@ export const gmailPatch: ServicePatch = {
 
     getAttachment: handleGetAttachment,
     viewAttachment: handleViewAttachment,
+
+    // Filters — the lifecycle and its preview gate live in filters.ts (ADR-309).
+    filters: handleListFilters,
+    getFilter: handleGetFilter,
+    previewFilter: handlePreviewFilter,
+    createFilter: handleCreateFilter,
+    updateFilter: handleUpdateFilter,
+    deleteFilter: handleDeleteFilter,
 
     /**
      * Delete a draft — permanently discard an unsent message.

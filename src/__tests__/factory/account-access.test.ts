@@ -81,6 +81,35 @@ describe('a service the account never authorized', () => {
   });
 });
 
+describe('a read/write account that authorized before its service needed a new scope', () => {
+  // Every gmail account authorized before ADR-309 holds gmail.modify and not
+  // gmail.settings.basic, the only scope Google accepts for creating a filter.
+  const createFilter = () => evaluatePolicies([], ctx('createFilter'), 'gmail',
+    op({ service: 'gmail', resource: 'users.settings.filters.create', type: 'action' }));
+
+  it('is blocked, names the missing scope, and does not call the account read-only', async () => {
+    readCredential.mockResolvedValue({ scopes: ['https://www.googleapis.com/auth/gmail.modify'] });
+    const { action, reason } = await createFilter();
+    expect(action).toBe('block');
+    expect(reason).toContain('gmail.settings.basic');
+    expect(reason).toContain(`services:'gmail'`);
+    expect(reason).not.toContain('read-only');
+    expect(reason).not.toContain('never authorized');
+  });
+
+  it('may still read filters', async () => {
+    readCredential.mockResolvedValue({ scopes: ['https://www.googleapis.com/auth/gmail.modify'] });
+    const result = await evaluatePolicies([], ctx('filters'), 'gmail',
+      op({ service: 'gmail', resource: 'users.settings.filters.list', type: 'list' }));
+    expect(result.action).toBe('allow');
+  });
+
+  it('is allowed once re-authorized', async () => {
+    grant(['gmail'], 'readwrite');
+    expect((await createFilter()).action).toBe('allow');
+  });
+});
+
 describe('operations with no `resource` — the pure custom handlers', () => {
   // Six of the seven are writes (gmail send/reply/replyAll/forward, drive upload,
   // calendar create). Enforcing only where a resource exists would exempt exactly the
