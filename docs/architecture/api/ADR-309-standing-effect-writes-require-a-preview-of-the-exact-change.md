@@ -35,19 +35,22 @@ An evaluation is only as good as its count. Issue #203 shows that `search` caps 
 - the consequence of each action in plain language, for example "TRASH: matching mail goes to trash on arrival and is deleted after 30 days" or "forward: future matches go to bob@example.com with no further prompt";
 - a **preview token**.
 
-`create` requires that token and refuses without it. A refusal states what is missing and
-the call that produces it, in the form ADR-202 uses for blocked writes.
+`create` requires that token and refuses without it. A refusal states what is missing and the call that produces it, in the form ADR-202 uses for blocked writes.
+
+Changing an existing object is gated the same way. `preview` names the object a change would replace, shows it beside the replacement, and mints a token only `update` accepts.
 
 The schema keeps every action Google supports. The preview is what explains a dangerous action, and the gate makes sure that explanation is returned before the write happens.
 
-`preview` is typed `list`, so a read-only account can run it under ADR-202, and an agent
-can evaluate a filter for an account that cannot create one.
+`preview` is typed `list`, so a read-only account can run it under ADR-202, and an agent can evaluate a filter for an account that cannot create one.
+
+Problems that would make the write fail or do nothing, such as a label that does not exist or an exact duplicate, are reported as errors and withhold the token. Consequences are shown, never refused.
 
 ### 2. The token binds the exact payload, the account, and a time
 
 The token is an HMAC, under a key generated at process start, over the canonical serialization of `{account, payload, issuedAt}`. `create` recomputes the HMAC from the payload it receives. It refuses when:
 
-- **the payload differs** from what was previewed, so editing the filter after preview means previewing again;
+- **the payload differs** from what was previewed, so editing the filter after preview means previewing again. For an update the payload includes the object being replaced as it was at preview time, so an object that changed since is not replaced on the strength of a preview of something else;
+- **the token was minted for another operation**, such as an update token offered to `create`;
 - **the token has expired** (30 minutes), because the count and the conflict check drift as mail arrives and filters change;
 - **the token was minted within the same top-level tool call**, which closes the path where a `bulk_operations` queue chains `preview` into `create` via `$0.previewToken` and no result reaches the caller in between.
 
@@ -55,8 +58,7 @@ The token is an HMAC, under a key generated at process start, over the canonical
 
 A token proves that the evaluation was returned to the caller. It does not prove that a person read it. Human approval remains the MCP client's job, through its per-call permission prompt. The gate ensures that what the person approves is a call carrying an evaluation they could have seen.
 
-The stateless HMAC design leaves nothing to store or expire. A server restart invalidates
-every outstanding token, and the remedy is to preview again.
+The stateless HMAC design leaves nothing to store or expire. A server restart invalidates every outstanding token, and the remedy is to preview again.
 
 ### 3. A list that stops before the end says so
 
@@ -67,19 +69,26 @@ This is required for the preview's count to be honest, and it applies to every l
 - a count Google provides as an estimate (`resultSizeEstimate`) is labeled as an estimate;
 - where hydrating each row costs a call (Gmail `search` fetches `messages.get` per row), an **ids-only** mode skips hydration and pages at the API's limit (500 for `messages.list`). Its output is shaped to feed `bulk_operations` batch mode (ADR-308) directly.
 
-The preview counts by walking ids-only pages up to a cap. When the walk ends under the cap,
-the count is exact. Otherwise it reports "at least <cap>; Google estimates <n>".
+The preview counts by walking ids-only pages up to a cap. When the walk ends under the cap, the count is exact. Otherwise it reports "at least <cap>; Google estimates <n>".
 
-### 4. Removing a standing effect does not need a preview
+Gmail's lists meet this with this record. The list operations of other services that Google pages are tracked in #204.
 
-`delete` stops future actions and does not act on anything itself. It returns the full definition of what it removed, so the object can be recreated through `preview` and `create`. Where Google has no update method (Gmail filters have none), a change is a `delete` followed by a gated `create`, and the operation descriptions say so.
+### 4. The full lifecycle: read, preview, create, update, delete
+
+Reads (`list`, `get`) need no gate. `get` returns the object with the parameters that recreate or edit it.
+
+`delete` needs no preview: it stops future actions and does not act on anything itself. It returns the full definition of what it removed, so the object can be recreated through `preview` and `create`.
+
+Where Google has no update method (Gmail filters have none), `update` is a gated replace. It creates the replacement first and deletes the original after, so a failure part-way leaves two objects and says so, never none. The replacement gets a new id, and the operation description says so.
 
 ### Applying this to Gmail filters
 
-- Operations: `filters.list`, `filters.get`, `filters.preview`, `filters.create`, `filters.delete`.
-- The preview translates each `Filter.criteria` field into Gmail search syntax: `from:`, `to:`, `subject:`, the free `query`, `negatedQuery` as `-(…)`, `has:attachment`, `larger:` and `smaller:` from size. If a criterion cannot be translated exactly, the preview says which one and reports no count, rather than a count that describes a different filter.
+- Operations on `manage_email`: `filters`, `getFilter`, `previewFilter`, `createFilter`, `updateFilter`, `deleteFilter`. Criteria are flat `match*` parameters; actions are `addLabelIds`, `removeLabelIds` and `forwardTo`.
+- The preview translates each `Filter.criteria` field into Gmail search syntax: `from:`, `to:`, `subject:`, the free `query`, `negatedQuery` as `-(…)`, `has:attachment`, `larger:` and `smaller:` from size, `-in:chats`. Every field has an exact translation, so the count describes the filter being created.
+- Label ids are checked against the account's labels. A label name passed where an id belongs is an error that gives the id.
 - A preview evaluates past mail as a proxy for future mail and says so.
 - `forward` is checked against the account's verified forwarding addresses, so an address Gmail will reject fails at preview rather than at create.
+- Under the `draft-only-email` safety policy, a filter that forwards is blocked: it would send every future match.
 - Scope: `gmail.settings.basic` joins `SERVICE_SCOPE_MAP.gmail`. `create` and `delete` accept only that scope. `list`, `get` and `preview` are covered by the `gmail.modify` and `gmail.readonly` scopes accounts already hold. The read-only map does not change.
 
 ## Consequences
@@ -96,7 +105,7 @@ the count is exact. Otherwise it reports "at least <cap>; Google estimates <n>".
 - Creating a filter takes at least two calls, and the token has to be carried between them.
 - The token proves the evaluation was returned, not that it was read. A caller that discards the preview passes the gate.
 - The same-call check needs a top-level invocation id that `PatchContext` does not carry today. It has to be threaded through `bulk_operations` queue and batch execution.
-- Existing accounts lack `gmail.settings.basic` and must re-consent before `create` or `delete` works. The ADR-202 block message has to name the missing scope rather than describe the account as read-only, which it was not.
+- Existing accounts lack `gmail.settings.basic` and must re-consent before `create`, `update` or `delete` works. The ADR-202 block message names the missing scope, since such an account holds write access and is not read-only.
 - A restart between preview and create costs a second preview.
 
 ### Neutral
