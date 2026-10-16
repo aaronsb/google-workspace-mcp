@@ -20,6 +20,7 @@ import {
   handleListFilters, handleGetFilter, handlePreviewFilter,
   handleCreateFilter, handleUpdateFilter, handleDeleteFilter,
 } from './filters.js';
+import { handlePreviewModifyMatching, handleModifyMatching } from './modify-matching.js';
 import { sendMail, replyMail, forwardMail } from './mail.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
@@ -506,6 +507,10 @@ export const gmailPatch: ServicePatch = {
     createFilter: handleCreateFilter,
     updateFilter: handleUpdateFilter,
     deleteFilter: handleDeleteFilter,
+
+    // Label changes over a whole query, ids held server-side (ADR-310).
+    previewModifyMatching: handlePreviewModifyMatching,
+    modifyMatching: handleModifyMatching,
 
     /**
      * Delete a draft — permanently discard an unsent message.

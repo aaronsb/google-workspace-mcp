@@ -161,7 +161,7 @@ describe('previewFilter', () => {
     expect(out.text).toContain('m1 | billing@vendor.test | Invoice');
     expect(out.text).toContain('skips the inbox');
     expect(out.text).toContain('labeled "Vendor/Billing"');
-    expect(out.text).toContain('idsOnly: true');
+    expect(out.text).toContain('call `previewModifyMatching` with query `from:(billing@vendor.test)` and the same addLabelIds and removeLabelIds');
     expect(out.refs).toMatchObject({ matchCount: 3, matchCountExact: true });
     expect(out.text).toContain('To create it, call `createFilter` with the same parameters and previewToken:');
     expect(out.refs?.previewToken).toBeTypeOf('string');
@@ -185,7 +185,7 @@ describe('previewFilter', () => {
 
   it('withholds the token for a label name passed as an id, and gives the id', async () => {
     const out = await runAsToolCall(() => handlePreviewFilter({ matchFrom: 'x@y.z', addLabelIds: 'vendor/billing' }, ACCOUNT));
-    expect(out.text).toContain("'vendor/billing' is a label name; filters take its id, Label_7.");
+    expect(out.text).toContain("'vendor/billing' is a label name; this takes its id, Label_7.");
     expect(out.text).toContain('No previewToken issued');
     expect(out.refs?.previewToken).toBeUndefined();
   });

@@ -95,9 +95,14 @@ describe('a token is refused', () => {
 describe('the refusal', () => {
   it('names the preview to run for every failure', () => {
     for (const failure of ['missing', 'malformed', 'wrong-kind', 'mismatch', 'expired', 'same-call'] as const) {
-      const text = describeTokenFailure({ ok: false, failure }, 'createFilter', 'previewFilter');
+      const text = describeTokenFailure({ ok: false, failure }, 'createFilter', 'previewFilter', 'It acts later');
       expect(text, failure).toMatch(/previewFilter|its own call/);
     }
+  });
+
+  it("gives the write's own reason when the token is missing", () => {
+    expect(describeTokenFailure({ ok: false, failure: 'missing' }, 'w', 'p', 'It changes many things'))
+      .toContain('`w` needs a previewToken. It changes many things, so it runs only after a preview');
   });
 });
 
