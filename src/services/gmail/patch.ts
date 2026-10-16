@@ -16,6 +16,10 @@ import { requireString, clamp } from '../../server/handlers/validate.js';
 import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../executor/workspace.js';
 import { handleGetAttachment, handleViewAttachment } from './attachments.js';
 import { hydrateMessages, hydrateDrafts } from './hydrate.js';
+import {
+  handleListFilters, handleGetFilter, handlePreviewFilter,
+  handleCreateFilter, handleUpdateFilter, handleDeleteFilter,
+} from './filters.js';
 import { sendMail, replyMail, forwardMail } from './mail.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
@@ -494,6 +498,14 @@ export const gmailPatch: ServicePatch = {
 
     getAttachment: handleGetAttachment,
     viewAttachment: handleViewAttachment,
+
+    // Filters — the lifecycle and its preview gate live in filters.ts (ADR-309).
+    filters: handleListFilters,
+    getFilter: handleGetFilter,
+    previewFilter: handlePreviewFilter,
+    createFilter: handleCreateFilter,
+    updateFilter: handleUpdateFilter,
+    deleteFilter: handleDeleteFilter,
 
     /**
      * Delete a draft — permanently discard an unsent message.

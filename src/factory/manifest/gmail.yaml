@@ -311,10 +311,10 @@ operations:
         maps_to: id
       addLabelIds:
         type: string
-        description: "Comma-separated label IDs to add (e.g. STARRED, IMPORTANT, Label_123)"
+        description: "Comma-separated label IDs to add (e.g. STARRED, IMPORTANT, Label_123). On modify, to this message; on the filter operations, to each matching message as it arrives."
       removeLabelIds:
         type: string
-        description: "Comma-separated label IDs to remove (e.g. UNREAD, INBOX to archive)"
+        description: "Comma-separated label IDs to remove (e.g. UNREAD to mark read, INBOX to archive). On modify, from this message; on the filter operations, from each matching message as it arrives."
     defaults:
       userId: me
 
@@ -344,6 +344,190 @@ operations:
         type: string
         description: "Whether the label appears on messages in the message list: show (default) or hide"
         enum: [show, hide]
+    defaults:
+      userId: me
+
+  # --- Filters (ADR-309) ---
+
+  # A filter acts on mail that has not arrived yet, so a create or a replace is gated: it
+  # runs only with the token previewFilter mints over that exact change. The handlers are
+  # in gmail/filters.ts. `resource` names the Google method whose scopes the access policy
+  # checks (ADR-202); previewFilter is all reads, and updateFilter's create and delete need
+  # the same scope.
+
+  filters:
+    type: list
+    description: "list the account's filters: id, criteria and what each does. Gmail allows 1,000."
+    resource: users.settings.filters.list
+    defaults:
+      userId: me
+
+  getFilter:
+    type: detail
+    description: "one filter's criteria and actions in words, plus the parameters that recreate or edit it"
+    resource: users.settings.filters.get
+    params:
+      filterId:
+        type: string
+        description: "Filter id, as listed by `filters`. On previewFilter, the filter a change would replace; leave it out to preview a new filter."
+    defaults:
+      userId: me
+
+  previewFilter:
+    type: list
+    description: "evaluate a filter without creating it: how many messages it matches today and a sample, what each action does, and any duplicate or overlapping filter. Returns the previewToken createFilter needs; with filterId, previews replacing that filter and returns the token updateFilter needs. Criteria are the match* params; actions are addLabelIds, removeLabelIds and forwardTo. A good criterion is the query of a search that already found the mail."
+    resource: users.settings.filters.list
+    params:
+      filterId:
+        type: string
+        description: "Filter id, as listed by `filters`. On previewFilter, the filter a change would replace; leave it out to preview a new filter."
+      matchFrom:
+        type: string
+        description: "Filter criterion: sender, e.g. billing@vendor.com or @vendor.com"
+      matchTo:
+        type: string
+        description: "Filter criterion: recipient, e.g. a list or alias address"
+      matchSubject:
+        type: string
+        description: "Filter criterion: words in the subject"
+      matchQuery:
+        type: string
+        description: "Filter criterion: any Gmail search query the message must match, same syntax as search"
+      matchNegatedQuery:
+        type: string
+        description: "Filter criterion: a Gmail search query the message must NOT match"
+      matchHasAttachment:
+        type: boolean
+        description: "Filter criterion: only messages with an attachment"
+      matchExcludeChats:
+        type: boolean
+        description: "Filter criterion: leave chat messages out"
+      matchSize:
+        type: number
+        description: "Filter criterion: size in bytes; requires matchSizeComparison"
+      matchSizeComparison:
+        type: string
+        description: "Filter criterion: whether matches are larger or smaller than matchSize"
+        enum: [larger, smaller]
+      addLabelIds:
+        type: string
+        description: "Comma-separated label IDs to add (e.g. STARRED, IMPORTANT, Label_123). On modify, to this message; on the filter operations, to each matching message as it arrives."
+      removeLabelIds:
+        type: string
+        description: "Comma-separated label IDs to remove (e.g. UNREAD to mark read, INBOX to archive). On modify, from this message; on the filter operations, from each matching message as it arrives."
+      forwardTo:
+        type: string
+        description: "Filter action: forward each match to this address. It must already be a verified forwarding address in Gmail settings."
+    defaults:
+      userId: me
+
+  createFilter:
+    type: action
+    description: "create a filter. Requires the previewToken from previewFilter called with the same parameters, in an earlier call, within 30 minutes. Acts on mail arriving from then on."
+    resource: users.settings.filters.create
+    params:
+      matchFrom:
+        type: string
+        description: "Filter criterion: sender, e.g. billing@vendor.com or @vendor.com"
+      matchTo:
+        type: string
+        description: "Filter criterion: recipient, e.g. a list or alias address"
+      matchSubject:
+        type: string
+        description: "Filter criterion: words in the subject"
+      matchQuery:
+        type: string
+        description: "Filter criterion: any Gmail search query the message must match, same syntax as search"
+      matchNegatedQuery:
+        type: string
+        description: "Filter criterion: a Gmail search query the message must NOT match"
+      matchHasAttachment:
+        type: boolean
+        description: "Filter criterion: only messages with an attachment"
+      matchExcludeChats:
+        type: boolean
+        description: "Filter criterion: leave chat messages out"
+      matchSize:
+        type: number
+        description: "Filter criterion: size in bytes; requires matchSizeComparison"
+      matchSizeComparison:
+        type: string
+        description: "Filter criterion: whether matches are larger or smaller than matchSize"
+        enum: [larger, smaller]
+      addLabelIds:
+        type: string
+        description: "Comma-separated label IDs to add (e.g. STARRED, IMPORTANT, Label_123). On modify, to this message; on the filter operations, to each matching message as it arrives."
+      removeLabelIds:
+        type: string
+        description: "Comma-separated label IDs to remove (e.g. UNREAD to mark read, INBOX to archive). On modify, from this message; on the filter operations, from each matching message as it arrives."
+      forwardTo:
+        type: string
+        description: "Filter action: forward each match to this address. It must already be a verified forwarding address in Gmail settings."
+      previewToken:
+        type: string
+        description: "The token previewFilter returned for this exact change. Required: the write runs only after its preview has been seen."
+    defaults:
+      userId: me
+
+  updateFilter:
+    type: action
+    description: "change a filter's criteria or actions. Gmail has no in-place update, so this creates the replacement and then deletes the original; the filter gets a new id. Requires the previewToken from previewFilter called with filterId and the same parameters."
+    resource: users.settings.filters.create
+    params:
+      filterId:
+        type: string
+        description: "Filter id, as listed by `filters`. On previewFilter, the filter a change would replace; leave it out to preview a new filter."
+      matchFrom:
+        type: string
+        description: "Filter criterion: sender, e.g. billing@vendor.com or @vendor.com"
+      matchTo:
+        type: string
+        description: "Filter criterion: recipient, e.g. a list or alias address"
+      matchSubject:
+        type: string
+        description: "Filter criterion: words in the subject"
+      matchQuery:
+        type: string
+        description: "Filter criterion: any Gmail search query the message must match, same syntax as search"
+      matchNegatedQuery:
+        type: string
+        description: "Filter criterion: a Gmail search query the message must NOT match"
+      matchHasAttachment:
+        type: boolean
+        description: "Filter criterion: only messages with an attachment"
+      matchExcludeChats:
+        type: boolean
+        description: "Filter criterion: leave chat messages out"
+      matchSize:
+        type: number
+        description: "Filter criterion: size in bytes; requires matchSizeComparison"
+      matchSizeComparison:
+        type: string
+        description: "Filter criterion: whether matches are larger or smaller than matchSize"
+        enum: [larger, smaller]
+      addLabelIds:
+        type: string
+        description: "Comma-separated label IDs to add (e.g. STARRED, IMPORTANT, Label_123). On modify, to this message; on the filter operations, to each matching message as it arrives."
+      removeLabelIds:
+        type: string
+        description: "Comma-separated label IDs to remove (e.g. UNREAD to mark read, INBOX to archive). On modify, from this message; on the filter operations, from each matching message as it arrives."
+      forwardTo:
+        type: string
+        description: "Filter action: forward each match to this address. It must already be a verified forwarding address in Gmail settings."
+      previewToken:
+        type: string
+        description: "The token previewFilter returned for this exact change. Required: the write runs only after its preview has been seen."
+    defaults:
+      userId: me
+
+  deleteFilter:
+    type: action
+    description: "delete a filter. Returns what it was and the parameters to recreate it."
+    resource: users.settings.filters.delete
+    params:
+      filterId:
+        type: string
+        description: "Filter id, as listed by `filters`. On previewFilter, the filter a change would replace; leave it out to preview a new filter."
     defaults:
       userId: me
 
