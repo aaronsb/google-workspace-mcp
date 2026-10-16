@@ -466,7 +466,9 @@ export async function handlePreviewFilter(params: Record<string, unknown>, accou
   const token = replacing
     ? mintPreviewToken(UPDATE_KIND, account, { filterId: replacingId, before: asSpec(replacing), spec })
     : mintPreviewToken(CREATE_KIND, account, { spec });
-  lines.push('', `To ${replacing ? 'apply this change' : 'create it'}, call \`${write}\`${replacing ? ` with filterId ${replacingId},` : ''} the same parameters, and previewToken:`,
+  lines.push('', replacing
+    ? `To apply this change, call \`${write}\` with filterId ${replacingId}, the same parameters, and previewToken:`
+    : `To create it, call \`${write}\` with the same parameters and previewToken:`,
     `\`${token}\``,
     `Good for ${PREVIEW_TTL_MS / 60_000} minutes, for this account and exactly these parameters.`);
   return { text: lines.join('\n'), refs: { ...refs, previewToken: token } };

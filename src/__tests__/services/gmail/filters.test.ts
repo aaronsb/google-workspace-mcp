@@ -145,6 +145,7 @@ describe('previewFilter', () => {
     expect(out.text).toContain('labeled "Vendor/Billing"');
     expect(out.text).toContain('idsOnly: true');
     expect(out.refs).toMatchObject({ matchCount: 3, matchCountExact: true });
+    expect(out.text).toContain('To create it, call `createFilter` with the same parameters and previewToken:');
     expect(out.refs?.previewToken).toBeTypeOf('string');
   });
 
