@@ -65,6 +65,9 @@ interface StoredFilter extends FilterSpec {
 const CREATE_KIND = 'manage_email.createFilter';
 const UPDATE_KIND = 'manage_email.updateFilter';
 
+/** Why a filter write is gated, for the refusal when no token is given. */
+const GATED_BECAUSE = 'It changes what happens to mail that has not arrived yet';
+
 /** Gmail's per-user limit. */
 const FILTER_LIMIT = 1000;
 
@@ -445,7 +448,7 @@ export async function handlePreviewFilter(params: Record<string, unknown>, accou
 export async function handleCreateFilter(params: Record<string, unknown>, account: string): Promise<HandlerResponse> {
   const spec = buildFilterSpec(params);
   const check = checkPreviewToken(params.previewToken, CREATE_KIND, account, { spec });
-  if (!check.ok) return refused(`**Not created.** ${describeTokenFailure(check, 'createFilter', 'previewFilter')}`);
+  if (!check.ok) return refused(`**Not created.** ${describeTokenFailure(check, 'createFilter', 'previewFilter', GATED_BECAUSE)}`);
 
   const [filters, names] = await Promise.all([listFilters(account), labelNames(account)]);
   const duplicate = filters.find((f) => same(asSpec(f), spec));
@@ -475,7 +478,7 @@ export async function handleUpdateFilter(params: Record<string, unknown>, accoun
   }
 
   const check = checkPreviewToken(params.previewToken, UPDATE_KIND, account, { filterId, before: asSpec(current), spec });
-  if (!check.ok) return refused(`**Not changed.** ${describeTokenFailure(check, 'updateFilter', 'previewFilter (with filterId)')}`, { filterId });
+  if (!check.ok) return refused(`**Not changed.** ${describeTokenFailure(check, 'updateFilter', 'previewFilter (with filterId)', GATED_BECAUSE)}`, { filterId });
 
   const duplicate = filters.find((f) => f.id !== filterId && same(asSpec(f), spec));
   if (duplicate) return refused(`**Not changed.** Filter ${duplicate.id} already does exactly this.`, { filterId });

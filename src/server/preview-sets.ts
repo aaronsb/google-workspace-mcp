@@ -41,6 +41,7 @@ function dropExpired(now: number): void {
 export function holdSet(token: string, account: string, ids: readonly string[], now = Date.now()): void {
   if (ids.length > MAX_SET_SIZE) throw new Error(`A previewed set holds at most ${MAX_SET_SIZE} ids, not ${ids.length}.`);
   dropExpired(now);
+  held.delete(token);
   while (held.size >= MAX_PENDING_SETS) {
     // Map iterates in insertion order, so the first key is the oldest preview.
     held.delete(held.keys().next().value as string);

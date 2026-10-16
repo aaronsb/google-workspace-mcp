@@ -25,6 +25,9 @@ import { describeLabelChanges, effectLine, labelIdErrors, labelNames, parseLabel
 
 const KIND = 'manage_email.modifyMatching';
 
+/** Why the write is gated, for the refusal when no token is given. */
+const GATED_BECAUSE = 'It changes every message a query matched, a set the caller never sees row by row';
+
 /** `users.messages.batchModify` takes at most this many ids per call. */
 const BATCH_LIMIT = 1000;
 const PAGE_SIZE = 500;
@@ -97,8 +100,10 @@ export async function handlePreviewModifyMatching(params: Record<string, unknown
         : `${String(m.id)} | ${truncate(String(m.from ?? ''), 30)} | ${truncate(String(m.subject ?? '(no subject)'), 50)} | ${formatShortDate(m.date)}`);
     }
   }
-  lines.push('', 'Spam and trash are not included. Mail that starts matching after this preview is not changed; ' +
-    'to route it as it arrives, preview a filter with `previewFilter`.');
+  // Gmail leaves spam and trash out of a search unless the query names them.
+  const namesSpamOrTrash = /\bin:(trash|spam|anywhere)\b/i.test(query);
+  lines.push('', (namesSpamOrTrash ? '' : 'Spam and trash are not included. ') +
+    'Mail that starts matching after this preview is not changed; to route it as it arrives, preview a filter with `previewFilter`.');
 
   const refs: Record<string, unknown> = { query, matchCount: resolved.over ? undefined : ids.length };
 
@@ -130,7 +135,7 @@ export async function handleModifyMatching(params: Record<string, unknown>, acco
     // says so; anything else was a real preview whose set is gone.
     const check = checkPreviewToken(token, KIND, account, { query, change, digest: '' });
     if (!check.ok && (check.failure === 'missing' || check.failure === 'malformed' || check.failure === 'wrong-kind')) {
-      return refused(`**Nothing changed.** ${describeTokenFailure(check, 'modifyMatching', 'previewModifyMatching')}`);
+      return refused(`**Nothing changed.** ${describeTokenFailure(check, 'modifyMatching', 'previewModifyMatching', GATED_BECAUSE)}`);
     }
     return refused('**Nothing changed.** This preview is no longer held: it was applied already, expired after ' +
       `${PREVIEW_TTL_MS / 60_000} minutes, was displaced by newer previews, or the server restarted. ` +
@@ -139,8 +144,12 @@ export async function handleModifyMatching(params: Record<string, unknown>, acco
 
   const check = checkPreviewToken(token, KIND, account, { query, change, digest: setDigest(ids) });
   if (!check.ok) {
-    return refused(`**Nothing changed.** ${describeTokenFailure(check, 'modifyMatching', 'previewModifyMatching')}`);
+    return refused(`**Nothing changed.** ${describeTokenFailure(check, 'modifyMatching', 'previewModifyMatching', GATED_BECAUSE)}`);
   }
+
+  // Fetched before the set is released, so a failure here leaves the preview usable and
+  // nothing changed, rather than a completed write reported as a failure.
+  const names = await labelNames(account);
 
   // Used once, whatever happens next: a retry resolves the query again.
   releaseSet((token as string).trim());
@@ -156,13 +165,12 @@ export async function handleModifyMatching(params: Record<string, unknown>, acco
       throw new Error(
         `modifyMatching stopped part way: changed ${changed} of ${ids.length} messages, then the batch starting at ` +
         `message ${i + 1} failed (${why}). The preview is used up. Preview again to finish; the query now resolves ` +
-        'against the mailbox as it is.',
+        'against the mailbox as it is, without any message deleted since.',
       );
     }
     changed += chunk.length;
   }
 
-  const names = await labelNames(account);
   return {
     text: [`Changed ${plural(changed)} matching \`${query}\`. Each was:`,
       ...describeLabelChanges(change, names, 'now').map((e) => `- ${e.text}`)].join('\n'),

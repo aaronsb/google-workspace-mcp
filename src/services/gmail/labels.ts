@@ -26,10 +26,14 @@ export type Timing = 'arrival' | 'now';
 type Phrased = Record<Timing, Effect>;
 
 const TRASH_DETAIL = 'Gmail deletes trash permanently after 30 days';
+const SPAM_DETAIL = 'Gmail deletes spam permanently after 30 days';
+
+/** System labels a label change cannot add or remove; Gmail refuses them. */
+const UNCHANGEABLE = new Set(['SENT', 'DRAFT', 'CHAT']);
 
 const SYSTEM_LABEL_EFFECTS: Record<string, { add?: Phrased; remove?: Phrased }> = {
   INBOX: {
-    add: { arrival: { text: 'kept in the inbox' }, now: { text: 'moved back to the inbox' } },
+    add: { arrival: { text: 'kept in the inbox' }, now: { text: 'put in the inbox' } },
     remove: { arrival: { text: 'skips the inbox: archived on arrival' }, now: { text: 'archived: removed from the inbox' } },
   },
   UNREAD: {
@@ -47,11 +51,19 @@ const SYSTEM_LABEL_EFFECTS: Record<string, { add?: Phrased; remove?: Phrased }> 
   TRASH: {
     add: {
       arrival: { text: 'moved to trash on arrival', detail: `${TRASH_DETAIL}, so matching mail nobody looks at is gone after that`, warn: true },
-      now: { text: 'moved to trash: this is a bulk trash', detail: `${TRASH_DETAIL}; until then \`untrash\` restores a message`, warn: true },
+      now: {
+        text: 'moved to trash',
+        detail: `This is a bulk trash. ${TRASH_DETAIL}; until then, preview the same query with \`in:trash\` added and removeLabelIds TRASH to restore them`,
+        warn: true,
+      },
     },
+    remove: { arrival: { text: 'kept out of trash' }, now: { text: 'restored from trash' } },
   },
   SPAM: {
-    add: { arrival: { text: 'sent to spam on arrival', warn: true }, now: { text: 'moved to spam', warn: true } },
+    add: {
+      arrival: { text: 'sent to spam on arrival', detail: SPAM_DETAIL, warn: true },
+      now: { text: 'moved to spam', detail: SPAM_DETAIL, warn: true },
+    },
     remove: { arrival: { text: 'never sent to spam' }, now: { text: 'taken out of spam' } },
   },
 };
@@ -78,6 +90,10 @@ export function labelIdErrors(change: LabelChange, names: Map<string, string>): 
   const byName = new Map([...names].map(([id, n]) => [n.toLowerCase(), id]));
   const errors: string[] = [];
   for (const id of [...(change.addLabelIds ?? []), ...(change.removeLabelIds ?? [])]) {
+    if (UNCHANGEABLE.has(id)) {
+      errors.push(`${id} is set by Gmail itself; a label change cannot add or remove it.`);
+      continue;
+    }
     if (names.has(id)) continue;
     const hint = byName.get(id.toLowerCase());
     errors.push(hint

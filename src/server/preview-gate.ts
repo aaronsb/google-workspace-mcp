@@ -106,13 +106,20 @@ export function checkPreviewToken(
  *
  * @param write The operation refused, e.g. `createFilter`.
  * @param preview The operation that mints its token, e.g. `previewFilter`.
+ * @param why What makes the write need a preview, in a clause, e.g. "It changes what
+ *   happens to mail that has not arrived yet". Shown when the token is missing.
  */
-export function describeTokenFailure(check: Extract<TokenCheck, { ok: false }>, write: string, preview: string): string {
+export function describeTokenFailure(
+  check: Extract<TokenCheck, { ok: false }>,
+  write: string,
+  preview: string,
+  why: string,
+): string {
   const again = `Call \`${preview}\` with these exact parameters and pass the previewToken it returns.`;
   switch (check.failure) {
     case 'missing':
-      return `\`${write}\` needs a previewToken. It changes what happens to mail that has not arrived yet, ` +
-        `so it runs only after a preview of this exact change has been returned. ${again}`;
+      return `\`${write}\` needs a previewToken. ${why}, so it runs only after a preview of this exact change ` +
+        `has been returned. ${again}`;
     case 'malformed':
       return `The previewToken is not one this server issued. ${again}`;
     case 'wrong-kind':

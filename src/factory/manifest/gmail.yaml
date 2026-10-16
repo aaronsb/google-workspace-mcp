@@ -331,6 +331,7 @@ operations:
       query:
         type: string
         description: 'Gmail search query (e.g. "from:alice subject:meeting has:attachment")'
+        required: true
         maps_to: q
       addLabelIds:
         type: string
@@ -349,6 +350,7 @@ operations:
       query:
         type: string
         description: 'Gmail search query (e.g. "from:alice subject:meeting has:attachment")'
+        required: true
         maps_to: q
       addLabelIds:
         type: string

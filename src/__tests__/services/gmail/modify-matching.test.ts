@@ -81,9 +81,23 @@ describe('previewModifyMatching', () => {
     expect(JSON.stringify(out.refs)).not.toContain('msg039');
   });
 
-  it('calls trash a bulk trash', async () => {
+  it('calls trash a bulk trash and says how to undo it in bulk', async () => {
     const out = await preview({ query: 'older_than:5y', addLabelIds: 'TRASH' });
-    expect(out.text).toContain('⚠ moved to trash: this is a bulk trash. Gmail deletes trash permanently after 30 days');
+    expect(out.text).toContain('⚠ moved to trash. This is a bulk trash. Gmail deletes trash permanently after 30 days');
+    expect(out.text).toContain('with `in:trash` added and removeLabelIds TRASH to restore them');
+  });
+
+  it('describes restoring from trash, and does not claim trash is excluded when the query names it', async () => {
+    const out = await preview({ query: 'in:trash from:billing@vendor.test', removeLabelIds: 'TRASH' });
+    expect(out.text).toContain('- restored from trash');
+    expect(out.text).not.toContain('Spam and trash are not included');
+    expect((await preview()).text).toContain('Spam and trash are not included');
+  });
+
+  it('refuses a label Gmail sets itself', async () => {
+    const out = await preview({ query: 'x', removeLabelIds: 'SENT' });
+    expect(out.text).toContain('SENT is set by Gmail itself');
+    expect(out.refs?.previewToken).toBeUndefined();
   });
 
   it('withholds the token past 10,000 matches and says how to narrow', async () => {
@@ -142,10 +156,25 @@ describe('modifyMatching', () => {
     expect(box.modified).toHaveLength(1);
   });
 
-  it('refuses without a token, and changes nothing', async () => {
+  it('refuses without a token, says why in its own terms, and changes nothing', async () => {
     const out = await apply(ARCHIVE);
-    expect(out.text).toContain('needs a previewToken');
+    expect(out.text).toContain('needs a previewToken. It changes every message a query matched');
+    expect(out.text).not.toContain('not arrived');
     expect(box.modified).toHaveLength(0);
+  });
+
+  it('changes nothing and keeps the preview when the label lookup fails before the write', async () => {
+    const token = (await preview()).refs?.previewToken;
+    const real = mockCall.getMockImplementation()!;
+    mockCall.mockImplementation(async (svc, method, p, o) => {
+      if (method === 'users.labels.list') throw new Error('rate limited');
+      return real(svc, method, p, o);
+    });
+    await expect(apply({ ...ARCHIVE, previewToken: token })).rejects.toThrow(/rate limited/);
+    expect(box.modified).toHaveLength(0);
+    mockCall.mockImplementation(real);
+    const out = await apply({ ...ARCHIVE, previewToken: token });
+    expect(out.refs).toMatchObject({ changed: 3 });
   });
 
   it('refuses a change edited after the preview, and keeps the set for the right call', async () => {
