@@ -236,7 +236,7 @@ function withPaging(response: HandlerResponse, data: unknown, ctx: PatchContext)
     ? ` Google estimates about ${estimate} in total; that figure is an estimate and is often wrong.`
     : '';
   return {
-    text: `${response.text}\n\nMore results exist.${sized} Call \`${ctx.operation}\` again with pageToken: ${nextPageToken}`,
+    text: `${response.text}\n\nMore results exist.${sized} Call \`${ctx.operation}\` again with the same parameters and pageToken: ${nextPageToken}`,
     refs: { ...response.refs, nextPageToken, ...(estimate !== undefined ? { resultSizeEstimate: estimate } : {}) },
   };
 }

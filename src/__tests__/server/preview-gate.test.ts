@@ -70,7 +70,9 @@ describe('a token is refused', () => {
   });
 
   it('for a different operation, and says which one it was for', async () => {
-    const token = await minted(PAYLOAD, 'gmail.filter.update');
+    // Sibling operations sign different payloads, as create and update do, so the kind
+    // has to be named before the MAC fails on the payload.
+    const token = await minted({ filterId: 'F1', before: PAYLOAD, spec: PAYLOAD }, 'gmail.filter.update');
     expect(checkPreviewToken(token, KIND, ACCOUNT, PAYLOAD, T0))
       .toMatchObject({ failure: 'wrong-kind', issuedFor: 'gmail.filter.update' });
   });

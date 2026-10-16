@@ -57,7 +57,7 @@ describe('search paging', () => {
   it('names the operation the caller should call again', async () => {
     const c = ctx('threads');
     const out = gmailPatch.formatList!({ threads: [{ id: 't1', snippet: 'x' }], nextPageToken: 'T2' }, c);
-    expect(out.text).toContain('Call `threads` again with pageToken: T2');
+    expect(out.text).toContain('Call `threads` again with the same parameters and pageToken: T2');
   });
 
   it('keeps the token through draft hydration', async () => {

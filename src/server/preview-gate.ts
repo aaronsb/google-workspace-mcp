@@ -87,14 +87,15 @@ export function checkPreviewToken(
     return { ok: false, failure: 'malformed' };
   }
 
-  // The header is readable by anyone, so nothing in it counts until the MAC agrees. The
-  // kind check reports a token meant for a sibling operation, which is a useful thing to
-  // say, but only once the token is known to be genuine.
+  // The kind is read before the MAC because sibling operations sign different payloads, so
+  // a token meant for one always fails the other's MAC and would be reported as a changed
+  // parameter. Reading the unverified header here can only choose which refusal to give;
+  // nothing in it is trusted until the MAC agrees.
+  if (header.k !== kind) return { ok: false, failure: 'wrong-kind', issuedFor: header.k };
   const expected = mac(headerPart, account, payload);
   const given = Buffer.from(macPart, 'base64url');
   const genuine = given.length === expected.length && timingSafeEqual(given, expected);
   if (!genuine) return { ok: false, failure: 'mismatch' };
-  if (header.k !== kind) return { ok: false, failure: 'wrong-kind', issuedFor: header.k };
   if (header.t > now + SKEW_MS || now - header.t > PREVIEW_TTL_MS) return { ok: false, failure: 'expired' };
   if (header.c !== 0 && header.c === currentCallId()) return { ok: false, failure: 'same-call' };
   return { ok: true };
@@ -115,7 +116,7 @@ export function describeTokenFailure(check: Extract<TokenCheck, { ok: false }>, 
     case 'malformed':
       return `The previewToken is not one this server issued. ${again}`;
     case 'wrong-kind':
-      return `This previewToken was issued for a different operation (${check.issuedFor ?? 'unknown'}), not \`${write}\`. ${again}`;
+      return `This previewToken came from a preview for ${check.issuedFor ?? 'another operation'}, not \`${write}\`. ${again}`;
     case 'mismatch':
       return `This previewToken does not match this change on this account. Either a parameter changed since ` +
         `the preview, the token came from another account, or the server restarted. ${again}`;

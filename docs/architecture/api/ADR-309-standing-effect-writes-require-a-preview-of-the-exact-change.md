@@ -111,6 +111,8 @@ Where Google has no update method (Gmail filters have none), `update` is a gated
 ### Neutral
 
 - Gmail caps filters at 1,000 per user. The preview reports the current count when it is near the cap.
+- At the cap an update cannot run, because the replacement is created before the original is deleted. The preview withholds the token and points to deleting the original first, then creating the replacement.
+- The `no-delete` safety policy does not cover deleting a filter, alone or inside an update. That policy guards against the permanent loss of data; a filter delete destroys no mail and returns the parameters that recreate the filter.
 - The definition of standing effect decides future scope. A later operation joins this gate when its effect keeps acting, after the call, on things the call never saw: a forwarding rule, an auto-reply. Changing a Drive permission does not qualify, because it acts once on a known set.
 
 ## Alternatives Considered

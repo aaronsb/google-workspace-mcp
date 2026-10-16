@@ -25,7 +25,7 @@ operations:
         description: "Continue a list from where the previous page stopped: pass the pageToken its response gave. Absent from a response means that response was the last page."
       idsOnly:
         type: boolean
-        description: "Return only message ids, up to 500 per page, without fetching each message's headers. For counting a large result or collecting ids to pass to bulk_operations batch mode (e.g. modify)."
+        description: "On `search`: return only message ids, up to 500 per page, without fetching each message's headers. For counting a large result or collecting ids to pass to bulk_operations batch mode (e.g. modify)."
         client_only: true
     defaults:
       userId: me

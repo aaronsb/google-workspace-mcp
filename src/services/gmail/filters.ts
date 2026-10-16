@@ -60,11 +60,15 @@ interface StoredFilter extends FilterSpec {
   id: string;
 }
 
-const CREATE_KIND = 'gmail.filter.create';
-const UPDATE_KIND = 'gmail.filter.update';
+// Named for the operation a token authorizes, so a token offered to its sibling says which it is for.
+const CREATE_KIND = 'manage_email.createFilter';
+const UPDATE_KIND = 'manage_email.updateFilter';
 
 /** Gmail's per-user limit. */
 const FILTER_LIMIT = 1000;
+
+/** Gmail stores a filter's size criterion as an int32. */
+const MAX_SIZE = 2 ** 31 - 1;
 
 /** How many matches the preview walks before it settles for "at least". */
 const COUNT_CAP = 2000;
@@ -87,6 +91,16 @@ function str(value: unknown): string | undefined {
 
 function bool(value: unknown): boolean {
   return value === true || value === 'true';
+}
+
+/**
+ * A boolean param, strictly. A value read as false drops a criterion and widens the
+ * filter, so anything that is not plainly true or false is refused rather than guessed.
+ */
+function paramBool(value: unknown, name: string): boolean {
+  if (value === undefined || value === null || value === '' || value === false || value === 'false') return false;
+  if (value === true || value === 'true') return true;
+  throw new Error(`${name} must be true or false, not '${String(value)}'.`);
 }
 
 function labelList(value: unknown): string[] | undefined {
@@ -131,8 +145,8 @@ export function normalizeSpec(raw: RawFilter): FilterSpec {
 export function buildFilterSpec(params: Record<string, unknown>): FilterSpec {
   const criteria: Record<string, unknown> = {};
   for (const [param, field] of Object.entries(STRING_CRITERIA)) criteria[field] = params[param];
-  criteria.hasAttachment = params.matchHasAttachment;
-  criteria.excludeChats = params.matchExcludeChats;
+  criteria.hasAttachment = paramBool(params.matchHasAttachment, 'matchHasAttachment');
+  criteria.excludeChats = paramBool(params.matchExcludeChats, 'matchExcludeChats');
 
   const size = params.matchSize;
   const comparison = str(params.matchSizeComparison);
@@ -143,8 +157,11 @@ export function buildFilterSpec(params: Record<string, unknown>): FilterSpec {
   if (hasSize !== Boolean(comparison)) {
     throw new Error('matchSize and matchSizeComparison go together: a size in bytes, and whether matches are larger or smaller.');
   }
-  if (hasSize && !(Number(size) > 0)) throw new Error(`matchSize must be a positive number of bytes, not '${String(size)}'.`);
-  criteria.size = size;
+  const bytes = Number(size);
+  if (hasSize && !(Number.isInteger(bytes) && bytes > 0 && bytes <= MAX_SIZE)) {
+    throw new Error(`matchSize must be a whole number of bytes from 1 to ${MAX_SIZE}, not '${String(size)}'.`);
+  }
+  criteria.size = hasSize ? bytes : undefined;
   criteria.sizeComparison = comparison;
 
   const spec = normalizeSpec({
@@ -410,8 +427,13 @@ export async function handlePreviewFilter(params: Record<string, unknown>, accou
       notes.push(`⚠ Filter ${f.id} has the same criteria and does: ${summarize(f, names)}. Both will apply to every match.`);
     }
   }
-  if (!replacing && filters.length >= FILTER_LIMIT) errors.push(`This account has ${filters.length} filters, Gmail's limit.`);
-  else if (filters.length >= FILTER_LIMIT - 50) notes.push(`This account has ${filters.length} of Gmail's ${FILTER_LIMIT} filters.`);
+  if (filters.length >= FILTER_LIMIT) {
+    errors.push(replacing
+      ? `This account has ${filters.length} filters, Gmail's limit. An update creates the replacement before deleting ` +
+        `the original, and Gmail refuses the 1,001st. Delete ${replacingId} first (deleteFilter returns its parameters), ` +
+        'then preview and create the replacement.'
+      : `This account has ${filters.length} filters, Gmail's limit.`);
+  } else if (filters.length >= FILTER_LIMIT - 50) notes.push(`This account has ${filters.length} of Gmail's ${FILTER_LIMIT} filters.`);
 
   const query = criteriaToQuery(spec.criteria);
   const matches = await countMatches(account, query);
@@ -518,12 +540,16 @@ export async function handleUpdateFilter(params: Record<string, unknown>, accoun
   try {
     await call('gmail', 'users.settings.filters.delete', { userId: 'me', id: filterId }, { account });
   } catch (err) {
-    const why = err instanceof Error ? err.message : String(err);
-    return {
-      text: `Created the replacement filter **${newId}**, but could not delete the original **${filterId}** (${why}). ` +
-        `Both are active now. Remove the original with \`deleteFilter\` filterId ${filterId}.`,
-      refs: { filterId: newId, replacedFilterId: filterId, originalDeleted: false },
-    };
+    // Already gone is the outcome the delete was for.
+    if (!(err instanceof GoogleApiError && err.status === 404)) {
+      // Half done is a failure, not a success with a caveat: thrown, so a queue with
+      // onError 'bail' stops here instead of running on.
+      const why = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        `updateFilter half done: created the replacement filter ${newId}, but could not delete the original ` +
+        `${filterId} (${why}). Both are active now. Remove the original with deleteFilter filterId ${filterId}.`,
+      );
+    }
   }
   return {
     text: [`Replaced filter **${filterId}** with **${newId}**. Gmail has no in-place update, so the filter has a new id.`, '',

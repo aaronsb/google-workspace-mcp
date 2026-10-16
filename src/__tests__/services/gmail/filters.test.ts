@@ -31,7 +31,8 @@ interface Mailbox {
   /** Ids returned for any messages.list query. */
   matches: string[];
   nextId: number;
-  failDelete?: boolean;
+  /** Make filters.delete throw this. */
+  deleteError?: Error;
 }
 
 let box: Mailbox;
@@ -68,7 +69,7 @@ beforeEach(() => {
         return f;
       }
       case 'users.settings.filters.delete': {
-        if (box.failDelete) throw new Error('backend error');
+        if (box.deleteError) throw box.deleteError;
         const before = box.filters.length;
         box.filters = box.filters.filter((x) => x.id !== params.id);
         if (box.filters.length === before) throw notFound();
@@ -117,6 +118,23 @@ describe('buildFilterSpec', () => {
     expect(() => buildFilterSpec({ matchSize: 1000, matchSizeComparison: 'bigger', addLabelIds: 'Label_7' })).toThrow(/larger/);
     expect(buildFilterSpec({ matchSize: 1000, matchSizeComparison: 'larger', addLabelIds: 'Label_7' }).criteria)
       .toEqual({ size: 1000, sizeComparison: 'larger' });
+  });
+
+  it('refuses a boolean it cannot read, rather than dropping the criterion', () => {
+    for (const value of ['True', 1, '1', 'yes']) {
+      expect(() => buildFilterSpec({ matchFrom: 'a@b.c', matchHasAttachment: value, addLabelIds: 'Label_7' }), String(value))
+        .toThrow(/matchHasAttachment must be true or false/);
+    }
+    expect(buildFilterSpec({ matchFrom: 'a@b.c', matchHasAttachment: 'true', addLabelIds: 'Label_7' }).criteria.hasAttachment).toBe(true);
+    expect(buildFilterSpec({ matchFrom: 'a@b.c', matchHasAttachment: 'false', addLabelIds: 'Label_7' }).criteria.hasAttachment).toBeUndefined();
+  });
+
+  it('takes a size Gmail can store: a whole number of bytes within int32', () => {
+    for (const size of [1.5, 2 ** 31, -5, 'big']) {
+      expect(() => buildFilterSpec({ matchSize: size, matchSizeComparison: 'larger', addLabelIds: 'Label_7' }), String(size))
+        .toThrow(/whole number of bytes/);
+    }
+    expect(buildFilterSpec({ matchSize: '2048', matchSizeComparison: 'larger', addLabelIds: 'Label_7' }).criteria.size).toBe(2048);
   });
 
   it('normalizes so equivalent filters compare equal', () => {
@@ -230,11 +248,11 @@ describe('createFilter', () => {
     expect(box.filters).toHaveLength(0);
   });
 
-  it('refuses an update token', async () => {
+  it('refuses an update token, and says it was for updateFilter', async () => {
     box.filters = [{ id: 'OLD', criteria: { from: 'billing@vendor.test' }, action: { addLabelIds: ['Label_7'] } }];
     const token = await previewToken({ ...ARCHIVE_AND_LABEL, filterId: 'OLD' });
     const out = await write(() => handleCreateFilter({ ...ARCHIVE_AND_LABEL, previewToken: token }, ACCOUNT));
-    expect(out.text).toContain('does not match');
+    expect(out.text).toContain('came from a preview for manage_email.updateFilter');
     expect(box.filters).toHaveLength(1);
   });
 
@@ -274,12 +292,34 @@ describe('updateFilter', () => {
     expect(box.filters.map((f) => f.id)).toEqual(['OLD']);
   });
 
-  it('says both are active when the original cannot be deleted', async () => {
+  it('fails, naming both filters, when the original cannot be deleted', async () => {
     const token = await previewToken({ ...ARCHIVE_AND_LABEL, filterId: 'OLD' });
-    box.failDelete = true;
+    box.deleteError = new Error('backend error');
+    // Thrown, not returned: a queue with onError 'bail' must stop on a half-done update.
+    await expect(write(() => handleUpdateFilter({ ...ARCHIVE_AND_LABEL, filterId: 'OLD', previewToken: token }, ACCOUNT)))
+      .rejects.toThrow(/half done: created the replacement filter F1.*could not delete the original OLD.*Both are active/);
+    expect(box.filters.map((f) => f.id)).toEqual(['OLD', 'F1']);
+  });
+
+  it('succeeds when the original was already deleted', async () => {
+    const token = await previewToken({ ...ARCHIVE_AND_LABEL, filterId: 'OLD' });
+    box.deleteError = notFound();
     const out = await write(() => handleUpdateFilter({ ...ARCHIVE_AND_LABEL, filterId: 'OLD', previewToken: token }, ACCOUNT));
-    expect(out.text).toContain('Both are active now');
-    expect(out.refs).toMatchObject({ filterId: 'F1', originalDeleted: false });
+    expect(out.refs).toMatchObject({ filterId: 'F1', replacedFilterId: 'OLD', originalDeleted: true });
+  });
+
+  it('refuses a create token, and says it was for createFilter', async () => {
+    const token = await previewToken({ ...ARCHIVE_AND_LABEL, matchFrom: 'other@vendor.test' });
+    const out = await write(() => handleUpdateFilter({ ...ARCHIVE_AND_LABEL, filterId: 'OLD', previewToken: token }, ACCOUNT));
+    expect(out.text).toContain('came from a preview for manage_email.createFilter');
+    expect(box.filters.map((f) => f.id)).toEqual(['OLD']);
+  });
+
+  it('is not offered at the filter limit, since the replacement is created first', async () => {
+    box.filters = Array.from({ length: 1000 }, (_, i) => ({ id: i === 0 ? 'OLD' : `X${i}`, criteria: { from: `s${i}@x.test` }, action: { addLabelIds: ['Label_7'] } }));
+    const out = await runAsToolCall(() => handlePreviewFilter({ ...ARCHIVE_AND_LABEL, filterId: 'OLD' }, ACCOUNT));
+    expect(out.text).toContain('Delete OLD first');
+    expect(out.refs?.previewToken).toBeUndefined();
   });
 
   it('refuses a filter that no longer exists', async () => {

@@ -254,8 +254,8 @@ export const accountAccess: SafetyPolicy = {
     let reason: string;
     if (holdsWrite) {
       reason = `'${ctx.operation}' needs ${required.map(scopeName).join(' or ')}, which account ${ctx.account} ` +
-        `has not granted: ${op.service} asks for it now, but the account authorized ${op.service} before it did. ` +
-        `Re-authorize with ${reconsent} to grant it.`;
+        `has not granted: either the account authorized ${op.service} before this server asked for it, or it was ` +
+        `declined on the consent screen. Re-authorize with ${reconsent} and allow it.`;
     } else if (holdsSomething) {
       reason = `'${ctx.operation}' needs write access to ${op.service}. ` +
         `Account ${ctx.account} was authorized read-only for ${op.service}. ` +
