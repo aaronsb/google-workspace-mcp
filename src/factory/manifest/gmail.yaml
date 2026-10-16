@@ -311,10 +311,54 @@ operations:
         maps_to: id
       addLabelIds:
         type: string
-        description: "Comma-separated label IDs to add (e.g. STARRED, IMPORTANT, Label_123). On modify, to this message; on the filter operations, to each matching message as it arrives."
+        description: "Comma-separated label IDs to add (e.g. STARRED, IMPORTANT, Label_123). On modify, to this message; on the filter operations, to each matching message as it arrives; on the *ModifyMatching operations, to every message the preview counted."
       removeLabelIds:
         type: string
-        description: "Comma-separated label IDs to remove (e.g. UNREAD to mark read, INBOX to archive). On modify, from this message; on the filter operations, from each matching message as it arrives."
+        description: "Comma-separated label IDs to remove (e.g. UNREAD to mark read, INBOX to archive). On modify, from this message; on the filter operations, from each matching message as it arrives; on the *ModifyMatching operations, from every message the preview counted."
+    defaults:
+      userId: me
+
+  # --- Label changes over a whole query (ADR-310) ---
+
+  # The server resolves the query at preview and holds the ids, so they never pass through
+  # the conversation; the apply changes exactly that set. Handlers in gmail/modify-matching.ts.
+
+  previewModifyMatching:
+    type: list
+    description: "evaluate a label change over everything a query matches, without making it: the exact count (up to 10,000), a sample, and what the change does to each message. Holds the matched set and returns the previewToken modifyMatching needs. No ids are returned beyond the sample."
+    resource: users.messages.list
+    params:
+      query:
+        type: string
+        description: 'Gmail search query (e.g. "from:alice subject:meeting has:attachment")'
+        maps_to: q
+      addLabelIds:
+        type: string
+        description: "Comma-separated label IDs to add (e.g. STARRED, IMPORTANT, Label_123). On modify, to this message; on the filter operations, to each matching message as it arrives; on the *ModifyMatching operations, to every message the preview counted."
+      removeLabelIds:
+        type: string
+        description: "Comma-separated label IDs to remove (e.g. UNREAD to mark read, INBOX to archive). On modify, from this message; on the filter operations, from each matching message as it arrives; on the *ModifyMatching operations, from every message the preview counted."
+    defaults:
+      userId: me
+
+  modifyMatching:
+    type: action
+    description: "apply a previewed label change (archive, mark read, label, trash) to exactly the messages previewModifyMatching counted, and report how many changed. Requires its previewToken from an earlier call, within 30 minutes; each preview applies once."
+    resource: users.messages.batchModify
+    params:
+      query:
+        type: string
+        description: 'Gmail search query (e.g. "from:alice subject:meeting has:attachment")'
+        maps_to: q
+      addLabelIds:
+        type: string
+        description: "Comma-separated label IDs to add (e.g. STARRED, IMPORTANT, Label_123). On modify, to this message; on the filter operations, to each matching message as it arrives; on the *ModifyMatching operations, to every message the preview counted."
+      removeLabelIds:
+        type: string
+        description: "Comma-separated label IDs to remove (e.g. UNREAD to mark read, INBOX to archive). On modify, from this message; on the filter operations, from each matching message as it arrives; on the *ModifyMatching operations, from every message the preview counted."
+      previewToken:
+        type: string
+        description: "The token the preview returned for this exact change: previewFilter for createFilter and updateFilter, previewModifyMatching for modifyMatching. Required: the write runs only after its preview has been seen."
     defaults:
       userId: me
 
@@ -413,10 +457,10 @@ operations:
         enum: [larger, smaller]
       addLabelIds:
         type: string
-        description: "Comma-separated label IDs to add (e.g. STARRED, IMPORTANT, Label_123). On modify, to this message; on the filter operations, to each matching message as it arrives."
+        description: "Comma-separated label IDs to add (e.g. STARRED, IMPORTANT, Label_123). On modify, to this message; on the filter operations, to each matching message as it arrives; on the *ModifyMatching operations, to every message the preview counted."
       removeLabelIds:
         type: string
-        description: "Comma-separated label IDs to remove (e.g. UNREAD to mark read, INBOX to archive). On modify, from this message; on the filter operations, from each matching message as it arrives."
+        description: "Comma-separated label IDs to remove (e.g. UNREAD to mark read, INBOX to archive). On modify, from this message; on the filter operations, from each matching message as it arrives; on the *ModifyMatching operations, from every message the preview counted."
       forwardTo:
         type: string
         description: "Filter action: forward each match to this address. It must already be a verified forwarding address in Gmail settings."
@@ -458,16 +502,16 @@ operations:
         enum: [larger, smaller]
       addLabelIds:
         type: string
-        description: "Comma-separated label IDs to add (e.g. STARRED, IMPORTANT, Label_123). On modify, to this message; on the filter operations, to each matching message as it arrives."
+        description: "Comma-separated label IDs to add (e.g. STARRED, IMPORTANT, Label_123). On modify, to this message; on the filter operations, to each matching message as it arrives; on the *ModifyMatching operations, to every message the preview counted."
       removeLabelIds:
         type: string
-        description: "Comma-separated label IDs to remove (e.g. UNREAD to mark read, INBOX to archive). On modify, from this message; on the filter operations, from each matching message as it arrives."
+        description: "Comma-separated label IDs to remove (e.g. UNREAD to mark read, INBOX to archive). On modify, from this message; on the filter operations, from each matching message as it arrives; on the *ModifyMatching operations, from every message the preview counted."
       forwardTo:
         type: string
         description: "Filter action: forward each match to this address. It must already be a verified forwarding address in Gmail settings."
       previewToken:
         type: string
-        description: "The token previewFilter returned for this exact change. Required: the write runs only after its preview has been seen."
+        description: "The token the preview returned for this exact change: previewFilter for createFilter and updateFilter, previewModifyMatching for modifyMatching. Required: the write runs only after its preview has been seen."
     defaults:
       userId: me
 
@@ -510,16 +554,16 @@ operations:
         enum: [larger, smaller]
       addLabelIds:
         type: string
-        description: "Comma-separated label IDs to add (e.g. STARRED, IMPORTANT, Label_123). On modify, to this message; on the filter operations, to each matching message as it arrives."
+        description: "Comma-separated label IDs to add (e.g. STARRED, IMPORTANT, Label_123). On modify, to this message; on the filter operations, to each matching message as it arrives; on the *ModifyMatching operations, to every message the preview counted."
       removeLabelIds:
         type: string
-        description: "Comma-separated label IDs to remove (e.g. UNREAD to mark read, INBOX to archive). On modify, from this message; on the filter operations, from each matching message as it arrives."
+        description: "Comma-separated label IDs to remove (e.g. UNREAD to mark read, INBOX to archive). On modify, from this message; on the filter operations, from each matching message as it arrives; on the *ModifyMatching operations, from every message the preview counted."
       forwardTo:
         type: string
         description: "Filter action: forward each match to this address. It must already be a verified forwarding address in Gmail settings."
       previewToken:
         type: string
-        description: "The token previewFilter returned for this exact change. Required: the write runs only after its preview has been seen."
+        description: "The token the preview returned for this exact change: previewFilter for createFilter and updateFilter, previewModifyMatching for modifyMatching. Required: the write runs only after its preview has been seen."
     defaults:
       userId: me
 

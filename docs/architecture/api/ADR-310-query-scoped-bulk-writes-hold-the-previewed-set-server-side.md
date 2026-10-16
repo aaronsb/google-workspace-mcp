@@ -52,6 +52,7 @@ Adding `TRASH` through this path trashes every message in the set. The preview s
 ### Applying this to Gmail
 
 - Operations on `manage_email`: `previewModifyMatching` (a read over `users.messages.list`) and `modifyMatching` (`users.messages.batchModify`, in chunks of 1,000). Parameters: `query`, `addLabelIds`, `removeLabelIds`, `previewToken`.
+- Bounds: 10,000 ids per preview and 20 pending previews per process, the oldest displaced first. A larger backlog is previewed in parts, for example by date range.
 - Both need only `gmail.modify`, which accounts already hold. A read-only account can preview and is refused the apply under ADR-202.
 - `previewFilter`'s note about existing matches names `previewModifyMatching` with the filter's own query and changes, so a filter and its backlog become two previews and two applies with no ids in between.
 - `search` with `idsOnly` and `bulk_operations` batch `modify` stay for callers that have, or want, the ids themselves.
@@ -68,7 +69,7 @@ Adding `TRASH` through this path trashes every message in the set. The preview s
 
 - The server holds up to the per-set cap of ids per pending preview, until applied or expired.
 - A restart between preview and apply loses the set, and the remedy is a new preview.
-- A message that left the set's natural scope between preview and apply, for example one filed by hand, is still changed, because it was in the previewed set. The preview's age is bounded at 30 minutes to keep this small.
+- A message filed by hand between preview and apply is still changed, because it was in the previewed set. Gmail label changes are idempotent, so the effect is to reapply the previewed change to it, and the preview's 30-minute life keeps the window small.
 
 ### Neutral
 
