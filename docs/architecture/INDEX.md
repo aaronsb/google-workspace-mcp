@@ -50,3 +50,4 @@ _MCP tools, schemas, progressive disclosure_
 | [ADR-306](./api/ADR-306-tab-addressed-docs-reads-and-writes.md) | Tab-addressed Docs reads and writes | Accepted |
 | [ADR-307](./api/ADR-307-contacts-as-a-flat-surface-over-the-people-api.md) | Contacts as a flat surface over the People API | Accepted |
 | [ADR-308](./api/ADR-308-rename-queue-operations-to-bulk-operations-with-queue-and-batch-modes.md) | Rename queue_operations to bulk_operations, with queue and batch modes | Accepted |
+| [ADR-309](./api/ADR-309-standing-effect-writes-require-a-preview-of-the-exact-change.md) | Standing-effect writes require a preview of the exact change | Accepted |
