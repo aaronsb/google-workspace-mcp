@@ -370,6 +370,7 @@ operations:
       filterId:
         type: string
         description: "Filter id, as listed by `filters`. On previewFilter, the filter a change would replace; leave it out to preview a new filter."
+        maps_to: id
     defaults:
       userId: me
 
@@ -381,6 +382,7 @@ operations:
       filterId:
         type: string
         description: "Filter id, as listed by `filters`. On previewFilter, the filter a change would replace; leave it out to preview a new filter."
+        maps_to: id
       matchFrom:
         type: string
         description: "Filter criterion: sender, e.g. billing@vendor.com or @vendor.com"
@@ -477,6 +479,7 @@ operations:
       filterId:
         type: string
         description: "Filter id, as listed by `filters`. On previewFilter, the filter a change would replace; leave it out to preview a new filter."
+        maps_to: id
       matchFrom:
         type: string
         description: "Filter criterion: sender, e.g. billing@vendor.com or @vendor.com"
@@ -528,6 +531,7 @@ operations:
       filterId:
         type: string
         description: "Filter id, as listed by `filters`. On previewFilter, the filter a change would replace; leave it out to preview a new filter."
+        maps_to: id
     defaults:
       userId: me
 
