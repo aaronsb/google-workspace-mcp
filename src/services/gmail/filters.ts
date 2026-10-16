@@ -26,6 +26,7 @@ import {
   mintPreviewToken,
 } from '../../server/preview-gate.js';
 import { hydrateMessages } from './hydrate.js';
+import { describeLabelChanges, effectLine, labelIdErrors, labelNames, parseLabelIds, type Effect } from './labels.js';
 
 // --- The filter, in one canonical shape ---
 
@@ -103,12 +104,6 @@ function paramBool(value: unknown, name: string): boolean {
   throw new Error(`${name} must be true or false, not '${String(value)}'.`);
 }
 
-function labelList(value: unknown): string[] | undefined {
-  const items = Array.isArray(value) ? value.map(String) : String(value ?? '').split(',');
-  const ids = [...new Set(items.map((s) => s.trim()).filter(Boolean))].sort();
-  return ids.length ? ids : undefined;
-}
-
 /**
  * Reduce any filter, from our params or from Google, to one canonical spec, so two
  * filters that do the same thing compare equal and a token minted over one matches the
@@ -132,8 +127,8 @@ export function normalizeSpec(raw: RawFilter): FilterSpec {
   }
 
   const action: FilterAction = {};
-  const add = labelList(a.addLabelIds);
-  const remove = labelList(a.removeLabelIds);
+  const add = parseLabelIds(a.addLabelIds);
+  const remove = parseLabelIds(a.removeLabelIds);
   const forward = str(a.forward)?.toLowerCase();
   if (add) action.addLabelIds = add;
   if (remove) action.removeLabelIds = remove;
@@ -219,48 +214,8 @@ export function specToParams(spec: FilterSpec): Record<string, string | number |
 
 // --- What a filter does, in words ---
 
-interface Effect {
-  /** What happens, in a clause: "skips the inbox". */
-  text: string;
-  /** Why it is worth a second look, shown in full previews only. */
-  detail?: string;
-  /** A consequence worth a second look before approving: disposal, or mail leaving the account. */
-  warn?: boolean;
-}
-
-const SYSTEM_LABEL_EFFECTS: Record<string, { add?: Effect; remove?: Effect }> = {
-  INBOX: { add: { text: 'kept in the inbox' }, remove: { text: 'skips the inbox: archived on arrival' } },
-  UNREAD: { add: { text: 'marked unread' }, remove: { text: 'marked read on arrival' } },
-  STARRED: { add: { text: 'starred' }, remove: { text: 'never starred' } },
-  IMPORTANT: { add: { text: 'marked important' }, remove: { text: 'never marked important' } },
-  TRASH: {
-    add: {
-      text: 'moved to trash on arrival',
-      detail: 'Gmail deletes trash permanently after 30 days, so matching mail nobody looks at is gone after that',
-      warn: true,
-    },
-  },
-  SPAM: {
-    add: { text: 'sent to spam on arrival', warn: true },
-    remove: { text: 'never sent to spam' },
-  },
-};
-
-export function describeActions(action: FilterAction, labelNames: Map<string, string>): Effect[] {
-  const effects: Effect[] = [];
-  const name = (id: string) => labelNames.get(id) ?? id;
-  for (const id of action.addLabelIds ?? []) {
-    const system = SYSTEM_LABEL_EFFECTS[id]?.add;
-    if (system) effects.push(system);
-    else if (id.startsWith('CATEGORY_')) effects.push({ text: `sorted into the ${id.slice(9).toLowerCase()} category` });
-    else effects.push({ text: `labeled "${name(id)}"` });
-  }
-  for (const id of action.removeLabelIds ?? []) {
-    const system = SYSTEM_LABEL_EFFECTS[id]?.remove;
-    if (system) effects.push(system);
-    else if (id.startsWith('CATEGORY_')) effects.push({ text: `kept out of the ${id.slice(9).toLowerCase()} category` });
-    else effects.push({ text: `"${name(id)}" label removed` });
-  }
+export function describeActions(action: FilterAction, names: Map<string, string>): Effect[] {
+  const effects = describeLabelChanges(action, names, 'arrival');
   if (action.forward) {
     effects.push({
       text: `forwarded in full to ${action.forward}`,
@@ -272,7 +227,7 @@ export function describeActions(action: FilterAction, labelNames: Map<string, st
 }
 
 function effectLines(action: FilterAction, labelNames: Map<string, string>): string[] {
-  return describeActions(action, labelNames).map((e) => `- ${e.warn ? '⚠ ' : ''}${e.text}${e.detail ? `. ${e.detail}` : ''}`);
+  return describeActions(action, labelNames).map(effectLine);
 }
 
 function summarize(spec: FilterSpec, labelNames: Map<string, string>): string {
@@ -299,12 +254,6 @@ async function getStoredFilter(account: string, id: string): Promise<StoredFilte
     if (err instanceof GoogleApiError && err.status === 404) return undefined;
     throw err;
   }
-}
-
-async function labelNames(account: string): Promise<Map<string, string>> {
-  const raw = await call('gmail', 'users.labels.list', { userId: 'me' }, { account }) as Record<string, unknown>;
-  const labels = (raw?.labels ?? []) as Array<{ id?: string; name?: string }>;
-  return new Map(labels.filter((l) => l.id).map((l) => [String(l.id), String(l.name ?? l.id)]));
 }
 
 async function forwardingAddresses(account: string): Promise<Array<{ forwardingEmail: string; verificationStatus?: string }>> {
@@ -400,14 +349,7 @@ export async function handlePreviewFilter(params: Record<string, unknown>, accou
   if (replacingId && !replacing) errors.push(`No filter ${replacingId} exists on this account. List them with \`filters\`.`);
   if (replacing && same(asSpec(replacing), spec)) errors.push(`Filter ${replacingId} already has exactly these criteria and actions; there is nothing to change.`);
 
-  const byName = new Map([...names].map(([id, n]) => [n.toLowerCase(), id]));
-  for (const id of [...(spec.action.addLabelIds ?? []), ...(spec.action.removeLabelIds ?? [])]) {
-    if (names.has(id)) continue;
-    const hint = byName.get(id.toLowerCase());
-    errors.push(hint
-      ? `'${id}' is a label name; filters take its id, ${hint}.`
-      : `No label with id '${id}' on this account. Create it with \`createLabel\`, or see ids with \`labels\`.`);
-  }
+  errors.push(...labelIdErrors(spec.action, names));
 
   if (spec.action.forward) {
     const address = forwarding.find((a) => a.forwardingEmail.toLowerCase() === spec.action.forward);
@@ -466,8 +408,11 @@ export async function handlePreviewFilter(params: Record<string, unknown>, accou
     }
   }
   if (matches.count > 0) {
-    lines.push('', `A filter acts only on mail that arrives after it exists; the messages counted above stay as they are (spam and trash were not counted). ` +
-      `To give them the same treatment, collect their ids with \`search\` (query \`${query}\`, idsOnly: true) and pass them to bulk_operations batch \`modify\`.`);
+    const relabel = spec.action.addLabelIds || spec.action.removeLabelIds;
+    lines.push('', 'A filter acts only on mail that arrives after it exists; the messages counted above stay as they are (spam and trash were not counted).' +
+      (relabel
+        ? ` To give them the same label changes, call \`previewModifyMatching\` with query \`${query}\` and the same addLabelIds and removeLabelIds, then \`modifyMatching\` with its token.`
+        : ''));
   }
   if (notes.length) lines.push('', ...notes);
 
