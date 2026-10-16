@@ -5,6 +5,7 @@ import { handleQueue } from './queue.js';
 import { handleBatch } from './batch.js';
 import { generatedTools } from '../factory/registry.js';
 import { getSessionTracker, sessionContext } from './session/index.js';
+import { runAsToolCall } from './call-context.js';
 
 export type { HandlerResponse } from './formatting/markdown.js';
 import type { HandlerResponse } from './formatting/markdown.js';
@@ -66,7 +67,18 @@ function queueableHandlers(depth: number): Record<string, ToolHandler> {
   };
 }
 
-export async function handleToolCall(
+/**
+ * Dispatch one tool call from the client. Everything it runs, a queue's operations
+ * included, shares one call id (see call-context.ts).
+ */
+export function handleToolCall(
+  toolName: string,
+  params: Record<string, unknown>,
+): Promise<HandlerResponse> {
+  return runAsToolCall(() => dispatchToolCall(toolName, params));
+}
+
+async function dispatchToolCall(
   toolName: string,
   params: Record<string, unknown>,
 ): Promise<HandlerResponse> {
