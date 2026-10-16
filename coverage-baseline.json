@@ -583,9 +583,7 @@
           "status": "covered",
           "params": {
             "includeSpamTrash": "gap",
-            "maxResults": "gap",
-            "labelIds": "gap",
-            "q": "gap"
+            "labelIds": "gap"
           }
         },
         "users.messages.batchDelete": {
@@ -1017,9 +1015,7 @@
         "conferenceRecords.list": {
           "status": "covered",
           "params": {
-            "pageSize": "gap",
-            "pageToken": "gap",
-            "filter": "gap"
+            "pageToken": "gap"
           }
         },
         "conferenceRecords.recordings.get": {
@@ -1063,8 +1059,7 @@
         "conferenceRecords.transcripts.list": {
           "status": "covered",
           "params": {
-            "pageSize": "gap",
-            "parent": "gap"
+            "pageSize": "gap"
           }
         },
         "conferenceRecords.transcripts.entries.get": {

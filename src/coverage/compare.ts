@@ -33,12 +33,21 @@ function buildCoveredPaths(manifest: Manifest): Map<string, { service: string; o
       // (ADR-308). Counting only `resource` reported the five batch methods the server
       // genuinely calls as gaps — and left this file disagreeing with docs/api-surface.md,
       // which is generated from the same manifest.
+      //
+      // Several operations can share one method (search, triage and previewModifyMatching
+      // all call users.messages.list). A parameter any of them maps is covered, so the
+      // sets are merged; keeping only the last operation's reported its gaps as the method's.
       for (const path of [opDef.resource, opDef.batch?.resource]) {
         if (!path) continue;
+        const existing = covered.get(path);
+        if (existing) {
+          for (const name of paramNames) existing.params.add(name);
+          continue;
+        }
         covered.set(path, {
           service: serviceDef.google_service,
           opName,
-          params: paramNames,
+          params: new Set(paramNames),
         });
       }
     }
