@@ -8,7 +8,7 @@ operations:
 
   search:
     type: list
-    description: "find emails by query"
+    description: "find emails by query. Says when more results exist than the page shows; continue with pageToken, or pass idsOnly to collect up to 500 ids per page for bulk_operations."
     resource: users.messages.list
     params:
       query:
@@ -17,9 +17,16 @@ operations:
         maps_to: q
       maxResults:
         type: number
-        description: "Max results (default: 10, max: 50)"
+        description: "Max results per page (default 10, max 50). On `search` with idsOnly, default and max 500."
         default: 10
         max: 50
+      pageToken:
+        type: string
+        description: "Continue a list from where the previous page stopped: pass the pageToken its response gave. Absent from a response means that response was the last page."
+      idsOnly:
+        type: boolean
+        description: "Return only message ids, up to 500 per page, without fetching each message's headers. For counting a large result or collecting ids to pass to bulk_operations batch mode (e.g. modify)."
+        client_only: true
     defaults:
       userId: me
     hydration:
@@ -169,6 +176,10 @@ operations:
     type: list
     description: "unread inbox summary (sender, subject, date)"
     resource: users.messages.list
+    params:
+      pageToken:
+        type: string
+        description: "Continue a list from where the previous page stopped: pass the pageToken its response gave. Absent from a response means that response was the last page."
     defaults:
       userId: me
       q: "is:unread in:inbox"
@@ -230,9 +241,12 @@ operations:
         maps_to: q
       maxResults:
         type: number
-        description: "Max results (default: 10, max: 50)"
+        description: "Max results per page (default 10, max 50). On `search` with idsOnly, default and max 500."
         default: 10
         max: 50
+      pageToken:
+        type: string
+        description: "Continue a list from where the previous page stopped: pass the pageToken its response gave. Absent from a response means that response was the last page."
     defaults:
       userId: me
 
@@ -346,9 +360,12 @@ operations:
         maps_to: q
       maxResults:
         type: number
-        description: "Max results (default: 10, max: 50)"
+        description: "Max results per page (default 10, max 50). On `search` with idsOnly, default and max 500."
         default: 10
         max: 50
+      pageToken:
+        type: string
+        description: "Continue a list from where the previous page stopped: pass the pageToken its response gave. Absent from a response means that response was the last page."
     defaults:
       userId: me
 
