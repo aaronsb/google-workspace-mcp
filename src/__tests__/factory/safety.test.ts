@@ -39,6 +39,19 @@ describe('draftOnlyEmail', () => {
     expect((await evaluatePolicies([], ctx('search'), 'gmail')).action).toBe('allow');
   });
 
+  it('blocks a filter that forwards, since it sends every future match', async () => {
+    for (const operation of ['createFilter', 'updateFilter']) {
+      const result = await evaluatePolicies([], { operation, params: { forwardTo: 'ap@example.com' }, account: 'test@test.com' }, 'gmail');
+      expect(result.action, operation).toBe('block');
+      expect(result.reason).toContain('ap@example.com');
+    }
+  });
+
+  it('allows a filter that only labels or archives', async () => {
+    const result = await evaluatePolicies([], { operation: 'createFilter', params: { removeLabelIds: 'INBOX' }, account: 'test@test.com' }, 'gmail');
+    expect(result.action).toBe('allow');
+  });
+
   it('allows triage', async () => {
     expect((await evaluatePolicies([], ctx('triage'), 'gmail')).action).toBe('allow');
   });

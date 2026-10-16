@@ -42,8 +42,8 @@ describe('oauth', () => {
 
     it('deduplicates scopes', () => {
       const { scopes } = scopesForServices('gmail,gmail');
-      const gmailCount = scopes.filter(s => s.includes('gmail')).length;
-      expect(gmailCount).toBe(1);
+      expect(new Set(scopes).size).toBe(scopes.length);
+      expect(scopes).toEqual(scopesForServices('gmail').scopes);
     });
 
     it('handles whitespace in service names', () => {
