@@ -4,15 +4,15 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.x.x   | :white_check_mark: |
-| < 1.0   | :x:               |
+| 4.x.x   | :white_check_mark: |
+| < 4.0   | :x:                |
 
 ## Reporting a Vulnerability
 
 We take the security of Google Workspace MCP seriously. If you believe you have found a security vulnerability, please follow these steps:
 
 1. **DO NOT** open a public issue on GitHub
-2. Email your findings to aaronsb@gmail.com
+2. Report it privately through GitHub: [Report a vulnerability](https://github.com/aaronsb/google-workspace-mcp/security/advisories/new) (Security tab → Advisories → Report a vulnerability). If you cannot use GitHub, email aaronsb@gmail.com instead.
 3. Include detailed information about the vulnerability:
    - Description of the issue
    - Steps to reproduce
@@ -61,10 +61,11 @@ Google Workspace MCP includes several security features:
 
 - Public disclosure will be coordinated with the reporter
 - We aim to release fixes before public disclosure
+- Confirmed vulnerabilities are published as GitHub Security Advisories, with a CVE requested through GitHub as the CNA
 - Credit will be given to security researchers who report issues (unless they prefer to remain anonymous)
 
 ## Security Contact
 
-For security-related inquiries, contact:
+For security-related inquiries, use [private vulnerability reporting](https://github.com/aaronsb/google-workspace-mcp/security/advisories/new) or contact:
 - Email: aaronsb@gmail.com
 - Subject line should start with [SECURITY]
