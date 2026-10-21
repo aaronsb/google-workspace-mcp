@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi, type MockedFunction, type Mock } 
 
 import { handleToolCall } from '../../server/handler.js';
 import type { HandlerResponse } from '../../server/handler.js';
+import { listAccounts } from '../../accounts/registry.js';
+import { readCredential } from '../../accounts/credentials.js';
 
 // ONE seam (ADR-103): every factory-generated operation — gmail triage, calendar
 // list, drive search — reaches Google through the client we own. Nothing shells
@@ -11,20 +13,33 @@ vi.mock('../../google/client.js');
 vi.mock('../../server/handlers/accounts.js');
 // Mock queue handler — still hand-coded
 vi.mock('../../server/queue.js');
+vi.mock('../../server/batch.js');
+vi.mock('../../accounts/registry.js', () => ({
+  listAccounts: vi.fn().mockResolvedValue([]),
+}));
+vi.mock('../../accounts/credentials.js', () => ({
+  readCredential: vi.fn().mockResolvedValue({ scopes: [] }),
+}));
 
 import { call } from '../../google/client.js';
 import { handleAccounts } from '../../server/handlers/accounts.js';
 import { handleQueue } from '../../server/queue.js';
+import { handleBatch } from '../../server/batch.js';
 
+const mockListAccounts = listAccounts as MockedFunction<typeof listAccounts>;
+const mockReadCredential = readCredential as MockedFunction<typeof readCredential>;
 const mockCall = call as MockedFunction<typeof call>;
 const mockAccounts = handleAccounts as MockedFunction<typeof handleAccounts>;
 const mockQueue = handleQueue as MockedFunction<typeof handleQueue>;
+const mockBatch = handleBatch as MockedFunction<typeof handleBatch>;
 
 const stubResponse: HandlerResponse = { text: 'ok', refs: {} };
 
 describe('handleToolCall', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockListAccounts.mockResolvedValue([]);
+    mockReadCredential.mockResolvedValue({ scopes: [] } as never);
   });
 
   it('routes manage_accounts to handleAccounts', async () => {
@@ -93,6 +108,71 @@ describe('handleToolCall', () => {
     );
     expect(result).toHaveProperty('text');
     expect(result).toHaveProperty('refs');
+  });
+
+  it('refreshes the inbox count before rendering context after a label write', async () => {
+    const email = 'unread-write@example.invalid';
+    mockCall
+      .mockResolvedValueOnce({ messagesUnread: 5 })
+      .mockResolvedValueOnce({ messages: [] })
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ labelIds: ['INBOX'] })
+      .mockResolvedValueOnce({ messagesUnread: 4 });
+
+    const result = await handleToolCall('manage_email', {
+      operation: 'modify', email, messageId: 'synthetic-message', removeLabelIds: 'UNREAD',
+    });
+
+    expect(mockCall.mock.calls.map((call) => call[1])).toEqual([
+      'users.labels.get', 'users.messages.list', 'events.list',
+      'users.messages.modify', 'users.labels.get',
+    ]);
+    expect(result.text).toContain('1 fewer unread since session start (4 unread');
+  });
+
+  it('captures a baseline and refreshes after a batch label write', async () => {
+    const email = 'batch-unread@example.invalid';
+    mockBatch.mockResolvedValue(stubResponse);
+    mockCall
+      .mockResolvedValueOnce({ messagesUnread: 3 })
+      .mockResolvedValueOnce({ messages: [] })
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ messagesUnread: 2 });
+    const params = {
+      mode: 'batch', tool: 'manage_email', operation: 'modify', email,
+      removeLabelIds: 'INBOX', items: ['synthetic-message'],
+    };
+
+    const result = await handleToolCall('bulk_operations', params);
+
+    expect(mockBatch).toHaveBeenCalledWith(params);
+    expect(mockCall.mock.calls.map((call) => call[1])).toEqual([
+      'users.labels.get', 'users.messages.list', 'events.list', 'users.labels.get',
+    ]);
+    expect(result.text).toContain('1 fewer unread since session start (2 unread');
+  });
+
+  it('refreshes affected accounts after queued label writes', async () => {
+    const email = 'queued-unread@example.invalid';
+    mockQueue.mockResolvedValue(stubResponse);
+    mockCall
+      .mockResolvedValueOnce({ messagesUnread: 8 })
+      .mockResolvedValueOnce({ messages: [] })
+      .mockResolvedValueOnce({ items: [] })
+      .mockResolvedValueOnce({ messagesUnread: 7 });
+    const params = {
+      operations: [{
+        tool: 'manage_email',
+        args: { operation: 'modify', email, messageId: 'synthetic-message', removeLabelIds: 'UNREAD' },
+      }],
+    };
+
+    const result = await handleToolCall('bulk_operations', params);
+
+    expect(mockCall.mock.calls.map((call) => call[1])).toEqual([
+      'users.labels.get', 'users.messages.list', 'events.list', 'users.labels.get',
+    ]);
+    expect(result.text).toContain('1 fewer unread since session start (7 unread');
   });
 
   it('routes manage_calendar to factory-generated handler', async () => {

@@ -167,6 +167,69 @@ describe('SessionTracker', () => {
     });
   });
 
+  describe('refreshUnreadCount', () => {
+    it('refreshes only the inbox count immediately, independent of the epoch gate', async () => {
+      mockCall
+        .mockResolvedValueOnce(unread(5))
+        .mockResolvedValueOnce(today(12))
+        .mockResolvedValueOnce({ items: [] });
+      await tracker.ensureBaseline('user@test.com', 1);
+      const callsBefore = mockCall.mock.calls.length;
+
+      mockCall.mockResolvedValueOnce(unread(4));
+      await tracker.refreshUnreadCount('user@test.com');
+
+      expect(mockCall).toHaveBeenCalledTimes(callsBefore + 1);
+      expect(mockCall.mock.calls[callsBefore][1]).toBe('users.labels.get');
+      expect(tracker.getContext('user@test.com')!.currentUnreadCount).toBe(4);
+      expect(tracker.getContext('user@test.com')!.unreadCountStale).toBe(false);
+    });
+
+    it('keeps the count marked stale when the immediate read fails', async () => {
+      mockCall
+        .mockResolvedValueOnce(unread(5))
+        .mockResolvedValueOnce(today(12))
+        .mockResolvedValueOnce({ items: [] });
+      await tracker.ensureBaseline('user@test.com', 1);
+      mockCall.mockRejectedValueOnce(new Error('offline synthetic stub'));
+
+      await tracker.refreshUnreadCount('user@test.com');
+
+      expect(tracker.getContext('user@test.com')!.currentUnreadCount).toBe(5);
+      expect(tracker.getContext('user@test.com')!.unreadCountStale).toBe(true);
+    });
+
+    it('does not let an older periodic read overwrite the post-write count', async () => {
+      mockCall
+        .mockResolvedValueOnce(unread(5))
+        .mockResolvedValueOnce(today(12))
+        .mockResolvedValueOnce({ items: [] });
+      await tracker.ensureBaseline('user@test.com', 1);
+
+      let resolveOlder!: (value: unknown) => void;
+      let labelReads = 0;
+      mockCall.mockImplementation(async (_service, method) => {
+        if (method === 'users.labels.get') {
+          labelReads += 1;
+          if (labelReads === 1) return new Promise<unknown>((resolve) => { resolveOlder = resolve; });
+          return unread(4);
+        }
+        if (method === 'users.messages.list') return today(12);
+        return { items: [] };
+      });
+
+      const olderRefresh = (tracker as unknown as {
+        _doRefresh(email: string, epoch: number): Promise<void>;
+      })._doRefresh('user@test.com', 11);
+      expect(resolveOlder).toBeTypeOf('function');
+      await tracker.refreshUnreadCount('user@test.com');
+      resolveOlder(unread(5));
+      await olderRefresh;
+
+      expect(tracker.getContext('user@test.com')!.currentUnreadCount).toBe(4);
+    });
+  });
+
   describe('getContext', () => {
     it('returns undefined for unknown email', () => {
       expect(tracker.getContext('nobody@test.com')).toBeUndefined();

@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../../accounts/registry.js', () => ({
+  listAccounts: vi.fn().mockResolvedValue([]),
+}));
 import { sessionContext } from '../../../server/session/context.js';
 import { SessionTracker } from '../../../server/session/tracker.js';
 import type { AccountSession } from '../../../server/session/tracker.js';
@@ -20,6 +24,7 @@ function baseSession(overrides: Partial<AccountSession> = {}): AccountSession {
     currentTodayEmailCount: 20,
     nextEvent: null,
     lastRefreshedEpoch: 1,
+    unreadCountStale: false,
     initialized: true,
     ...overrides,
   };
@@ -79,6 +84,18 @@ describe('sessionContext', () => {
 
     const result = await sessionContext('manage_email', 'u@t.com', tracker);
     expect(result).toContain('No new unread emails since session start');
+  });
+
+  it('omits the unread count when a recent write could not be reconciled', async () => {
+    const tracker = trackerWith('u@t.com', baseSession({
+      currentUnreadCount: 8,
+      unreadCountStale: true,
+    }));
+
+    const result = await sessionContext('manage_email', 'u@t.com', tracker);
+    expect(result).toContain('no unread delta is shown');
+    expect(result).not.toContain('8 unread');
+    expect(result).not.toContain('fewer unread since session start');
   });
 
   it('shows next event with relative time', async () => {

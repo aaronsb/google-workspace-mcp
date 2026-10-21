@@ -27,6 +27,7 @@ export interface AccountSession {
   currentTodayEmailCount: number;
   nextEvent: NextEvent | null;
   lastRefreshedEpoch: number;
+  unreadCountStale: boolean;
   initialized: boolean;
 }
 
@@ -105,6 +106,7 @@ async function fetchNextEvent(account: string): Promise<NextEvent | null> {
 
 export class SessionTracker {
   private sessions = new Map<string, AccountSession>();
+  private unreadRefreshVersions = new Map<string, number>();
 
   /** Capture baseline on first call per account. Blocks until complete. */
   async ensureBaseline(email: string, epoch: number): Promise<void> {
@@ -124,6 +126,7 @@ export class SessionTracker {
         currentTodayEmailCount: today.status === 'fulfilled' ? today.value : 0,
         nextEvent: nextEvt.status === 'fulfilled' ? nextEvt.value : null,
         lastRefreshedEpoch: epoch,
+        unreadCountStale: false,
         initialized: true,
       };
 
@@ -143,6 +146,30 @@ export class SessionTracker {
     void this._doRefresh(email, epoch);
   }
 
+  /** Refresh the inbox-unread count immediately after a write that may change it. */
+  async refreshUnreadCount(email: string): Promise<void> {
+    const session = this.sessions.get(email);
+    if (!session?.initialized) return;
+
+    const version = (this.unreadRefreshVersions.get(email) ?? 0) + 1;
+    this.unreadRefreshVersions.set(email, version);
+    session.unreadCountStale = true;
+
+    try {
+      const unread = await fetchUnreadCount(email);
+      if (
+        this.sessions.get(email) !== session
+        || this.unreadRefreshVersions.get(email) !== version
+      ) return;
+      session.currentUnreadCount = unread;
+      session.unreadCountStale = false;
+    } catch (err) {
+      process.stderr.write(
+        `[google-workspace-mcp] inbox unread refresh failed for ${email}: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+    }
+  }
+
   /** Return current session data, or undefined if not tracked. */
   getContext(email: string): AccountSession | undefined {
     return this.sessions.get(email);
@@ -151,11 +178,13 @@ export class SessionTracker {
   /** Clear all state (for testing). */
   reset(): void {
     this.sessions.clear();
+    this.unreadRefreshVersions.clear();
   }
 
   private async _doRefresh(email: string, epoch: number): Promise<void> {
     const session = this.sessions.get(email);
     if (!session) return;
+    const unreadVersion = this.unreadRefreshVersions.get(email) ?? 0;
 
     try {
       const [unread, today, nextEvt] = await Promise.allSettled([
@@ -167,7 +196,13 @@ export class SessionTracker {
       // Guard against stale write: a newer refresh may have landed while we awaited
       if (session.lastRefreshedEpoch > epoch) return;
 
-      if (unread.status === 'fulfilled') session.currentUnreadCount = unread.value;
+      if (
+        unread.status === 'fulfilled'
+        && (this.unreadRefreshVersions.get(email) ?? 0) === unreadVersion
+      ) {
+        session.currentUnreadCount = unread.value;
+        session.unreadCountStale = false;
+      }
       if (today.status === 'fulfilled') session.currentTodayEmailCount = today.value;
       if (nextEvt.status === 'fulfilled') session.nextEvent = nextEvt.value;
       session.lastRefreshedEpoch = epoch;

@@ -44,14 +44,18 @@ export async function sessionContext(
   }
 
   // Email delta
-  const delta = session.currentUnreadCount - session.baselineUnreadCount;
-  if (delta > 0) {
-    lines.push(`- ${delta} new unread email${delta !== 1 ? 's' : ''} since session start (${session.currentUnreadCount} unread, ${session.currentTodayEmailCount} today)`);
-  } else if (delta < 0) {
-    const abs = Math.abs(delta);
-    lines.push(`- ${abs} fewer unread since session start (${session.currentUnreadCount} unread, ${session.currentTodayEmailCount} today)`);
+  if (session.unreadCountStale) {
+    lines.push('- Inbox unread count may be stale after a recent change; no unread delta is shown.');
   } else {
-    lines.push(`- No new unread emails since session start (${session.currentUnreadCount} unread, ${session.currentTodayEmailCount} today)`);
+    const delta = session.currentUnreadCount - session.baselineUnreadCount;
+    if (delta > 0) {
+      lines.push(`- ${delta} new unread email${delta !== 1 ? 's' : ''} since session start (${session.currentUnreadCount} unread, ${session.currentTodayEmailCount} today)`);
+    } else if (delta < 0) {
+      const abs = Math.abs(delta);
+      lines.push(`- ${abs} fewer unread since session start (${session.currentUnreadCount} unread, ${session.currentTodayEmailCount} today)`);
+    } else {
+      lines.push(`- No new unread emails since session start (${session.currentUnreadCount} unread, ${session.currentTodayEmailCount} today)`);
+    }
   }
 
   // Next event

@@ -5,7 +5,11 @@ import { handleQueue } from './queue.js';
 import { handleBatch } from './batch.js';
 import { generatedTools } from '../factory/registry.js';
 import { getSessionTracker, sessionContext } from './session/index.js';
+import { inboxUnreadMutationAccounts } from './session/unread-refresh.js';
+import { BULK_TOOL_NAMES } from './tool-names.js';
 import { runAsToolCall } from './call-context.js';
+
+export { BULK_TOOL_NAMES } from './tool-names.js';
 
 export type { HandlerResponse } from './formatting/markdown.js';
 import type { HandlerResponse } from './formatting/markdown.js';
@@ -40,12 +44,6 @@ const domainHandlers: Record<string, ToolHandler> = {
 for (const tool of generatedTools) {
   domainHandlers[tool.schema.name] = tool.handler;
 }
-
-/**
- * The names that reach the bulk handler. `queue_operations` is the former name, kept
- * working for one minor release — ADR-308. Both are advertised and both dispatch here.
- */
-export const BULK_TOOL_NAMES = ['bulk_operations', 'queue_operations'];
 
 /**
  * What a queued operation may call: every tool, including `bulk_operations` itself.
@@ -87,13 +85,50 @@ async function dispatchToolCall(
 
   // Bulk wraps the domain handlers (each queued op also advances the epoch)
   if (BULK_TOOL_NAMES.includes(toolName)) {
-    if (params.mode === 'batch') return await handleBatch(params);
-    const result = await handleQueue(params, queueableHandlers(1), 1);
+    const unreadAccounts = inboxUnreadMutationAccounts(toolName, params);
+    if (params.mode === 'batch') {
+      for (const account of unreadAccounts) {
+        await tracker.ensureBaseline(account, currentEpoch);
+      }
+
+      let result: HandlerResponse;
+      try {
+        result = await handleBatch(params);
+      } finally {
+        for (const account of unreadAccounts) {
+          await tracker.refreshUnreadCount(account);
+        }
+      }
+
+      for (const account of unreadAccounts) {
+        tracker.refresh(account, currentEpoch);
+        const ctx = await sessionContext(toolName, account, tracker);
+        if (ctx) result.text += ctx;
+      }
+      return result;
+    }
+
+    for (const account of unreadAccounts) {
+      await tracker.ensureBaseline(account, currentEpoch);
+    }
+
+    let result: HandlerResponse;
+    try {
+      result = await handleQueue(params, queueableHandlers(1), 1);
+    } finally {
+      for (const account of unreadAccounts) {
+        await tracker.refreshUnreadCount(account);
+      }
+    }
+
     const queueEmail = extractEmailFromQueue(params);
-    if (queueEmail) {
-      await tracker.ensureBaseline(queueEmail, currentEpoch);
-      tracker.refresh(queueEmail, currentEpoch);
-      const ctx = await sessionContext(toolName, queueEmail, tracker);
+    if (queueEmail) await tracker.ensureBaseline(queueEmail, currentEpoch);
+
+    const contextEmails = new Set(unreadAccounts);
+    if (queueEmail) contextEmails.add(queueEmail);
+    for (const email of contextEmails) {
+      tracker.refresh(email, currentEpoch);
+      const ctx = await sessionContext(toolName, email, tracker);
       if (ctx) result.text += ctx;
     }
     return result;
@@ -110,7 +145,13 @@ async function dispatchToolCall(
     await tracker.ensureBaseline(email, currentEpoch);
   }
 
-  const result = await handler(params);
+  const refreshUnread = email !== undefined && inboxUnreadMutationAccounts(toolName, params).includes(email);
+  let result: HandlerResponse;
+  try {
+    result = await handler(params);
+  } finally {
+    if (refreshUnread && email) await tracker.refreshUnreadCount(email);
+  }
 
   if (email) {
     tracker.refresh(email, currentEpoch);
