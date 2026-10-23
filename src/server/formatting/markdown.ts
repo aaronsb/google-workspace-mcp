@@ -373,6 +373,11 @@ export function formatEventDetail(data: unknown): HandlerResponse {
   if (location) parts.push(`**Where:** ${location}`);
   if (organizer) parts.push(`**Organizer:** ${organizer}`);
   if (meetLink) parts.push(`**Meet:** ${meetLink}`);
+  // Colour and repeat rule are written by `create` / `update`; showing them is how the caller reads back what it set.
+  const recurrence = Array.isArray(event.recurrence) ? (event.recurrence as unknown[]).map(String) : [];
+  if (recurrence.length > 0) parts.push(`**Repeats:** ${recurrence.join('; ')}`);
+  const colorId = event.colorId ? String(event.colorId) : undefined;
+  if (colorId) parts.push(`**Colour:** ${colorId}`);
 
   if (attendees.length > 0) {
     parts.push('', '**Attendees:**');
@@ -398,6 +403,8 @@ export function formatEventDetail(data: unknown): HandlerResponse {
       end,
       organizer,
       meetLink,
+      ...(recurrence.length > 0 ? { recurrence } : {}),
+      ...(colorId ? { colorId } : {}),
     },
   };
 }

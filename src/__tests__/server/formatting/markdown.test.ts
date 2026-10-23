@@ -250,6 +250,26 @@ describe('formatEventDetail', () => {
     expect(result.refs.meetLink).toBe('https://meet.google.com/xxx');
   });
 
+  it('shows the colour and the repeat rule an event carries, so what was set can be read back', () => {
+    const result = formatEventDetail({
+      id: 'evt-1', summary: 'Standup', colorId: '11',
+      start: { dateTime: '2026-03-14T10:00:00+01:00', timeZone: 'Europe/Amsterdam' },
+      end: { dateTime: '2026-03-14T10:15:00+01:00', timeZone: 'Europe/Amsterdam' },
+      recurrence: ['RRULE:FREQ=WEEKLY;COUNT=3', 'EXDATE:20260321T100000Z'],
+    });
+    expect(result.text).toContain('**Colour:** 11');
+    expect(result.text).toContain('**Repeats:** RRULE:FREQ=WEEKLY;COUNT=3; EXDATE:20260321T100000Z');
+    expect(result.refs.colorId).toBe('11');
+    expect(result.refs.recurrence).toEqual(['RRULE:FREQ=WEEKLY;COUNT=3', 'EXDATE:20260321T100000Z']);
+  });
+
+  it('prints neither line for an event with no colour and no rule', () => {
+    const result = formatEventDetail({ id: 'x', summary: 'Once', start: {}, end: {} });
+    expect(result.text).not.toContain('Colour');
+    expect(result.text).not.toContain('Repeats');
+    expect(result.refs.colorId).toBeUndefined();
+  });
+
   it('handles missing conference data', () => {
     const result = formatEventDetail({ id: 'x', start: {}, end: {} });
     expect(result.refs.meetLink).toBeUndefined();
