@@ -101,6 +101,15 @@ operations:
       meet:
         type: boolean
         description: "Add a Google Meet video conference link. On `update`, true adds a link and false REMOVES an existing one; omit it to leave the link as it is."
+      colorId:
+        type: string
+        description: "Event colour, a number from 1 to 11 (the Calendar API's event colours: 1 lavender, 2 sage, 3 grape, 4 flamingo, 5 banana, 6 tangerine, 7 peacock, 8 graphite, 9 blueberry, 10 basil, 11 tomato). Omit to use the calendar's default colour."
+      recurrence:
+        type: string
+        description: "Repeat rule, RFC 5545, one line per line of the string: `RRULE:FREQ=WEEKLY;BYDAY=MO,WE`, optionally followed by `EXDATE:20260506T090000Z` lines for skipped days. A bare `FREQ=...` gets its RRULE: prefix. A TIMED event needs `timeZone` too. On `update`, what you pass REPLACES the whole rule list; omit it to leave the repeat as it is."
+      timeZone:
+        type: string
+        description: "IANA time zone of start and end for a timed event, such as Europe/Amsterdam. Required when `recurrence` is set on a timed event, because Google expands the rule in that zone; otherwise optional (without it, start and end carry their own UTC offset). Ignored for all-day events."
 
   quickAdd:
     type: action
@@ -153,6 +162,15 @@ operations:
       meet:
         type: boolean
         description: "Add a Google Meet video conference link. On `update`, true adds a link and false REMOVES an existing one; omit it to leave the link as it is."
+      colorId:
+        type: string
+        description: "Event colour, a number from 1 to 11 (the Calendar API's event colours: 1 lavender, 2 sage, 3 grape, 4 flamingo, 5 banana, 6 tangerine, 7 peacock, 8 graphite, 9 blueberry, 10 basil, 11 tomato). Omit to use the calendar's default colour."
+      recurrence:
+        type: string
+        description: "Repeat rule, RFC 5545, one line per line of the string: `RRULE:FREQ=WEEKLY;BYDAY=MO,WE`, optionally followed by `EXDATE:20260506T090000Z` lines for skipped days. A bare `FREQ=...` gets its RRULE: prefix. A TIMED event needs `timeZone` too. On `update`, what you pass REPLACES the whole rule list; omit it to leave the repeat as it is."
+      timeZone:
+        type: string
+        description: "IANA time zone of start and end for a timed event, such as Europe/Amsterdam. Required when `recurrence` is set on a timed event, because Google expands the rule in that zone; otherwise optional (without it, start and end carry their own UTC offset). Ignored for all-day events."
     defaults:
       calendarId: primary
 

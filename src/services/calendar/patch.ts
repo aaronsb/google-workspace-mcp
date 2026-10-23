@@ -5,7 +5,7 @@
  * - List: default timeMin to today start, include calendarId in output
  * - Agenda: rich helper with day-range params, calendarId per event
  * - Freebusy: custom handler (POST body via --json, not --params)
- * - Create: custom response formatting with event details + --meet flag
+ * - Create: custom response formatting with event details + --meet flag; colorId, recurrence, timeZone
  * - Delete: custom confirmation message
  */
 
@@ -15,6 +15,7 @@ import { call } from '../../google/client.js';
 import { formatEventList, formatEventDetail } from '../../server/formatting/markdown.js';
 import { requireString, optionalString } from '../../server/handlers/validate.js';
 import { allDayDate, exclusiveEndDate, allDayRange } from './dates.js';
+import { eventColorId, parseRecurrence } from './event-fields.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
@@ -371,6 +372,19 @@ export const calendarPatch: ServicePatch = {
       }
       const calendarId = (params.calendarId as string) || 'primary';
 
+      // Colour, recurrence and time zone are validated before anything is sent, so a bad
+      // value is a readable error here and not a 400 from Google.
+      const timeZone = optionalString(params, 'timeZone');
+      const recurrence = optionalString(params, 'recurrence') ? parseRecurrence(params.recurrence) : undefined;
+      if (recurrence && !allDay && !timeZone) {
+        // Google expands a recurring timed event's rule in the zone of its start and end.
+        throw new Error(
+          'timeZone is required for a recurring timed event (an IANA name such as Europe/Amsterdam): ' +
+          'Google expands the rule in that zone',
+        );
+      }
+      const colorId = optionalString(params, 'colorId') ? eventColorId(params.colorId) : undefined;
+
       // Attendees are an ARRAY OF OBJECTS in the event body, not a repeated scalar.
       // All-day events use `date` (YYYY-MM-DD); timed ones use `dateTime` (RFC 3339).
       const body: Record<string, unknown> = { calendarId, summary };
@@ -381,9 +395,11 @@ export const calendarPatch: ServicePatch = {
         // to the start date (a one-day event).
         body.end = { date: exclusiveEndDate(start, end ?? start) };
       } else {
-        body.start = { dateTime: start };
-        body.end = { dateTime: end };
+        body.start = timeZone ? { dateTime: start, timeZone } : { dateTime: start };
+        body.end = timeZone ? { dateTime: end, timeZone } : { dateTime: end };
       }
+      if (recurrence) body.recurrence = recurrence;
+      if (colorId) body.colorId = colorId;
       if (params.description) body.description = String(params.description);
       if (params.location) body.location = String(params.location);
       if (params.attendees) {
@@ -417,9 +433,14 @@ export const calendarPatch: ServicePatch = {
         text: `Event created: **${summary}**${meetLink}${allDayMarker}\n\n` +
           `**When:** ${when}\n` +
           (params.location ? `**Where:** ${params.location}\n` : '') +
+          (recurrence ? `**Repeats:** ${recurrence.join('; ')}\n` : '') +
+          (colorId ? `**Colour:** ${colorId}\n` : '') +
           `**Calendar:** ${calendarId}\n` +
           `**Event ID:** ${data.id ?? 'unknown'}`,
-        refs: { id: data.id, eventId: data.id, calendarId, summary, start, end, allDay },
+        refs: {
+          id: data.id, eventId: data.id, calendarId, summary, start, end, allDay,
+          ...(recurrence ? { recurrence } : {}), ...(colorId ? { colorId } : {}),
+        },
       };
     },
 
@@ -445,6 +466,10 @@ export const calendarPatch: ServicePatch = {
       if (params.summary !== undefined) body.summary = String(params.summary);
       if (params.description !== undefined) body.description = String(params.description);
       if (params.location !== undefined) body.location = String(params.location);
+      if (optionalString(params, 'colorId') !== undefined) body.colorId = eventColorId(params.colorId);
+      // `recurrence` REPLACES the event's whole rule list (patch semantics for arrays).
+      if (optionalString(params, 'recurrence') !== undefined) body.recurrence = parseRecurrence(params.recurrence);
+      const timeZone = optionalString(params, 'timeZone');
 
       // All-day updates map start/end to `date` (YYYY-MM-DD); timed ones to
       // `dateTime` (RFC 3339).
@@ -517,6 +542,13 @@ export const calendarPatch: ServicePatch = {
           : { dateTime: String(endValue), date: null };
       }
 
+      // A time zone rides on both ends of a timed event. events.patch merges nested objects,
+      // so `{ timeZone }` alone leaves the dateTime the event already has.
+      if (timeZone && !allDay) {
+        body.start = { ...(body.start as Record<string, unknown> | undefined), timeZone };
+        body.end = { ...(body.end as Record<string, unknown> | undefined), timeZone };
+      }
+
       // attendees: comma-separated string → array of {email} objects.
       // Google events.patch replaces the attendees array wholesale (no diff semantics),
       // so the caller must re-supply every guest they want kept.
@@ -565,7 +597,7 @@ export const calendarPatch: ServicePatch = {
       // named one.
       if (Object.keys(body).length === 0 && !removingMeet) {
         throw new Error(
-          'update requires at least one field to change: summary, start, end, description, location, attendees, or meet',
+          'update requires at least one field to change: summary, start, end, description, location, attendees, meet, colorId, recurrence, or timeZone',
         );
       }
 
