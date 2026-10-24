@@ -413,14 +413,22 @@ export const gmailPatch: ServicePatch = {
       const to = requireString(params, 'to');
       const includeAttachments = params.includeAttachments !== false
         && params.includeAttachments !== 'false';
+      const draft = params.draft === true || params.draft === 'true';
 
       const data = await forwardMail(account, {
         messageId, to,
         body: params.body ? String(params.body) : undefined,
         html: params.html === true || params.html === 'true',
-        draft: params.draft === true || params.draft === 'true',
+        draft,
         includeAttachments,
       });
+
+      if (draft) {
+        return {
+          text: `Draft forward to ${to} saved.\n\n**Draft ID:** ${data.id}`,
+          refs: { id: data.id, draftId: data.id, messageId, to, isDraft: true },
+        };
+      }
 
       return {
         text: `Message forwarded to ${to}.\n\n**Message ID:** ${data.id}`,
