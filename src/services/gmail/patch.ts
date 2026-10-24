@@ -402,11 +402,9 @@ export const gmailPatch: ServicePatch = {
     /**
      * Forward.
      *
-     * We do NOT thread forwards: no In-Reply-To, no References, no threadId. Gmail's
-     * own web client starts a new thread, which is what a user means by "forward" —
-     * a new conversation with a new audience. Threading it would also drop the
-     * forward into the original participants' view of the thread, which is a small
-     * privacy surprise.
+     * Threaded like Gmail's own forwards — In-Reply-To, References and the original
+     * threadId (see forwardMail in mail.ts). With `draft`, the forward is saved as a
+     * draft in that thread instead of being sent.
      */
     forward: async (params, account): Promise<HandlerResponse> => {
       const messageId = requireString(params, 'messageId');
