@@ -102,7 +102,7 @@ operations:
         description: "Treat body as HTML content (default: plain text)"
       draft:
         type: boolean
-        description: "Save as draft instead of sending (default: false, forced true when attachments present)"
+        description: "Save as a draft instead of sending (default: false). On `send`, `reply` and `replyAll`, attachments force a draft. Under the draft-only-email safety policy, these operations need `draft: true`."
 
   reply:
     type: action
@@ -124,7 +124,7 @@ operations:
         description: "Treat body as HTML content (default: plain text)"
       draft:
         type: boolean
-        description: "Save as draft instead of sending (default: false, forced true when attachments present)"
+        description: "Save as a draft instead of sending (default: false). On `send`, `reply` and `replyAll`, attachments force a draft. Under the draft-only-email safety policy, these operations need `draft: true`."
 
   replyAll:
     type: action
@@ -149,7 +149,7 @@ operations:
         description: "Treat body as HTML content (default: plain text)"
       draft:
         type: boolean
-        description: "Save as draft instead of sending (default: false, forced true when attachments present)"
+        description: "Save as a draft instead of sending (default: false). On `send`, `reply` and `replyAll`, attachments force a draft. Under the draft-only-email safety policy, these operations need `draft: true`."
 
   forward:
     type: action
@@ -166,6 +166,9 @@ operations:
       body:
         type: string
         description: "Email body text. On `forward`, an optional note prepended ABOVE the forwarded message."
+      draft:
+        type: boolean
+        description: "Save as a draft instead of sending (default: false). On `send`, `reply` and `replyAll`, attachments force a draft. Under the draft-only-email safety policy, these operations need `draft: true`."
 
   # --- Inbox management ---
 

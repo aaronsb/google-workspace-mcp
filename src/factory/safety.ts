@@ -90,20 +90,26 @@ export interface SafetyPolicy {
 // ── Built-in policies ────────────────────────────────────────────────
 
 /**
- * Draft-only email policy — blocks send/reply/forward, allows everything else.
- * Agents can read, search, triage, and label emails but cannot send on behalf of the user.
+ * Draft-only email policy — blocks send/reply/forward unless the call only saves a draft,
+ * allows everything else. Agents can read, search, triage, label and draft emails (in the
+ * original thread, for replies and forwards) but cannot send on behalf of the user.
  */
 export const draftOnlyEmail: SafetyPolicy = {
   name: 'draft-only-email',
-  description: 'Block outbound email — agents can read but not send',
+  description: 'Block outbound email — agents can read and save drafts but not send',
   applies: (service) => service === 'gmail',
   evaluate: (_args, ctx) => {
     const blocked = ['send', 'reply', 'replyAll', 'forward'];
-    if (blocked.includes(ctx.operation)) {
+    // The exact test the Gmail handlers use to choose users.drafts.create over
+    // users.messages.send. A queue `$N` reference arrives as the string 'true'. Anything
+    // looser would allow a call the handler then sends.
+    const savesDraft = ctx.params.draft === true || ctx.params.draft === 'true';
+    if (blocked.includes(ctx.operation) && !savesDraft) {
       return {
         action: 'block',
         reason: `Operation '${ctx.operation}' is blocked by draft-only email policy. ` +
-          `The agent can read, search, and triage emails but cannot send on behalf of the user.`,
+          `The agent can read, search, triage and draft emails but cannot send on behalf of the user. ` +
+          `Pass draft: true to save it as a draft instead.`,
       };
     }
     // A filter that forwards sends every future match, with nobody in the loop for any of

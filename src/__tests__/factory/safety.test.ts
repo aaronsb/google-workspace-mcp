@@ -63,6 +63,55 @@ describe('draftOnlyEmail', () => {
   it('does not apply to other services', async () => {
     expect((await evaluatePolicies([], ctx('delete'), 'drive')).action).toBe('allow');
   });
+
+  describe('drafts are allowed, sends are not (#214)', () => {
+    const outbound = ['send', 'reply', 'replyAll', 'forward'];
+    const withParams = (operation: string, params: Record<string, unknown>): PatchContext =>
+      ({ operation, params, account: 'test@test.com' });
+
+    // Exactly the two values the Gmail handlers treat as "save a draft". A queue `$N`
+    // reference stringifies, so 'true' must count as well as true.
+    it.each(outbound)('allows %s with draft: true or draft: "true"', async (operation) => {
+      for (const draft of [true, 'true']) {
+        const result = await evaluatePolicies([], withParams(operation, { draft }), 'gmail');
+        expect(result.action, `${operation} draft=${JSON.stringify(draft)}`).toBe('allow');
+      }
+    });
+
+    // Every other value makes the handler send, so every other value must stay blocked.
+    it.each(outbound)('still blocks %s for any value the handler would send', async (operation) => {
+      for (const draft of [undefined, false, 'false', 1, '1', 'True', 'TRUE', ' true ', 'yes', [true], { draft: true }]) {
+        const result = await evaluatePolicies([], withParams(operation, { draft }), 'gmail');
+        expect(result.action, `${operation} draft=${JSON.stringify(draft)}`).toBe('block');
+        expect(result.reason).toContain('draft: true');
+      }
+    });
+
+    it('still blocks a send whose only draft signal is an attachment', async () => {
+      // The handler would force a draft here, but the policy only honours the explicit flag.
+      const result = await evaluatePolicies([], withParams('send', { attachments: 'report.pdf' }), 'gmail');
+      expect(result.action).toBe('block');
+    });
+
+    it('still blocks a forwarding filter that also says draft: true', async () => {
+      for (const operation of ['createFilter', 'updateFilter']) {
+        const result = await evaluatePolicies([], withParams(operation, { forwardTo: 'ap@example.com', draft: true }), 'gmail');
+        expect(result.action, operation).toBe('block');
+      }
+    });
+  });
+});
+
+describe('draftOnlyEmail composed with readOnly', () => {
+  afterAll(() => configurePolicies([]));
+
+  it('a draft is still a write, so read-only blocks it in either order', async () => {
+    for (const policies of [[draftOnlyEmail, readOnly], [readOnly, draftOnlyEmail]]) {
+      configurePolicies(policies);
+      const result = await evaluatePolicies([], { operation: 'reply', params: { draft: true }, account: 'test@test.com' }, 'gmail');
+      expect(result.action, policies.map((p) => p.name).join(',')).toBe('block');
+    }
+  });
 });
 
 describe('noDelete', () => {
