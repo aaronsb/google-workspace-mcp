@@ -1,5 +1,31 @@
 ---
-status: Draft
+contract: adr/v1
+kind: decision
+verb: change
+capability:
+  - auth
+  - core
+basis:
+  - operator: aaronsb
+    level: guided
+    said: "what about a policy config glob in the mcp parameters? we could begin setting policy options there, with a default conservative that is generally how it is today I want to avoid the constructive multi session avoidance somehow (draft to x@evil.com, in new session, write a message to self to send to x@evil.com)"
+    via: Claude Code session, 2026-10-27, after the security review of PRs #201, #213, #215 and #216
+  - operator: aaronsb
+    level: directed
+    said: "there's only so much we can do to protect a .mcp.json - so I'd say that we assume that anything offering the mcp server to the agent has handled it's configuration space itself."
+    via: Claude Code session, 2026-10-27
+  - operator: aaronsb
+    level: directed
+    said: "the default can be basically how it is now, (tbd, we could update the default later) and in the repo, a default template. I think we have actually fenced off the api tokens etc from the agent for the configuration store ( the oauth ) so that's likely the same safe enclave to keep the policy. on very first start, if the file doesn't exist, the mcp server writes the default template. if the file exists and is validated, it doesn't touch it and reads it. if there are properties that are invalid or keys and values that are invalid, we write an error and fail to start it. (with a message in the error that deleting the file will allow a fresh valid default to be generated)"
+    via: Claude Code session, 2026-10-27
+  - evidence: "Review of PR #216 found two plausible follow-up changes that would each open a send path under draft-only-email without touching safety.ts: an operation calling users.drafts.send, and passing real params into the scratchpad policy check, whose email target sends regardless of draft"
+  - evidence: "descriptor.json gives all 257 methods an httpMethod: 104 GET, 153 writes, of which four POST methods are reads"
+  - precedent: ADR-103
+  - precedent: ADR-202
+agent:
+  name: claude-code
+  model: claude-opus-5-5
+status: proposed
 date: 2026-10-27
 deciders:
   - aaronsb
@@ -10,6 +36,14 @@ related:
 ---
 
 # ADR-203: Safety policy file, enforced at the Google client
+
+## Summary
+
+- **Decided:** Safety policy moves from a list of names in `GWS_SAFETY_POLICY` to a validated file in the config store, written from a template on first start, refusing to start when invalid. It is enforced inside the Google client on the Google method being called and the recipients it would actually reach, so a new operation or path is covered without anyone remembering the policy. The default template keeps today's behavior.
+- **Trades away:** Parsing outgoing messages and an extra fetch before a draft is sent; a committed classification of every write method to maintain; no defense against a host agent that edits or deletes the policy file.
+- **One-way?** No. Reversible now; expensive once operators rely on the file format, which is why it carries a `version`.
+- **Probes:** *Confident:* a draft addressed outside the recipient allowlist is refused as a draft, which is what breaks the "draft to x@evil.com, send it in a later session" chain. *Not confident:* that drafts should be held to the send allowlist by default (`drafts: same-as-send`) rather than allowed to any address for a human to review.
+- **Inversion:** Between trusting each handler to describe its own effect and tracking intent across sessions. The answer is outside both: constrain the destination at the one place every request passes.
 
 ## Context
 
