@@ -1,11 +1,28 @@
 ---
-status: Draft
+contract: adr/v1
+kind: decision
+verb: add
+capability: scratchpad
+basis:
+  - upstream: Gmail message bodies are HTML and the plain-text part is often a lossy stub; the Docs API can export documents as HTML
+  - upstream: Drive API v3 comments carry htmlContent bodies anchored to quoted text
+  - upstream: 'Hines et al. 2024 (arXiv:2403.14720): plain delimiters roughly halved indirect-injection success from about 60% on GPT-3.5-Turbo summarization; datamarking cut it to 3.1% and encoding to 0.0% on the same task'
+  - evidence: 'Issue #91 proposed returning HTML inline through a bodyFormat parameter on email read'
+  - precedent: ADR-301
+agent:
+  name: unrecorded
+  model: unrecorded
+status: proposed
 date: 2026-04-08
 deciders:
   - aaronsb
 related:
   - ADR-301
   - ADR-300
+imported:
+  from: docs/architecture/api/ADR-302-scratchpad-html-format-and-format-aware-validation.md
+  format: v0
+  status: Draft
 ---
 
 # ADR-302: Scratchpad HTML Format and Format-Aware Validation
@@ -84,7 +101,7 @@ HTML from Gmail is an untrusted input that will be presented to the LLM. The imp
 1. **Strip dangerous elements**: `<script>`, `<style>`, event handlers, `<iframe>`, `<object>`
 2. **Strip CSS hidden content**: Elements styled with `display:none`, `visibility:hidden`, `font-size:0` — common prompt injection vectors
 3. **Strip Unicode injection characters**: Tag Block (U+E0000-U+E007F), BiDi overrides, zero-width chars
-4. **Wrap with provenance delimiters**: `<email_content source="gmail" trust="untrusted">` — Spotlighting pattern that research shows drops injection success from >50% to <2%
+4. **Wrap with provenance delimiters**: `<email_content source="gmail" trust="untrusted">` — the delimiting form of Spotlighting (Hines et al. 2024, arXiv:2403.14720), which roughly halved injection success in that paper; its datamarking and encoding forms cut it further
 
 This sanitization runs at import time. Once in the scratchpad, the content is clean HTML that the agent can safely read and edit.
 

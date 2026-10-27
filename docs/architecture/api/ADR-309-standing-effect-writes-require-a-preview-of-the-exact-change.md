@@ -1,5 +1,18 @@
 ---
-status: Accepted
+contract: adr/v1
+kind: decision
+verb: constrain
+capability: [safety, services]
+basis:
+  - evidence: 'Issue #202 asks for Gmail filters, for a transactional sender producing dozens of messages a day'
+  - evidence: 'Issue #203: search caps at 50 results and drops nextPageToken, so a full page looks like a complete result'
+  - upstream: A Gmail filter acts on every future matching message, Gmail has no filter update method, and it caps filters at 1,000 per user
+  - precedent: ADR-202
+  - precedent: ADR-308
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-10-16
 deciders:
   - aaronsb
@@ -7,6 +20,10 @@ related:
   - ADR-202
   - ADR-300
   - ADR-308
+imported:
+  from: docs/architecture/api/ADR-309-standing-effect-writes-require-a-preview-of-the-exact-change.md
+  format: v0
+  status: Accepted
 ---
 
 # ADR-309: Standing-effect writes require a preview of the exact change

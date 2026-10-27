@@ -13,9 +13,10 @@
  *    zero-width spaces. Have been used to smuggle invisible instructions
  *    through human review.
  * 4. Spotlighting delimiters ─ wrap the sanitized output in a tagged block
- *    with the source and an "untrusted" marker. Microsoft's LLMail-Inject
- *    research found this alone drops injection success >50% → <2%; combined
- *    with sanitization it's stronger than either layer alone.
+ *    with the source and an "untrusted" marker. Spotlighting research
+ *    (Hines et al. 2024, arXiv:2403.14720) found delimiters alone roughly
+ *    halve injection success; datamarking and encoding did better. Combined
+ *    with sanitization we expect it to be stronger than either layer alone.
  *
  * Default-off in callers: the existing stripped-text path is unchanged.
  * Opt-in via `bodyFormat: 'html'` (or the equivalent on other ops).
@@ -153,7 +154,7 @@ export function sanitizeHtmlForAgent(html: string, options: SanitizeOptions): st
   const cleaned = stripInjectionChars(sanitized).trim();
 
   // Spotlighting: the wrapper tells the LLM "this is content, not instruction".
-  // Microsoft LLMail-Inject (NeurIPS 2024) found this single technique drops
-  // injection success from >50% to <2% even before sanitization.
+  // Delimiting roughly halved injection success in Hines et al. 2024
+  // (arXiv:2403.14720); it is one layer here, not the whole defence.
   return `<${source}_content trust="untrusted">${cleaned}</${source}_content>`;
 }

@@ -1,10 +1,26 @@
 ---
-status: Draft
+contract: adr/v1
+kind: decision
+verb: add
+capability: factory
+basis:
+  - evidence: 'The five hand-coded tools are about 80% boilerplate: call execute(), format the result, append next-steps'
+  - upstream: Agent frameworks such as Claude Code, Cursor and Cline present tools as a flat list users enable individually
+  - upstream: gws resolves service, resource and method at runtime from Google's Discovery API
+  - upstream: Google's API schemas lack agent-facing curation (LLM-oriented descriptions, defaults, groupings)
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-03-18
 deciders:
   - aaronsb
 related:
   - ADR-200
+imported:
+  from: docs/architecture/api/ADR-300-service-tool-factory-with-manifest-driven-generation.md
+  format: v0
+  status: Draft
 ---
 
 # ADR-300: Service tool factory with manifest-driven generation

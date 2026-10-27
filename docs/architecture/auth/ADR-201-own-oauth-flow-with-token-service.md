@@ -1,10 +1,27 @@
 ---
-status: Accepted
+contract: adr/v1
+kind: decision
+verb: change
+capability: accounts
+basis:
+  - upstream: 'gws has a single-account keyring: each gws auth login overwrites the stored token, and gws auth export has no per-account parameter'
+  - evidence: 'Confirmed bug: a Workspace account''s credential file held a personal account''s refresh token after a re-auth sequence, so its Drive queries returned the personal Drive'
+  - standard: OAuth 2.0 authorization code grant, with a random state parameter for CSRF protection
+  - upstream: gws accepts a pre-minted access token through GOOGLE_WORKSPACE_CLI_TOKEN and then bypasses its own auth subsystem
+  - precedent: ADR-200
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-03-20
 deciders:
   - aaronsb
 related:
   - ADR-200
+imported:
+  from: docs/architecture/auth/ADR-201-own-oauth-flow-with-token-service.md
+  format: v0
+  status: Accepted
 ---
 
 # ADR-201: Own OAuth flow with per-account token service

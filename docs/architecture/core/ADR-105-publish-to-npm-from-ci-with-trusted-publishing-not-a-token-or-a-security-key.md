@@ -1,9 +1,26 @@
 ---
-status: Accepted
+contract: adr/v1
+kind: decision
+verb: change
+capability: process
+basis:
+  - evidence: 'Commit 2c5669c: the long-lived NPM_TOKEN expired in June and the CI publish job failed on v3.0.0, v4.0.0 and v4.0.1'
+  - evidence: v4.3.0 was held overnight awaiting the security key, then two manual publish attempts failed on 2026-08-17 (read -p EOF in a non-tty, npm EOTP)
+  - upstream: npm trusted publishing verifies a GitHub Actions OIDC identity against a registered publisher naming one workflow file and mints a short-lived credential; it requires npm >= 11.5.1
+  - upstream: mcp-publisher has a github-oidc login, and the MCP Registry grants io.github.<owner>/* from the token's repository_owner claim
+  - evidence: The MCP Registry skipped v4.1.0 unnoticed because the manual registry step depended on someone remembering it
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-08-17
 deciders:
   - aaronsb
 related: []
+imported:
+  from: docs/architecture/core/ADR-105-publish-to-npm-from-ci-with-trusted-publishing-not-a-token-or-a-security-key.md
+  format: v0
+  status: Accepted
 ---
 
 # ADR-105: Publish to npm from CI with trusted publishing, not a token or a security key

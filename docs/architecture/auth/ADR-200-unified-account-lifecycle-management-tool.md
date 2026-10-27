@@ -1,10 +1,25 @@
 ---
-status: Accepted
+contract: adr/v1
+kind: decision
+verb: change
+capability: accounts
+basis:
+  - evidence: 'Found in development: gws auth export masks credentials unless --unmasked, and a stale client_secret.json in ~/.config/gws silently broke credential routing'
+  - evidence: manage_accounts had only list, authenticate and remove, with no way to check token validity without an API call or to re-scope an account
+  - upstream: gws auth setup, login, export and status own Cloud project creation, login, credential export and token status
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-03-14
 deciders:
   - aaronsb
 related:
   - ADR-201
+imported:
+  from: docs/architecture/auth/ADR-200-unified-account-lifecycle-management-tool.md
+  format: v0
+  status: Accepted
 ---
 
 # ADR-200: Unified account lifecycle management tool

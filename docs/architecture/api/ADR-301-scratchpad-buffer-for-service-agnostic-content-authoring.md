@@ -1,10 +1,25 @@
 ---
-status: Draft
+contract: adr/v1
+kind: decision
+verb: add
+capability: scratchpad
+basis:
+  - evidence: A direct send that fails on a wrong account loses the content, so a 500-word email costs about 700 tokens to re-stream
+  - upstream: The Confluence Cloud MCP server's line-addressed scratchpad cut tool-call payload 5-10x for typical edits, with its target bound at creation and the buffer discarded on submit
+  - precedent: ADR-300
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-03-26
 deciders:
   - aaronsb
 related:
   - ADR-300
+imported:
+  from: docs/architecture/api/ADR-301-scratchpad-buffer-for-service-agnostic-content-authoring.md
+  format: v0
+  status: Draft
 ---
 
 # ADR-301: Scratchpad Buffer — Service-Agnostic Content Authoring

@@ -1,5 +1,17 @@
 ---
-status: Accepted
+contract: adr/v1
+kind: decision
+verb: add
+capability: bulk
+basis:
+  - evidence: 'Issue #206: a 955-message cleanup moved about 16k characters of ids each way when only a query, a count and two label changes were in play'
+  - upstream: Gmail batchModify takes only message ids, up to 1,000 per call, and label changes are idempotent
+  - precedent: ADR-309
+  - precedent: ADR-301
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-10-16
 deciders:
   - aaronsb
@@ -7,6 +19,10 @@ related:
   - ADR-309
   - ADR-308
   - ADR-301
+imported:
+  from: docs/architecture/api/ADR-310-query-scoped-bulk-writes-hold-the-previewed-set-server-side.md
+  format: v0
+  status: Accepted
 ---
 
 # ADR-310: Query-scoped bulk writes hold the previewed set server-side

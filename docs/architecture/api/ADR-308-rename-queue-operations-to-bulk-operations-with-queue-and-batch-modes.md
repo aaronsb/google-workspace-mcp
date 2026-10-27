@@ -1,11 +1,28 @@
 ---
-status: Accepted
+contract: adr/v1
+kind: decision
+verb: change
+capability: bulk
+basis:
+  - upstream: 'Measured in descriptor.json: Google publishes six one-operation-across-many-resources batch methods, all in gmail and people'
+  - upstream: Gmail batchDelete accepts only the full https://mail.google.com/ scope, while batchModify adding the TRASH label trashes many messages under gmail.modify
+  - evidence: 'Hand-kept lists drifted three times: the queue_operations tool enum omitted manage_contacts for a release, coverage-baseline.json sat a month stale, and #161'
+  - upstream: MCP serves tools/list once per server, so every registered tool is always advertised
+  - precedent: ADR-300
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-08-17
 deciders:
   - aaronsb
 related:
   - ADR-103
   - ADR-300
+imported:
+  from: docs/architecture/api/ADR-308-rename-queue-operations-to-bulk-operations-with-queue-and-batch-modes.md
+  format: v0
+  status: Accepted
 ---
 
 # ADR-308: Rename queue_operations to bulk_operations, with queue and batch modes

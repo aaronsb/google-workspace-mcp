@@ -1,11 +1,27 @@
 ---
-status: Accepted
+contract: adr/v1
+kind: decision
+verb: add
+capability: safety
+basis:
+  - evidence: 'Issue #91: a Paperless Post invitation''s date and time were unreachable through manage_email read because the tool stripped HTML to plain text'
+  - upstream: 'Hines et al. 2024 (arXiv:2403.14720): plain delimiters roughly halved indirect-injection success from about 60% on GPT-3.5-Turbo summarization; datamarking cut it to 3.1% and encoding to 0.0% on the same task'
+  - upstream: Gmail's plain-text part is often a lossy stub, with dates, tracking codes and order numbers only in the HTML part
+  - upstream: sanitize-html provides an exclusiveFilter and tag/attribute allowlist, with a transitive surface limited to parsing and serialization
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-05-11
 deciders:
   - aaronsb
 related:
   - ADR-301
   - ADR-302
+imported:
+  from: docs/architecture/api/ADR-305-shared-html-sanitization-for-agent-facing-authoring.md
+  format: v0
+  status: Accepted
 ---
 
 # ADR-305: Shared HTML sanitization for agent-facing authoring
@@ -19,7 +35,7 @@ HTML is the lingua franca of Google Workspace content, and it shows up in severa
 - **Docs** export: the Docs API can return HTML preserving formatting that markdown export drops; future imports of HTML into the scratchpad need the same handling.
 - **Drive**: HTML files are common; reading them into an agent today returns the raw text via the workspace, with no sanitization.
 
-There's a common requirement underneath: **any HTML that crosses into agent-facing text is a prompt-injection surface**. Style/script blocks, event handlers, CSS-hidden content (display:none, visibility:hidden, off-screen positioning, zero opacity), tag-block Unicode characters (U+E0000–U+E007F), bidi overrides (U+202A–U+202E, U+2066–U+2069), and zero-width characters have all been used in published attacks against LLM applications that consume HTML email or scraped web content. Microsoft's LLMail-Inject research (NeurIPS 2024) found that simple Spotlighting delimiters — wrapping untrusted content in a tagged block — drop injection success from >50% to under 2% even before any sanitization, and the combination is markedly stronger than either alone.
+There's a common requirement underneath: **any HTML that crosses into agent-facing text is a prompt-injection surface**. Style/script blocks, event handlers, CSS-hidden content (display:none, visibility:hidden, off-screen positioning, zero opacity), tag-block Unicode characters (U+E0000–U+E007F), bidi overrides (U+202A–U+202E, U+2066–U+2069), and zero-width characters have all been used in published attacks against LLM applications that consume HTML email or scraped web content. Spotlighting research (Hines et al. 2024, arXiv:2403.14720) found that wrapping untrusted content in delimiters roughly halves indirect-injection success, from about 60% on GPT-3.5-Turbo summarization, while datamarking cut it to 3.1% and encoding to 0.0% on the same task. The paper does not test spotlighting together with sanitization; this record expects the two layers combined to be stronger than either alone.
 
 Today's `stripHtml()` is too lossy for the "I need the structured content" case (the issue's complaint) and too permissive for the "I want to render raw HTML" case (it leaves attribute values, ignores hidden content, has no injection-character handling). Both cases need a single, shared, deliberately-built sanitizer — not a regex bolted onto one tool.
 

@@ -23,19 +23,47 @@ domains:
     description: MCP tools, schemas, progressive disclosure
     folder: api
 
-statuses:
-  - Draft
-  - Proposed
-  - Accepted
-  - Superseded
-  - Deprecated
-
 defaults:
   deciders: [aaronsb]
-  status: Draft
 
 legacy:
   range: [1, 99]
   label: "Legacy"
 
 viewer: cat {file}
+
+# The record contract (adr-tool's ADR-304, not this repo's). With `contract: adr/v1`, records are typed:
+# each declares a kind, and a decision names a verb, a capability and its
+# basis. Delete this line and the v1 blocks below to stay on adr/v0.
+contract: adr/v1
+
+kinds:
+  decision:
+    verb: required
+    requires: [capability, basis, agent]
+    sections: [Summary]
+    edges: { supersedes: decision, amends: decision, extends: decision, basis: [decision, spec, evidence] }
+  spec:
+    verb: forbidden
+    requires: [capability]
+    edges: { supersedes: spec, decided_by: decision }
+  evidence:
+    verb: forbidden
+    requires: [capability]
+    edges: { supersedes: evidence }
+
+# What the project does, one line each. A record's `capability` names one of
+# these, and a decision adds, cuts, changes, retires or constrains them.
+# Domains (core, auth, api) allocate record numbers and folders; these
+# capabilities say what a decision changes, independent of its folder.
+capabilities:
+  client: The generated Google API descriptor and the single client every request passes through
+  factory: Manifest-driven tool generation, schemas and response framing, and the manifest's conformance against Google's surface
+  accounts: OAuth flow, credentials and per-account access
+  safety: Policies and guards that refuse, preview or narrow an operation before it reaches Google, or clean untrusted content before it reaches the agent
+  bulk: Queue and batch operations, including server-held operation sets
+  scratchpad: The content authoring buffer, its formats and adapters
+  services: Per-service tool surfaces such as Gmail, Docs and Contacts
+  runtime: Server lifecycle (startup, orphan exit, shutdown) and the supported Node runtime
+  process: Conventions, documentation and the development process that belong to no product capability
+  adr: Decision records, their contract and the adr tool
