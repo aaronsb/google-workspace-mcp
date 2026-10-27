@@ -10,7 +10,7 @@ basis:
 agent:
   name: unrecorded
   model: unrecorded
-status: proposed
+status: accepted
 date: 2026-03-26
 deciders:
   - aaronsb
