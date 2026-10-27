@@ -2,7 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: change
-capability: auth
+capability: accounts
 basis:
   - upstream: 'gws has a single-account keyring: each gws auth login overwrites the stored token, and gws auth export has no per-account parameter'
   - evidence: 'Confirmed bug: a Workspace account''s credential file held a personal account''s refresh token after a re-auth sequence, so its Drive queries returned the personal Drive'

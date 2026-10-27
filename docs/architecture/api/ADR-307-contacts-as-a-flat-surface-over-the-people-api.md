@@ -2,7 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: add
-capability: api
+capability: services
 basis:
   - upstream: A People API Person is parallel arrays with the primary entry flagged rather than ordered first, and every read must send a personFields or readMask whose legal values differ per operation
   - upstream: Google's Discovery document says search needs an empty-query warmup first, and updatePersonFields replaces each named field and requires the current etag

@@ -2,7 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: change
-capability: api
+capability: bulk
 basis:
   - upstream: 'Measured in descriptor.json: Google publishes six one-operation-across-many-resources batch methods, all in gmail and people'
   - upstream: Gmail batchDelete accepts only the full https://mail.google.com/ scope, while batchModify adding the TRASH label trashes many messages under gmail.modify

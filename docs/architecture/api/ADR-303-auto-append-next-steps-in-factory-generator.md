@@ -2,7 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: change
-capability: api
+capability: factory
 basis:
   - evidence: 'PR #103 (sheets expansion, 8 new custom handlers) shipped with the next-steps footer omitted from every handler, caught in review'
   - evidence: The generator's custom-handler path returns before the next-steps append, and a handlerContext() helper in sheets/patch.ts duplicated the generator's context map

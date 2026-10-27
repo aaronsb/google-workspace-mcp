@@ -2,7 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: add
-capability: core
+capability: runtime
 basis:
   - evidence: 'Issue #149: after an unclean client exit the server reparented to init and pegged a core indefinitely; two orphans each burned 31 minutes of CPU in 31 minutes'
   - evidence: 'Measured over a socketpair: the safe crash guard alone leaks an idle orphan, and the orphan watchdog alone still spins at 101% when the peer dies but the parent lives'
@@ -12,7 +12,7 @@ basis:
 agent:
   name: unrecorded
   model: unrecorded
-status: proposed
+status: accepted
 date: 2026-07-16
 deciders:
   - aaronsb

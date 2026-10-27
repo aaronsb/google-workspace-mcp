@@ -2,7 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: constrain
-capability: process
+capability: runtime
 basis:
   - upstream: sanitize-html 2.17.6 is CommonJS and requires the pure-ESM htmlparser2@12, which Node resolves unflagged only on >=20.19 / >=22.12
   - upstream: Node 18 reached end-of-life in April 2025 and Node 20 in April 2026; Node 22 is in Maintenance LTS until April 2027

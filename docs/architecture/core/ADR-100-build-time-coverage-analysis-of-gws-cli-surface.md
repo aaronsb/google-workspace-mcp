@@ -2,7 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: add
-capability: core
+capability: factory
 basis:
   - evidence: The existing gen-manifest.sh scrapes gws --help text into an unstructured diff, with no coverage metric and no CI run
   - evidence: Shared Drive parameters were missing from the manifest for months before anyone noticed
@@ -11,7 +11,7 @@ basis:
 agent:
   name: unrecorded
   model: unrecorded
-status: proposed
+status: accepted
 date: 2026-04-08
 deciders:
   - aaronsb

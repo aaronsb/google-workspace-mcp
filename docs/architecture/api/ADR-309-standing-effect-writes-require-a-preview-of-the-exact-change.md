@@ -2,7 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: constrain
-capability: api
+capability: [safety, services]
 basis:
   - evidence: 'Issue #202 asks for Gmail filters, for a transactional sender producing dozens of messages a day'
   - evidence: 'Issue #203: search caps at 50 results and drops nextPageToken, so a full page looks like a complete result'

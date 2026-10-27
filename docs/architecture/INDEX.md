@@ -18,11 +18,11 @@ _Architecture, tool design, executor patterns_
 
 | ADR | Title | Status |
 |-----|-------|--------|
-| [ADR-100](./core/ADR-100-build-time-coverage-analysis-of-gws-cli-surface.md) | Build-Time Coverage Analysis of gws CLI Surface | proposed |
+| [ADR-100](./core/ADR-100-build-time-coverage-analysis-of-gws-cli-surface.md) | Build-Time Coverage Analysis of gws CLI Surface | accepted |
 | [ADR-101](./core/ADR-101-migrate-test-runner-from-jest-to-vitest.md) | Migrate test runner from Jest to Vitest | accepted |
 | [ADR-102](./core/ADR-102-raise-the-node-floor-to-22-12-and-unpin-sanitize-html.md) | Raise the Node floor to 22.12 and unpin sanitize-html | accepted |
 | [ADR-103](./core/ADR-103-generate-a-google-api-descriptor-retire-the-gws-facade.md) | Generate a Google API descriptor from Discovery; retire the gws facade | accepted |
-| [ADR-104](./core/ADR-104-exit-when-the-mcp-client-goes-away.md) | Exit when the MCP client goes away | proposed |
+| [ADR-104](./core/ADR-104-exit-when-the-mcp-client-goes-away.md) | Exit when the MCP client goes away | accepted |
 | [ADR-105](./core/ADR-105-publish-to-npm-from-ci-with-trusted-publishing-not-a-token-or-a-security-key.md) | Publish to npm from CI with trusted publishing, not a token or a security key | accepted |
 
 ## Authentication
@@ -40,8 +40,8 @@ _MCP tools, schemas, progressive disclosure_
 
 | ADR | Title | Status |
 |-----|-------|--------|
-| [ADR-300](./api/ADR-300-service-tool-factory-with-manifest-driven-generation.md) | Service tool factory with manifest-driven generation | proposed |
-| [ADR-301](./api/ADR-301-scratchpad-buffer-for-service-agnostic-content-authoring.md) | Scratchpad Buffer — Service-Agnostic Content Authoring | proposed |
+| [ADR-300](./api/ADR-300-service-tool-factory-with-manifest-driven-generation.md) | Service tool factory with manifest-driven generation | accepted |
+| [ADR-301](./api/ADR-301-scratchpad-buffer-for-service-agnostic-content-authoring.md) | Scratchpad Buffer — Service-Agnostic Content Authoring | accepted |
 | [ADR-302](./api/ADR-302-scratchpad-html-format-and-format-aware-validation.md) | Scratchpad HTML Format and Format-Aware Validation | proposed |
 | [ADR-303](./api/ADR-303-auto-append-next-steps-in-factory-generator.md) | Auto-append next-steps in factory generator | accepted |
 | [ADR-304](./api/ADR-304-split-manifest-yaml-into-per-service-files.md) | Split manifest.yaml into per-service files | accepted |

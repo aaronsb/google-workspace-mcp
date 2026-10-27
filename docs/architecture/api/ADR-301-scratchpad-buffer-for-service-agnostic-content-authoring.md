@@ -2,7 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: add
-capability: api
+capability: scratchpad
 basis:
   - evidence: A direct send that fails on a wrong account loses the content, so a 500-word email costs about 700 tokens to re-stream
   - upstream: The Confluence Cloud MCP server's line-addressed scratchpad cut tool-call payload 5-10x for typical edits, with its target bound at creation and the buffer discarded on submit
@@ -10,7 +10,7 @@ basis:
 agent:
   name: unrecorded
   model: unrecorded
-status: proposed
+status: accepted
 date: 2026-03-26
 deciders:
   - aaronsb

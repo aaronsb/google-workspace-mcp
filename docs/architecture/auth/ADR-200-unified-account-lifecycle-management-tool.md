@@ -2,7 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: change
-capability: auth
+capability: accounts
 basis:
   - evidence: 'Found in development: gws auth export masks credentials unless --unmasked, and a stale client_secret.json in ~/.config/gws silently broke credential routing'
   - evidence: manage_accounts had only list, authenticate and remove, with no way to check token validity without an API call or to re-scope an account
