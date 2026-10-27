@@ -7,7 +7,8 @@ basis:
   - evidence: 'Issue #149: after an unclean client exit the server reparented to init and pegged a core indefinitely; two orphans each burned 31 minutes of CPU in 31 minutes'
   - evidence: 'Measured over a socketpair: the safe crash guard alone leaks an idle orphan, and the orphan watchdog alone still spins at 101% when the peer dies but the parent lives'
   - upstream: Node's process.ppid is a live getter that reads as init/systemd after reparenting, so the original ppid must be captured at startup
-  - upstream: On Linux stdin end and close fire when the socket peer dies, but no EOF arrives while another live process holds the socket fd open
+  - evidence: Measured on Linux, stdin end and close both fire when the socket peer dies, contrary to the issue report
+  - upstream: 'Suspected, not measured: no EOF arrives while another live process holds the socket fd open, so EOF is useful but not sufficient'
   - precedent: ADR-102
 agent:
   name: unrecorded

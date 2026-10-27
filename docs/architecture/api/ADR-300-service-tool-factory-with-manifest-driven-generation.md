@@ -1,13 +1,13 @@
 ---
 contract: adr/v1
 kind: decision
-verb: change
+verb: add
 capability: factory
 basis:
   - evidence: 'The five hand-coded tools are about 80% boilerplate: call execute(), format the result, append next-steps'
   - upstream: Agent frameworks such as Claude Code, Cursor and Cline present tools as a flat list users enable individually
   - upstream: gws resolves service, resource and method at runtime from Google's Discovery API
-  - upstream: Google's API schemas carry no UX metadata (descriptions, defaults, groupings) for LLM agents
+  - upstream: Google's API schemas lack agent-facing curation (LLM-oriented descriptions, defaults, groupings)
 agent:
   name: unrecorded
   model: unrecorded

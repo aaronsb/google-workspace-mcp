@@ -5,7 +5,7 @@ verb: add
 capability: services
 basis:
   - upstream: A People API Person is parallel arrays with the primary entry flagged rather than ordered first, and every read must send a personFields or readMask whose legal values differ per operation
-  - upstream: Google's Discovery document says search needs an empty-query warmup first, and updatePersonFields replaces each named field and requires the current etag
+  - upstream: Google's Discovery document says clients should send an empty-query warmup before search, and updatePersonFields replaces each named field and requires the current etag
   - evidence: 'Measured: Google returns organizations[].startDate and endDate and then rejects them with a 500 on create and update'
   - evidence: 'Issue #161: calendar.attendees silently replaced a whole list, the same replace-the-field shape as updatePersonFields'
   - precedent: ADR-202

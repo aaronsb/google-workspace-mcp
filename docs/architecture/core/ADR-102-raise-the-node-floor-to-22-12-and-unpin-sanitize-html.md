@@ -6,7 +6,8 @@ capability: runtime
 basis:
   - upstream: sanitize-html 2.17.6 is CommonJS and requires the pure-ESM htmlparser2@12, which Node resolves unflagged only on >=20.19 / >=22.12
   - upstream: Node 18 reached end-of-life in April 2025 and Node 20 in April 2026; Node 22 is in Maintenance LTS until April 2027
-  - upstream: npm treats engines.node as advisory, and the .mcpb bundle runs the host's bare node without consulting it
+  - upstream: npm treats engines.node as advisory
+  - evidence: This repo's .mcpb bundle runs the host's bare node without consulting engines.node
   - evidence: The sanitize-html 2.17.6 bump reached a merge-ready branch passing every test and CI job because CI ran Node 20 and the dev box Node 26, and would have crashed every Node 18 consumer at startup
   - precedent: ADR-101
 agent:

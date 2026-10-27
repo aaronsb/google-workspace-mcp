@@ -3,6 +3,9 @@ contract: adr/v1
 kind: decision
 verb: change
 capability: client
+amends:
+  - ADR-100#Service discovery
+  - ADR-100#Implementation approach
 basis:
   - evidence: 'Measured 2026-07-11: gws had no commit or npm publish since 2026-03-31, 0 PRs merged and 120 closed unmerged by a stale-PR bot'
   - evidence: 70 of 80 manifest operations are literal Discovery method paths; an uninterpreted dispatcher returned byte-identical JSON to gws for 26 read ops, and the descriptor matched gws's surface 233/233

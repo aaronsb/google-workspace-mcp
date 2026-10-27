@@ -6,7 +6,7 @@ capability: scratchpad
 basis:
   - upstream: Gmail message bodies are HTML and the plain-text part is often a lossy stub; the Docs API can export documents as HTML
   - upstream: Drive API v3 comments carry htmlContent bodies anchored to quoted text
-  - evidence: Research the record cites found Spotlighting provenance delimiters drop prompt-injection success from over 50% to under 2%
+  - upstream: 'Hines et al. 2024, Defending Against Indirect Prompt Injection Attacks With Spotlighting (arXiv:2403.14720): delimiting untrusted content cut indirect-injection success from over 50% to under 2%'
   - evidence: 'Issue #91 proposed returning HTML inline through a bodyFormat parameter on email read'
   - precedent: ADR-301
 agent:

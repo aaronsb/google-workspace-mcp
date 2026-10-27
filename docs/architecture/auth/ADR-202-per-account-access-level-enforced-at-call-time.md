@@ -4,7 +4,7 @@ kind: decision
 verb: constrain
 capability: [accounts, safety]
 basis:
-  - upstream: MCP advertises tools/list once per server, so the tool surface cannot vary per account (ADR-202 Context)
+  - upstream: MCP advertises tools/list once per server, so the tool surface cannot vary per account
   - evidence: 'Issue #130 proposed an opt-in access level, read or readwrite, with a SERVICE_SCOPE_MAP_READONLY sketch'
   - evidence: 'Measured over descriptor.json: calendar, docs, gmail, meet and tasks have a read-only scope covering every GET method; drive has two GET methods with no read-only option, sheets has one'
   - precedent: ADR-103

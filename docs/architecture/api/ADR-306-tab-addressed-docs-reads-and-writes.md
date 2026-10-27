@@ -2,7 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: change
-capability: services
+capability: [services, scratchpad]
 basis:
   - evidence: 'Issues #152, #157 and #155: get presented the first tab as the whole document (142 of 780 lines), writes never sent a tabId, and scratchpad JSON import took only the first tab'
   - upstream: In the Docs API each tab has its own body and index space, the legacy root body holds the first tab only, and Location and EndOfSegmentLocation default to the first tab when tabId is omitted
