@@ -2,9 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: change
-capability:
-  - auth
-  - core
+capability: [safety, client]
 basis:
   - operator: aaronsb
     level: guided
