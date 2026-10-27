@@ -1,9 +1,27 @@
 ---
-status: Accepted
+contract: adr/v1
+kind: decision
+verb: change
+capability: process
+basis:
+  - evidence: Jest ran under CommonJS despite its ESM config, and a suite-load failure left 222 tests unrun while the report read 456 passed, 0 failed
+  - upstream: Jest resolves modules through its own registry, so CJS Jest cannot load an ESM-only dependency on any Node version, and its ESM path needs unstable_mockModule behind --experimental-vm-modules
+  - upstream: Vitest runs ESM natively, its vi.mock hoists like jest.mock under CJS, and it requires Node ^20.19 || ^22.12 || >=24
+  - evidence: Production code carried a setModuleDir() shim and five tests mocked registry.js only because CJS Jest cannot parse import.meta
+  - evidence: 'Prototype on spike/vitest: 691/691 tests before and after, dev vulnerabilities 12 to 10 with ts-jest''s critical handlebars advisory gone'
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-07-11
 deciders:
   - aaronsb
-related: [ADR-304]
+related:
+  - ADR-304
+imported:
+  from: docs/architecture/core/ADR-101-migrate-test-runner-from-jest-to-vitest.md
+  format: v0
+  status: Accepted
 ---
 
 # ADR-101: Migrate test runner from Jest to Vitest

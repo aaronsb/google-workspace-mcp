@@ -1,9 +1,30 @@
 ---
-status: Accepted
+contract: adr/v1
+kind: decision
+verb: change
+capability: core
+basis:
+  - evidence: 'Measured 2026-07-11: gws had no commit or npm publish since 2026-03-31, 0 PRs merged and 120 closed unmerged by a stale-PR bot'
+  - evidence: 70 of 80 manifest operations are literal Discovery method paths; an uninterpreted dispatcher returned byte-identical JSON to gws for 26 read ops, and the descriptor matched gws's surface 233/233
+  - upstream: Google's Discovery Service declares each method's path, parameter locations, HTTP verb, media upload paths and scopes, and gws is itself generated from it
+  - standard: 'RFC 6570 URI templates: {+var} reserved expansion must leave ''/'' unencoded for Meet resource paths'
+  - precedent: ADR-300
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-07-11
 deciders:
   - aaronsb
-related: [ADR-101, ADR-102, ADR-300, ADR-304]
+related:
+  - ADR-101
+  - ADR-102
+  - ADR-300
+  - ADR-304
+imported:
+  from: docs/architecture/core/ADR-103-generate-a-google-api-descriptor-retire-the-gws-facade.md
+  format: v0
+  status: Accepted
 ---
 
 # ADR-103: Generate a Google API descriptor from Discovery; retire the gws facade

@@ -1,10 +1,25 @@
 ---
-status: Accepted
+contract: adr/v1
+kind: decision
+verb: change
+capability: api
+basis:
+  - evidence: manifest.yaml reached 1383 lines over seven services and the quality-check hook flagged it twice against its 800-line threshold
+  - evidence: Each service block in the manifest is self-contained, with no cross-service references
+  - precedent: ADR-300
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-04-15
 deciders:
   - aaronsb
 related:
   - ADR-300
+imported:
+  from: docs/architecture/api/ADR-304-split-manifest-yaml-into-per-service-files.md
+  format: v0
+  status: Accepted
 ---
 
 # ADR-304: Split manifest.yaml into per-service files

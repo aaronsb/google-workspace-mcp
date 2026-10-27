@@ -1,11 +1,28 @@
 ---
-status: Accepted
+contract: adr/v1
+kind: decision
+verb: change
+capability: api
+basis:
+  - evidence: 'Issues #152, #157 and #155: get presented the first tab as the whole document (142 of 780 lines), writes never sent a tabId, and scratchpad JSON import took only the first tab'
+  - upstream: In the Docs API each tab has its own body and index space, the legacy root body holds the first tab only, and Location and EndOfSegmentLocation default to the first tab when tabId is omitted
+  - evidence: 'Measured live: a 2-tab archive of about 20,000 estimated tokens passed a 25,000 cap and the MCP client rejected the response, and estimateTokens ran at about 3.2 characters per token against the assumed 4'
+  - precedent: ADR-301
+  - precedent: ADR-103
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-08-16
 deciders:
   - aaronsb
 related:
   - ADR-301
   - ADR-103
+imported:
+  from: docs/architecture/api/ADR-306-tab-addressed-docs-reads-and-writes.md
+  format: v0
+  status: Accepted
 ---
 
 # ADR-306: Tab-addressed Docs reads and writes

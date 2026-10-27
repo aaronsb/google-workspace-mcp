@@ -1,10 +1,26 @@
 ---
-status: Draft
+contract: adr/v1
+kind: decision
+verb: add
+capability: core
+basis:
+  - evidence: The existing gen-manifest.sh scrapes gws --help text into an unstructured diff, with no coverage metric and no CI run
+  - evidence: Shared Drive parameters were missing from the manifest for months before anyone noticed
+  - upstream: gws schema returns each method's Discovery schema as JSON (types, enums, required fields), while gws --help is prose whose format changes between versions
+  - precedent: ADR-300
+agent:
+  name: unrecorded
+  model: unrecorded
+status: proposed
 date: 2026-04-08
 deciders:
   - aaronsb
 related:
   - ADR-300
+imported:
+  from: docs/architecture/core/ADR-100-build-time-coverage-analysis-of-gws-cli-surface.md
+  format: v0
+  status: Draft
 ---
 
 # ADR-100: Build-Time Coverage Analysis of gws CLI Surface

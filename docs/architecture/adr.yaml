@@ -39,3 +39,34 @@ legacy:
   label: "Legacy"
 
 viewer: cat {file}
+
+# The record contract (ADR-304). With `contract: adr/v1`, records are typed:
+# each declares a kind, and a decision names a verb, a capability and its
+# basis. Delete this line and the v1 blocks below to stay on adr/v0.
+contract: adr/v1
+
+kinds:
+  decision:
+    verb: required
+    requires: [capability, basis, agent]
+    sections: [Summary]
+    edges: { supersedes: decision, amends: decision, extends: decision, basis: [decision, spec, evidence] }
+  spec:
+    verb: forbidden
+    requires: [capability]
+    edges: { supersedes: spec, decided_by: decision }
+  evidence:
+    verb: forbidden
+    requires: [capability]
+    edges: { supersedes: evidence }
+
+# What the project does, one line each. A record's `capability` names one of
+# these, and a decision adds, cuts, changes or constrains them.
+# `adr contract --upgrade` seeded the entries before `process` from the
+# domains in this file. Each may be kept, split, renamed or deleted.
+capabilities:
+  core: Architecture, tool design, executor patterns
+  auth: OAuth, credential management, multi-account
+  api: MCP tools, schemas, progressive disclosure
+  process: Conventions, documentation and the development process that belong to no product capability
+  adr: Decision records, their contract and the adr tool

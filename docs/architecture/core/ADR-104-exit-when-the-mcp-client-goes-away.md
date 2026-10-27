@@ -1,9 +1,27 @@
 ---
-status: Draft
+contract: adr/v1
+kind: decision
+verb: add
+capability: core
+basis:
+  - evidence: 'Issue #149: after an unclean client exit the server reparented to init and pegged a core indefinitely; two orphans each burned 31 minutes of CPU in 31 minutes'
+  - evidence: 'Measured over a socketpair: the safe crash guard alone leaks an idle orphan, and the orphan watchdog alone still spins at 101% when the peer dies but the parent lives'
+  - upstream: Node's process.ppid is a live getter that reads as init/systemd after reparenting, so the original ppid must be captured at startup
+  - upstream: On Linux stdin end and close fire when the socket peer dies, but no EOF arrives while another live process holds the socket fd open
+  - precedent: ADR-102
+agent:
+  name: unrecorded
+  model: unrecorded
+status: proposed
 date: 2026-07-16
 deciders:
   - aaronsb
-related: [ADR-102]
+related:
+  - ADR-102
+imported:
+  from: docs/architecture/core/ADR-104-exit-when-the-mcp-client-goes-away.md
+  format: v0
+  status: Draft
 ---
 
 # ADR-104: Exit when the MCP client goes away

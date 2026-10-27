@@ -1,5 +1,18 @@
 ---
-status: Accepted
+contract: adr/v1
+kind: decision
+verb: add
+capability: api
+basis:
+  - upstream: A People API Person is parallel arrays with the primary entry flagged rather than ordered first, and every read must send a personFields or readMask whose legal values differ per operation
+  - upstream: Google's Discovery document says search needs an empty-query warmup first, and updatePersonFields replaces each named field and requires the current etag
+  - evidence: 'Measured: Google returns organizations[].startDate and endDate and then rejects them with a 500 on create and update'
+  - evidence: 'Issue #161: calendar.attendees silently replaced a whole list, the same replace-the-field shape as updatePersonFields'
+  - precedent: ADR-202
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-08-17
 deciders:
   - aaronsb
@@ -7,6 +20,10 @@ related:
   - ADR-103
   - ADR-202
   - ADR-300
+imported:
+  from: docs/architecture/api/ADR-307-contacts-as-a-flat-surface-over-the-people-api.md
+  format: v0
+  status: Accepted
 ---
 
 # ADR-307: Contacts as a flat surface over the People API

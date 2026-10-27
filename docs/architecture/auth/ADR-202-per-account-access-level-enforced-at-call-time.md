@@ -1,11 +1,27 @@
 ---
-status: Accepted
+contract: adr/v1
+kind: decision
+verb: constrain
+capability: auth
+basis:
+  - upstream: MCP advertises tools/list once per server, so the tool surface cannot vary per account (ADR-202 Context)
+  - evidence: 'Issue #130 proposed an opt-in access level, read or readwrite, with a SERVICE_SCOPE_MAP_READONLY sketch'
+  - evidence: 'Measured over descriptor.json: calendar, docs, gmail, meet and tasks have a read-only scope covering every GET method; drive has two GET methods with no read-only option, sheets has one'
+  - precedent: ADR-103
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-08-17
 deciders:
   - aaronsb
 related:
   - ADR-103
   - ADR-300
+imported:
+  from: docs/architecture/auth/ADR-202-per-account-access-level-enforced-at-call-time.md
+  format: v0
+  status: Accepted
 ---
 
 # ADR-202: Per-account access level, enforced at call time

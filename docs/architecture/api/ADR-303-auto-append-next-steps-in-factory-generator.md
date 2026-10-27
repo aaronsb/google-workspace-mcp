@@ -1,10 +1,25 @@
 ---
-status: Accepted
+contract: adr/v1
+kind: decision
+verb: change
+capability: api
+basis:
+  - evidence: 'PR #103 (sheets expansion, 8 new custom handlers) shipped with the next-steps footer omitted from every handler, caught in review'
+  - evidence: The generator's custom-handler path returns before the next-steps append, and a handlerContext() helper in sheets/patch.ts duplicated the generator's context map
+  - precedent: ADR-300
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-04-15
 deciders:
   - aaronsb
 related:
   - ADR-300
+imported:
+  from: docs/architecture/api/ADR-303-auto-append-next-steps-in-factory-generator.md
+  format: v0
+  status: Accepted
 ---
 
 # ADR-303: Auto-append next-steps in factory generator

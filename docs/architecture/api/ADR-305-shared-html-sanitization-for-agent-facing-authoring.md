@@ -1,11 +1,28 @@
 ---
-status: Accepted
+contract: adr/v1
+kind: decision
+verb: add
+capability: api
+basis:
+  - evidence: 'Issue #91: a Paperless Post invitation''s date and time were unreachable through manage_email read because the tool stripped HTML to plain text'
+  - evidence: Microsoft's LLMail-Inject research (NeurIPS 2024) found Spotlighting delimiters drop injection success from over 50% to under 2%
+  - upstream: Gmail's plain-text part is often a lossy stub, with dates, tracking codes and order numbers only in the HTML part
+  - upstream: sanitize-html provides an exclusiveFilter and tag/attribute allowlist, with a transitive surface limited to parsing and serialization
+  - precedent: ADR-302
+agent:
+  name: unrecorded
+  model: unrecorded
+status: accepted
 date: 2026-05-11
 deciders:
   - aaronsb
 related:
   - ADR-301
   - ADR-302
+imported:
+  from: docs/architecture/api/ADR-305-shared-html-sanitization-for-agent-facing-authoring.md
+  format: v0
+  status: Accepted
 ---
 
 # ADR-305: Shared HTML sanitization for agent-facing authoring

@@ -1,11 +1,28 @@
 ---
-status: Draft
+contract: adr/v1
+kind: decision
+verb: add
+capability: api
+basis:
+  - upstream: Gmail message bodies are HTML and the plain-text part is often a lossy stub; the Docs API can export documents as HTML
+  - upstream: Drive API v3 comments carry htmlContent bodies anchored to quoted text
+  - evidence: Research the record cites found Spotlighting provenance delimiters drop prompt-injection success from over 50% to under 2%
+  - evidence: 'Issue #91 proposed returning HTML inline through a bodyFormat parameter on email read'
+  - precedent: ADR-301
+agent:
+  name: unrecorded
+  model: unrecorded
+status: proposed
 date: 2026-04-08
 deciders:
   - aaronsb
 related:
   - ADR-301
   - ADR-300
+imported:
+  from: docs/architecture/api/ADR-302-scratchpad-html-format-and-format-aware-validation.md
+  format: v0
+  status: Draft
 ---
 
 # ADR-302: Scratchpad HTML Format and Format-Aware Validation
