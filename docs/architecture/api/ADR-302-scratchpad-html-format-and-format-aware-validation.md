@@ -2,7 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: add
-capability: api
+capability: scratchpad
 basis:
   - upstream: Gmail message bodies are HTML and the plain-text part is often a lossy stub; the Docs API can export documents as HTML
   - upstream: Drive API v3 comments carry htmlContent bodies anchored to quoted text

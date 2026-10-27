@@ -2,7 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: change
-capability: api
+capability: factory
 basis:
   - evidence: manifest.yaml reached 1383 lines over seven services and the quality-check hook flagged it twice against its 800-line threshold
   - evidence: Each service block in the manifest is self-contained, with no cross-service references

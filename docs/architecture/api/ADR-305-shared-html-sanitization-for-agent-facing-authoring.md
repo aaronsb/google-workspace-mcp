@@ -2,7 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: add
-capability: api
+capability: services
 basis:
   - evidence: 'Issue #91: a Paperless Post invitation''s date and time were unreachable through manage_email read because the tool stripped HTML to plain text'
   - evidence: Microsoft's LLMail-Inject research (NeurIPS 2024) found Spotlighting delimiters drop injection success from over 50% to under 2%

@@ -2,9 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: change
-capability:
-  - core
-  - api
+capability: factory
 basis:
   - evidence: 'The five hand-coded tools are about 80% boilerplate: call execute(), format the result, append next-steps'
   - upstream: Agent frameworks such as Claude Code, Cursor and Cline present tools as a flat list users enable individually

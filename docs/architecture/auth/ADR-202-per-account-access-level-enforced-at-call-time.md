@@ -2,7 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: constrain
-capability: auth
+capability: [accounts, safety]
 basis:
   - upstream: MCP advertises tools/list once per server, so the tool surface cannot vary per account (ADR-202 Context)
   - evidence: 'Issue #130 proposed an opt-in access level, read or readwrite, with a SERVICE_SCOPE_MAP_READONLY sketch'

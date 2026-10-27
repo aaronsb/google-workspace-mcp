@@ -2,7 +2,7 @@
 contract: adr/v1
 kind: decision
 verb: add
-capability: api
+capability: bulk
 basis:
   - evidence: 'Issue #206: a 955-message cleanup moved about 16k characters of ids each way when only a query, a count and two label changes were in play'
   - upstream: Gmail batchModify takes only message ids, up to 1,000 per call, and label changes are idempotent
