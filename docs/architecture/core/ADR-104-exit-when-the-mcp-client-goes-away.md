@@ -8,7 +8,6 @@ basis:
   - evidence: 'Measured over a socketpair: the safe crash guard alone leaks an idle orphan, and the orphan watchdog alone still spins at 101% when the peer dies but the parent lives'
   - upstream: Node's process.ppid is a live getter that reads as init/systemd after reparenting, so the original ppid must be captured at startup
   - evidence: Measured on Linux, stdin end and close both fire when the socket peer dies, contrary to the issue report
-  - upstream: 'Suspected, not measured: no EOF arrives while another live process holds the socket fd open, so EOF is useful but not sufficient'
   - precedent: ADR-102
 agent:
   name: unrecorded
