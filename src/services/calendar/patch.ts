@@ -5,7 +5,7 @@
  * - List: default timeMin to today start, include calendarId in output
  * - Agenda: rich helper with day-range params, calendarId per event
  * - Freebusy: custom handler (POST body via --json, not --params)
- * - Create: custom response formatting with event details + --meet flag
+ * - Create: custom response formatting with event details + --meet flag; colorId, recurrence, timeZone
  * - Delete: custom confirmation message
  */
 
@@ -15,6 +15,7 @@ import { call } from '../../google/client.js';
 import { formatEventList, formatEventDetail } from '../../server/formatting/markdown.js';
 import { requireString, optionalString } from '../../server/handlers/validate.js';
 import { allDayDate, exclusiveEndDate, allDayRange } from './dates.js';
+import { eventColorId, parseRecurrence, isGiven, validTimeZone } from './event-fields.js';
 import type { ServicePatch, PatchContext } from '../../factory/types.js';
 import type { HandlerResponse } from '../../server/formatting/markdown.js';
 
@@ -371,6 +372,19 @@ export const calendarPatch: ServicePatch = {
       }
       const calendarId = (params.calendarId as string) || 'primary';
 
+      // Colour, recurrence and time zone are validated before anything is sent, so a bad
+      // value is a readable error here and not a 400 from Google.
+      const timeZone = isGiven(params.timeZone) ? validTimeZone(params.timeZone) : undefined;
+      const recurrence = isGiven(params.recurrence) ? parseRecurrence(params.recurrence) : undefined;
+      if (recurrence && !allDay && !timeZone) {
+        // Google expands a recurring timed event's rule in the zone of its start and end.
+        throw new Error(
+          'timeZone is required for a recurring timed event (an IANA name such as Europe/Amsterdam): ' +
+          'Google expands the rule in that zone',
+        );
+      }
+      const colorId = isGiven(params.colorId) ? eventColorId(params.colorId) : undefined;
+
       // Attendees are an ARRAY OF OBJECTS in the event body, not a repeated scalar.
       // All-day events use `date` (YYYY-MM-DD); timed ones use `dateTime` (RFC 3339).
       const body: Record<string, unknown> = { calendarId, summary };
@@ -381,9 +395,11 @@ export const calendarPatch: ServicePatch = {
         // to the start date (a one-day event).
         body.end = { date: exclusiveEndDate(start, end ?? start) };
       } else {
-        body.start = { dateTime: start };
-        body.end = { dateTime: end };
+        body.start = timeZone ? { dateTime: start, timeZone } : { dateTime: start };
+        body.end = timeZone ? { dateTime: end, timeZone } : { dateTime: end };
       }
+      if (recurrence) body.recurrence = recurrence;
+      if (colorId) body.colorId = colorId;
       if (params.description) body.description = String(params.description);
       if (params.location) body.location = String(params.location);
       if (params.attendees) {
@@ -417,9 +433,14 @@ export const calendarPatch: ServicePatch = {
         text: `Event created: **${summary}**${meetLink}${allDayMarker}\n\n` +
           `**When:** ${when}\n` +
           (params.location ? `**Where:** ${params.location}\n` : '') +
+          (recurrence ? `**Repeats:** ${recurrence.join('; ')}\n` : '') +
+          (colorId ? `**Colour:** ${colorId}\n` : '') +
           `**Calendar:** ${calendarId}\n` +
           `**Event ID:** ${data.id ?? 'unknown'}`,
-        refs: { id: data.id, eventId: data.id, calendarId, summary, start, end, allDay },
+        refs: {
+          id: data.id, eventId: data.id, calendarId, summary, start, end, allDay,
+          ...(recurrence ? { recurrence } : {}), ...(colorId ? { colorId } : {}),
+        },
       };
     },
 
@@ -445,6 +466,11 @@ export const calendarPatch: ServicePatch = {
       if (params.summary !== undefined) body.summary = String(params.summary);
       if (params.description !== undefined) body.description = String(params.description);
       if (params.location !== undefined) body.location = String(params.location);
+      if (isGiven(params.colorId)) body.colorId = eventColorId(params.colorId);
+      // `recurrence` REPLACES the event's whole rule list (patch semantics for arrays).
+      const recurrence = isGiven(params.recurrence) ? parseRecurrence(params.recurrence) : undefined;
+      if (recurrence) body.recurrence = recurrence;
+      const timeZone = isGiven(params.timeZone) ? validTimeZone(params.timeZone) : undefined;
 
       // All-day updates map start/end to `date` (YYYY-MM-DD); timed ones to
       // `dateTime` (RFC 3339).
@@ -462,40 +488,47 @@ export const calendarPatch: ServicePatch = {
       // supplied is the sole case that can go wrong, so the shape of the event
       // as it stands is fetched only then — every other update still costs one
       // API call, not two.
+      //
+      // The same read serves a time zone or a recurrence rule that arrives without a start and
+      // end to say what shape the event is: a zone only applies to a timed event, and a rule on
+      // a timed event needs a zone, which the event may already carry.
       let derivedStart: string | undefined;
       let derivedEnd: string | undefined;
-      if ((params.start === undefined) !== (params.end === undefined)) {
-        const existing = await call('calendar', 'events.get',
+      const oneSided = (params.start === undefined) !== (params.end === undefined);
+      const noStartEnd = params.start === undefined && params.end === undefined;
+      let existing: Record<string, unknown> | undefined;
+      if (oneSided || (timeZone && noStartEnd) || (recurrence && !allDay && !timeZone)) {
+        existing = await call('calendar', 'events.get',
           { calendarId, eventId }, { account }) as Record<string, unknown>;
-        const exStart = existing?.start as Record<string, unknown> | undefined;
-        const exEnd = existing?.end as Record<string, unknown> | undefined;
-        const existingIsAllDay = !exStart?.dateTime;
+      }
+      const exStart = existing?.start as Record<string, unknown> | undefined;
+      const exEnd = existing?.end as Record<string, unknown> | undefined;
+      const existingIsAllDay = !exStart?.dateTime;
 
-        if (allDay !== existingIsAllDay) {
-          // Converting TO all-day: the side the caller left out is derivable,
-          // because a datetime projects onto a date by taking its date part.
-          // Deriving from the EXISTING value rather than from the supplied one
-          // preserves the event's span — a two-day meeting stays two days.
-          if (allDay) {
-            const counterpart = params.start === undefined ? exStart : exEnd;
-            const raw = counterpart?.dateTime ?? counterpart?.date;
-            if (typeof raw !== 'string') {
-              throw new Error(
-                'Converting to all-day needs both start and end, and the event on record ' +
-                'has no usable counterpart to derive the missing one from.',
-              );
-            }
-            if (params.start === undefined) derivedStart = allDayDate(raw);
-            else derivedEnd = allDayDate(raw);
-          } else {
-            // Converting FROM all-day, the missing side is a datetime, and there
-            // is no honest way to invent a time of day the caller never gave —
-            // any choice silently rewrites when the event happens.
+      if (oneSided && allDay !== existingIsAllDay) {
+        // Converting TO all-day: the side the caller left out is derivable,
+        // because a datetime projects onto a date by taking its date part.
+        // Deriving from the EXISTING value rather than from the supplied one
+        // preserves the event's span — a two-day meeting stays two days.
+        if (allDay) {
+          const counterpart = params.start === undefined ? exStart : exEnd;
+          const raw = counterpart?.dateTime ?? counterpart?.date;
+          if (typeof raw !== 'string') {
             throw new Error(
-              'Converting an event from all-day to timed needs both start and end, ' +
-              'because the missing one would need a time of day that only you can choose.',
+              'Converting to all-day needs both start and end, and the event on record ' +
+              'has no usable counterpart to derive the missing one from.',
             );
           }
+          if (params.start === undefined) derivedStart = allDayDate(raw);
+          else derivedEnd = allDayDate(raw);
+        } else {
+          // Converting FROM all-day, the missing side is a datetime, and there
+          // is no honest way to invent a time of day the caller never gave —
+          // any choice silently rewrites when the event happens.
+          throw new Error(
+            'Converting an event from all-day to timed needs both start and end, ' +
+            'because the missing one would need a time of day that only you can choose.',
+          );
         }
       }
 
@@ -515,6 +548,31 @@ export const calendarPatch: ServicePatch = {
         body.end = allDay
           ? { date: exclusiveEndDate(String(startValue ?? endValue), String(endValue)), dateTime: null }
           : { dateTime: String(endValue), date: null };
+      }
+
+      // The event's shape once this update lands. With no start or end given it is the shape on record.
+      const targetTimed = noStartEnd ? existing !== undefined && !existingIsAllDay : !allDay;
+
+      // Google expands a recurring timed event's rule in the zone of its start; refuse here
+      // when neither the caller nor the event supplies one, rather than let Google 400.
+      if (recurrence && targetTimed && !timeZone && !exStart?.timeZone) {
+        throw new Error(
+          'timeZone is required for a recurring timed event (an IANA name such as Europe/Amsterdam): ' +
+          'Google expands the rule in that zone',
+        );
+      }
+
+      // A time zone rides on both ends of a timed event. events.patch merges nested objects,
+      // so `{ timeZone }` alone leaves the dateTime the event already has. An all-day event
+      // has no zone to set, so it is skipped.
+      let timeZoneSkipped = false;
+      if (timeZone) {
+        if (targetTimed) {
+          body.start = { ...(body.start as Record<string, unknown> | undefined), timeZone };
+          body.end = { ...(body.end as Record<string, unknown> | undefined), timeZone };
+        } else {
+          timeZoneSkipped = true;
+        }
       }
 
       // attendees: comma-separated string → array of {email} objects.
@@ -564,8 +622,11 @@ export const calendarPatch: ServicePatch = {
       // fall through to this guard and report "no field to change" for a request that
       // named one.
       if (Object.keys(body).length === 0 && !removingMeet) {
+        if (timeZoneSkipped) {
+          throw new Error('timeZone has nothing to change on an all-day event; all-day events carry no time zone');
+        }
         throw new Error(
-          'update requires at least one field to change: summary, start, end, description, location, attendees, or meet',
+          'update requires at least one field to change: summary, start, end, description, location, attendees, meet, colorId, recurrence, or timeZone',
         );
       }
 

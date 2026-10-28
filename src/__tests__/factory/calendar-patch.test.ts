@@ -886,4 +886,247 @@ describe('calendarPatch', () => {
       expect(result.refs.status).toBe('deleted');
     });
   });
+  describe('colour, recurrence and time zone', () => {
+    // events.insert / events.patch accept `colorId`, `recurrence` and a per-end
+    // `timeZone`; the tool used to drop all three. Asserted on what Google is sent.
+    const base = { summary: 'Standup', start: '2026-05-04T09:00:00', end: '2026-05-04T09:15:00' };
+    const bodyOf = async (resource: string) =>
+      (await requestFor('calendar', resource, mockCall.mock.calls[0][2])).body!;
+
+    describe('create', () => {
+      it('sends colorId when given', async () => {
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        await calendarPatch.customHandlers!.create({ ...base, colorId: '5' }, 'user@test.com');
+        expect((await bodyOf('events.insert')).colorId).toBe('5');
+      });
+
+      it.each(['0', '12', 'red', '1.5'])('rejects colorId %s and names the valid range', async (bad) => {
+        await expect(
+          calendarPatch.customHandlers!.create({ ...base, colorId: bad }, 'user@test.com'),
+        ).rejects.toThrow('colorId must be a number from 1 to 11');
+        expect(mockCall).not.toHaveBeenCalled();
+      });
+
+      it('sends a recurrence rule as an array, with the time zone on both ends', async () => {
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        await calendarPatch.customHandlers!.create(
+          { ...base, recurrence: 'RRULE:FREQ=WEEKLY;BYDAY=MO,WE', timeZone: 'Europe/Amsterdam' },
+          'user@test.com',
+        );
+        const body = await bodyOf('events.insert');
+        expect(body.recurrence).toEqual(['RRULE:FREQ=WEEKLY;BYDAY=MO,WE']);
+        expect(body.start).toEqual({ dateTime: '2026-05-04T09:00:00', timeZone: 'Europe/Amsterdam' });
+        expect(body.end).toEqual({ dateTime: '2026-05-04T09:15:00', timeZone: 'Europe/Amsterdam' });
+      });
+
+      it('takes several lines (RRULE plus EXDATE) separated by newlines', async () => {
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        await calendarPatch.customHandlers!.create(
+          { ...base, timeZone: 'UTC', recurrence: 'RRULE:FREQ=DAILY;COUNT=5\nEXDATE:20260506T090000Z' },
+          'user@test.com',
+        );
+        expect((await bodyOf('events.insert')).recurrence)
+          .toEqual(['RRULE:FREQ=DAILY;COUNT=5', 'EXDATE:20260506T090000Z']);
+      });
+
+      it('adds the RRULE: prefix to a bare rule', async () => {
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        await calendarPatch.customHandlers!.create(
+          { ...base, timeZone: 'UTC', recurrence: 'FREQ=DAILY;COUNT=3' },
+          'user@test.com',
+        );
+        expect((await bodyOf('events.insert')).recurrence).toEqual(['RRULE:FREQ=DAILY;COUNT=3']);
+      });
+
+      it('rejects a recurrence line that is not RRULE, EXRULE, RDATE or EXDATE', async () => {
+        await expect(
+          calendarPatch.customHandlers!.create({ ...base, timeZone: 'UTC', recurrence: 'every monday' }, 'user@test.com'),
+        ).rejects.toThrow('recurrence');
+        expect(mockCall).not.toHaveBeenCalled();
+      });
+
+      it('requires timeZone for a recurring TIMED event (Google rejects it otherwise)', async () => {
+        await expect(
+          calendarPatch.customHandlers!.create({ ...base, recurrence: 'RRULE:FREQ=DAILY' }, 'user@test.com'),
+        ).rejects.toThrow('timeZone is required');
+        expect(mockCall).not.toHaveBeenCalled();
+      });
+
+      it('does not require timeZone for a recurring all-day event', async () => {
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        await calendarPatch.customHandlers!.create(
+          { summary: 'Holiday', start: '2026-05-04', allDay: true, recurrence: 'RRULE:FREQ=YEARLY' },
+          'user@test.com',
+        );
+        const body = await bodyOf('events.insert');
+        expect(body.recurrence).toEqual(['RRULE:FREQ=YEARLY']);
+        expect(body.start).toEqual({ date: '2026-05-04' });
+      });
+
+      it('sends a timeZone on a single timed event too', async () => {
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        await calendarPatch.customHandlers!.create({ ...base, timeZone: 'America/New_York' }, 'user@test.com');
+        const body = await bodyOf('events.insert');
+        expect(body.start).toEqual({ dateTime: '2026-05-04T09:00:00', timeZone: 'America/New_York' });
+        expect(body.recurrence).toBeUndefined();
+      });
+
+      it('leaves the body exactly as before when none of the three is given', async () => {
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        await calendarPatch.customHandlers!.create(base, 'user@test.com');
+        const body = await bodyOf('events.insert');
+        expect(body).not.toHaveProperty('colorId');
+        expect(body).not.toHaveProperty('recurrence');
+        expect(body.start).toEqual({ dateTime: '2026-05-04T09:00:00' });
+      });
+    });
+
+    describe('update', () => {
+      const timedEvent = { start: { dateTime: '2026-05-04T09:00:00+02:00' }, end: { dateTime: '2026-05-04T09:15:00+02:00' } };
+      const timedEventWithZone = {
+        start: { dateTime: '2026-05-04T09:00:00+02:00', timeZone: 'Europe/Amsterdam' },
+        end: { dateTime: '2026-05-04T09:15:00+02:00', timeZone: 'Europe/Amsterdam' },
+      };
+      const allDayEvent = { start: { date: '2026-05-04' }, end: { date: '2026-05-05' } };
+      const patchBody = async () => {
+        const i = mockCall.mock.calls.findIndex((c) => c[1] === 'events.patch');
+        return (await requestFor('calendar', 'events.patch', mockCall.mock.calls[i][2])).body!;
+      };
+
+      it('accepts a numeric colorId on create and as the only update field', async () => {
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        await calendarPatch.customHandlers!.create({ ...base, colorId: 11 }, 'user@test.com');
+        expect((await bodyOf('events.insert')).colorId).toBe('11');
+        mockCall.mockReset();
+        mockCall.mockResolvedValue({ id: 'evt-1' });
+        await calendarPatch.customHandlers!.update({ eventId: 'evt-1', colorId: 11 }, 'user@test.com');
+        expect(await bodyOf('events.patch')).toEqual({ colorId: '11' });
+      });
+
+      it('accepts recurrence as an array, and it still needs a timeZone on a timed event', async () => {
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        await calendarPatch.customHandlers!.create(
+          { ...base, timeZone: 'UTC', recurrence: ['RRULE:FREQ=WEEKLY', 'EXDATE:20260511T090000Z'] },
+          'user@test.com',
+        );
+        expect((await bodyOf('events.insert')).recurrence).toEqual(['RRULE:FREQ=WEEKLY', 'EXDATE:20260511T090000Z']);
+        await expect(
+          calendarPatch.customHandlers!.create({ ...base, recurrence: ['RRULE:FREQ=WEEKLY'] }, 'user@test.com'),
+        ).rejects.toThrow('timeZone is required');
+      });
+
+      it('upper-cases the rule keyword', async () => {
+        mockCall.mockResolvedValue(calendarInsertResponse);
+        await calendarPatch.customHandlers!.create(
+          { ...base, timeZone: 'UTC', recurrence: 'rrule:freq=weekly\nexdate;value=date:20260511' },
+          'user@test.com',
+        );
+        expect((await bodyOf('events.insert')).recurrence).toEqual(['RRULE:freq=weekly', 'EXDATE;value=date:20260511']);
+      });
+
+      it('rejects an invalid timeZone on create and update', async () => {
+        await expect(
+          calendarPatch.customHandlers!.create({ ...base, timeZone: 'Mars/Olympus' }, 'user@test.com'),
+        ).rejects.toThrow('timeZone must be an IANA time zone name');
+        await expect(
+          calendarPatch.customHandlers!.update({ eventId: 'evt-1', timeZone: 'Mars/Olympus' }, 'user@test.com'),
+        ).rejects.toThrow('timeZone must be an IANA time zone name');
+        expect(mockCall).not.toHaveBeenCalled();
+      });
+
+      it('applies a lone timeZone to a timed event, after reading its shape', async () => {
+        mockCall.mockResolvedValueOnce(timedEvent).mockResolvedValue({ id: 'evt-1' });
+        const res = await calendarPatch.customHandlers!.update({ eventId: 'evt-1', timeZone: 'UTC' }, 'user@test.com');
+        const body = await patchBody();
+        expect(body.start).toEqual({ timeZone: 'UTC' });
+        expect(body.end).toEqual({ timeZone: 'UTC' });
+        expect(res.text).toContain('start, end');
+      });
+
+      it('refuses a lone timeZone on an all-day event and sends nothing', async () => {
+        mockCall.mockResolvedValueOnce(allDayEvent);
+        await expect(
+          calendarPatch.customHandlers!.update({ eventId: 'evt-1', timeZone: 'UTC' }, 'user@test.com'),
+        ).rejects.toThrow('nothing to change on an all-day event');
+        expect(mockCall).toHaveBeenCalledTimes(1);
+      });
+
+      it('skips timeZone on an all-day event and leaves it out of the changed fields', async () => {
+        mockCall.mockResolvedValueOnce(allDayEvent).mockResolvedValue({ id: 'evt-1' });
+        const res = await calendarPatch.customHandlers!.update(
+          { eventId: 'evt-1', timeZone: 'UTC', colorId: '3' },
+          'user@test.com',
+        );
+        expect(await patchBody()).toEqual({ colorId: '3' });
+        expect(res.text).toContain('Fields changed:** colorId');
+      });
+
+      it('refuses recurrence on a timed event that has no time zone', async () => {
+        mockCall.mockResolvedValueOnce(timedEvent);
+        await expect(
+          calendarPatch.customHandlers!.update({ eventId: 'evt-1', recurrence: 'RRULE:FREQ=WEEKLY' }, 'user@test.com'),
+        ).rejects.toThrow('timeZone is required');
+        expect(mockCall).toHaveBeenCalledTimes(1);
+      });
+
+      it('accepts recurrence on a timed event that already carries a time zone', async () => {
+        mockCall.mockResolvedValueOnce(timedEventWithZone).mockResolvedValue({ id: 'evt-1' });
+        await calendarPatch.customHandlers!.update({ eventId: 'evt-1', recurrence: 'RRULE:FREQ=WEEKLY' }, 'user@test.com');
+        expect(await patchBody()).toEqual({ recurrence: ['RRULE:FREQ=WEEKLY'] });
+      });
+
+      it('accepts recurrence on an all-day event without a time zone', async () => {
+        mockCall.mockResolvedValueOnce(allDayEvent).mockResolvedValue({ id: 'evt-1' });
+        await calendarPatch.customHandlers!.update({ eventId: 'evt-1', recurrence: 'RRULE:FREQ=YEARLY' }, 'user@test.com');
+        expect(await patchBody()).toEqual({ recurrence: ['RRULE:FREQ=YEARLY'] });
+      });
+
+      it('sets colorId on its own', async () => {
+        mockCall.mockResolvedValue({ id: 'evt-1' });
+        await calendarPatch.customHandlers!.update({ eventId: 'evt-1', colorId: '11' }, 'user@test.com');
+        expect(await bodyOf('events.patch')).toEqual({ colorId: '11' });
+      });
+
+      it('rejects an invalid colorId', async () => {
+        await expect(
+          calendarPatch.customHandlers!.update({ eventId: 'evt-1', colorId: '99' }, 'user@test.com'),
+        ).rejects.toThrow('colorId must be a number from 1 to 11');
+      });
+
+      it('replaces the recurrence rule and puts the time zone on both ends', async () => {
+        mockCall.mockResolvedValueOnce(timedEvent).mockResolvedValue({ id: 'evt-1' });
+        await calendarPatch.customHandlers!.update(
+          { eventId: 'evt-1', recurrence: 'RRULE:FREQ=WEEKLY', timeZone: 'Europe/Amsterdam' },
+          'user@test.com',
+        );
+        const body = await patchBody();
+        expect(body.recurrence).toEqual(['RRULE:FREQ=WEEKLY']);
+        expect(body.start).toEqual({ timeZone: 'Europe/Amsterdam' });
+        expect(body.end).toEqual({ timeZone: 'Europe/Amsterdam' });
+      });
+
+      it('merges the time zone into a start and end that are also being changed', async () => {
+        mockCall.mockResolvedValue({ id: 'evt-1' });
+        await calendarPatch.customHandlers!.update(
+          { eventId: 'evt-1', start: '2026-05-01T10:00:00', end: '2026-05-01T11:00:00', timeZone: 'UTC' },
+          'user@test.com',
+        );
+        const body = await bodyOf('events.patch');
+        expect(body.start).toEqual({ dateTime: '2026-05-01T10:00:00', date: null, timeZone: 'UTC' });
+        expect(body.end).toEqual({ dateTime: '2026-05-01T11:00:00', date: null, timeZone: 'UTC' });
+      });
+
+      it('names the new fields in the nothing-to-change error', async () => {
+        await expect(
+          calendarPatch.customHandlers!.update({ eventId: 'evt-1' }, 'user@test.com'),
+        ).rejects.toThrow('colorId, recurrence');
+      });
+
+      it('reports the new fields as changed', async () => {
+        mockCall.mockResolvedValue({ id: 'evt-1', summary: 'Standup' });
+        const res = await calendarPatch.customHandlers!.update({ eventId: 'evt-1', colorId: '3' }, 'user@test.com');
+        expect(res.text).toContain('colorId');
+      });
+    });
+  });
 });
