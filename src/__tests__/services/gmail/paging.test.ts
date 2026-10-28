@@ -48,6 +48,16 @@ describe('search paging', () => {
     expect(out.refs).toMatchObject({ nextPageToken: 'NEXT', resultSizeEstimate: 412 });
   });
 
+  it('calls Gmail’s 201 placeholder estimate unknown, not a lower bound', async () => {
+    const out = await search({ messages: [{ id: 'a' }], nextPageToken: 'NEXT', resultSizeEstimate: 201 });
+    expect(out.text).toContain('More results exist');
+    expect(out.text).toContain('total is unknown');
+    expect(out.text).toContain('previewModifyMatching');
+    expect(out.text).not.toContain('more than 200');
+    expect(out.text).not.toContain('about 201');
+    expect(out.refs).toMatchObject({ nextPageToken: 'NEXT', resultSizeEstimate: 201 });
+  });
+
   it('says nothing extra when the page is the whole result', async () => {
     const out = await search({ messages: [{ id: 'a' }], resultSizeEstimate: 1 });
     expect(out.text).not.toContain('More results exist');
