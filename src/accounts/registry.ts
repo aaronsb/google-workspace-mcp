@@ -82,8 +82,9 @@ export async function authenticateAndAddAccount(
   category: Account['category'] = 'personal',
   description?: string,
   access: AccessLevel = 'readwrite',
+  services?: string,
 ): Promise<AuthResult> {
-  const result = await authenticateAccount(clientId, clientSecret, access);
+  const result = await authenticateAccount(clientId, clientSecret, access, services);
 
   if (result.status === 'success' && result.account) {
     const existing = await getAccount(result.account);

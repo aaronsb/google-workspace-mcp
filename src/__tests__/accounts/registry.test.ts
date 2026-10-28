@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import * as fs from 'node:fs/promises';
-import { listAccounts, getAccount, addAccount, removeAccount } from '../../accounts/registry.js';
+import { listAccounts, getAccount, addAccount, removeAccount, authenticateAndAddAccount } from '../../accounts/registry.js';
+import { authenticateAccount } from '../../accounts/auth.js';
 
 vi.mock('node:fs/promises');
 vi.mock('../../accounts/credentials.js');
+vi.mock('../../accounts/auth.js');
 
 const mockFs = vi.mocked(fs);
 
@@ -83,6 +85,16 @@ describe('registry', () => {
     it('throws when account not found', async () => {
       mockFs.readFile.mockResolvedValue(emptyAccounts);
       await expect(removeAccount('missing@example.com')).rejects.toThrow('not found');
+    });
+  });
+
+  describe('authenticateAndAddAccount', () => {
+    it('forwards services to authenticateAccount as the fourth argument', async () => {
+      (authenticateAccount as Mock).mockResolvedValue({ status: 'error', error: 'cancelled' });
+
+      await authenticateAndAddAccount('id', 'secret', 'personal', undefined, 'read', 'gmail,drive');
+
+      expect(authenticateAccount).toHaveBeenCalledWith('id', 'secret', 'read', 'gmail,drive');
     });
   });
 });
