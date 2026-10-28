@@ -5,7 +5,7 @@ import { handleQueue } from './queue.js';
 import { handleBatch } from './batch.js';
 import { generatedTools } from '../factory/registry.js';
 import { getSessionTracker, sessionContext } from './session/index.js';
-import { inboxUnreadMutationAccounts } from './session/unread-refresh.js';
+import { inboxUnreadMutationAccounts, resolvedEmail } from './session/unread-refresh.js';
 import { BULK_TOOL_NAMES } from './tool-names.js';
 import { runAsToolCall } from './call-context.js';
 
@@ -167,7 +167,8 @@ function extractEmailFromQueue(params: Record<string, unknown>): string | undefi
   const operations = params.operations as Array<{ args?: Record<string, unknown> }> | undefined;
   if (!Array.isArray(operations)) return undefined;
   for (const op of operations) {
-    if (typeof op.args?.email === 'string') return op.args.email;
+    const email = resolvedEmail(op.args?.email);
+    if (email) return email;
   }
   return undefined;
 }

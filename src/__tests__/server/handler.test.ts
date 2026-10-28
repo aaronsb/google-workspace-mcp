@@ -132,7 +132,7 @@ describe('handleToolCall', () => {
 
   it('captures a baseline and refreshes after a batch label write', async () => {
     const email = 'batch-unread@example.invalid';
-    mockBatch.mockResolvedValue(stubResponse);
+    mockBatch.mockResolvedValue({ text: 'ok', refs: {} });
     mockCall
       .mockResolvedValueOnce({ messagesUnread: 3 })
       .mockResolvedValueOnce({ messages: [] })
@@ -154,7 +154,8 @@ describe('handleToolCall', () => {
 
   it('refreshes affected accounts after queued label writes', async () => {
     const email = 'queued-unread@example.invalid';
-    mockQueue.mockResolvedValue(stubResponse);
+    // Fresh object: the handler appends session context to the response text in place.
+    mockQueue.mockResolvedValue({ text: 'ok', refs: {} });
     mockCall
       .mockResolvedValueOnce({ messagesUnread: 8 })
       .mockResolvedValueOnce({ messages: [] })
@@ -173,6 +174,7 @@ describe('handleToolCall', () => {
       'users.labels.get', 'users.messages.list', 'events.list', 'users.labels.get',
     ]);
     expect(result.text).toContain('1 fewer unread since session start (7 unread');
+    expect(result.text.split('Session context')).toHaveLength(2);
   });
 
   it('routes manage_calendar to factory-generated handler', async () => {

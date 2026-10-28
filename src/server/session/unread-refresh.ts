@@ -1,7 +1,7 @@
-import { BULK_TOOL_NAMES } from '../tool-names.js';
+import { BULK_TOOL_NAMES, MAX_QUEUE_DEPTH } from '../tool-names.js';
 
 const BULK_TOOLS = new Set(BULK_TOOL_NAMES);
-const INBOX_UNREAD_LABELS = new Set(['INBOX', 'UNREAD']);
+const INBOX_UNREAD_LABELS = new Set(['INBOX', 'UNREAD', 'TRASH', 'SPAM']);
 
 function changesInboxUnread(tool: string, params: Record<string, unknown>): boolean {
   if (tool === 'manage_email') {
@@ -40,6 +40,11 @@ function changesRelevantLabels(params: Record<string, unknown>): boolean {
   });
 }
 
+/** A queue op's `email` that is a literal address, not a `$N.field` reference to an earlier result. */
+export function resolvedEmail(value: unknown): string | undefined {
+  return typeof value === 'string' && value && !/\$\d+\./.test(value) ? value : undefined;
+}
+
 /** Accounts whose current inbox-unread count may change during this tool call. */
 export function inboxUnreadMutationAccounts(
   tool: string,
@@ -47,29 +52,32 @@ export function inboxUnreadMutationAccounts(
 ): string[] {
   const accounts = new Set<string>();
 
-  const visit = (currentTool: string, args: Record<string, unknown>): void => {
+  const visit = (currentTool: string, args: Record<string, unknown>, depth: number): void => {
     if (currentTool === 'manage_email' && changesInboxUnread(currentTool, args)) {
-      if (typeof args.email === 'string' && args.email) accounts.add(args.email);
+      const email = resolvedEmail(args.email);
+      if (email) accounts.add(email);
       return;
     }
 
     if (!BULK_TOOLS.has(currentTool)) return;
     if (args.mode === 'batch') {
-      if (changesInboxUnread(currentTool, args) && typeof args.email === 'string' && args.email) {
-        accounts.add(args.email);
-      }
+      const email = resolvedEmail(args.email);
+      if (email && changesInboxUnread(currentTool, args)) accounts.add(email);
       return;
     }
+
+    // The queue refuses to run past its depth limit, so there is nothing deeper to find.
+    if (depth > MAX_QUEUE_DEPTH) return;
 
     if (!Array.isArray(args.operations)) return;
     for (const op of args.operations) {
       if (!op || typeof op !== 'object') continue;
       const queued = op as { tool?: unknown; args?: unknown };
       if (typeof queued.tool !== 'string' || !queued.args || typeof queued.args !== 'object') continue;
-      visit(queued.tool, queued.args as Record<string, unknown>);
+      visit(queued.tool, queued.args as Record<string, unknown>, depth + 1);
     }
   };
 
-  visit(tool, params);
+  visit(tool, params, 1);
   return [...accounts];
 }

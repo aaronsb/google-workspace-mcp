@@ -233,20 +233,15 @@ function withPaging(response: HandlerResponse, data: unknown, ctx: PatchContext)
   if (!nextPageToken) return response;
 
   const estimate = typeof raw.resultSizeEstimate === 'number' ? raw.resultSizeEstimate : undefined;
-  // Gmail's 201 result-size value is a boundary placeholder for large result sets, not a useful total.
-  const boundaryEstimate = estimate === 201;
-  const sized = boundaryEstimate
-    ? ' Gmail returned its 201-result boundary estimate; the total is unknown, but more than 200 matches exist.'
+  // 201 is the same placeholder for 30 matches and for 135,824 (see session/tracker.ts), so it says nothing about size.
+  const sized = estimate === 201
+    ? ' The total is unknown: Gmail returned its placeholder estimate of 201. `previewModifyMatching` gives an exact count.'
     : estimate !== undefined
       ? ` Google estimates about ${estimate} in total; that figure is an estimate and is often wrong.`
       : '';
   return {
     text: `${response.text}\n\nMore results exist.${sized} Call \`${ctx.operation}\` again with the same parameters and pageToken: ${nextPageToken}`,
-    refs: {
-      ...response.refs,
-      nextPageToken,
-      ...(estimate !== undefined && !boundaryEstimate ? { resultSizeEstimate: estimate } : {}),
-    },
+    refs: { ...response.refs, nextPageToken, ...(estimate !== undefined ? { resultSizeEstimate: estimate } : {}) },
   };
 }
 

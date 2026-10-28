@@ -7,6 +7,7 @@
  */
 
 import { advanceEpoch } from './handler.js';
+import { MAX_QUEUE_DEPTH } from './tool-names.js';
 import type { HandlerResponse } from './handler.js';
 
 type ToolHandler = (params: Record<string, unknown>) => Promise<HandlerResponse>;
@@ -32,17 +33,6 @@ function stripNextSteps(text: string): string {
   const idx = text.indexOf(NEXT_STEPS_SEPARATOR);
   return idx >= 0 ? text.slice(0, idx) : text;
 }
-
-/**
- * How deeply queues may nest.
- *
- * A queue is a tool call, so a queue can hold one — that is what makes the tool list
- * uniform, and it is useful: a nested queue with `onError: 'continue'` fails inside
- * itself without bailing its parent. What it cannot be is unbounded, because each level
- * multiplies: 10 operations per queue means this ceiling is 1,000 calls, which is already
- * more than any real workflow and enough to be worth naming.
- */
-const MAX_QUEUE_DEPTH = 3;
 
 export async function handleQueue(
   params: Record<string, unknown>,
