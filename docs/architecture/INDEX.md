@@ -33,6 +33,7 @@ _OAuth, credential management, multi-account_
 | [ADR-200](./auth/ADR-200-unified-account-lifecycle-management-tool.md) | Unified account lifecycle management tool | accepted |
 | [ADR-201](./auth/ADR-201-own-oauth-flow-with-token-service.md) | Own OAuth flow with per-account token service | accepted |
 | [ADR-202](./auth/ADR-202-per-account-access-level-enforced-at-call-time.md) | Per-account access level, enforced at call time | accepted |
+| [ADR-203](./auth/ADR-203-safety-policy-file-enforced-at-the-google-client.md) | Safety policy file, enforced at the Google client | proposed |
 
 ## API Surface
 _MCP tools, schemas, progressive disclosure_
