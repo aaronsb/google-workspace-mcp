@@ -110,9 +110,8 @@ function writeAccessWarning(
   params: Record<string, unknown>,
   retry: string,
   /**
-   * `authenticate` has no `services` parameter — it always requests every service — so
-   * telling its caller to drop one from `services` is advice they cannot take. That path
-   * gets pointed at `scopes`, which does take a list.
+   * Both `authenticate` and `scopes` take a `services` list, so either can be told to
+   * leave a service out of it. Kept as a parameter for a caller that has no such list.
    */
   canNarrowServices: boolean,
 ): HandlerResponse | null {
@@ -169,15 +168,30 @@ export async function handleAccounts(params: Record<string, unknown>): Promise<H
       const access = requestedAccess(params);
       // Optional: narrow the first grant to named services (same format as `scopes`).
       // Absent means every service, exactly as before — the argument is only passed
-      // through when a caller actually supplied it.
-      const services = (params.services as string | undefined)?.trim() || undefined;
+      // through when a caller actually supplied it. A supplied value that names nothing
+      // is rejected rather than read as "everything": asking to narrow and silently
+      // getting the broadest grant is the failure this parameter exists to prevent.
+      let services: string | undefined;
+      if (params.services !== undefined) {
+        if (typeof params.services !== 'string') {
+          throw new Error(`services must be a comma-separated string, got ${typeof params.services}`);
+        }
+        const names = params.services.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+        if (names.length === 0) {
+          throw new Error(
+            `services names no service: '${params.services}'. ` +
+            `Give a comma-separated list (e.g. gmail,drive,calendar) or omit it for every service.`,
+          );
+        }
+        services = names.join(',');
+      }
 
       // Check what this access level would actually grant BEFORE opening a browser.
       const warning = writeAccessWarning(
         scopesForServices(services ?? ALL_SERVICES, access).stillAllowWrites,
         params,
         `manage_accounts {"operation":"authenticate",${services ? `"services":"${services}",` : ''}"access":"read","confirmWriteAccess":true}`,
-        false,
+        true,
       );
       if (warning) return warning;
 

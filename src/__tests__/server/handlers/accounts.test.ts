@@ -201,10 +201,36 @@ describe('handleAccounts', () => {
 
       expect(mockAuthAdd).not.toHaveBeenCalled();
       expect(result.refs.status).toBe('needs-confirmation');
-      // authenticate has NO `services` param, so telling its caller to drop one would be
-      // advice they cannot take. It points at `scopes`, which does take a list.
-      expect(result.text).not.toContain('Leave meet out of `services`');
-      expect(result.text).toContain("operation: 'scopes'");
+      expect(result.text).toContain('Leave meet out of `services`');
+      expect(result.text).not.toContain("operation: 'scopes'");
+    });
+
+    it('checks the named services, not every service, for the confirmation gate', async () => {
+      await handleAccounts({ operation: 'authenticate', access: 'read', services: 'gmail' });
+
+      expect(mockScopes).toHaveBeenCalledWith('gmail', 'read');
+      expect(mockScopes).not.toHaveBeenCalledWith('gmail,drive,calendar,sheets,docs,tasks,slides,meet', 'read');
+    });
+
+    it('puts the normalized services in the retry hint when one cannot be read-only', async () => {
+      noReadOnlyFor('meet');
+      const result = await handleAccounts({ operation: 'authenticate', access: 'read', services: ' Gmail, MEET ,' });
+
+      expect(mockAuthAdd).not.toHaveBeenCalled();
+      expect(result.text).toContain('"services":"gmail,meet"');
+      expect(result.text).toContain('Leave meet out of `services`');
+    });
+
+    it('rejects services that is not a string', async () => {
+      await expect(handleAccounts({ operation: 'authenticate', services: ['gmail'] }))
+        .rejects.toThrow(/services must be a comma-separated string/);
+      expect(mockAuthAdd).not.toHaveBeenCalled();
+    });
+
+    it.each(['', '   ', ',', ', ,'])('rejects services %j that names no service', async (value) => {
+      await expect(handleAccounts({ operation: 'authenticate', services: value }))
+        .rejects.toThrow(/services names no service/);
+      expect(mockAuthAdd).not.toHaveBeenCalled();
     });
 
     it('REJECTS an access value that is neither read nor readwrite', async () => {
