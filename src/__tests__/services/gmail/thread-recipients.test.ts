@@ -4,14 +4,13 @@
  * users.threads.get with format:metadata returns ONLY the headers named in
  * metadataHeaders. So the formatter reading Cc is not enough: if the manifest stops
  * asking for it, Gmail never sends it, the line is omitted as absent, and the thread
- * reads as though nobody was copied. Both halves are tested for that reason; the
- * formatter tests feed in a payload containing Cc and cannot notice the other half.
+ * reads as though nobody was copied. These tests feed in a payload containing Cc and
+ * cannot notice that; repeated-params.test.ts asserts the headers actually requested.
  */
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../google/client.js');
 
-import { loadManifest } from '../../../factory/generator.js';
 import { gmailPatch } from '../../../services/gmail/patch.js';
 import type { PatchContext } from '../../../factory/types.js';
 
@@ -26,13 +25,6 @@ function thread(...messages: Array<Record<string, unknown>>): Record<string, unk
 }
 
 describe('getThread recipients', () => {
-  it('requests exactly the headers the formatter renders', () => {
-    const op = loadManifest().services.gmail.operations.getThread;
-    // Trimmed as the client trims it, so spacing in the manifest is not a failure.
-    const requested = String(op.defaults?.metadataHeaders).split(',').map(h => h.trim());
-    expect(requested).toEqual(['From', 'Subject', 'Date', 'To', 'Cc', 'Bcc', 'Reply-To']);
-  });
-
   it('shows every recipient header a message has', () => {
     const { text } = gmailPatch.formatDetail!(thread(message('m-1', [
       { name: 'From', value: 'alice@test.com' },
