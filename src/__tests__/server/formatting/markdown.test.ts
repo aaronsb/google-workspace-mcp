@@ -75,6 +75,40 @@ describe('formatEmailDetail', () => {
     expect(result.refs.id).toBe('msg-1');
   });
 
+  it('shows Cc, Bcc and Reply-To when the message has them', () => {
+    const result = formatEmailDetail({
+      id: 'msg-1',
+      payload: {
+        headers: [
+          { name: 'From', value: 'alice@test.com' },
+          { name: 'To', value: 'bob@test.com' },
+          // Mail in the wild spells these in any case.
+          { name: 'CC', value: 'carol@test.com' },
+          { name: 'bcc', value: 'dave@test.com' },
+          { name: 'Reply-To', value: 'list@test.com' },
+        ],
+      },
+    });
+    expect(result.text).toContain('**Cc:** carol@test.com');
+    expect(result.text).toContain('**Bcc:** dave@test.com');
+    expect(result.text).toContain('**Reply-To:** list@test.com');
+    expect(result.refs.cc).toBe('carol@test.com');
+    expect(result.refs.bcc).toBe('dave@test.com');
+    expect(result.refs.replyTo).toBe('list@test.com');
+  });
+
+  it('omits Cc, Bcc and Reply-To when the message has none', () => {
+    const result = formatEmailDetail({
+      id: 'msg-1',
+      payload: { headers: [{ name: 'To', value: 'bob@test.com' }] },
+    });
+    expect(result.text).not.toMatch(/\*\*(Cc|Bcc|Reply-To):/);
+    // Present but empty, like from and to: a queue's $N.cc throws on a missing field.
+    expect(result.refs.cc).toBe('');
+    expect(result.refs.bcc).toBe('');
+    expect(result.refs.replyTo).toBe('');
+  });
+
   it('handles missing payload', () => {
     const result = formatEmailDetail({ id: 'msg-1' });
     expect(result.text).toContain('**From:**');

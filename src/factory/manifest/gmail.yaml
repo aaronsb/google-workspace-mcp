@@ -616,4 +616,4 @@ operations:
     defaults:
       userId: me
       format: metadata
-      metadataHeaders: "From,Subject,Date,To"
+      metadataHeaders: "From,Subject,Date,To,Cc,Bcc,Reply-To"

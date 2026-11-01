@@ -184,6 +184,10 @@ function formatThreadDetail(data: unknown): HandlerResponse {
     const from = getHeader('from');
     const date = getHeader('date');
     const subject = getHeader('subject');
+    const to = getHeader('to');
+    const cc = getHeader('cc');
+    const bcc = getHeader('bcc');
+    const replyTo = getHeader('reply-to');
     const bodyText = extractBodyFromPayload(payload);
     const snippet = decodeSnippet(String(msg.snippet ?? ''));
     // getThread uses format:metadata so body data is usually absent;
@@ -192,6 +196,10 @@ function formatThreadDetail(data: unknown): HandlerResponse {
 
     parts.push(`**${from}** — ${date}`);
     if (subject) parts.push(`Subject: ${subject}`);
+    if (to) parts.push(`To: ${to}`);
+    if (cc) parts.push(`Cc: ${cc}`);
+    if (bcc) parts.push(`Bcc: ${bcc}`);
+    if (replyTo) parts.push(`Reply-To: ${replyTo}`);
     parts.push(displayBody, '');
   }
 
