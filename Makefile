@@ -3,7 +3,7 @@
         manifest-lint check-write-ops \
         coverage coverage-update \
         mcpb version-sync publish-all \
-        release-rc promote release-patch _require-branch _release-commit check
+        release-rc promote release-patch _promote-commit _require-clean _release-tag _release-push check
 
 # Prerequisites in a target's list are only ordered when make runs serially. Under
 # `make -j`, `smoke` could start while `build` was still mid-`tsc` (or inside its
@@ -176,19 +176,19 @@ version-sync: ## Sync version from package.json → server.json + mcpb/manifest.
 	@echo "Syncing version $(VERSION) to server.json and mcpb/manifest.json"
 	@node scripts/version-sync.cjs
 
-# Releases follow ADR-106: work lands on `next`, a release starts as a candidate
-# (X.Y.Z-rc.N) tagged there, and `promote` gives the candidate's commit its final
-# version, fast-forwards `main` to it and tags it. A candidate tag publishes npm under
-# `rc` and a GitHub prerelease, and skips the MCP Registry; a release tag publishes
-# everything. `release-patch` is the hotfix path, run on `main`.
+# Releases follow ADR-106. `main` is the only long-lived branch and always carries the
+# latest code; a release is a tag. A release starts as a candidate (X.Y.Z-rc.N) tagged
+# on `main`, which publishes npm under `rc` and a GitHub prerelease and skips the MCP
+# Registry. `promote` puts the final version on top of the CANDIDATE's commit, not on
+# top of `main`, so work merged while the candidate was being tried does not ship
+# untried; the release commit is then merged back into `main`.
 #
-# The branch guard is a prerequisite listed BEFORE `check`, so a target run on the
-# wrong branch refuses in a second instead of after the full gate. That ordering holds
-# because of .NOTPARALLEL above; RELEASE_BRANCH is target-specific, so it is visible
-# to the prerequisite.
+# Guards are prerequisites listed BEFORE `check`, so a target run in the wrong state
+# refuses in a second instead of after the full gate. That ordering holds because of
+# .NOTPARALLEL above; RELEASE_BRANCH is target-specific, so the prerequisite sees it.
 
-release-rc: RELEASE_BRANCH := next
-release-rc: _require-branch check ## Cut a release candidate on next (BUMP=patch|minor|major starts a series)
+release-rc: RELEASE_BRANCH := main
+release-rc: _require-clean check ## Cut a release candidate on main (BUMP=patch|minor|major starts a series)
 	@case "$(VERSION)" in \
 	  *-rc.*) [ -z "$(BUMP)" ] || { echo "release-rc: $(VERSION) is already a candidate. Run without BUMP for the next one, or 'make promote' it."; exit 1; }; \
 	          echo "Next candidate after $(VERSION)"; \
@@ -201,55 +201,83 @@ release-rc: _require-branch check ## Cut a release candidate on next (BUMP=patch
 	          esac;; \
 	esac
 	$(MAKE) version-sync
-	$(MAKE) _release-commit PUSH_REFS=HEAD:next
+	$(MAKE) _release-tag
+	$(MAKE) _release-push PUSH_REFS=HEAD:main
 
-# Promotes exactly what was tried: HEAD must be the commit the current candidate tag
-# names, so anything that landed on `next` after the candidate needs a new candidate
-# first. `main` must be an ancestor of HEAD so it moves by fast-forward; a hotfix that
-# was never merged back into `next` stops here, by name.
-promote: RELEASE_BRANCH := next
-promote: _require-branch ## Promote the current candidate: final version, fast-forward main, tag
+# The candidate promoted is the one main's version files name, which release-rc keeps
+# at the newest candidate. The release commit is built on the candidate's commit in a
+# detached checkout, so it differs from what was tried only in its version files. Any
+# failure there returns to main and deletes the local tag, leaving nothing behind.
+promote: RELEASE_BRANCH := main
+promote: _require-clean ## Promote the current candidate: final version on the candidate's commit, merged into main
 	@case "$(VERSION)" in *-rc.*) ;; *) echo "promote: $(VERSION) is not a release candidate. Cut one with 'make release-rc'."; exit 1;; esac
 	@git fetch -q --tags origin
-	@$(MAKE) --no-print-directory check-release-tag
-	@git fetch -q origin main
-	@git merge-base --is-ancestor origin/main HEAD || { \
-	  echo "promote: origin/main has commits next does not (a hotfix?)."; \
-	  echo "  Merge main into next, cut a new candidate, then promote."; exit 1; }
-	$(MAKE) check
-	npm version $(firstword $(subst -, ,$(VERSION))) --no-git-tag-version
-	$(MAKE) version-sync
-	$(MAKE) _release-commit PUSH_REFS="HEAD:next HEAD:main"
-	@git fetch -q origin main:main 2>/dev/null || echo "(local main not updated; run 'git switch main && git pull')"
+	@git rev-parse -q --verify "refs/tags/v$(VERSION)" >/dev/null || { echo "promote: main says $(VERSION) but there is no tag v$(VERSION)."; exit 1; }
+	@git merge-base --is-ancestor "v$(VERSION)" HEAD || { echo "promote: v$(VERSION) is not on main."; exit 1; }
+	@# A hotfix released after this candidate was cut is not in it, and promoting would
+	@# ship the next release without the fix.
+	@last=$$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -v -- - | head -1); \
+	[ -z "$$last" ] || git merge-base --is-ancestor "$$last" "v$(VERSION)" || { \
+	  echo "promote: $$last was released after v$(VERSION) was cut and is not in it."; \
+	  echo "  Cut a new candidate (make release-rc) so the release carries it."; exit 1; }
+	@echo "Promoting v$(VERSION) -> v$(FINAL_VERSION) from $$(git log --oneline -1 v$(VERSION))"
+	@n=$$(git rev-list --count "v$(VERSION)..HEAD"); [ "$$n" = 0 ] || echo "($$n commit(s) on main since the candidate stay unreleased until the next candidate.)"
+	git switch -q --detach "v$(VERSION)"
+	@$(MAKE) --no-print-directory _promote-commit || { \
+	  git checkout -q -f main; git tag -d "v$(FINAL_VERSION)" >/dev/null 2>&1; \
+	  echo "promote: failed on the candidate's commit. Back on main; nothing was pushed."; exit 1; }
+	git switch -q main
+	git merge --no-edit -m "Merge release v$(FINAL_VERSION)" "$$(git rev-parse 'v$(FINAL_VERSION)^{commit}')"
+	$(MAKE) _release-push PUSH_REFS=HEAD:main NEW_VERSION=$(FINAL_VERSION)
 
-release-patch: RELEASE_BRANCH := main
-release-patch: _require-branch check ## Hotfix: bump patch on main, tag, publish (merge main into next after)
-	@case "$(VERSION)" in *-*) echo "release-patch: $(VERSION) is a pre-release; main should only hold releases."; exit 1;; esac
+FINAL_VERSION = $(firstword $(subst -, ,$(VERSION)))
+
+_promote-commit:
+	$(MAKE) check
+	npm version $(FINAL_VERSION) --no-git-tag-version
+	$(MAKE) version-sync
+	$(MAKE) _release-tag
+
+# Hotfix: branch from the release tag (git switch -c hotfix/X.Y.Z vX.Y.Z), commit the
+# fix, run this, then merge the branch into main. On main it also works when no
+# candidate is in flight, but it then ships everything on main without a candidate.
+release-patch: RELEASE_BRANCH :=
+release-patch: _require-clean check ## Hotfix: bump patch on the current branch, tag, publish (see runbook)
+	@case "$(VERSION)" in *-*) echo "release-patch: $(VERSION) is a pre-release. A hotfix branches from a release tag."; exit 1;; esac
 	@echo "Current version: $(VERSION)"
 	npm version patch --no-git-tag-version
 	$(MAKE) version-sync
-	$(MAKE) _release-commit PUSH_REFS=HEAD:main
-	@echo "Now merge main into next, or the next 'make promote' refuses:"
-	@echo "  git switch next && git pull && git merge main && git push"
+	$(MAKE) _release-tag
+	$(MAKE) _release-push PUSH_REFS=HEAD:$$(git branch --show-current)
+	@[ "$$(git branch --show-current)" = main ] || echo "Now merge this branch into main (keep main's version files if a candidate is in flight)."
 
-_require-branch:
+# RELEASE_BRANCH empty means "any branch"; otherwise the target refuses elsewhere.
+# The behind-origin check runs only when the branch exists on origin.
+_require-clean:
 	@b=$$(git branch --show-current); \
-	[ "$$b" = "$(RELEASE_BRANCH)" ] || { echo "This target runs on $(RELEASE_BRANCH); you are on $${b:-a detached HEAD}."; exit 1; }
+	[ -n "$$b" ] || { echo "Detached HEAD. Switch to a branch first."; exit 1; }; \
+	[ -z "$(RELEASE_BRANCH)" ] || [ "$$b" = "$(RELEASE_BRANCH)" ] || { echo "This target runs on $(RELEASE_BRANCH); you are on $$b."; exit 1; }
 	@git diff --quiet HEAD -- || { echo "Uncommitted changes to tracked files. Commit or stash them first."; exit 1; }
-	@git fetch -q origin $(RELEASE_BRANCH); \
-	git merge-base --is-ancestor origin/$(RELEASE_BRANCH) HEAD || { echo "Behind origin/$(RELEASE_BRANCH). Pull first."; exit 1; }
+	@b=$$(git branch --show-current); \
+	if git ls-remote -q --exit-code --heads origin "$$b" >/dev/null 2>&1; then \
+	  git fetch -q origin "$$b"; \
+	  git merge-base --is-ancestor "origin/$$b" HEAD || { echo "Behind origin/$$b. Pull first."; exit 1; }; \
+	fi
 
-# The tag and every branch named in PUSH_REFS go up in ONE atomic push: either the
-# remote gets the release commit and its tag together, or it gets neither.
-_release-commit:
+# Commit the version files and tag. The full publish-identity gate (including the
+# registry's 100-char description cap) runs BEFORE tagging — a violation caught in CI
+# has already burned a version number.
+_release-tag:
 	$(eval NEW_VERSION := $(shell node -p 'require("./package.json").version'))
 	git add package.json package-lock.json server.json mcpb/manifest.json src/version.ts
 	git commit -m "chore: release v$(NEW_VERSION)"
-	# Run the full publish-identity gate (including the registry's 100-char
-	# description cap) BEFORE tagging — a violation caught in CI has already
-	# burned a version number.
 	node scripts/check-publish-identity.cjs "v$(NEW_VERSION)"
 	git tag -a "v$(NEW_VERSION)" -m "v$(NEW_VERSION)"
+
+# The branch and the tag go up in ONE atomic push: the remote gets the release commit
+# and its tag together, or neither.
+_release-push:
+	$(eval NEW_VERSION ?= $(shell node -p 'require("./package.json").version'))
 	git push --atomic origin $(PUSH_REFS) "refs/tags/v$(NEW_VERSION)"
 	@echo ""
 	@case "$(NEW_VERSION)" in \

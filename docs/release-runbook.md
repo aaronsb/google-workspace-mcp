@@ -32,19 +32,19 @@ longer the normal path — running it after a tag would republish what CI alread
 
 ## Release Flow
 
-Releases go through a candidate first (ADR-106). Work lands on `next`; a candidate `X.Y.Z-rc.N` is tagged there and published where only people asking for it look; `make promote` then gives the candidate's commit its final version, fast-forwards `main` to it and tags `vX.Y.Z`. `main` holds released code only.
+Releases go through a candidate first (ADR-106). `main` is the only long-lived branch and carries the latest code. A candidate `X.Y.Z-rc.N` is tagged on `main` and published where only people asking for it look; `make promote` then commits the final version on top of the candidate's commit, tags `vX.Y.Z`, and merges that commit back into `main`.
 
 | | Candidate `vX.Y.Z-rc.N` | Release `vX.Y.Z` |
 |---|---|---|
-| Cut by | `make release-rc` on `next` | `make promote` on `next` |
+| Cut by | `make release-rc` on `main` | `make promote` on `main` |
 | npm dist-tag | `rc` | `latest` |
 | GitHub Release | prerelease | full release, becomes "Latest" |
 | MCP Registry | not published | published |
 
-### 1. Check `next`
+### 1. Check `main`
 
 ```bash
-git switch next && git pull
+git checkout main && git pull
 make check          # types + all tests must pass
 make coverage       # review API coverage gaps (advisory, non-blocking)
 ```
@@ -58,7 +58,7 @@ make release-rc BUMP=minor   # first candidate of a series: 4.8.0 → 4.9.0-rc.0
 make release-rc              # each later candidate: 4.9.0-rc.0 → 4.9.0-rc.1
 ```
 
-`BUMP` is `patch`, `minor` or `major`, and is given only to start a series. The target refuses to run off `next`, with uncommitted changes, or behind `origin/next`. It runs `check`, bumps and syncs the version files, commits, tags, and pushes `next` and the tag in one atomic push.
+`BUMP` is `patch`, `minor` or `major`, and is given only to start a series. The target refuses to run off `main`, with uncommitted changes, or behind `origin/main`. It runs `check`, bumps and syncs the version files, commits, tags, and pushes `main` and the tag in one atomic push.
 
 Try the candidate as a user would:
 
@@ -66,7 +66,7 @@ Try the candidate as a user would:
 npx @aaronsb/google-workspace-mcp@rc
 ```
 
-A fix found while trying it lands on `next` like any other change, and a new candidate follows.
+Pull requests keep merging while the candidate is tried. A fix the candidate needs lands on `main` like any other change, and a new candidate follows.
 
 ### 3. Promote
 
@@ -74,20 +74,24 @@ A fix found while trying it lands on `next` like any other change, and a new can
 make promote
 ```
 
-`promote` refuses unless HEAD is the commit the current candidate tag names, so what ships is what was tried; anything that landed after the candidate needs a new candidate first. It also refuses unless `origin/main` is an ancestor of HEAD, which a hotfix not yet merged back into `next` breaks. It then runs `check`, sets the final version, commits, tags, and pushes `next`, `main` and the tag in one atomic push.
+`promote` takes the candidate `main`'s version files name (the newest one) and builds the release on that candidate's commit, so the release is exactly what was tried. Anything merged after the candidate stays on `main` for the next series; the target says how many commits that is. It refuses when a hotfix was released after the candidate was cut, since the candidate does not contain it — cut a new candidate first.
+
+It runs `check` on the candidate's commit, commits the final version, tags it, merges the release commit into `main` (a fast-forward when nothing landed in between), and pushes `main` and the tag in one atomic push. If anything fails before the push, it returns to `main` and deletes the local tag.
 
 If `make check` fails (e.g., a flaky test), fix it first. Don't skip the check — fix the test and commit before releasing.
 
 ### Hotfix
 
-A fix that cannot wait for a candidate goes straight from `main`:
+A fix that cannot wait for a candidate branches from the release it fixes:
 
 ```bash
-git switch main && git pull
-# commit the fix on main
-make release-patch
-git switch next && git pull && git merge main && git push   # or the next promote refuses
+git fetch --tags && git switch -c hotfix/X.Y.Z+1 vX.Y.Z
+# commit the fix
+make release-patch           # tags vX.Y.Z+1 on this branch and pushes it
+git switch main && git pull && git merge hotfix/X.Y.Z+1
 ```
+
+If a candidate is in flight, the merge conflicts on the version files. Keep `main`'s (`git checkout --ours package.json package-lock.json server.json mcpb/manifest.json src/version.ts`), then cut a new candidate: `promote` refuses the old one because it lacks the hotfix.
 
 ### 4. Verify CI
 
@@ -121,7 +125,7 @@ One bundle covers every platform: what ships is Node plus pure JavaScript, with 
 
 ### If a target fails partway
 
-Each target commits before it tags, and pushes the commit and tag together, so a failure before the push leaves only local state. Inspect it with `git log -1` and `git tag -l 'v*' --contains HEAD`. To start over, delete the local tag (`git tag -d vX.Y.Z-rc.N`) and reset the release commit (`git reset --hard HEAD~1`) before re-running the target.
+Each target commits before it tags, and pushes the commit and tag together, so a failure before the push leaves only local state. `promote` cleans up after itself. For `release-rc` or `release-patch`, inspect with `git log -1` and `git tag --points-at HEAD`; to start over, delete the local tag (`git tag -d vX.Y.Z-rc.N`) and drop the release commit (`git reset --hard HEAD~1`) before re-running the target.
 
 ## Other Pre-release Identifiers
 
