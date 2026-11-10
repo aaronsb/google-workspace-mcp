@@ -26,7 +26,11 @@ basis:
 agent:
   name: claude-code
   model: claude-opus-5-5
-status: proposed
+considered:
+  - operator: aaronsb
+    said: "I've read 226 and it seems as we discussed but lets run a reviewer against it too"
+    via: "Claude Code session, 2026-11-10, after reading PR #226; the reviewer's findings were fixed in fe1088a"
+status: accepted
 date: 2026-11-10
 deciders:
   - aaronsb
