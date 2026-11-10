@@ -257,6 +257,9 @@ export function formatEmailDetail(
   const id = String(msg.id ?? '');
   const from = getHeader('from');
   const to = getHeader('to');
+  const cc = getHeader('cc');
+  const bcc = getHeader('bcc');
+  const replyTo = getHeader('reply-to');
   const subject = getHeader('subject');
   const date = getHeader('date');
   const labels = (msg.labelIds ?? []) as string[];
@@ -269,8 +272,11 @@ export function formatEmailDetail(
     '',
     `**From:** ${from}`,
     `**To:** ${to}`,
-    `**Date:** ${date}`,
   ];
+  if (cc) parts.push(`**Cc:** ${cc}`);
+  if (bcc) parts.push(`**Bcc:** ${bcc}`);
+  if (replyTo) parts.push(`**Reply-To:** ${replyTo}`);
+  parts.push(`**Date:** ${date}`);
 
   if (labels.length > 0) {
     parts.push(`**Labels:** ${labels.join(', ')}`);
@@ -298,6 +304,9 @@ export function formatEmailDetail(
       messageId: id,
       from,
       to,
+      cc,
+      bcc,
+      replyTo,
       subject,
       bodyTruncated: bodyContent.truncated,
       fullBodyTokens: bodyContent.fullBodyTokens,

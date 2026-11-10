@@ -19,6 +19,7 @@ import { describe, expect, it, beforeAll } from 'vitest';
 
 import { buildRequest } from '../../google/client.js';
 import { loadDescriptor } from '../../google/descriptor.js';
+import { loadManifest } from '../../factory/generator.js';
 import type { ApiDescriptor } from '../../google/descriptor.js';
 
 let descriptor: ApiDescriptor;
@@ -38,6 +39,15 @@ describe('repeated query parameters', () => {
 
     // The bug, stated precisely: one param whose value contains commas.
     expect(url).not.toContain('From%2CSubject');
+  });
+
+  it('sends the real getThread manifest headers as repeated params', () => {
+    const op = loadManifest().services.gmail.operations.getThread;
+    const { url } = buildRequest(descriptor, 'gmail', op.resource!, { id: 't1', ...op.defaults });
+
+    expect(new URL(url).searchParams.getAll('metadataHeaders')).toEqual([
+      'From', 'Subject', 'Date', 'To', 'Cc', 'Bcc', 'Reply-To',
+    ]);
   });
 
   it('passes an array through as repeated params', () => {

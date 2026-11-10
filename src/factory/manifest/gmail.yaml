@@ -619,4 +619,5 @@ operations:
     defaults:
       userId: me
       format: metadata
-      metadataHeaders: "From,Subject,Date,To"
+      # format:metadata returns only these headers; formatThreadDetail can show nothing else.
+      metadataHeaders: "From,Subject,Date,To,Cc,Bcc,Reply-To"
