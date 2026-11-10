@@ -32,40 +32,61 @@ longer the normal path — running it after a tag would republish what CI alread
 
 ## Release Flow
 
-### 1. Ensure main is clean
+Releases go through a candidate first (ADR-106). Work lands on `next`; a candidate `X.Y.Z-rc.N` is tagged there and published where only people asking for it look; `make promote` then gives the candidate's commit its final version, fast-forwards `main` to it and tags `vX.Y.Z`. `main` holds released code only.
+
+| | Candidate `vX.Y.Z-rc.N` | Release `vX.Y.Z` |
+|---|---|---|
+| Cut by | `make release-rc` on `next` | `make promote` on `next` |
+| npm dist-tag | `rc` | `latest` |
+| GitHub Release | prerelease | full release, becomes "Latest" |
+| MCP Registry | not published | published |
+
+### 1. Check `next`
 
 ```bash
-git checkout main && git pull
+git switch next && git pull
 make check          # types + all tests must pass
 make coverage       # review API coverage gaps (advisory, non-blocking)
 ```
 
 The coverage report shows what the manifest exposes vs Google's full published API surface. Review parameter gaps on covered operations — missing params like `supportsAllDrives` can cause user-facing issues. Run `make coverage-update` after adding new operations to refresh the baseline.
 
-### 2. Bump version
+### 2. Cut a candidate
 
 ```bash
-# Pick one:
-make release-patch  # x.y.Z — bug fixes
-make release-minor  # x.Y.0 — new features
-make release-major  # X.0.0 — breaking changes
+make release-rc BUMP=minor   # first candidate of a series: 4.8.0 → 4.9.0-rc.0
+make release-rc              # each later candidate: 4.9.0-rc.0 → 4.9.0-rc.1
 ```
 
-`make release-*` runs `check`, bumps `package.json`, syncs version to `server.json` + `mcpb/manifest.json`, commits, tags, and pushes.
+`BUMP` is `patch`, `minor` or `major`, and is given only to start a series. The target refuses to run off `next`, with uncommitted changes, or behind `origin/next`. It runs `check`, bumps and syncs the version files, commits, tags, and pushes `next` and the tag in one atomic push.
+
+Try the candidate as a user would:
+
+```bash
+npx @aaronsb/google-workspace-mcp@rc
+```
+
+A fix found while trying it lands on `next` like any other change, and a new candidate follows.
+
+### 3. Promote
+
+```bash
+make promote
+```
+
+`promote` refuses unless HEAD is the commit the current candidate tag names, so what ships is what was tried; anything that landed after the candidate needs a new candidate first. It also refuses unless `origin/main` is an ancestor of HEAD, which a hotfix not yet merged back into `next` breaks. It then runs `check`, sets the final version, commits, tags, and pushes `next`, `main` and the tag in one atomic push.
 
 If `make check` fails (e.g., a flaky test), fix it first. Don't skip the check — fix the test and commit before releasing.
 
-### 3. Manual release (if make fails)
+### Hotfix
 
-If `make release-*` fails partway through, complete manually:
+A fix that cannot wait for a candidate goes straight from `main`:
 
 ```bash
-npm version minor --no-git-tag-version   # or patch/major
-make version-sync                         # sync to server.json + mcpb/manifest.json
-git add package.json package-lock.json server.json mcpb/manifest.json
-git commit -m "chore: release vX.Y.Z"
-git tag -a vX.Y.Z -m "vX.Y.Z"
-git push && git push --tags
+git switch main && git pull
+# commit the fix on main
+make release-patch
+git switch next && git pull && git merge main && git push   # or the next promote refuses
 ```
 
 ### 4. Verify CI
@@ -75,14 +96,11 @@ gh run list --limit 3   # both the .mcpb build and the publish should be running
 gh run watch <run-id>
 ```
 
-Both workflows must be green. The publish job runs npm first and the MCP Registry after
-it, so a red registry job on a green npm job means the package shipped and the registry
-entry did not — those need checking separately in step 5.
+Both workflows must be green. The publish job runs npm first and the MCP Registry after it, so a red registry job on a green npm job means the package shipped and the registry entry did not — those need checking separately in step 5. On a candidate the registry job shows as skipped.
 
 ### 5. Verify artifacts
 
-Check the PUBLISHED artifact, not the repo it was built from — those are different
-claims, and only one of them is what a user installs.
+Check the PUBLISHED artifact, not the repo it was built from — those are different claims, and only one of them is what a user installs.
 
 ```bash
 # npm — the right package name, and the dist-tag it landed under
@@ -99,26 +117,15 @@ gh release view vX.Y.Z
 The GitHub Release should have exactly one `.mcpb` file:
 - `google-workspace-mcp.mcpb`
 
-One bundle covers every platform: what ships is Node plus pure JavaScript, with no
-native addons and nothing `os`/`cpu`-gated. Per-platform bundles would be
-byte-identical, and the platform in the filename would promise a guarantee the build
-does not make.
+One bundle covers every platform: what ships is Node plus pure JavaScript, with no native addons and nothing `os`/`cpu`-gated. Per-platform bundles would be byte-identical, and the platform in the filename would promise a guarantee the build does not make.
 
-## Pre-release Versions
+### If a target fails partway
 
-For alpha/beta/rc releases:
+Each target commits before it tags, and pushes the commit and tag together, so a failure before the push leaves only local state. Inspect it with `git log -1` and `git tag -l 'v*' --contains HEAD`. To start over, delete the local tag (`git tag -d vX.Y.Z-rc.N`) and reset the release commit (`git reset --hard HEAD~1`) before re-running the target.
 
-```bash
-npm version preminor --preid alpha --no-git-tag-version
-# → 2.2.0-alpha.0
-make version-sync
-# commit, tag, push as above
-```
+## Other Pre-release Identifiers
 
-CI derives the dist-tag from the semver pre-release identifier (anything after `-`) and
-publishes with `--tag alpha` (or `beta`, `rc`, `pre`, ...) rather than `--tag latest`, so
-a pre-release is available to people who ask for it and invisible to everyone else.
-`make publish-all` derives the same tag the same way, for the hand-publish path.
+CI derives the npm dist-tag from the semver pre-release identifier (anything after `-`), so an `alpha` or `beta` version published by hand lands under that tag rather than `latest`. Every pre-release, whatever its identifier, is a GitHub prerelease and stays off the MCP Registry. `make release-rc` cuts only `rc` versions; another identifier is set with `npm version` and `make version-sync`.
 
 ## Retagging
 

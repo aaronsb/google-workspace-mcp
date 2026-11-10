@@ -52,11 +52,13 @@ docker run -i --rm \
 
 ## Development Workflow
 
-1. Create a new branch for your feature/fix:
+Work lands on the `next` branch, and pull requests target `next`, not `main`. `main` holds released code only; a release is tried as a candidate from `next` before it is promoted there (ADR-106).
+
+1. Create a new branch from `next` for your feature/fix:
    ```bash
-   git checkout -b feature/your-feature-name
+   git fetch origin && git checkout -b feature/your-feature-name origin/next
    # or
-   git checkout -b fix/your-fix-name
+   git checkout -b fix/your-fix-name origin/next
    ```
 
 2. Make your changes following our coding standards
