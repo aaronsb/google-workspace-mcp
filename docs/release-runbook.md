@@ -23,6 +23,8 @@ version, per semver) publishes under its identifier — `alpha`, `beta`, `rc`, `
 
 `make publish-all` still exists for publishing by hand if CI is unavailable. It is no
 longer the normal path — running it after a tag would republish what CI already shipped.
+It publishes the checked-out commit, so run it from `git switch --detach vX.Y.Z`: after a
+promotion that merged, `main` is a merge commit and the tag guard refuses there.
 
 > An earlier workflow published from a long-lived `NPM_TOKEN`. It expired in June 2026
 > and failed three consecutive releases (v3.0.0, v4.0.0, v4.0.1) before being deleted in
@@ -74,9 +76,16 @@ Pull requests keep merging while the candidate is tried. A fix the candidate nee
 make promote
 ```
 
-`promote` takes the candidate `main`'s version files name (the newest one) and builds the release on that candidate's commit, so the release is exactly what was tried. Anything merged after the candidate stays on `main` for the next series; the target says how many commits that is. It refuses when a hotfix was released after the candidate was cut, since the candidate does not contain it — cut a new candidate first.
+`promote` takes the candidate `main`'s version files name (the newest one) and builds the release on that candidate's commit, so the release is exactly what was tried. Anything merged after the candidate stays on `main` for the next series; the target says how many commits that is.
 
-It runs `check` on the candidate's commit, commits the final version, tags it, merges the release commit into `main` (a fast-forward when nothing landed in between), and pushes `main` and the tag in one atomic push. If anything fails before the push, it returns to `main` and deletes the local tag.
+It refuses when:
+
+- local `main` differs from `origin/main` — pull, or push what is yours;
+- the candidate's tag is not on origin, so it was never published — cut a new candidate;
+- the final version is already released, because a hotfix took the number — run `make release-rc BUMP=patch` to start a new series from it;
+- a hotfix was released after the candidate was cut, so the candidate lacks it — cut a new candidate.
+
+It builds the release in a throwaway worktree at the candidate with a clean `npm ci` and runs `check` there, which takes a few minutes. It then commits the final version, tags it, merges the release commit into `main`, and pushes `main` and the tag in one atomic push. The merge is a fast-forward when nothing landed since the candidate; otherwise any conflict can only be in the version files, and the target resolves it by keeping `main`'s content with the final version written in.
 
 If `make check` fails (e.g., a flaky test), fix it first. Don't skip the check — fix the test and commit before releasing.
 
@@ -86,12 +95,28 @@ A fix that cannot wait for a candidate branches from the release it fixes:
 
 ```bash
 git fetch --tags && git switch -c hotfix/X.Y.Z+1 vX.Y.Z
-# commit the fix
-make release-patch           # tags vX.Y.Z+1 on this branch and pushes it
+# For a release tagged before ADR-106 (v4.8.0 and earlier), bring in the current
+# release targets first; the Makefile is not part of the published package.
+git checkout origin/main -- Makefile && git commit -m "chore: release targets from main"
+# commit the fix, then:
+make release-patch           # tags vX.Y.Z+1 on this branch and pushes branch and tag
+```
+
+Then merge the branch into `main`:
+
+```bash
 git switch main && git pull && git merge hotfix/X.Y.Z+1
 ```
 
-If a candidate is in flight, the merge conflicts on the version files. Keep `main`'s (`git checkout --ours package.json package-lock.json server.json mcpb/manifest.json src/version.ts`), then cut a new candidate: `promote` refuses the old one because it lacks the hotfix.
+If a candidate is in flight, the merge conflicts on the version files. Keep `main`'s and finish the merge:
+
+```bash
+git checkout --ours package.json package-lock.json server.json mcpb/manifest.json src/version.ts
+git add package.json package-lock.json server.json mcpb/manifest.json src/version.ts
+git commit --no-edit && git push
+```
+
+Then cut a new candidate, since `promote` refuses one that lacks the hotfix. If the hotfix took the number the open series was heading for, `release-patch` says so; start the new series with `make release-rc BUMP=patch`.
 
 ### 4. Verify CI
 
@@ -125,7 +150,9 @@ One bundle covers every platform: what ships is Node plus pure JavaScript, with 
 
 ### If a target fails partway
 
-Each target commits before it tags, and pushes the commit and tag together, so a failure before the push leaves only local state. `promote` cleans up after itself. For `release-rc` or `release-patch`, inspect with `git log -1` and `git tag --points-at HEAD`; to start over, delete the local tag (`git tag -d vX.Y.Z-rc.N`) and drop the release commit (`git reset --hard HEAD~1`) before re-running the target.
+Every release target restores the checkout when it fails before its atomic push lands: the branch goes back to where it started and the tags that run created are deleted. A push rejected because origin moved is one such failure; `git pull` (a merge, never a rebase, so no tagged commit is rewritten) and run the target again.
+
+Once the push has landed, the release exists. A red CI run after that is handled in steps 4 and 5, or with `make publish-all`.
 
 ## Other Pre-release Identifiers
 

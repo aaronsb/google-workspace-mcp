@@ -19,6 +19,7 @@ basis:
   - evidence: "Every v* tag runs both publish workflows in full. npm-publish.yml already derives the npm dist-tag from the semver pre-release identifier, but its MCP Registry job had no pre-release guard, and release-mcpb.yml created every GitHub Release without --prerelease"
   - evidence: "#225, filed against v4.8.0, reports manage_drive share failing outright; a released version is the first place most users meet a change"
   - evidence: "Rehearsal of the Makefile targets against a local bare remote, 2026-11-10: a candidate promoted after further merges shipped without them; a failing gate during promotion left main checked out with no tag; a candidate cut before a hotfix was refused at promotion"
+  - evidence: "Review of PR #226 reproduced four failures in the first implementation: promoting a candidate whose push had been rejected, a merge-back conflict on an edit next to a version line, a rejected promotion push leaving a local release tag, and a patch series colliding with a same-numbered hotfix. Each was re-run against the revised targets and now refuses or rolls back"
   - upstream: "npm version semantics: preminor/premajor/prepatch --preid rc yields X.Y.Z-rc.0, prerelease increments the trailing number, and a published version can never be republished"
   - upstream: "GitHub fires a release event of type released when a prerelease is converted to a full release, but the release keeps the tag it was created from"
   - precedent: ADR-105
@@ -77,15 +78,23 @@ A candidate is identifiable by its version string, its npm dist-tag, GitHub's pr
 
 ### 4. Promotion builds on the candidate's commit
 
-`make promote`, run on `main`, promotes the candidate `main`'s version files name. It refuses unless that tag exists and is on `main`, and unless every earlier release is contained in the candidate (decision 5). It then checks out the candidate's commit, runs `make check`, commits the final version there, tags `vX.Y.Z`, returns to `main`, merges the release commit, and pushes `main` and the tag in one atomic push.
+`make promote`, run on `main`, promotes the candidate `main`'s version files name. It refuses unless local `main` equals `origin/main`, unless the candidate's tag is on origin at the same commit (so it was published and could be tried), unless the final version is still unreleased, and unless the newest release is contained in the candidate (decision 5).
 
-The released commit differs from the candidate only in its version files. Work merged to `main` after the candidate is not in the release; it reaches users through the next candidate. When nothing merged in between, the merge is a fast-forward. A failure before the push returns to `main` and deletes the local tag, so nothing is left half-done.
+It then builds the release in a throwaway worktree at the candidate's commit, with a clean `npm ci`, so the gate sees exactly the candidate's sources and dependencies. There it runs `make check`, commits the final version and tags `vX.Y.Z`. Back on `main` it merges the release commit and pushes `main` and the tag in one atomic push.
+
+The released commit differs from the candidate only in its version files. Work merged to `main` after the candidate is not in the release; it reaches users through the next candidate. When nothing merged in between, the merge is a fast-forward. Otherwise the only files that can conflict are the version files, and the merge resolves them by keeping `main`'s content with the final version written in.
+
+Every release target runs under one guard: if anything fails before the atomic push lands, including a push rejected because origin moved, the branch is reset to where it started and the tags the run created are deleted. A rejected push is recovered by pulling and running the target again.
 
 The publish workflow re-runs the tests, type-check and build on the tagged commit before publishing, as ADR-105 requires of every tag.
 
 ### 5. A hotfix branches from the release tag
 
-A fix that cannot wait for a candidate is committed on a branch cut from the release tag, and `make release-patch` releases it from there. The branch is then merged into `main`; if a candidate is in flight, `main` keeps its own version files in that merge. A candidate cut before the hotfix does not contain it, so `make promote` refuses that candidate and a new one is cut. `release-minor` and `release-major` are retired; a minor or major release goes through a candidate.
+A fix that cannot wait for a candidate is committed on a branch cut from the release tag, and `make release-patch` releases it from there. The branch is then merged into `main`; if a candidate is in flight, `main` keeps its own version files in that merge. A candidate cut before the hotfix does not contain it, so `make promote` refuses that candidate and a new one is cut.
+
+When the hotfix takes the number the open series was heading for (a `4.8.1-rc.N` series, then a `4.8.1` hotfix), that series can never be promoted. `make release-rc BUMP=patch` (or `minor`, `major`) then starts a new series from the released hotfix version, and `promote` and `release-rc` both name that way out.
+
+`release-minor` and `release-major` are retired; a minor or major release goes through a candidate.
 
 ## Consequences
 
@@ -95,6 +104,7 @@ A fix that cannot wait for a candidate is committed on a branch cut from the rel
 - Contributors and the front page are unaffected: one branch, the latest code, pull requests where they always went.
 - Merging continues while a candidate is tried, and none of it ships untried.
 - A release cannot silently drop a hotfix that shipped after its candidate was cut.
+- A failed release run leaves the checkout as it found it, so the operator never reconstructs state by hand.
 
 ### Negative
 
@@ -102,6 +112,7 @@ A fix that cannot wait for a candidate is committed on a branch cut from the rel
 - The `rc` dist-tag keeps pointing at the last candidate after promotion, so `@rc` can be older than `latest` until the next series starts.
 - `main`'s version files name a candidate between `release-rc` and `promote`, so a source checkout of `main` reports a pre-release version.
 - Merging a hotfix into `main` during a candidate conflicts on the version files and needs resolving by hand.
+- `promote` runs a full `npm ci` and gate in a fresh worktree, which takes minutes rather than seconds.
 
 ### Neutral
 
