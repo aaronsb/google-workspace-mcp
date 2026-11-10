@@ -12,6 +12,7 @@ const mockCall = call as MockedFunction<typeof call>;
 
 import { meetPatch } from '../../../services/meet/patch.js';
 import { loadDescriptor } from '../../../google/descriptor.js';
+import { buildResourceParams, loadManifest } from '../../../factory/generator.js';
 import type { PatchContext } from '../../../factory/types.js';
 
 function ctx(operation: string, params: Record<string, unknown> = {}): PatchContext {
@@ -158,6 +159,54 @@ describe('Meet patch formatters', () => {
     });
   });
 
+  describe('paging (#211)', () => {
+    const LIST_OPS = [
+      'listConferences', 'listParticipants', 'listTranscripts',
+      'listTranscriptEntries', 'listRecordings', 'listSmartNotes',
+    ];
+
+    it.each(LIST_OPS)('%s forwards pageToken to Google', (op) => {
+      // buildResourceParams forwards only declared params, so an undeclared pageToken
+      // was dropped and the caller got the first page back again.
+      const opDef = loadManifest().services.meet.operations[op];
+      const out = buildResourceParams(opDef, { pageToken: 'tok_2', transcriptName: 'x', conferenceId: 'x' });
+      expect(out.pageToken).toBe('tok_2');
+    });
+
+    it('listTranscriptEntries surfaces nextPageToken in text and refs', () => {
+      const data = {
+        transcriptEntries: [
+          { participantDisplayName: 'Alice', text: 'Hello', startTime: '2026-03-18T14:01:00Z' },
+        ],
+        nextPageToken: 'tok_next',
+      };
+      const result = meetPatch.formatList!(data, ctx('listTranscriptEntries'));
+      expect(result.text).toContain('More results exist');
+      expect(result.text).toContain('pageToken: tok_next');
+      expect(result.refs.nextPageToken).toBe('tok_next');
+      expect(result.refs.count).toBe(1);
+    });
+
+    it.each([
+      ['listConferences', { conferenceRecords: [{ name: 'conferenceRecords/a' }] }],
+      ['listParticipants', { participants: [{ signedinUser: { displayName: 'A' } }] }],
+      ['listTranscripts', { transcripts: [{ name: 't' }] }],
+      ['listRecordings', { recordings: [{ name: 'r' }] }],
+      ['listSmartNotes', { smartNotes: [{ name: 's' }] }],
+    ])('%s surfaces nextPageToken', (op, data) => {
+      const result = meetPatch.formatList!({ ...data, nextPageToken: 'tok_more' }, ctx(op));
+      expect(result.text).toContain(`Call \`${op}\` again`);
+      expect(result.refs.nextPageToken).toBe('tok_more');
+    });
+
+    it('says nothing about more results on the last page', () => {
+      const data = { transcriptEntries: [{ participantDisplayName: 'Alice', text: 'Bye' }] };
+      const result = meetPatch.formatList!(data, ctx('listTranscriptEntries'));
+      expect(result.text).not.toContain('More results exist');
+      expect(result.refs.nextPageToken).toBeUndefined();
+    });
+  });
+
   describe('formatDetail', () => {
     it('formats conference detail with meeting code and duration', () => {
       const data = {
@@ -186,6 +235,64 @@ describe('Meet patch formatters', () => {
       expect(result.text).toContain('Recording');
       expect(result.text).toContain('FILE_GENERATED');
       expect(result.refs.name).toContain('recordings/r1');
+    });
+
+    it('getTranscript shows state and the Docs destination (#211)', () => {
+      const data = {
+        name: 'conferenceRecords/abc123/transcripts/t1',
+        state: 'FILE_GENERATED',
+        startTime: '2026-03-18T14:00:00Z',
+        endTime: '2026-03-18T15:03:00Z',
+        docsDestination: {
+          document: 'doc123',
+          exportUri: 'https://docs.google.com/document/d/doc123/view',
+        },
+      };
+
+      const result = meetPatch.formatDetail!(data, ctx('getTranscript'));
+      expect(result.text).toContain('**state:** FILE_GENERATED');
+      expect(result.text).toContain('**docsDestination.document:** doc123');
+      expect(result.text).toContain('**docsDestination.exportUri:** https://docs.google.com/document/d/doc123/view');
+      expect(result.text).not.toContain('Not finished generating');
+      expect(result.refs.docsDestination).toEqual(data.docsDestination);
+    });
+
+    it('getTranscript says when the transcript is not finished generating', () => {
+      const data = {
+        name: 'conferenceRecords/abc123/transcripts/t1',
+        state: 'ENDED',
+        docsDestination: {},
+      };
+
+      const result = meetPatch.formatDetail!(data, ctx('getTranscript'));
+      expect(result.text).toContain('**state:** ENDED');
+      expect(result.text).toContain('Not finished generating (state ENDED)');
+      expect(result.text).toContain('FILE_GENERATED');
+    });
+
+    it('getRecording shows the Drive destination', () => {
+      const data = {
+        name: 'conferenceRecords/abc123/recordings/r1',
+        state: 'FILE_GENERATED',
+        driveDestination: { file: 'file123', exportUri: 'https://drive.google.com/file/d/file123/view' },
+      };
+
+      const result = meetPatch.formatDetail!(data, ctx('getRecording'));
+      expect(result.text).toContain('**driveDestination.file:** file123');
+      expect(result.text).toContain('**driveDestination.exportUri:** https://drive.google.com/file/d/file123/view');
+    });
+
+    it('getSmartNote shows the Docs destination', () => {
+      const data = {
+        name: 'conferenceRecords/abc123/smartNotes/sn1',
+        state: 'FILE_GENERATED',
+        docsDestination: { document: 'sn-doc', exportUri: 'https://docs.google.com/document/d/sn-doc/view' },
+      };
+
+      const result = meetPatch.formatDetail!(data, ctx('getSmartNote'));
+      expect(result.text).toContain('SmartNote');
+      expect(result.text).toContain('**docsDestination.document:** sn-doc');
+      expect(result.text).toContain('**docsDestination.exportUri:**');
     });
   });
 });
@@ -354,6 +461,104 @@ describe('Meet custom handlers', () => {
       expect(result.text).toContain('Google Docs');
       expect(result.text).not.toContain('More entries available');
       expect(result.refs.nextPageToken).toBeNull();
+    });
+
+    it('warns that an unfinished transcript may be incomplete, with its coverage (#211)', async () => {
+      // Shortly after a meeting the transcript is ENDED, not FILE_GENERATED, and the
+      // entries API returns only part of it with no nextPageToken.
+      mockCall.mockResolvedValueOnce({
+        transcripts: [{
+          name: 'conferenceRecords/abc123/transcripts/t1',
+          state: 'ENDED',
+          startTime: '2026-03-18T14:00:00Z',
+          endTime: '2026-03-18T15:03:00Z',
+          docsDestination: {},
+        }],
+      });
+      mockCall.mockResolvedValueOnce({
+        transcriptEntries: [
+          { participant: 'conferenceRecords/abc123/participants/111', text: 'Hello', startTime: '2026-03-18T14:01:00Z', endTime: '2026-03-18T14:01:10Z' },
+          { participant: 'conferenceRecords/abc123/participants/111', text: 'Later', startTime: '2026-03-18T14:35:30Z', endTime: '2026-03-18T14:36:00Z' },
+        ],
+      });
+      mockCall.mockResolvedValueOnce({ participants: [] });
+
+      const result = await meetPatch.customHandlers!.getFullTranscript(
+        { conferenceId: 'abc123' }, 'user@test.com',
+      );
+
+      expect(result.text).toContain('Transcript still processing** (state ENDED)');
+      expect(result.text).toContain('entries may be incomplete');
+      expect(result.text).toContain('Entries cover 0:00–0:36 of 0:00–1:03');
+      expect(result.text).toContain('Retry later');
+      // The note comes before the entries, not after them.
+      expect(result.text.indexOf('still processing')).toBeLessThan(result.text.indexOf('Hello'));
+      expect(result.refs.state).toBe('ENDED');
+      expect(result.refs.complete).toBe(false);
+    });
+
+    it('omits coverage on a page that is not the last', async () => {
+      mockCall.mockResolvedValueOnce({
+        transcripts: [{
+          name: 'conferenceRecords/abc123/transcripts/t1',
+          state: 'ENDED',
+          startTime: '2026-03-18T14:00:00Z',
+          endTime: '2026-03-18T15:03:00Z',
+        }],
+      });
+      mockCall.mockResolvedValueOnce({
+        transcriptEntries: [
+          { participant: 'p/1', text: 'Hello', startTime: '2026-03-18T14:01:00Z', endTime: '2026-03-18T14:01:10Z' },
+        ],
+        nextPageToken: 'tok_page2',
+      });
+      mockCall.mockResolvedValueOnce({ participants: [] });
+
+      const result = await meetPatch.customHandlers!.getFullTranscript(
+        { conferenceId: 'abc123' }, 'user@test.com',
+      );
+
+      expect(result.text).toContain('still processing');
+      expect(result.text).not.toContain('Entries cover');
+      expect(result.text).toContain('More entries available');
+    });
+
+    it('says a FILE_GENERATED transcript is complete and links its Doc once', async () => {
+      mockCall.mockResolvedValueOnce({
+        transcripts: [{
+          name: 'conferenceRecords/abc123/transcripts/t1',
+          state: 'FILE_GENERATED',
+          docsDestination: { document: 'doc123', exportUri: 'https://docs.google.com/document/d/doc123/view' },
+        }],
+      });
+      mockCall.mockResolvedValueOnce({
+        transcriptEntries: [{ participant: 'p/1', text: 'Hello', startTime: '2026-03-18T14:01:00Z' }],
+      });
+      mockCall.mockResolvedValueOnce({ participants: [] });
+
+      const result = await meetPatch.customHandlers!.getFullTranscript(
+        { conferenceId: 'abc123' }, 'user@test.com',
+      );
+
+      expect(result.text).toContain('**Transcript complete** (state FILE_GENERATED)');
+      expect(result.text).not.toContain('still processing');
+      expect(result.text.split('https://docs.google.com/document/d/doc123/view')).toHaveLength(2);
+      expect(result.refs.complete).toBe(true);
+    });
+
+    it('names the state when a transcript has no entries yet', async () => {
+      mockCall.mockResolvedValueOnce({
+        transcripts: [{ name: 'conferenceRecords/abc123/transcripts/t1', state: 'STARTED' }],
+      });
+      mockCall.mockResolvedValueOnce({ transcriptEntries: [] });
+      mockCall.mockResolvedValueOnce({ participants: [] });
+
+      const result = await meetPatch.customHandlers!.getFullTranscript(
+        { conferenceId: 'abc123' }, 'user@test.com',
+      );
+
+      expect(result.text).toContain('no entries available yet (state STARTED)');
+      expect(result.refs.state).toBe('STARTED');
     });
 
     it('returns helpful message when no transcripts exist', async () => {
