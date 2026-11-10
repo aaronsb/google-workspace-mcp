@@ -3,7 +3,7 @@
         manifest-lint check-write-ops \
         coverage coverage-update \
         mcpb version-sync publish-all \
-        release-patch release-minor release-major check
+        release-rc promote release-patch _require-branch _release-commit check
 
 # Prerequisites in a target's list are only ordered when make runs serially. Under
 # `make -j`, `smoke` could start while `build` was still mid-`tsc` (or inside its
@@ -176,24 +176,71 @@ version-sync: ## Sync version from package.json → server.json + mcpb/manifest.
 	@echo "Syncing version $(VERSION) to server.json and mcpb/manifest.json"
 	@node scripts/version-sync.cjs
 
-release-patch: check ## Bump patch, sync, commit, tag, push
+# Releases follow ADR-106: work lands on `next`, a release starts as a candidate
+# (X.Y.Z-rc.N) tagged there, and `promote` gives the candidate's commit its final
+# version, fast-forwards `main` to it and tags it. A candidate tag publishes npm under
+# `rc` and a GitHub prerelease, and skips the MCP Registry; a release tag publishes
+# everything. `release-patch` is the hotfix path, run on `main`.
+#
+# The branch guard is a prerequisite listed BEFORE `check`, so a target run on the
+# wrong branch refuses in a second instead of after the full gate. That ordering holds
+# because of .NOTPARALLEL above; RELEASE_BRANCH is target-specific, so it is visible
+# to the prerequisite.
+
+release-rc: RELEASE_BRANCH := next
+release-rc: _require-branch check ## Cut a release candidate on next (BUMP=patch|minor|major starts a series)
+	@case "$(VERSION)" in \
+	  *-rc.*) [ -z "$(BUMP)" ] || { echo "release-rc: $(VERSION) is already a candidate. Run without BUMP for the next one, or 'make promote' it."; exit 1; }; \
+	          echo "Next candidate after $(VERSION)"; \
+	          npm version prerelease --preid rc --no-git-tag-version;; \
+	  *-*)    echo "release-rc: $(VERSION) is a pre-release but not an rc. Set the version by hand."; exit 1;; \
+	  *)      case "$(BUMP)" in \
+	            patch|minor|major) echo "Starting a $(BUMP) candidate series from $(VERSION)"; \
+	                               npm version pre$(BUMP) --preid rc --no-git-tag-version;; \
+	            *) echo "release-rc: $(VERSION) is a release. Start a series with BUMP=patch, BUMP=minor or BUMP=major."; exit 1;; \
+	          esac;; \
+	esac
+	$(MAKE) version-sync
+	$(MAKE) _release-commit PUSH_REFS=HEAD:next
+
+# Promotes exactly what was tried: HEAD must be the commit the current candidate tag
+# names, so anything that landed on `next` after the candidate needs a new candidate
+# first. `main` must be an ancestor of HEAD so it moves by fast-forward; a hotfix that
+# was never merged back into `next` stops here, by name.
+promote: RELEASE_BRANCH := next
+promote: _require-branch ## Promote the current candidate: final version, fast-forward main, tag
+	@case "$(VERSION)" in *-rc.*) ;; *) echo "promote: $(VERSION) is not a release candidate. Cut one with 'make release-rc'."; exit 1;; esac
+	@git fetch -q --tags origin
+	@$(MAKE) --no-print-directory check-release-tag
+	@git fetch -q origin main
+	@git merge-base --is-ancestor origin/main HEAD || { \
+	  echo "promote: origin/main has commits next does not (a hotfix?)."; \
+	  echo "  Merge main into next, cut a new candidate, then promote."; exit 1; }
+	$(MAKE) check
+	npm version $(firstword $(subst -, ,$(VERSION))) --no-git-tag-version
+	$(MAKE) version-sync
+	$(MAKE) _release-commit PUSH_REFS="HEAD:next HEAD:main"
+	@git fetch -q origin main:main 2>/dev/null || echo "(local main not updated; run 'git switch main && git pull')"
+
+release-patch: RELEASE_BRANCH := main
+release-patch: _require-branch check ## Hotfix: bump patch on main, tag, publish (merge main into next after)
+	@case "$(VERSION)" in *-*) echo "release-patch: $(VERSION) is a pre-release; main should only hold releases."; exit 1;; esac
 	@echo "Current version: $(VERSION)"
 	npm version patch --no-git-tag-version
 	$(MAKE) version-sync
-	$(MAKE) _release-commit
+	$(MAKE) _release-commit PUSH_REFS=HEAD:main
+	@echo "Now merge main into next, or the next 'make promote' refuses:"
+	@echo "  git switch next && git pull && git merge main && git push"
 
-release-minor: check ## Bump minor, sync, commit, tag, push
-	@echo "Current version: $(VERSION)"
-	npm version minor --no-git-tag-version
-	$(MAKE) version-sync
-	$(MAKE) _release-commit
+_require-branch:
+	@b=$$(git branch --show-current); \
+	[ "$$b" = "$(RELEASE_BRANCH)" ] || { echo "This target runs on $(RELEASE_BRANCH); you are on $${b:-a detached HEAD}."; exit 1; }
+	@git diff --quiet HEAD -- || { echo "Uncommitted changes to tracked files. Commit or stash them first."; exit 1; }
+	@git fetch -q origin $(RELEASE_BRANCH); \
+	git merge-base --is-ancestor origin/$(RELEASE_BRANCH) HEAD || { echo "Behind origin/$(RELEASE_BRANCH). Pull first."; exit 1; }
 
-release-major: check ## Bump major, sync, commit, tag, push
-	@echo "Current version: $(VERSION)"
-	npm version major --no-git-tag-version
-	$(MAKE) version-sync
-	$(MAKE) _release-commit
-
+# The tag and every branch named in PUSH_REFS go up in ONE atomic push: either the
+# remote gets the release commit and its tag together, or it gets neither.
 _release-commit:
 	$(eval NEW_VERSION := $(shell node -p 'require("./package.json").version'))
 	git add package.json package-lock.json server.json mcpb/manifest.json src/version.ts
@@ -203,10 +250,15 @@ _release-commit:
 	# burned a version number.
 	node scripts/check-publish-identity.cjs "v$(NEW_VERSION)"
 	git tag -a "v$(NEW_VERSION)" -m "v$(NEW_VERSION)"
-	git push && git push --tags
+	git push --atomic origin $(PUSH_REFS) "refs/tags/v$(NEW_VERSION)"
 	@echo ""
-	@echo "Released v$(NEW_VERSION). The tag push publishes it — npm, the MCP Registry"
-	@echo "and the GitHub Release all go out from CI by OIDC (ADR-105). Nothing to run."
+	@case "$(NEW_VERSION)" in \
+	  *-*) echo "Tagged candidate v$(NEW_VERSION). CI publishes it to npm under 'rc' and as a"; \
+	       echo "GitHub prerelease, and keeps it off the MCP Registry (ADR-106)."; \
+	       echo "Try it with: npx @aaronsb/google-workspace-mcp@rc";; \
+	  *)   echo "Released v$(NEW_VERSION). The tag push publishes it — npm, the MCP Registry"; \
+	       echo "and the GitHub Release all go out from CI by OIDC (ADR-105).";; \
+	esac
 	@echo ""
 	@echo "  gh run list --limit 3     # both workflows should be green"
 	@echo ""
@@ -288,7 +340,10 @@ publish-all: check-release-tag mcpb ## Publish by hand when CI cannot (normal pa
 	@# would skip the real publish. Same filter as scripts/mcp-registry-publish.sh,
 	@# which CI uses; this inline copy exists only to put the device-flow login
 	@# between the probe and the publish.
+	@# A candidate never goes to the registry (ADR-106): it would become the version
+	@# the registry advertises, and CI skips it for the same reason.
 	@name=$$(node -p "require('./server.json').name"); \
+	case "$(VERSION)" in *-*) echo "mcp: $(VERSION) is a pre-release — not published to the registry (ADR-106)"; exit 0;; esac; \
 	published=$$(curl -fsSL "https://registry.modelcontextprotocol.io/v0/servers?search=$$name&limit=100" 2>/dev/null \
 	  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const j=JSON.parse(s);console.log((j.servers||[]).filter(x=>(x.name||(x.server&&x.server.name))===process.argv[1]).map(x=>x.version||(x.server&&x.server.version)).filter(Boolean).join(" "))}catch(e){console.log("")}})' "$$name"); \
 	if echo " $$published " | grep -q " $(VERSION) "; then \
@@ -318,6 +373,7 @@ publish-all: check-release-tag mcpb ## Publish by hand when CI cannot (normal pa
 	  echo "$$bundle holds v$$packed, but this is the v$(VERSION) publish."; \
 	  echo "  Attaching it would ship the wrong code under this tag. Rebuild: make mcpb"; exit 1; \
 	fi; \
+	case "$(VERSION)" in *-*) pre=--prerelease;; *) pre=;; esac; \
 	if [ -n "$(YES)$(NOTES)" ]; then notes="$(NOTES)"; \
 	else read -p "Release notes (one line, or empty to keep the notes CI generated): " notes; fi; \
 	if gh release view "v$(VERSION)" >/dev/null 2>&1; then \
@@ -325,9 +381,9 @@ publish-all: check-release-tag mcpb ## Publish by hand when CI cannot (normal pa
 	  if [ -n "$$notes" ]; then gh release edit "v$(VERSION)" --notes "$$notes"; fi; \
 	  gh release upload "v$(VERSION)" "$$bundle" --clobber; \
 	elif [ -n "$$notes" ]; then \
-	  gh release create "v$(VERSION)" --title "v$(VERSION)" --notes "$$notes" "$$bundle"; \
+	  gh release create "v$(VERSION)" --title "v$(VERSION)" $$pre --notes "$$notes" "$$bundle"; \
 	else \
-	  gh release create "v$(VERSION)" --title "v$(VERSION)" --generate-notes "$$bundle"; \
+	  gh release create "v$(VERSION)" --title "v$(VERSION)" $$pre --generate-notes "$$bundle"; \
 	fi
 	@echo ""
 	@echo "v$(VERSION) published to all channels."
