@@ -20,6 +20,9 @@ operations:
         default: 25
         max: 100
         maps_to: pageSize
+      pageToken:
+        type: string
+        description: "Continue from where the previous page stopped: pass the nextPageToken a previous response gave (shown in its text and in refs.nextPageToken), with the same operation and the same other parameters. A response without one was the last page. Works on `getFullTranscript` and on every list operation except `activeConferences`."
 
   getConference:
     type: detail
@@ -53,6 +56,9 @@ operations:
         default: 100
         max: 250
         maps_to: pageSize
+      pageToken:
+        type: string
+        description: "Continue from where the previous page stopped: pass the nextPageToken a previous response gave (shown in its text and in refs.nextPageToken), with the same operation and the same other parameters. A response without one was the last page. Works on `getFullTranscript` and on every list operation except `activeConferences`."
 
   # --- Transcripts ---
 
@@ -66,6 +72,9 @@ operations:
         description: "Conference record ID (from `listConferences`)"
         required: true
         maps_to: parent
+      pageToken:
+        type: string
+        description: "Continue from where the previous page stopped: pass the nextPageToken a previous response gave (shown in its text and in refs.nextPageToken), with the same operation and the same other parameters. A response without one was the last page. Works on `getFullTranscript` and on every list operation except `activeConferences`."
 
   getTranscript:
     type: detail
@@ -94,6 +103,9 @@ operations:
         default: 100
         max: 100
         maps_to: pageSize
+      pageToken:
+        type: string
+        description: "Continue from where the previous page stopped: pass the nextPageToken a previous response gave (shown in its text and in refs.nextPageToken), with the same operation and the same other parameters. A response without one was the last page. Works on `getFullTranscript` and on every list operation except `activeConferences`."
 
   # --- Recordings ---
 
@@ -107,6 +119,9 @@ operations:
         description: "Conference record ID (from `listConferences`)"
         required: true
         maps_to: parent
+      pageToken:
+        type: string
+        description: "Continue from where the previous page stopped: pass the nextPageToken a previous response gave (shown in its text and in refs.nextPageToken), with the same operation and the same other parameters. A response without one was the last page. Works on `getFullTranscript` and on every list operation except `activeConferences`."
 
   getRecording:
     type: detail
@@ -132,7 +147,7 @@ operations:
         required: true
       pageToken:
         type: string
-        description: "Page token from a previous getFullTranscript call to continue reading"
+        description: "Continue from where the previous page stopped: pass the nextPageToken a previous response gave (shown in its text and in refs.nextPageToken), with the same operation and the same other parameters. A response without one was the last page. Works on `getFullTranscript` and on every list operation except `activeConferences`."
 
   # --- Smart Notes (Gemini) ---
 
@@ -146,6 +161,9 @@ operations:
         description: "Conference record ID (from `listConferences`)"
         required: true
         maps_to: parent
+      pageToken:
+        type: string
+        description: "Continue from where the previous page stopped: pass the nextPageToken a previous response gave (shown in its text and in refs.nextPageToken), with the same operation and the same other parameters. A response without one was the last page. Works on `getFullTranscript` and on every list operation except `activeConferences`."
 
   getSmartNote:
     type: detail

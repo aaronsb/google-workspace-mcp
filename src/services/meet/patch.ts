@@ -58,6 +58,57 @@ function conferenceId(name: string): string {
   return name.replace('conferenceRecords/', '');
 }
 
+/**
+ * Say when a list stopped before the end.
+ *
+ * Every Meet list method pages, and a full page reads exactly like a complete result.
+ * Without the token in the text and in refs, an agent cannot read past the first page
+ * — listTranscriptEntries used to stop at 100 entries this way (#211).
+ */
+function withPaging(response: HandlerResponse, data: unknown, ctx: PatchContext): HandlerResponse {
+  const raw = (data ?? {}) as Record<string, unknown>;
+  const nextPageToken = typeof raw.nextPageToken === 'string' ? raw.nextPageToken : '';
+  if (!nextPageToken) return response;
+  return {
+    text: `${response.text}\n\nMore results exist. Call \`${ctx.operation}\` again with the same parameters and pageToken: ${nextPageToken}`,
+    refs: { ...response.refs, nextPageToken },
+  };
+}
+
+/**
+ * The state Google reports once a transcript, recording or smart note is fully
+ * generated. Until then its destination (Doc or Drive file) is empty, and for a
+ * transcript the entries API may return only part of the meeting.
+ */
+const FILE_GENERATED = 'FILE_GENERATED';
+
+/** Format a millisecond offset as h:mm. */
+function clock(ms: number): string {
+  const totalMins = Math.max(0, Math.round(ms / 60000));
+  const hrs = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  return `${hrs}:${String(mins).padStart(2, '0')}`;
+}
+
+/**
+ * Flatten nested objects into dotted keys, so `docsDestination.exportUri` shows up
+ * instead of the whole object being skipped. Arrays are left out: none of the detail
+ * resources this renders carries one worth showing.
+ */
+function flatten(obj: Record<string, unknown>, prefix = ''): Array<[string, unknown]> {
+  const out: Array<[string, unknown]> = [];
+  for (const [key, val] of Object.entries(obj)) {
+    if (val === null || val === undefined || Array.isArray(val)) continue;
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (typeof val === 'object') {
+      out.push(...flatten(val as Record<string, unknown>, path));
+    } else {
+      out.push([path, val]);
+    }
+  }
+  return out;
+}
+
 // --- List formatters ---
 
 function formatConferenceList(data: unknown): HandlerResponse {
@@ -315,7 +366,76 @@ function formatConferenceDetail(data: unknown): HandlerResponse {
   };
 }
 
+/**
+ * getTranscript / getRecording / getSmartNote.
+ *
+ * These carry their useful parts in nested objects — `docsDestination.document` and
+ * `.exportUri` on transcripts and smart notes, `driveDestination.file` and `.exportUri`
+ * on recordings. Rendering only top-level scalars dropped exactly the fields the
+ * operations are described as returning (#211). The state comes first, because the
+ * destination is only filled in once it reads FILE_GENERATED.
+ */
+function formatArtifactDetail(data: unknown, ctx: PatchContext): HandlerResponse {
+  const raw = (data ?? {}) as Record<string, unknown>;
+  const name = String(raw.name ?? '');
+  const state = typeof raw.state === 'string' ? raw.state : '';
+  const parts: string[] = [`## ${ctx.operation.replace('get', '')}`];
+
+  if (state) parts.push(`**state:** ${state}`);
+  for (const [key, val] of flatten(raw)) {
+    if (key === 'state') continue;
+    parts.push(`**${key}:** ${val}`);
+  }
+  if (state && state !== FILE_GENERATED) {
+    parts.push('', `Not finished generating (state ${state}). The destination file is filled in once the state is ${FILE_GENERATED}; retry later.`);
+  }
+
+  return {
+    text: parts.join('\n'),
+    refs: { name, ...raw },
+  };
+}
+
 // --- Custom handlers ---
+
+/**
+ * How complete a transcript's entries are, from its `state` (#211).
+ *
+ * Right after a meeting ends the transcript reads `ENDED`, its Doc is empty, and the
+ * entries API returns only part of the meeting — with no nextPageToken, so the page
+ * looks like the whole thing. Only `FILE_GENERATED` means Google has finished. On the
+ * last page the note also gives the span the entries actually cover, measured from
+ * the last entry's end against the transcript's own start and end.
+ */
+function transcriptStatus(
+  transcript: Record<string, unknown>,
+  lastEntry: Record<string, unknown> | undefined,
+  isLastPage: boolean,
+  docsUri: unknown,
+): { note: string; state: string | null; complete: boolean | null } {
+  const state = typeof transcript.state === 'string' && transcript.state ? transcript.state : null;
+  if (!state) return { note: '', state: null, complete: null };
+
+  if (state === FILE_GENERATED) {
+    const doc = docsUri ? ` The complete copy is in Google Docs: ${String(docsUri)}` : '';
+    return { note: `**Transcript complete** (state ${state}).${doc}`, state, complete: true };
+  }
+
+  let coverage = '';
+  const start = Date.parse(String(transcript.startTime ?? ''));
+  const end = Date.parse(String(transcript.endTime ?? ''));
+  const covered = Date.parse(String(lastEntry?.endTime ?? lastEntry?.startTime ?? ''));
+  if (isLastPage && !Number.isNaN(start) && !Number.isNaN(covered)) {
+    coverage = Number.isNaN(end)
+      ? ` Entries so far cover 0:00–${clock(covered - start)}.`
+      : ` Entries cover 0:00–${clock(covered - start)} of 0:00–${clock(end - start)}.`;
+  }
+  return {
+    note: `**Transcript still processing** (state ${state}); entries may be incomplete.${coverage} Retry later.`,
+    state,
+    complete: false,
+  };
+}
 
 /**
  * getFullTranscript — chains transcripts.list → entries.list → format.
@@ -361,9 +481,11 @@ async function getFullTranscript(
   const entries = (entriesData?.transcriptEntries ?? []) as Array<Record<string, unknown>>;
 
   if (entries.length === 0) {
+    const state = typeof transcripts[0].state === 'string' ? transcripts[0].state : null;
+    const statePart = state ? ` (state ${state})` : '';
     return {
-      text: `Transcript found (${transcriptName}) but no entries available yet. The transcript may still be processing.`,
-      refs: { conferenceId: confId, transcriptName, count: 0 },
+      text: `Transcript found (${transcriptName}) but no entries available yet${statePart}. The transcript may still be processing.`,
+      refs: { conferenceId: confId, transcriptName, count: 0, state },
     };
   }
 
@@ -399,8 +521,12 @@ async function getFullTranscript(
   const isFirstPage = !pageToken;
   const isLastPage = !nextPageToken;
 
+  const status = transcriptStatus(transcripts[0], entries[entries.length - 1], isLastPage, docsUri);
+  const header = status.note ? `${status.note}\n\n` : '';
+
   const footer: string[] = [];
-  if (docsUri && (isFirstPage || isLastPage)) {
+  // A complete transcript already names its Doc in the header.
+  if (docsUri && (isFirstPage || isLastPage) && status.complete !== true) {
     footer.push(`\n\n[Full transcript in Google Docs](${docsUri})`);
   }
   if (nextPageToken) {
@@ -408,10 +534,12 @@ async function getFullTranscript(
   }
 
   return {
-    text: `## Transcript (${entries.length} entries)\n\n${blocks.join('\n\n')}${footer.join('')}`,
+    text: `## Transcript (${entries.length} entries)\n\n${header}${blocks.join('\n\n')}${footer.join('')}`,
     refs: {
       conferenceId: confId,
       transcriptName,
+      state: status.state,
+      complete: status.complete,
       count: entries.length,
       nextPageToken,
       docsUri: docsUri ?? null,
@@ -674,6 +802,36 @@ async function activeConferences(params: Record<string, unknown>, account: strin
   };
 }
 
+/** Format a Meet list response by operation. Paging is added by the caller. */
+function formatMeetList(data: unknown, ctx: PatchContext): HandlerResponse {
+  switch (ctx.operation) {
+    case 'listConferences':
+      return formatConferenceList(data);
+    case 'listParticipants':
+      return formatParticipantList(data);
+    case 'listTranscripts':
+      return formatTranscriptList(data);
+    case 'listTranscriptEntries':
+      return formatTranscriptEntries(data);
+    case 'listRecordings':
+      return formatRecordingList(data);
+    case 'listSmartNotes':
+      return formatSmartNoteList(data);
+    default: {
+      // Unknown list operation — return generic format rather than
+      // silently misformatting as a conference list
+      const raw = data as Record<string, unknown>;
+      const items = Object.values(raw).find(Array.isArray) as unknown[] ?? [];
+      return {
+        text: items.length > 0
+          ? `## Results (${items.length})\n\n${JSON.stringify(items, null, 2)}`
+          : 'No results found.',
+        refs: { count: items.length },
+      };
+    }
+  }
+}
+
 export const meetPatch: ServicePatch = {
   beforeExecute: {
     listParticipants: prefixConferenceParent,
@@ -683,54 +841,15 @@ export const meetPatch: ServicePatch = {
     getConference: prefixConferenceName,
   },
 
-  formatList: (data: unknown, ctx: PatchContext) => {
-    switch (ctx.operation) {
-      case 'listConferences':
-        return formatConferenceList(data);
-      case 'listParticipants':
-        return formatParticipantList(data);
-      case 'listTranscripts':
-        return formatTranscriptList(data);
-      case 'listTranscriptEntries':
-        return formatTranscriptEntries(data);
-      case 'listRecordings':
-        return formatRecordingList(data);
-      case 'listSmartNotes':
-        return formatSmartNoteList(data);
-      default: {
-        // Unknown list operation — return generic format rather than
-        // silently misformatting as a conference list
-        const raw = data as Record<string, unknown>;
-        const items = Object.values(raw).find(Array.isArray) as unknown[] ?? [];
-        return {
-          text: items.length > 0
-            ? `## Results (${items.length})\n\n${JSON.stringify(items, null, 2)}`
-            : 'No results found.',
-          refs: { count: items.length },
-        };
-      }
-    }
-  },
+  formatList: (data: unknown, ctx: PatchContext) => withPaging(formatMeetList(data, ctx), data, ctx),
 
   formatDetail: (data: unknown, ctx: PatchContext) => {
     switch (ctx.operation) {
       case 'getConference':
         return formatConferenceDetail(data);
-      default: {
-        // For getTranscript, getRecording, getSmartNote — default detail is fine
-        // but enrich refs with the resource name for chaining
-        const raw = data as Record<string, unknown>;
-        const name = String(raw.name ?? '');
-        const parts: string[] = [`## ${ctx.operation.replace('get', '')}`];
-        for (const [key, val] of Object.entries(raw)) {
-          if (val === null || val === undefined || typeof val === 'object') continue;
-          parts.push(`**${key}:** ${val}`);
-        }
-        return {
-          text: parts.join('\n'),
-          refs: { name, ...raw },
-        };
-      }
+      default:
+        // getTranscript, getRecording, getSmartNote
+        return formatArtifactDetail(data, ctx);
     }
   },
 
