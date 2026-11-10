@@ -129,6 +129,21 @@ describe('the draft-only-email bypass', () => {
     expect(sendMail).not.toHaveBeenCalled();
   });
 
+  // draft-only-email allows `send` when params.draft is true (#216), but the email
+  // adapter sends regardless of draft. The target stays blocked only because
+  // checkWritePolicy passes empty params; this pins that, so forwarding targetParams
+  // into the policy check cannot quietly open a send path (ADR-203 names it).
+  it('still blocks the email target when targetParams carries draft: true', async () => {
+    const id = scratchpadWith('content');
+    const result = await handleScratchpad({
+      operation: 'send', scratchpadId: id, target: 'email',
+      targetParams: { email: ACCOUNT, to: 'a@b.com', subject: 's', draft: true },
+    });
+
+    expect(result.text).toContain('Blocked by safety policy');
+    expect(sendMail).not.toHaveBeenCalled();
+  });
+
   it('still allows a draft, which is what the policy permits', async () => {
     const id = scratchpadWith('content');
     const result = await handleScratchpad({
