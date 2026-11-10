@@ -149,6 +149,10 @@ jobs:
     # entry first would point people at a tarball that does not exist yet. `needs` is the
     # ordering; it is not decoration.
     needs: publish
+    # A release candidate (any tag with a `-`, e.g. v4.9.0-rc.0) is published to npm
+    # under `rc` but never here: the registry has no dist-tags, so a candidate entry
+    # would become the version it advertises to everyone. ADR-106.
+    if: ${{ !contains(github.ref_name, '-') }}
     permissions:
       contents: read
       id-token: write   # same OIDC token as the npm job; mcp-publisher reads it from the runner

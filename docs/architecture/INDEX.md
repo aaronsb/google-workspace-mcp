@@ -24,6 +24,7 @@ _Architecture, tool design, executor patterns_
 | [ADR-103](./core/ADR-103-generate-a-google-api-descriptor-retire-the-gws-facade.md) | Generate a Google API descriptor from Discovery; retire the gws facade | accepted |
 | [ADR-104](./core/ADR-104-exit-when-the-mcp-client-goes-away.md) | Exit when the MCP client goes away | accepted |
 | [ADR-105](./core/ADR-105-publish-to-npm-from-ci-with-trusted-publishing-not-a-token-or-a-security-key.md) | Publish to npm from CI with trusted publishing, not a token or a security key | accepted |
+| [ADR-106](./core/ADR-106-release-candidates-tagged-on-main-promoted-by-a-release-tag.md) | Release candidates tagged on main, promoted by a release tag | accepted |
 
 ## Authentication
 _OAuth, credential management, multi-account_

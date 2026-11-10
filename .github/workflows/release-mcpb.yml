@@ -19,6 +19,8 @@ jobs:
       contents: write  # needed for gh release upload
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # the release-notes range below needs every tag
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
@@ -48,7 +50,17 @@ jobs:
       - name: Create GitHub Release (if not exists)
         run: |
           TAG="${GITHUB_REF_NAME}"
-          gh release view "$TAG" 2>/dev/null || gh release create "$TAG" --title "$TAG" --generate-notes
+          # A release candidate (any tag with a `-`) is a GitHub prerelease, so it never
+          # becomes the repository's "Latest" release. ADR-106.
+          PRE=""
+          case "$TAG" in *-*) PRE="--prerelease" ;; esac
+          # Notes run from the previous FULL release, for candidates and releases alike.
+          # Left to pick its own start, --generate-notes may start at the last candidate,
+          # and a release's notes would then list only its own version-bump commit.
+          PREV=$(git tag -l 'v[0-9]*' --sort=-v:refname | grep -v -- - | grep -vxF "$TAG" | head -1)
+          START=""
+          [ -n "$PREV" ] && START="--notes-start-tag $PREV"
+          gh release view "$TAG" 2>/dev/null || gh release create "$TAG" --title "$TAG" $PRE --generate-notes $START
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
