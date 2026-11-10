@@ -60,6 +60,10 @@ async function checkWritePolicy(intent: string, account: string): Promise<Handle
   const op = WRITE_INTENT[intent];
   if (!op || !account) return null;
 
+  // params stays EMPTY on purpose. draft-only-email allows `send` when params.draft is
+  // true (the Gmail handlers then only draft), but the `email` adapter sends whatever
+  // targetParams says. Passing targetParams here would let `draft: true` through to a
+  // real send. write-policy.test.ts pins this.
   const result = await evaluatePolicies([], { operation: op.operation, params: {}, account }, op.googleService, op);
   if (result.action !== 'block') return null;
 

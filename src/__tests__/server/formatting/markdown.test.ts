@@ -68,6 +68,7 @@ describe('formatEmailDetail', () => {
     });
     expect(result.text).toContain('## Test');
     expect(result.text).toContain('**From:** alice@test.com');
+    expect(result.text).toContain('**Date:** 2026-03-14');
     expect(result.text).toContain('**Labels:** INBOX');
     expect(result.text).toContain('Preview');
     expect(result.refs.from).toBe('alice@test.com');
