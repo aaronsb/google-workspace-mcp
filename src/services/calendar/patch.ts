@@ -213,6 +213,7 @@ async function removeMeetLink(
   eventId: string,
   changes: Record<string, unknown>,
   account: string,
+  sendUpdates: SendUpdates,
 ): Promise<Record<string, unknown>> {
   const existing = await call('calendar', 'events.get',
     { calendarId, eventId }, { account }) as Record<string, unknown>;
@@ -224,9 +225,30 @@ async function removeMeetLink(
     calendarId,
     eventId,
     conferenceDataVersion: 1,
+    sendUpdates,
     ...preserved,
     ...changes,
   }, { account }) as Record<string, unknown>;
+}
+
+/**
+ * Who Google emails about an event write: `create`, `update` and `delete` here, and
+ * `quickAdd` through the manifest default.
+ *
+ * Leave `sendUpdates` off and the Calendar API emails nobody: the guests are on the
+ * event, but no invitation, update or cancellation goes out, and the call succeeds
+ * without saying so. A caller who names guests means to invite them, so the default
+ * here is 'all'; 'none' is one parameter away.
+ */
+const SEND_UPDATES = ['all', 'externalOnly', 'none'] as const;
+type SendUpdates = typeof SEND_UPDATES[number];
+
+function sendUpdatesParam(params: Record<string, unknown>): SendUpdates {
+  const value = params.sendUpdates ?? 'all';
+  if (!(SEND_UPDATES as readonly unknown[]).includes(value)) {
+    throw new Error(`sendUpdates must be one of ${SEND_UPDATES.join(', ')} (got ${JSON.stringify(value)})`);
+  }
+  return value as SendUpdates;
 }
 
 export const calendarPatch: ServicePatch = {
@@ -387,7 +409,7 @@ export const calendarPatch: ServicePatch = {
 
       // Attendees are an ARRAY OF OBJECTS in the event body, not a repeated scalar.
       // All-day events use `date` (YYYY-MM-DD); timed ones use `dateTime` (RFC 3339).
-      const body: Record<string, unknown> = { calendarId, summary };
+      const body: Record<string, unknown> = { calendarId, summary, sendUpdates: sendUpdatesParam(params) };
       if (allDay) {
         body.start = { date: allDayDate(start) };
         // The Calendar API's all-day end date is EXCLUSIVE — one day after the
@@ -447,7 +469,8 @@ export const calendarPatch: ServicePatch = {
     delete: async (params, account): Promise<HandlerResponse> => {
       const eventId = requireString(params, 'eventId');
       const calendarId = (params.calendarId as string) || 'primary';
-      await call('calendar', 'events.delete', { calendarId, eventId }, { account });
+      await call('calendar', 'events.delete',
+        { calendarId, eventId, sendUpdates: sendUpdatesParam(params) }, { account });
       return {
         text: `Event deleted: ${eventId}`,
         refs: { eventId, status: 'deleted' },
@@ -587,7 +610,8 @@ export const calendarPatch: ServicePatch = {
       }
 
       // Build --params: note the conferenceDataVersion=1 requirement when creating a Meet link.
-      const queryParams: Record<string, unknown> = { calendarId, eventId };
+      const sendUpdates = sendUpdatesParam(params);
+      const queryParams: Record<string, unknown> = { calendarId, eventId, sendUpdates };
 
       // Optional Meet link.
       //
@@ -631,7 +655,7 @@ export const calendarPatch: ServicePatch = {
       }
 
       const data = removingMeet
-        ? await removeMeetLink(calendarId, eventId, body, account)
+        ? await removeMeetLink(calendarId, eventId, body, account, sendUpdates)
         : await call('calendar', 'events.patch', {
           ...queryParams,
           ...body,

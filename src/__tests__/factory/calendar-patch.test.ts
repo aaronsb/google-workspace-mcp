@@ -18,6 +18,7 @@ import {
 } from '../server/handlers/__mocks__/fixtures.js';
 import { requestFor, queryOf } from '../support/request.js';
 import { calendarPatch } from '../../services/calendar/patch.js';
+import { loadManifest, buildResourceParams } from '../../factory/generator.js';
 import type { PatchContext } from '../../factory/types.js';
 
 function ctx(overrides: Partial<PatchContext> = {}): PatchContext {
@@ -606,7 +607,7 @@ describe('calendarPatch', () => {
       expect(service).toBe('calendar');
       expect(resourcePath).toBe('events.patch');
       expect(options).toMatchObject({ account: 'user@test.com' });
-      expect(params).toEqual({ calendarId: 'primary', eventId: 'evt-1', summary: 'New title' });
+      expect(params).toEqual({ calendarId: 'primary', eventId: 'evt-1', sendUpdates: 'all', summary: 'New title' });
 
       // The manifest-driven path would have sent an empty body and Google would
       // have returned 200 without applying anything. Assert the split explicitly.
@@ -879,11 +880,92 @@ describe('calendarPatch', () => {
       expect(mockCall).toHaveBeenCalledWith(
         'calendar',
         'events.delete',
-        { calendarId: 'primary', eventId: 'evt-1' },
+        { calendarId: 'primary', eventId: 'evt-1', sendUpdates: 'all' },
         expect.objectContaining({ account: 'user@test.com' }),
       );
       expect(result.text).toContain('Event deleted: evt-1');
       expect(result.refs.status).toBe('deleted');
+    });
+  });
+
+  describe('sendUpdates (who Google emails)', () => {
+    // Without sendUpdates the Calendar API emails nobody: an event created "with guests"
+    // has them on it, but no invitation goes out, and the call still returns 200.
+    // sendUpdates is a QUERY param on every event write, per the descriptor.
+
+    it('emails every guest on create by default', async () => {
+      mockCall.mockResolvedValue(calendarInsertResponse);
+      await calendarPatch.customHandlers!.create(
+        { summary: 'Review', start: 'X', end: 'Y', attendees: 'a@test.com, b@test.com' },
+        'user@test.com',
+      );
+
+      const request = await requestFor('calendar', 'events.insert', mockCall.mock.calls[0][2]);
+      expect(queryOf(request).sendUpdates).toBe('all');
+      expect(request.body!.sendUpdates).toBeUndefined();
+      expect(request.body!.attendees).toEqual([{ email: 'a@test.com' }, { email: 'b@test.com' }]);
+    });
+
+    it('passes the caller\'s choice through on create', async () => {
+      mockCall.mockResolvedValue(calendarInsertResponse);
+      await calendarPatch.customHandlers!.create(
+        { summary: 'Review', start: 'X', end: 'Y', attendees: 'a@test.com', sendUpdates: 'none' },
+        'user@test.com',
+      );
+
+      const request = await requestFor('calendar', 'events.insert', mockCall.mock.calls[0][2]);
+      expect(queryOf(request).sendUpdates).toBe('none');
+    });
+
+    it('emails guests about an update by default, and honours externalOnly', async () => {
+      mockCall.mockResolvedValue({ id: 'evt-1', summary: 'Moved' });
+      await calendarPatch.customHandlers!.update({ eventId: 'evt-1', summary: 'Moved' }, 'user@test.com');
+      await calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', summary: 'Moved', sendUpdates: 'externalOnly' }, 'user@test.com',
+      );
+
+      const first = await requestFor('calendar', 'events.patch', mockCall.mock.calls[0][2]);
+      expect(first.method).toBe('PATCH');
+      expect(queryOf(first).sendUpdates).toBe('all');
+      const second = await requestFor('calendar', 'events.patch', mockCall.mock.calls[1][2]);
+      expect(queryOf(second).sendUpdates).toBe('externalOnly');
+    });
+
+    it('carries sendUpdates through the full update that removes a Meet link', async () => {
+      mockCall
+        .mockResolvedValueOnce({ id: 'evt-1', summary: 'Standup', hangoutLink: 'https://meet.google.com/abc' })
+        .mockResolvedValueOnce({ id: 'evt-1', summary: 'Standup' });
+
+      await calendarPatch.customHandlers!.update(
+        { eventId: 'evt-1', meet: false, sendUpdates: 'none' }, 'user@test.com',
+      );
+
+      expect(mockCall.mock.calls[1][1]).toBe('events.update');
+      const request = await requestFor('calendar', 'events.update', mockCall.mock.calls[1][2]);
+      expect(queryOf(request).sendUpdates).toBe('none');
+    });
+
+    it('lets delete skip the cancellation email', async () => {
+      mockCall.mockResolvedValue({});
+      await calendarPatch.customHandlers!.delete({ eventId: 'evt-1', sendUpdates: 'none' }, 'user@test.com');
+
+      const request = await requestFor('calendar', 'events.delete', mockCall.mock.calls[0][2]);
+      expect(queryOf(request).sendUpdates).toBe('none');
+    });
+
+    it('rejects an unknown value before anything reaches Google', async () => {
+      await expect(calendarPatch.customHandlers!.create(
+        { summary: 'Review', start: 'X', end: 'Y', sendUpdates: 'everyone' }, 'user@test.com',
+      )).rejects.toThrow('sendUpdates must be one of all, externalOnly, none');
+      expect(mockCall).not.toHaveBeenCalled();
+    });
+
+    it('defaults to all on quickAdd, which the manifest maps straight to Google', async () => {
+      const quickAdd = loadManifest().services.calendar.operations.quickAdd;
+      const params = buildResourceParams(quickAdd, { text: 'Lunch with Alice tomorrow at noon' });
+
+      const request = await requestFor('calendar', 'events.quickAdd', params);
+      expect(queryOf(request).sendUpdates).toBe('all');
     });
   });
   describe('colour, recurrence and time zone', () => {
