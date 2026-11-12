@@ -626,10 +626,12 @@ export const drivePatch: ServicePatch = {
         fileId,
         supportsAllDrives: true,
       };
-      // Skip the noisy "notify by email" default — the caller didn't ask for it.
+      // Google emails the person by default. Stay quiet unless the caller asks with
+      // notify: true. Only user and group shares can carry the email.
       if (type === 'user' || type === 'group') {
-        queryParams.sendNotificationEmail = false;
+        queryParams.sendNotificationEmail = params.notify === true;
       }
+      const notified = queryParams.sendNotificationEmail === true;
 
       const data = await call('drive', 'permissions.create', {
         ...queryParams,
@@ -644,7 +646,7 @@ export const drivePatch: ServicePatch = {
             : 'anyone with the link';
 
       return {
-        text: `File shared with **${target}** as ${role} (${type}).\n\n` +
+        text: `File shared with **${target}** as ${role} (${type}).${notified ? ' They were emailed.' : ''}\n\n` +
           `**File ID:** ${fileId}\n` +
           `**Permission ID:** ${data.id ?? 'unknown'}`,
         refs: { fileId, permissionId: data.id, role, type, target },

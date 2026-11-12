@@ -240,6 +240,34 @@ describe('drivePatch custom handlers', () => {
       const query = queryOf(await requestFor('drive', 'permissions.create', mockCall.mock.calls[0][2]));
       expect(query.sendNotificationEmail).toBe('false');
     });
+
+    it('emails the person when notify: true, and says so', async () => {
+      mockCall.mockResolvedValueOnce({ id: 'perm-1' });
+
+      const handler = drivePatch.customHandlers!.share!;
+      const result = await handler(
+        { fileId: 'file-1', shareEmail: 'bob@test.com', notify: true },
+        'user@test.com',
+      );
+
+      const query = queryOf(await requestFor('drive', 'permissions.create', mockCall.mock.calls[0][2]));
+      expect(query.sendNotificationEmail).toBe('true');
+      expect(result.text).toContain('They were emailed.');
+    });
+
+    it('sends no notification flag for domain or anyone shares, even with notify: true', async () => {
+      // Google rejects sendNotificationEmail on anything but a user or group share.
+      mockCall.mockResolvedValueOnce({ id: 'perm-1' });
+
+      const handler = drivePatch.customHandlers!.share!;
+      const result = await handler(
+        { fileId: 'file-1', type: 'anyone', notify: true },
+        'user@test.com',
+      );
+
+      expect(mockCall.mock.calls[0][2].sendNotificationEmail).toBeUndefined();
+      expect(result.text).not.toContain('emailed');
+    });
   });
 
   describe('listPermissions', () => {
