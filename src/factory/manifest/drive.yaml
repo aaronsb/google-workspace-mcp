@@ -242,6 +242,9 @@ operations:
       domain:
         type: string
         description: "Domain name (required when type is 'domain')."
+      notify:
+        type: boolean
+        description: "On `share` with a user or group, true has Google email them that the file was shared. Default false: access is granted quietly and nobody is told."
     defaults:
       supportsAllDrives: true
 

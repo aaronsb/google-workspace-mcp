@@ -110,6 +110,11 @@ operations:
       timeZone:
         type: string
         description: "IANA time zone of start and end for a timed event, such as Europe/Amsterdam. Required when `recurrence` is set on a timed event, because Google expands the rule in that zone; otherwise optional (without it, start and end carry their own UTC offset). Ignored for all-day events."
+      sendUpdates:
+        type: string
+        enum: [all, externalOnly, none]
+        default: all
+        description: "Who Google emails about this change, on `create`, `quickAdd`, `update` and `delete`. 'all' (default) emails every guest an invitation, update or cancellation; 'externalOnly' emails only guests outside your Google Workspace domain; 'none' sends no email."
 
   quickAdd:
     type: action
@@ -123,6 +128,11 @@ operations:
         type: string
         description: "Natural language event description"
         required: true
+      sendUpdates:
+        type: string
+        enum: [all, externalOnly, none]
+        default: all
+        description: "Who Google emails about this change, on `create`, `quickAdd`, `update` and `delete`. 'all' (default) emails every guest an invitation, update or cancellation; 'externalOnly' emails only guests outside your Google Workspace domain; 'none' sends no email."
     defaults:
       calendarId: primary
 
@@ -171,6 +181,11 @@ operations:
       timeZone:
         type: string
         description: "IANA time zone of start and end for a timed event, such as Europe/Amsterdam. Required when `recurrence` is set on a timed event, because Google expands the rule in that zone; otherwise optional (without it, start and end carry their own UTC offset). Ignored for all-day events."
+      sendUpdates:
+        type: string
+        enum: [all, externalOnly, none]
+        default: all
+        description: "Who Google emails about this change, on `create`, `quickAdd`, `update` and `delete`. 'all' (default) emails every guest an invitation, update or cancellation; 'externalOnly' emails only guests outside your Google Workspace domain; 'none' sends no email."
     defaults:
       calendarId: primary
 
@@ -186,6 +201,11 @@ operations:
         type: string
         description: "Event ID"
         required: true
+      sendUpdates:
+        type: string
+        enum: [all, externalOnly, none]
+        default: all
+        description: "Who Google emails about this change, on `create`, `quickAdd`, `update` and `delete`. 'all' (default) emails every guest an invitation, update or cancellation; 'externalOnly' emails only guests outside your Google Workspace domain; 'none' sends no email."
     defaults:
       calendarId: primary
 
