@@ -128,18 +128,17 @@ Node 18 and Node 20 are both end-of-life (April 2025 and April 2026).
 
 1. Update documentation for any new features or changes
 2. Ensure all tests pass locally
-3. Update CHANGELOG.md if applicable
-4. Submit PR with clear description of changes
-5. Address any review feedback
-6. Ensure CI checks pass
-7. Squash commits if requested
+3. Submit PR with clear description of changes
+4. Address any review feedback
+5. Ensure CI checks pass
+6. Squash commits if requested
 
 ## Additional Resources
 
-- [Architecture Documentation](ARCHITECTURE.md)
-- [API Documentation](docs/API.md)
-- [Error Handling](docs/ERRORS.md)
-- [Examples](docs/EXAMPLES.md)
+- **[How it works](docs/how-it-works.md)** — the build-time / runtime split, the descriptor, the factory
+- **[API coverage](docs/coverage.md)** — what's exposed, what isn't, and how to ask for more
+- **[The full API surface](docs/api-surface.md)** — every method Google publishes, plus the three APIs we don't target yet
+- **[Architecture decisions](docs/architecture/)** — the ADRs, including why this server owns its Google client outright
 
 ## Questions or Need Help?
 

@@ -23,6 +23,9 @@ jobs:
     - run: node scripts/check-test-gates.mjs
     # The floor we publish, execute, and enforce at startup must be ONE number.
     - run: node scripts/check-node-floor.mjs
+    # A relative link in the Markdown must point at a file that exists. CONTRIBUTING.md
+    # once linked four documents that never did (#224).
+    - run: node scripts/check-doc-links.mjs
     - run: npm test
 
   type-check:
