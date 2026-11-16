@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help test test-all test-unit test-integration build clean typecheck lint smoke smoke-reject smoke-orphan check-gates check-node-floor \
+.PHONY: help test test-all test-unit test-integration build clean typecheck lint smoke smoke-reject smoke-orphan check-gates check-node-floor check-doc-links \
         manifest-lint check-write-ops \
         coverage coverage-update \
         mcpb version-sync publish-all \
@@ -63,6 +63,12 @@ check-gates: ## Assert every test file is COLLECTED by some gate
 check-node-floor: ## Assert the Node floor agrees everywhere it is declared
 	node scripts/check-node-floor.mjs
 
+# Prose has no compiler. CONTRIBUTING.md linked four documents that did not exist, and
+# nothing noticed until a reader followed them (#224). This catches a relative link to a
+# missing file; a file named in plain text or a code block is still not covered.
+check-doc-links: ## Assert every relative Markdown link resolves to a file
+	node scripts/check-doc-links.mjs
+
 # Depends on build: smoking a stale build/ is exactly the "measured the wrong
 # artifact" failure this whole branch is about.
 smoke: build ## Start the built server on a foreign cwd and assert it loads its tools
@@ -83,7 +89,7 @@ smoke-orphan: build ## Assert an orphaned server exits instead of pegging a CPU 
 # Mirrors CI. `lint` used to be in the help text but not the prerequisites, so a
 # contributor could go green locally and red in CI on a job this target claimed
 # to cover.
-check: typecheck lint check-gates check-node-floor check-write-ops test build smoke smoke-orphan ## Type-check, lint, test, build, smoke (CI gate)
+check: typecheck lint check-gates check-node-floor check-doc-links check-write-ops test build smoke smoke-orphan ## Type-check, lint, test, build, smoke (CI gate)
 
 clean: ## Remove build artifacts
 	rm -rf build/ mcpb/server mcpb/LICENSE mcpb/NOTICE mcpb/LICENSE-MIT *.mcpb
