@@ -75,4 +75,4 @@ The server generates its API client from Google's own Discovery documents and ca
 
 On top of that sits the manifest-driven tool factory: adding an operation is a YAML edit, not a code change. The coverage mapper reads Google's real published surface, so "what we expose vs what exists" is a measured number.
 
-The reasoning behind this design, including what was verified and what it cost, is in **[ADR-103](docs/architecture/core/ADR-103-generate-a-google-api-descriptor-retire-the-gws-facade.md)**.
+The reasoning behind this design, including what was verified and what it cost, is in **[ADR-103](architecture/core/ADR-103-generate-a-google-api-descriptor-retire-the-gws-facade.md)**.
