@@ -18,8 +18,8 @@ Thank you for your interest in contributing to the Google Workspace MCP project!
 
 4. Set up Google Cloud OAuth credentials:
    - Create OAuth 2.0 credentials in Google Cloud Console
-   - **Important**: Choose "Web application" type (not Desktop)
-   - Set redirect URI to: `http://localhost:8080`
+   - **Important**: Choose "Desktop app" type (not Web application)
+   - Enable the APIs you want to use, as listed in the README's [Install](README.md#install) section
    - Note your Client ID and Client Secret
 
 5. Run the container with your Google API credentials:
@@ -47,8 +47,8 @@ docker run -i --rm \
 
 **Key Development Notes**:
 - Port mapping `-p 8080:8080` is required for OAuth callback handling
-- OAuth credentials must be "Web application" type with `http://localhost:8080` redirect URI
-- The callback server automatically starts when the OAuth client initializes
+- OAuth credentials must be "Desktop app" type; no redirect URI needs to be registered
+- The callback server starts on `127.0.0.1`, on a random port, when you authenticate an account, and stops once the browser callback arrives
 
 ## Development Workflow
 
