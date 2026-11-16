@@ -6,47 +6,26 @@ Thank you for your interest in contributing to the Google Workspace MCP project!
 
 1. Fork and clone the repository
 
-2. Build the development Docker image:
+2. Install dependencies and build (needs Node 22.12 or newer; see [Node version](#node-version)):
    ```bash
-   docker build -t google-workspace-mcp:local .
+   npm ci
+   npm run build
    ```
 
-3. Create a local config directory:
-   ```bash
-   mkdir -p ~/.mcp/google-workspace-mcp
-   ```
-
-4. Set up Google Cloud OAuth credentials:
+3. Set up Google Cloud OAuth credentials:
    - Create OAuth 2.0 credentials in Google Cloud Console
    - **Important**: Choose "Web application" type (not Desktop)
    - Set redirect URI to: `http://localhost:8080`
    - Note your Client ID and Client Secret
 
-5. Run the container with your Google API credentials:
+4. Run the server with your Google API credentials:
    ```bash
-   docker run -i --rm \
-     -p 8080:8080 \
-     -v ~/.mcp/google-workspace-mcp:/app/config \
-     -e GOOGLE_CLIENT_ID=your_client_id \
-     -e GOOGLE_CLIENT_SECRET=your_client_secret \
-     -e LOG_MODE=strict \
-     google-workspace-mcp:local
+   GOOGLE_CLIENT_ID=your_client_id \
+   GOOGLE_CLIENT_SECRET=your_client_secret \
+   node build/index.js
    ```
 
-Note: For local development, you can also mount the source code directory:
-```bash
-docker run -i --rm \
-  -p 8080:8080 \
-  -v ~/.mcp/google-workspace-mcp:/app/config \
-  -v $(pwd)/src:/app/src \
-  -e GOOGLE_CLIENT_ID=your_client_id \
-  -e GOOGLE_CLIENT_SECRET=your_client_secret \
-  -e LOG_MODE=strict \
-  google-workspace-mcp:local
-```
-
 **Key Development Notes**:
-- Port mapping `-p 8080:8080` is required for OAuth callback handling
 - OAuth credentials must be "Web application" type with `http://localhost:8080` redirect URI
 - The callback server automatically starts when the OAuth client initializes
 
@@ -63,14 +42,11 @@ docker run -i --rm \
 3. Write/update tests as needed
 4. Build and test your changes:
    ```bash
-   # Build the development image
-   docker build -t google-workspace-mcp:local .
+   # Build
+   make build
 
-   # Run tests in container
-   docker run -i --rm \
-     -v $(pwd):/app \
-     google-workspace-mcp:local \
-     npm test
+   # Run tests
+   make test
    ```
 5. Commit your changes using conventional commit messages:
    ```
