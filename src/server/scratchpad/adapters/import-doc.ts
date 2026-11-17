@@ -10,7 +10,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { call, download } from '../../../google/client.js';
-import { resolveWorkspacePath } from '../../../executor/workspace.js';
+import { resolveWorkspacePath, verifyPathSafety } from '../../../executor/workspace.js';
 import { ensureWorkspaceDir } from '../../../executor/workspace.js';
 import type { HandlerResponse } from '../../handler.js';
 import type { ScratchpadManager } from '../manager.js';
@@ -164,14 +164,21 @@ async function stripBase64Images(
     return { cleanedLines: markdown.split('\n'), attachmentCount: 0 };
   }
 
-  await ensureWorkspaceDir();
+  const wsStatus = await ensureWorkspaceDir();
+  if (!wsStatus.valid) {
+    throw new Error(`Workspace directory invalid: ${wsStatus.warning}`);
+  }
+  // Check every image path before writing any, so a refused import leaves nothing behind
+  const shortId = scratchpadId.replace('sp-', '');
+  const filenames = matches.map(({ mimeType }, i) => `${shortId}-image-${i + 1}.${mimeType.split('/')[1] ?? 'png'}`);
+  for (const filename of filenames) {
+    await verifyPathSafety(resolveWorkspacePath(filename));
+  }
   let cleaned = markdown;
 
   for (let i = 0; i < matches.length; i++) {
     const { full, alt, mimeType, data } = matches[i];
-    const ext = mimeType.split('/')[1] ?? 'png';
-    const shortId = scratchpadId.replace('sp-', '');
-    const filename = `${shortId}-image-${i + 1}.${ext}`;
+    const filename = filenames[i];
 
     // Decode and write to workspace
     const buffer = Buffer.from(data.replace(/\s/g, ''), 'base64');
