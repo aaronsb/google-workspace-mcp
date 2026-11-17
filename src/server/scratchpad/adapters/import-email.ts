@@ -5,7 +5,7 @@
 
 import * as fs from 'node:fs/promises';
 import { call } from '../../../google/client.js';
-import { ensureWorkspaceDir, resolveWorkspacePath } from '../../../executor/workspace.js';
+import { ensureWorkspaceDir, resolveWorkspacePath, verifyPathSafety } from '../../../executor/workspace.js';
 import { extractBodyFromPayload, extractAttachments } from '../../formatting/markdown.js';
 import type { HandlerResponse } from '../../handler.js';
 import type { ScratchpadManager } from '../manager.js';
@@ -40,6 +40,14 @@ export async function importEmail(
       };
     }
 
+    // Check the workspace before changing the scratchpad, so a refused import changes nothing
+    if (includeAttachments && payload?.parts && extractAttachments(payload.parts as unknown[]).length > 0) {
+      const wsStatus = await ensureWorkspaceDir();
+      if (!wsStatus.valid) {
+        throw new Error(`Workspace directory invalid: ${wsStatus.warning}`);
+      }
+    }
+
     const lines = body.split('\n');
     scratchpads.appendRawLines(scratchpadId, lines);
 
@@ -48,8 +56,6 @@ export async function importEmail(
     if (includeAttachments && payload?.parts) {
       const emailAttachments = extractAttachments(payload.parts as unknown[]);
       if (emailAttachments.length > 0) {
-        await ensureWorkspaceDir();
-
         for (const att of emailAttachments) {
           try {
             // Download attachment data
@@ -65,6 +71,7 @@ export async function importEmail(
             const shortId = scratchpadId.replace('sp-', '');
             const safeFilename = `${shortId}-${att.filename}`;
             const filePath = resolveWorkspacePath(safeFilename);
+            await verifyPathSafety(filePath);
             await fs.writeFile(filePath, buffer);
 
             // Register in scratchpad
